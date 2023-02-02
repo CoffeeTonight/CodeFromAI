@@ -36,6 +36,7 @@ function! XP()
     let s:wXPMODE = FindWindowWithFile("xpg.txt")
     if s:wXPMODE == -1
         call SplitAndOpenFile("xpg.txt")
+        let s:wXPMODE = FindWindowWithFile("xpg.txt")
     else
         echo "Already in XP mode !!"
     endif

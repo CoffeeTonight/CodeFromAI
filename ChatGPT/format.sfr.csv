@@ -1,0 +1,8 @@
+| MainGroup  | 2                  | 0x40       | SubGroup1     | 4                     | 0x10          | REG1          | 0x1000       | 0x00   | FIELD1    | [7:0]     | 0x00          | R/W         | Control bits for module |
+|            ||||| REG1          |||| 0x00   FIELD2    [15:8]    0x01          R/W         Status bits for module |
+|            ||||| REG2          |||| 0x10   FIELD1    [7:0]     0x00          R/W         Control bits for module |
+|            ||||| REG2          |||| 0x10   FIELD2    [15:8]    0x01          R/W         Status bits for module |
+|            ||||| REG3          |||| 0x20   FIELD1    [7:0]     0x00          R/W         Control bits for module |
+|            ||||| REG3          |||| 0x20   FIELD2    [15:8]    0x01          R/W         Status bits for module |
+|            ||||| REG4          |||| 0x30   FIELD1    [7:0]     0x00          R/W         Control bits for module |
+|            ||||| REG4          |||| 0x30   FIELD2    [15:8]    0x01          R/W         Status bits for module |

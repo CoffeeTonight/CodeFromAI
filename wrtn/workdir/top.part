@@ -1,0 +1,34 @@
+hierarchy = {
+    "top": {
+        "inputs": [
+            {"name": "clk", "data_type": "wire", "width": 1},
+            {"name": "in1", "data_type": "wire", "width": 4},
+            {"name": "in2", "data_type": "wire", "width": 4},
+            {"name": "op", "data_type": "wire", "width": 2}
+        ],
+        "outputs": [
+            {"name": "out", "data_type": "wire", "width": 4},
+            {"name": "zero", "data_type": "wire", "width": 1}
+        ],
+        "instances": {
+            "alu_instance": {
+                "module_name": "alu",
+                "connections": {
+                    "a": "in1",
+                    "b": "in2",
+                    "op": "op",
+                    "result": "alu_result",
+                    "zero": "zero"
+                }
+            },
+            "reg_instance": {
+                "module_name": "register",
+                "connections": {
+                    "clk": "clk",
+                    "d": "alu_result",
+                    "q": "out"
+                }
+            }
+        }
+    }
+}

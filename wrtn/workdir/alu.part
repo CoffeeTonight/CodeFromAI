@@ -1,0 +1,14 @@
+hierarchy = {
+    "alu": {
+        "inputs": [
+            {"name": "a", "data_type": "wire", "width": 4},
+            {"name": "b", "data_type": "wire", "width": 4},
+            {"name": "op", "data_type": "wire", "width": 2}
+        ],
+        "outputs": [
+            {"name": "result", "data_type": "wire", "width": 4},
+            {"name": "zero", "data_type": "wire", "width": 1}
+        ],
+        "instances": {}
+    }
+    }

@@ -1,0 +1,33 @@
+{
+    "top": {
+        "name": "top",
+        "instances": {
+            "alu_instance": {
+                "module_name": "alu",
+                "connections": {
+                    "a": "in1",
+                    "b": "in2",
+                    "op": "op",
+                    "result": "alu_result",
+                    "zero": "zero"
+                }
+            },
+            "reg_instance": {
+                "module_name": "register",
+                "connections": {
+                    "clk": "clk",
+                    "d": "alu_result",
+                    "q": "out"
+                }
+            }
+        }
+    },
+    "register": {
+        "name": "register",
+        "instances": {}
+    },
+    "alu": {
+        "name": "alu",
+        "instances": {}
+    }
+}

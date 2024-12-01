@@ -1,0 +1,11 @@
+hierarchy = {
+    "register": {
+        "inputs": [
+            {"name": "clk", "data_type": "wire", "width": 1},
+            {"name": "d", "data_type": "wire", "width": 4}
+        ],
+        "outputs": [
+            {"name": "q", "data_type": "reg", "width": 4}
+        ],
+        "instances": {}
+    }}

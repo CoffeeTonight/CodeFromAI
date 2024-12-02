@@ -1,5 +1,10 @@
-hierarchy = {
+{"instances": {
+    "module_name": "module",
+    "depth": 0,
+    "instances": {
     "alu": {
+        "module_name": "alu",
+        "depth": 1,
         "inputs": [
             {"name": "a", "data_type": "wire", "width": 4},
             {"name": "b", "data_type": "wire", "width": 4},
@@ -9,6 +14,14 @@ hierarchy = {
             {"name": "result", "data_type": "wire", "width": 4},
             {"name": "zero", "data_type": "wire", "width": 1}
         ],
-        "instances": {}
-    }
-    }
+        "instances": {
+            "depth": 2,
+            "uMUX": {
+                "module_name": "mux2x1",
+                "connections": {
+                    "a": "in1",
+                    "b": "in2",
+                    "sel": "op"
+                }
+            }
+    }}}}}

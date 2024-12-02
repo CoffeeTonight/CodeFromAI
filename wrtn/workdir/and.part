@@ -1,19 +1,19 @@
 {"instances": {
     "module_name": "module",
     "depth": 0,
-    "instances":{"register": {
+    "instances":{"and": {
         "depth": 1,
-        "module_name": "register",
+        "module_name": "and",
         "inputs": [
-            {"name": "clk", "data_type": "wire", "width": 1},
-            {"name": "d", "data_type": "wire", "width": 4}
+            {"name": "d0", "data_type": "wire", "width": 1},
+            {"name": "d1", "data_type": "wire", "width": 1}
         ],
         "outputs": [
-            {"name": "q", "data_type": "reg", "width": 4}
+            {"name": "q", "data_type": "reg", "width": 1}
         ],
         "instances": {
                     "depth": 2,
-                    "iMUX": {
+                    "uMUX": {
                         "module_name": "mux2x1",
                         "connections": {
                             "a": "in1",

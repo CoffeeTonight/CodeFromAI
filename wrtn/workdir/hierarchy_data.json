@@ -1,9 +1,11 @@
 {
     "top": {
         "name": "top",
+        "depth": "0",
         "instances": {
             "alu_instance": {
                 "module_name": "alu",
+                "depth": 1,
                 "connections": {
                     "a": "in1",
                     "b": "in2",
@@ -14,6 +16,7 @@
             },
             "reg_instance": {
                 "module_name": "register",
+                "depth": 1,
                 "connections": {
                     "clk": "clk",
                     "d": "alu_result",
@@ -24,10 +27,12 @@
     },
     "register": {
         "name": "register",
+        "depth": "0",
         "instances": {}
     },
     "alu": {
         "name": "alu",
+        "depth": "0",
         "instances": {}
     }
 }

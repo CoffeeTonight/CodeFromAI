@@ -1,5 +1,10 @@
-hierarchy = {
-    "top": {
+{"instances": {
+    "module_name": "module",
+    "depth": 0,
+    "instances": {
+        "top": {
+        "depth": 1,
+        "module_name": "top",
         "inputs": [
             {"name": "clk", "data_type": "wire", "width": 1},
             {"name": "in1", "data_type": "wire", "width": 4},
@@ -11,6 +16,7 @@ hierarchy = {
             {"name": "zero", "data_type": "wire", "width": 1}
         ],
         "instances": {
+            "depth": 2,
             "alu_instance": {
                 "module_name": "alu",
                 "connections": {
@@ -30,5 +36,5 @@ hierarchy = {
                 }
             }
         }
-    }
-}
+    }}
+}}

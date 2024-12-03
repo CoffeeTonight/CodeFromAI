@@ -3,13 +3,21 @@ import os
 import json
 import sys
 import argparse
-from .preprocessor import VerilogPreprocessor
+import logging
+import myutils
 
 
-class VerilogParser:
-    def __init__(self, name):
+class parseFilelist:
+    def __init__(self, filepath):
         self.parameters = {}  # 모듈 파라미터
         self.included_dirs = []  # 포함 디렉토리를 저장할 리스트
+        self.logger = {"DEBUG": [], "ERROR": [], "WARNING": [], "CRITICAL": []}
+        self.hdls = {}
+        self.filelist = {}
+        self.topFilePath = myutils.get_full_path(filepath)
+        self.basepath = os.path.dirname(self.topFilePath)
+        self.parse_filelist(self.topFilePath)
+        None
 
     def save_elaboration_results(self, module):
         """
@@ -43,33 +51,37 @@ class VerilogParser:
         :return: 파싱된 모듈들의 리스트
         """
         modules = []
-        try:
-            with open(filelist_path, 'r') as filelist:
-                for line in filelist:
-                    line = line.strip()
+        if not os.path.exists(filelist_path):
+            self.filelist.update({filelist_path: False})
+            self.logger["CRITICAL"] += [f"{filelist_path} was not existed."]
+        else:
+            self.filelist.update({filelist_path: True})
+            try:
+                with open(filelist_path, 'r') as filelist:
+                    for line in filelist:
+                        line = line.split("//")[0].strip().rstrip()
 
-                    # 주석 처리
-                    if line.startswith('//') or not line:
-                        continue
-
-                    # -f 옵션 처리 (nested filelist)
-                    if line.startswith('-f'):
-                        nested_filelist_path = line[len('-f'):].strip()
-                        modules.extend(self.parse_filelist(nested_filelist_path))
-
-                    elif line.startswith('+incdir+'):
-                        # 포함 디렉토리를 처리
-                        self.handle_incdir(line[len('+incdir+'):].strip())
-                    else:  # Verilog 파일 파싱
-                        module = self.read_verilog_file(line)
-                        if module:
-                            modules.append(module)
-        except FileNotFoundError:
-            print(f"Error: {filelist_path} not found.")
-        except Exception as e:
-            print(f"Error reading filelist: {e}")
-
-        return modules
+                        # 주석 처리
+                        if line.startswith('//') or not line:
+                            continue
+                        # -f 옵션 처리 (nested filelist)
+                        if line.startswith('-f'):
+                            nested_filelist_path = f"{self.basepath}/{line[len('-f'):].strip()}"
+                            self.parse_filelist(nested_filelist_path)
+                        elif line.startswith('+incdir+'):
+                            # 포함 디렉토리를 처리
+                            self.handle_incdir(f"{self.basepath}/{line[len('+incdir+'):].strip()}")
+                        else:  # Verilog 파일 파싱
+                            line = f"{self.basepath}/{line}"
+                            if os.path.exists(line):
+                                self.hdls.update({line: True})
+                            else:
+                                self.hdls.update({line: False})
+                                self.logger["CRITICAL"] += [f"{line} was not existed."]
+            except FileNotFoundError:
+                print(f"Error: {filelist_path} not found.")
+            except Exception as e:
+                print(f"Error reading filelist: {e}")
 
     def handle_incdir(self, incdir_path):
         """
@@ -132,3 +144,9 @@ class VerilogParser:
                 print(f"An unexpected error occurred: {e}")
 
         raise ValueError("Could not read the file with any of the tried encodings.")
+
+
+if __name__ == "__main__":
+    filelist = "/home/user/workspace/kleine-riscv/vlist/src.f"
+    vpars = parseFilelist(filelist)
+    None

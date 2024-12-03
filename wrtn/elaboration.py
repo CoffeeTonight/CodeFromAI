@@ -5,6 +5,7 @@ from datetime import datetime
 import argparse
 import re
 import shutil  # shutil 모듈을 사용하여 디렉토리 삭제
+import myutils
 
 
 class Elaboration:
@@ -15,7 +16,7 @@ class Elaboration:
         self.integrated_hierarchy = {}
 
         # 로깅 설정
-        log_filename = f"{log_dir}/{self.get_top_module_name()}_{self.get_current_datetime()}.elog"
+        log_filename = f"{log_dir}/{self.get_top_module_name()}_{myutils.get_current_datetime()}.elog"
         logging.basicConfig(filename=log_filename, level=log_level, format='%(levelname)s: %(message)s')
 
         # 출력 디렉토리 정리
@@ -149,12 +150,6 @@ class Elaboration:
         최상위 모듈의 이름을 반환합니다. 기본적으로 사용자가 지정한 이름을 반환합니다.
         """
         return self.top_module_name if self.top_module_name else "unknown"
-
-    def get_current_datetime(self):
-        """
-        현재 날짜와 시간을 문자열로 반환합니다.
-        """
-        return datetime.now().strftime("%Y%m%d_%H%M%S")
 
     def clean_output_directory(self, output_dir):
         """

@@ -16,7 +16,7 @@ class parseFilelist:
         self.filelist = {}
         self.topFilePath = myutils.get_full_path(filepath)
         self.basepath = os.path.dirname(self.topFilePath)
-        self.parse_filelist(self.topFilePath)
+        self.parse_filelist(self.topFilePath, PATH="top")
         None
 
     def save_elaboration_results(self, module):
@@ -43,7 +43,7 @@ class parseFilelist:
         with open(os.path.join(module_dir, f"{module.name}_elab.json"), 'w') as json_file:
             json.dump(module_data, json_file, indent=4)
 
-    def parse_filelist(self, filelist_path):
+    def parse_filelist(self, filelist_path, PATH=""):
         """
         파일 리스트를 읽고, 포함된 Verilog 파일을 파싱합니다.
 
@@ -52,31 +52,30 @@ class parseFilelist:
         """
         modules = []
         if not os.path.exists(filelist_path):
-            self.filelist.update({filelist_path: False})
+            self.filelist.update({filelist_path: f"False: {PATH}"})
             self.logger["CRITICAL"] += [f"{filelist_path} was not existed."]
         else:
-            self.filelist.update({filelist_path: True})
+            self.filelist.update({filelist_path: PATH})
             try:
-                with open(filelist_path, 'r') as filelist:
-                    for line in filelist:
-                        line = line.split("//")[0].strip().rstrip()
+                filelist = myutils.read_file(filelist_path)
+                filelist = myutils.remove_comments(filelist)
+                for line in filelist.split("\n"):
+                    line = line.strip().rstrip()
 
-                        # 주석 처리
-                        if line.startswith('//') or not line:
-                            continue
+                    if line:
                         # -f 옵션 처리 (nested filelist)
                         if line.startswith('-f'):
                             nested_filelist_path = f"{self.basepath}/{line[len('-f'):].strip()}"
-                            self.parse_filelist(nested_filelist_path)
+                            self.parse_filelist(nested_filelist_path, PATH=f"{PATH} -> {nested_filelist_path}")
                         elif line.startswith('+incdir+'):
                             # 포함 디렉토리를 처리
                             self.handle_incdir(f"{self.basepath}/{line[len('+incdir+'):].strip()}")
                         else:  # Verilog 파일 파싱
                             line = f"{self.basepath}/{line}"
                             if os.path.exists(line):
-                                self.hdls.update({line: True})
+                                self.hdls.update({line: PATH})
                             else:
-                                self.hdls.update({line: False})
+                                self.hdls.update({line: f"False: {PATH}"})
                                 self.logger["CRITICAL"] += [f"{line} was not existed."]
             except FileNotFoundError:
                 print(f"Error: {filelist_path} not found.")
@@ -101,7 +100,7 @@ class parseFilelist:
         # 1. include에 적힌 path 찾기
         try:
             with open(include_file, 'r') as f:
-                return self.read_verilog_file(include_file)
+                return myutils.read_file(include_file)
         except FileNotFoundError:
             pass  # 다음 단계로 넘어감
 
@@ -110,7 +109,7 @@ class parseFilelist:
             potential_path = f"{incdir}/{include_file}"
             try:
                 with open(potential_path, 'r') as f:
-                    return self.read_verilog_file(potential_path)
+                    return myutils.read_file(potential_path)
             except FileNotFoundError:
                 continue  # 다음 포함 디렉토리에서 찾기
 
@@ -118,35 +117,10 @@ class parseFilelist:
         print(f"Error: Could not find include file '{include_file}' in specified directories.")
         return None
 
-    def read_verilog_file(self, file_path):
-        """주어진 파일 경로에서 Verilog 파일을 읽어 내용을 반환합니다.
-        여러 인코딩을 고려하여 파일을 읽습니다.
-        """
-        encodings_to_try = [
-            'utf-8',
-            'utf-16',
-            'utf-32',
-            'iso-8859-1',
-            'windows-1252',
-            'ascii',
-            'macroman',
-            'cp949',  # 한국어 인코딩
-            'euc-kr'  # 한국어 인코딩
-        ]
 
-        for encoding in encodings_to_try:
-            try:
-                with open(file_path, 'r', encoding=encoding) as file:
-                    return file.read()  # 파일 내용을 반환
-            except (UnicodeDecodeError, FileNotFoundError) as e:
-                print(f"Failed to read with encoding {encoding}: {e}")
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-
-        raise ValueError("Could not read the file with any of the tried encodings.")
-
+_thispath_ = os.path.dirname(__file__)
 
 if __name__ == "__main__":
-    filelist = "/home/user/workspace/kleine-riscv/vlist/src.f"
+    filelist = f"{_thispath_}/../design/HDLforAST/filelist.f"
     vpars = parseFilelist(filelist)
     None

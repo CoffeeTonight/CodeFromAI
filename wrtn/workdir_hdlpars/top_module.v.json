@@ -1,0 +1,105 @@
+{
+    "preprocess": {
+        "include": "",
+        "define": ""
+    },
+    "instances": {
+        "top_a": {
+            "module": "module",
+            "parameter": {},
+            "ports": {},
+            "body": {},
+            "instances": {
+                "u_middle_0": {
+                    "module": "middle_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset"
+                    },
+                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                }
+            }
+        },
+        "top_module": {
+            "module": "module",
+            "parameter": {},
+            "ports": {
+                "clk": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "ck": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "clock": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "reset": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "a": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "b_reg": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "bufbuf": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "IO": {
+                    "direction": "inout",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "m_i": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[1:0][2:0][3:0]"
+                },
+                "m_o": {
+                    "direction": "output",
+                    "type": "wire",
+                    "width": "[2:0][1:0][7:0]"
+                },
+                "out": {
+                    "direction": "output",
+                    "type": "reg",
+                    "width": "[3:0]"
+                }
+            },
+            "body": {},
+            "instances": {
+                "u_middle_0": {
+                    "module": "middle_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset"
+                    },
+                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                },
+                "u_middle_a": {
+                    "module": "middle_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset"
+                    },
+                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                }
+            }
+        }
+    },
+    "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+}

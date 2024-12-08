@@ -1,0 +1,49 @@
+{
+    "preprocess": {
+        "include": "",
+        "define": ""
+    },
+    "instances": {
+        "test_module": {
+            "module": "module",
+            "parameter": {},
+            "ports": {
+                "clk": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "reset": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "result": {
+                    "direction": "output",
+                    "type": "wire",
+                    "width": "[1:0]"
+                }
+            },
+            "body": {},
+            "instances": {
+                "u_middle": {
+                    "module": "middle_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset"
+                    },
+                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/test_file.v"
+                },
+                "u_sub": {
+                    "module": "sub_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset"
+                    },
+                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/test_file.v"
+                }
+            }
+        }
+    },
+    "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/test_file.v"
+}

@@ -1,0 +1,32 @@
+{
+    "preprocess": {
+        "include": "",
+        "define": ""
+    },
+    "instances": {
+        "sub_module": {
+            "module": "module",
+            "parameter": {},
+            "ports": {
+                "clk": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "reset": {
+                    "direction": "input",
+                    "type": "wire",
+                    "width": "[0]"
+                },
+                "out": {
+                    "direction": "output",
+                    "type": "wire",
+                    "width": "[0]"
+                }
+            },
+            "body": {},
+            "instances": {}
+        }
+    },
+    "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v"
+}

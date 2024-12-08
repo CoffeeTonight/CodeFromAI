@@ -6,8 +6,9 @@ module middle_module (
     input wire reset,
     output wire out
 );
+localparam TWO = 2;
     // 인스턴스화
-    sub_module u_sub_0 (
+    sub_module u_sub_0 #(.test(0.0), x(1+2*(1+TWO)+1), z(TWO)) (
         .clk(clk),
         .reset(reset),
         .out(out)

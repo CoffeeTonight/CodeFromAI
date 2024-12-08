@@ -2,6 +2,7 @@ import re
 import os
 import json
 import sys
+import myutils
 
 
 class VerilogPreprocessor:
@@ -16,7 +17,7 @@ class VerilogPreprocessor:
     def preprocess(self, code):
         """ Verilog 코드를 전처리하여 매크로를 대체하고, 조건부 컴파일을 처리합니다. """
         # 주석 처리
-        code = self.remove_comments(code)
+        code = myutils.remove_comments(code)
 
         # 조건부 지시문이 있는지 확인
         if self.has_conditional_compilation(code):
@@ -26,12 +27,6 @@ class VerilogPreprocessor:
         for key, value in self.defines.items():
             code = re.sub(rf"`{key}\b", value, code)  # 매크로 대체
 
-        return code
-
-    def remove_comments(self, code):
-        """ Verilog 코드에서 주석을 제거합니다. """
-        code = re.sub(r'//.*?\n', '\n', code)  # 한 줄 주석
-        code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)  # 여러 줄 주석
         return code
 
     def has_conditional_compilation(self, code):
@@ -86,8 +81,9 @@ class VerilogPreprocessor:
 
         return "\n".join(output_lines)
 
+_thispath_ = os.path.dirname(__file__)
 
 if __name__ == "__main__":
     preprocessor = VerilogPreprocessor()
-    processed_code = preprocessor.preprocess(open("/home/dyxn/workspace/RISC-V/SingleCycle/riscv_soc_tb.v", "r", encoding="utf-8").read())
+    processed_code = preprocessor.preprocess(open(f"{_thispath_}/../design/HDLforAST/top_module.v", "r", encoding="utf-8").read())
     print(processed_code)

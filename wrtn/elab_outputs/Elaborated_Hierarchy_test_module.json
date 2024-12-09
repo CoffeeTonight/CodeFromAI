@@ -1,0 +1,130 @@
+{
+    "test_module": {
+        "instances": {
+            "u_middle": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "instances": {
+                    "u_sub_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    }
+                }
+            },
+            "u_sub": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "instances": {}
+            }
+        }
+    },
+    "top_module": {
+        "instances": {
+            "u_middle_0": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "instances": {
+                    "u_sub_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    }
+                }
+            },
+            "u_middle_a": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "instances": {
+                    "u_sub_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    }
+                }
+            }
+        }
+    },
+    "top_a": {
+        "instances": {
+            "u_middle_0": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "instances": {
+                    "u_sub_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "instances": {}
+                    }
+                }
+            }
+        }
+    }
+}

@@ -124,7 +124,7 @@ class VerilogParser:
 
     def parse_body(self, x):
         _ = {}
-        _.update({"instances": self.parse_instances(x)})
+        _.update({"instances": self.parse_instances(x), "file_path": self.thisfile})
         return _
 
     def parse_param(self, x):
@@ -192,7 +192,7 @@ class VerilogParser:
         for conn_name, target_name in connection_matches:
             ports_info[conn_name.strip()] = target_name.strip()
 
-        return {"module": inst_type, "ports": ports_info, "file_path": self.thisfile}  # 파일 경로 정보 추가
+        return {"module": inst_type, "ports": ports_info}  # 파일 경로 정보 추가
 
     def save_to_json(self, x):
         """파싱한 데이터를 JSON 형식으로 저장합니다."""
@@ -216,3 +216,5 @@ if __name__ == "__main__":
 
     verilog_parser = VerilogParser(flist, args.output, args.define)
     verilog_parser.run()
+
+    None

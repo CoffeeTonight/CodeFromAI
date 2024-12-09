@@ -15,8 +15,7 @@
                     "ports": {
                         "clk": "clk",
                         "reset": "reset"
-                    },
-                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                    }
                 }
             }
         },
@@ -87,16 +86,14 @@
                     "ports": {
                         "clk": "clk",
                         "reset": "reset"
-                    },
-                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                    }
                 },
                 "u_middle_a": {
                     "module": "middle_module",
                     "ports": {
                         "clk": "clk",
                         "reset": "reset"
-                    },
-                    "file_path": "/home/dyxn/PycharmProjects/a/design/HDLforAST/top_module.v"
+                    }
                 }
             }
         }

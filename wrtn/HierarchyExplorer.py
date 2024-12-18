@@ -1,7 +1,7 @@
 import sys
 import json
 import re
-import Levenshtein  # Levenshtein 거리 계산을 위한 라이브러리
+import os
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QLineEdit, QVBoxLayout, QWidget, QDesktopWidget, QMenu, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QHBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QTimer
 
@@ -250,12 +250,15 @@ def main(file_path):
     explorer.show()
     sys.exit(app.exec_())
 
+
+_thispath_ = os.path.dirname(__file__)
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Hierarchy Explorer")
     parser.add_argument('-f', '--file', type=str, help='Path to the JSON file containing hierarchy data',
-                        required=True)
+                        default=f"{_thispath_}/outputs_hdlAST/Elaborated_Hierarchy_test_module.json")
     args = parser.parse_args()
 
     main(args.file)

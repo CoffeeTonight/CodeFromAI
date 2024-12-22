@@ -7,6 +7,7 @@
                     "clk": "clk",
                     "reset": "reset"
                 },
+                "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/middle_module.v",
                 "instances": {
                     "u_sub_0": {
                         "module": "module",
@@ -15,6 +16,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     },
                     "u_sub_1": {
@@ -24,6 +26,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     }
                 }
@@ -38,6 +41,7 @@
                     "clk": "clk",
                     "reset": "reset"
                 },
+                "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/middle_module.v",
                 "instances": {
                     "u_sub_0": {
                         "module": "module",
@@ -46,6 +50,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     },
                     "u_sub_1": {
@@ -55,6 +60,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     }
                 }
@@ -65,6 +71,7 @@
                     "clk": "clk",
                     "reset": "reset"
                 },
+                "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/middle_module.v",
                 "instances": {
                     "u_sub_0": {
                         "module": "module",
@@ -73,6 +80,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     },
                     "u_sub_1": {
@@ -82,6 +90,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     }
                 }
@@ -96,6 +105,7 @@
                     "clk": "clk",
                     "reset": "reset"
                 },
+                "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/middle_module.v",
                 "instances": {
                     "u_sub_0": {
                         "module": "module",
@@ -104,6 +114,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     },
                     "u_sub_1": {
@@ -113,6 +124,7 @@
                             "reset": "reset",
                             "out": "out"
                         },
+                        "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                         "instances": {}
                     }
                 }
@@ -123,6 +135,7 @@
                     "clk": "clk",
                     "reset": "reset"
                 },
+                "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v",
                 "instances": {}
             }
         }

@@ -37,11 +37,13 @@ class Elaboration:
         for root, dirs, files in os.walk(work_dir):
             for filename in files:
                 if filename.endswith(EXT):
-                    file_path = os.path.join(root, filename)
-                    with open(file_path, 'r') as file:
+                    filepath = os.path.join(root, filename)
+                    with open(filepath, 'r') as file:
                         data = file.read()
                         # 각 파일의 인스턴스를 가져와서 hierarchy에 추가
-                        module_data = json.loads(data)["instances"]
+                        jdata = json.loads(data)
+                        module_data = jdata["instances"]
+                        [module_data[i].update({"filepath": jdata["filepath"]}) for i in module_data]
                         hierarchy.update(module_data)  # 직접 update 사용
 
         return hierarchy
@@ -117,7 +119,7 @@ class Elaboration:
                     if HIEONLY:
                         founded_module = {}
                         founded_module.update({"module": self.hierarchy_data[instance["module"]]["module"]})
-                        # founded_module.update({"file_path": self.hierarchy_data[instance["module"]]["file_path"]})
+                        founded_module.update({"filepath": self.hierarchy_data[instance["module"]]["filepath"]})
                         founded_module.update({"instances": self.hierarchy_data[instance["module"]]["instances"]})
                     else:
                         founded_module = self.hierarchy_data[instance["module"]]

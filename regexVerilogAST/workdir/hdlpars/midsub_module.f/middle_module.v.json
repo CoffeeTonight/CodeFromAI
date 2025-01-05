@@ -4,7 +4,7 @@
         "define": ""
     },
     "instances": {
-        "sub_module": {
+        "middle_module": {
             "module": "module",
             "parameter": {},
             "ports": {
@@ -25,8 +25,25 @@
                 }
             },
             "body": {},
-            "instances": {}
+            "instances": {
+                "u_subTop_0": {
+                    "module": "sub_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset",
+                        "out": "out"
+                    }
+                },
+                "u_sub_1": {
+                    "module": "sub_module",
+                    "ports": {
+                        "clk": "clk",
+                        "reset": "reset",
+                        "out": "out"
+                    }
+                }
+            }
         }
     },
-    "filepath": "/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module.v"
+    "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/middle_module.v"
 }

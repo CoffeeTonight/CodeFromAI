@@ -21,8 +21,8 @@ _thispath_ = os.path.dirname(__file__)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Verilog AST Parser')
-    parser.add_argument('-f', '--filelist', default=f"{_thispath_}/../design/HDLforAST/test_file.f", help='Path to the filelist containing Verilog files')
-    parser.add_argument('-o', '--output', default="outputs_hdlAST", help='Output directory for generated AST')
+    parser.add_argument('-f', '--filelist', default=f"{_thispath_}/../design/HDLforAST/filelist.f", help='Path to the filelist containing Verilog files')
+    parser.add_argument('-o', '--output', default="workdir", help='Output directory for generated AST')
     parser.add_argument('-i', '--include', action='append', help='Include directory for Verilog files (can specify multiple)')
     parser.add_argument('-d', '--define', action='append', help='Define macros for Verilog files (e.g., +define+WIDTH=8)')
     parser.add_argument('-w', '--work', default="workdir_hdlAST", help='Working directory for elaboration and intermediate files')
@@ -47,15 +47,11 @@ if __name__ == "__main__":
     flist = parseFilelist.parseFilelist(args.filelist)
 
     # VerilogParser 인스턴스 생성
-    verilog_parser = verilogParser.VerilogParser(flist, args.output, args.define)
+    verilog_parser = verilogParser.VerilogParser(flist, f"{args.output}/hdlpars", args.define)
     verilog_parser.run()
 
     log_level = getattr(logging, args.loglevel.upper(), logging.DEBUG)
-    elaboration = elaboration.Elaboration(f'{_thispath_}/workdir_hdlpars', f'{_thispath_}/elab_log', f'{_thispath_}/elab_outputs', top_module=args.top, clean_output=args.clean,
-                              log_level=log_level)
-    hierarchy_data = elaboration.build_hierarchy()
-    integrated_hierarchy = elaboration.integrate_top_modules()
-    _ = [open(f"{args.output}/Elaborated_Hierarchy_{list(integrated_hierarchy)[0]}.json", "w", encoding="utf8").write(
-        json.dumps(integrated_hierarchy, indent=4)) if args.output else None]
-
-
+    elaboration = elaboration.Elaboration(f'{args.output}/hdlpars', f'{_thispath_}/logs/elab',
+                                          f'{args.output}/elab', top_module=args.top, clean_output=args.clean,
+                                          log_level=log_level, HDLLOAD=verilog_parser.file_list.hdls)
+    integrated_hierarchy = elaboration.integrate_modules()

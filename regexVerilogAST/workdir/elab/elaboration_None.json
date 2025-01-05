@@ -1,0 +1,162 @@
+{
+    "test_module": {
+        "instances": {
+            "u_middle": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/middle_module.v",
+                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f",
+                "instances": {
+                    "u_subTop_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    }
+                }
+            },
+            "u_sub": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                "instances": {}
+            }
+        },
+        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/test_file.v",
+        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/test_file.f"
+    },
+    "top_a": {
+        "instances": {
+            "u_middle_0": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/middle_module.v",
+                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f",
+                "instances": {
+                    "u_subTop_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    }
+                }
+            }
+        },
+        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
+        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
+    },
+    "top_module": {
+        "instances": {
+            "u_middle_0": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/middle_module.v",
+                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f",
+                "instances": {
+                    "u_subTop_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    }
+                }
+            },
+            "u_middle_a": {
+                "module": "module",
+                "ports": {
+                    "clk": "clk",
+                    "reset": "reset"
+                },
+                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/middle_module.v",
+                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f",
+                "instances": {
+                    "u_subTop_0": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    },
+                    "u_sub_1": {
+                        "module": "module",
+                        "ports": {
+                            "clk": "clk",
+                            "reset": "reset",
+                            "out": "out"
+                        },
+                        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
+                        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f",
+                        "instances": {}
+                    }
+                }
+            }
+        },
+        "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
+        "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
+    }
+}

@@ -44,7 +44,7 @@ module top_module (
     );
 
     `ifdef USE_MIDDLE_MODULE
-        middle_module u_middle_2 (
+        middle_module u_sub_middle_2 (
             .clk(clk),
             .reset(reset),
             .out(out[2])

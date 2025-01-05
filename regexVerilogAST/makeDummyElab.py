@@ -20,6 +20,7 @@ def create_nested_instances(depth, instance_index):
                 "out": "out"
             },
             "filepath": f"/home/dyxn/PycharmProjects/a/design/HDLforAST/./sub_module_{IDX}.v",
+            "fileload": "",
             "instances": create_nested_instances(depth - 1, IDX)  # 다음 깊이로 재귀 호출
         }
     }
@@ -30,7 +31,7 @@ def create_nested_json(x, y, z):
 
     nested_json = {
         "top_a": {
-            "instances": {}
+            "instances": {}, "filepath": "", "fileload": ""
         }
     }
 
@@ -43,7 +44,8 @@ def create_nested_json(x, y, z):
                 "reset": "reset"
             },
             "filepath": f"/home/dyxn/PycharmProjects/a/design/HDLforAST/module_{i}.v",
-            "instances": {}
+            "fileload": "",
+            "instances": {},
         }
 
         for j in range(y):

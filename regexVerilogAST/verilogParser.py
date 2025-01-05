@@ -205,7 +205,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse Verilog files and extract module information.")
     parser.add_argument('-f', '--filelist', nargs='+', default=f"{_thispath_}/../design/HDLforAST/filelist.f",
                         help="List of Verilog files to parse (can include comments).")
-    parser.add_argument('-o', '--output', default="./workdir_hdlpars", help="Output directory for the JSON result.")
+    parser.add_argument('-o', '--output', default="./workdir/hdlpars", help="Output directory for the JSON result.")
     parser.add_argument('-d', '--define', nargs='*', default=[], help="Additional defines for Verilog parsing.")
 
     args = parser.parse_args()

@@ -13,19 +13,23 @@ _thispath_ = os.path.dirname(__file__)
 
 
 class Elaboration:
-    def __init__(self, work_dir, log_dir, output_dir, top_module, clean_output=True, log_level=logging.INFO):
+    def __init__(self, work_dir, log_dir, output_dir, top_module, clean_output=True, log_level=logging.INFO, ELABSAVE=True, HDLLOAD={}):
         self.hierarchy_data = self.load_part_files(work_dir)
         self.modules = {}  # 모듈을 저장할 딕셔너리
         self.top_module = top_module  # 사용자 지정 최상위 모듈 이름
         self.integrated_hierarchy = {}
-
-        # 로깅 설정
-        log_filename = f"{log_dir}/{self.get_top_module()}_{myutils.get_current_datetime()}.elog"
-        logging.basicConfig(filename=log_filename, level=log_level, format='%(levelname)s: %(message)s')
+        self.elabSave = ELABSAVE
+        self.hdlLoad = HDLLOAD
 
         # 출력 디렉토리 정리
         if clean_output:
             self.clean_output_directory(output_dir)
+
+        [os.makedirs(i, exist_ok=True) for i in [work_dir, log_dir, output_dir]]
+
+        # 로깅 설정
+        log_filename = f"{log_dir}/{myutils.get_current_datetime()}.elog"
+        logging.basicConfig(filename=log_filename, level=log_level, format='%(levelname)s: %(message)s')
 
         self.output_dir = output_dir
 
@@ -48,13 +52,7 @@ class Elaboration:
 
         return hierarchy
 
-    def build_hierarchy(self):
-        """
-        계층 구조를 딕셔너리 형태로 구축합니다.
-        """
-        return self.hierarchy_data
-
-    def integrate_top_modules(self):
+    def integrate_modules(self):
         """
         지정된 최상위 모듈을 통합하여 계층 구조를 생성합니다.
         """
@@ -74,13 +72,15 @@ class Elaboration:
         for module in top_modules:
             if module in self.hierarchy_data:
                 module_data = self.hierarchy_data[module]
-                integrated_hierarchy[module] = {"instances": {}}
+                integrated_hierarchy[module] = {"instances": {}, "filepath": ""}
                 # 인스턴스를 통합
                 self.update_module(integrated_hierarchy[module], module_data)
                 logging.info(f"Top module integrated: {module}")
                 logging.info(f"Integrated modules: {list(module_data['instances'].keys())}")
 
         self.integrated_hierarchy = integrated_hierarchy
+        if self.elabSave:
+            self.save_output(self.integrated_hierarchy)
         return self.integrated_hierarchy
 
     def find_other_top_modules(self):
@@ -113,14 +113,23 @@ class Elaboration:
             if isinstance(instance, dict):
                 # 인스턴스 정보를 추가
                 module["instances"][instance_name] = instance  # 수정된 부분
-
+                module["filepath"] = module_data["filepath"]
+                try:
+                    module.update({"fileload": self.hdlLoad[module_data["filepath"]]})
+                except:
+                    module.update({"fileload": ""})
                 # 해당 모듈을 self.modules에서 찾아 업데이트
                 if instance["module"] in self.hierarchy_data:
                     if HIEONLY:
                         founded_module = {}
                         founded_module.update({"module": self.hierarchy_data[instance["module"]]["module"]})
                         founded_module.update({"filepath": self.hierarchy_data[instance["module"]]["filepath"]})
+                        try:
+                            founded_module.update({"fileload": self.hdlLoad[self.hierarchy_data[instance["module"]]["filepath"]]})
+                        except:
+                            founded_module.update({"fileload": ""})
                         founded_module.update({"instances": self.hierarchy_data[instance["module"]]["instances"]})
+
                     else:
                         founded_module = self.hierarchy_data[instance["module"]]
                     # found_module을 instance에 업데이트
@@ -138,12 +147,6 @@ class Elaboration:
                 if "instances" in instance and instance["instances"]:
                     self.update_module(module["instances"][instance_name], instance)
 
-    def get_top_module(self):
-        """
-        최상위 모듈의 이름을 반환합니다. 기본적으로 사용자가 지정한 이름을 반환합니다.
-        """
-        return self.top_module if self.top_module else "unknown"
-
     def clean_output_directory(self, output_dir):
         """
         출력 디렉토리의 모든 내용을 지웁니다.
@@ -156,8 +159,7 @@ class Elaboration:
         """
         엘라보레이션 결과를 JSON 파일로 저장합니다.
         """
-        top_module = self.get_top_module()
-        output_filename = f"{self.output_dir}/elaboration_{top_module}.json"
+        output_filename = f"{self.output_dir}/elaboration_{self.top_module}.json"
         os.makedirs(self.output_dir, exist_ok=True)  # 출력 디렉토리 생성
 
         with open(output_filename, 'w') as output_file:
@@ -218,15 +220,12 @@ class Elaboration:
 
 
 if __name__ == "__main__":
-
-
-
     parser = argparse.ArgumentParser(description='Process some part files and log the results.')
-    parser.add_argument('--workdir', '-w', type=str, default=f'{_thispath_}/workdir_hdlpars',
+    parser.add_argument('--workdir', '-w', type=str, default=f'{_thispath_}/workdir/hdlpars',
                         help='Path to the working directory containing .part files.')
-    parser.add_argument('--logdir', '-l', type=str, default=f'{_thispath_}/elab_log',
+    parser.add_argument('--logdir', '-l', type=str, default=f'{_thispath_}/logs/elab',
                         help='Path to the directory where log files will be saved.')
-    parser.add_argument('--output', '-o', type=str, default=f'{_thispath_}/elab_outputs',
+    parser.add_argument('--output', '-o', type=str, default=f'{_thispath_}/workdir/elab',
                         help='Path to the directory where output JSON files will be saved.')
     parser.add_argument('--top', '-t', type=str,
                         help='Name of the top module to integrate.')
@@ -239,14 +238,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    [os.makedirs(i, exist_ok=True) for i in [args.workdir, args.logdir, args.output]]
-
     log_level = getattr(logging, args.loglevel.upper(), logging.DEBUG)
 
     elaboration = Elaboration(args.workdir, args.logdir, args.output, top_module=args.top, clean_output=args.clean, log_level=log_level)
-    hierarchy_data = elaboration.build_hierarchy()
-    integrated_hierarchy = elaboration.integrate_top_modules()
-    _ = [open(f"{args.output}/Elaborated_Hierarchy_{list(integrated_hierarchy)[0]}.json", "w", encoding="utf8").write(json.dumps(integrated_hierarchy, indent=4)) if args.output else None]
+    integrated_hierarchy = elaboration.integrate_modules()
 
     # 특정 instance 이름을 검색하고 hierarchy를 출력
     if args.search:

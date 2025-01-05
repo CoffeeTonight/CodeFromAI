@@ -288,8 +288,8 @@ class HierarchyExplorer(QMainWindow):
         os.makedirs(output_dir, exist_ok=True)  # Create the output directory if it doesn't exist
 
         results = {}
-        total_search_time = 0
-        total_hierarchy_time = 0
+        total_tSearch_hierarchy = 0
+        total_tBuild_hierarchy = 0
         start_time = time.time()
 
         # 트리 구조 생성
@@ -304,8 +304,8 @@ class HierarchyExplorer(QMainWindow):
             pattern_start_time = time.time()
             found_instances = find_full_hierarchy(tree_root, pattern)
 
-            search_time = time.time() - pattern_start_time
-            total_search_time += search_time
+            tSearch_hierarchy = time.time() - pattern_start_time
+            total_tSearch_hierarchy += tSearch_hierarchy
 
             # Store results in a dictionary
             results[k] = {
@@ -313,8 +313,8 @@ class HierarchyExplorer(QMainWindow):
                 "pattern": pattern,
                 "#matches": found_instances.__len__(),
                 "matches": found_instances,
-                "hierarchy_time": tree_time,
-                "search_time": search_time
+                "tBuild_hierarchy": tree_time,
+                "tSearch_hierarchy": tSearch_hierarchy
             }
 
         # Save all results to a JSON file
@@ -325,8 +325,8 @@ class HierarchyExplorer(QMainWindow):
         # Save total time to a separate file
         total_time_path = os.path.join(output_dir, 'total_time.txt')
         with open(total_time_path, 'w') as time_file:
-            time_file.write(f"Total search time: {total_search_time:.2f} seconds\n")
-            time_file.write(f"Total hierarchy time: {total_hierarchy_time:.2f} seconds\n")
+            time_file.write(f"Total search time: {total_tSearch_hierarchy:.2f} seconds\n")
+            time_file.write(f"Total hierarchy time: {total_tBuild_hierarchy:.2f} seconds\n")
 
         # Print results to the console
         for pattern, result in results.items():
@@ -334,8 +334,9 @@ class HierarchyExplorer(QMainWindow):
             print("Matches:")
             for match in result["matches"]:
                 print(f"  - {match}")
-            print(f"Hierarchy time: {result['hierarchy_time']:.2f} seconds")
-            print(f"Search time: {result['search_time']:.2f} seconds")
+            print(f"Hierarchy time: {result['tBuild_hierarchy']:.2f} seconds")
+            print(f"Search time: {result['tSearch_hierarchy']:.2f} seconds")
+            print(f"Saved to {json_file_path}")
 
 
 def load_hierarchy_data(file_path):
@@ -359,6 +360,8 @@ class HierarchyNode:
     def __init__(self, name):
         self.name = name
         self.children = []
+        self.filepath = ""
+        self.fileload = ""
         self.instance_map = {}  # 인스턴스 이름을 키로 하는 해시맵
 
     def add_child(self, child_node):
@@ -375,10 +378,13 @@ def build_hierarchy_tree(hierarchy_dict):
     rootTop = {}
     for i in list(hierarchy_dict):
         root = HierarchyNode(i)
+        root.filepath = hierarchy_dict[i]["filepath"]
 
         def recurse_dict(current_dict, parent_node):
             for key, value in current_dict.items():
                 child_node = HierarchyNode(key)
+                child_node.filepath = value["filepath"]
+                child_node.fileload = value["fileload"]
                 parent_node.add_child(child_node)
                 if "instances" in value and isinstance(value["instances"], dict):
                     recurse_dict(value["instances"], child_node)
@@ -390,15 +396,16 @@ def build_hierarchy_tree(hierarchy_dict):
 
 def find_full_hierarchy(tree, pattern):
     """트리에서 정규 표현식 패턴에 맞는 인스턴스를 찾고, 전체 계층을 반환하는 함수"""
-    found_hierarchies = []
+    found_hierarchies = {}
 
     def dfs(node, current_path):
         # 현재 노드의 이름을 포함한 경로
         current_path.append(node.name)
 
         # 패턴과 매칭되는 경우 현재 경로를 추가
-        if re.match(pattern, node.name):
-            found_hierarchies.append(".".join(current_path))
+        if re.match(pattern.lower(), node.name.lower()):
+            hie = ".".join(current_path)
+            found_hierarchies.update({hie: {"hierarchy": hie, "filepath": node.filepath, "fileload": node.fileload}})
 
         for child in node.children:
             dfs(child, current_path.copy())  # 현재 경로를 복사하여 자식 노드 탐색
@@ -414,7 +421,7 @@ _thispath_ = os.path.dirname(__file__)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Hierarchy Explorer")
     parser.add_argument('-f', '--file', type=str, help='Path to the JSON file containing hierarchy data',
-                        default=f"{_thispath_}/outputs_hdlAST/Elaborated_Hierarchy_top_a.json")
+                        default=f"{_thispath_}/workdir/elab/elaboration_None.json")
     parser.add_argument('-p', '--patterns', type=str, help='Comma-separated patterns to search for', default="")
     args = parser.parse_args()
 

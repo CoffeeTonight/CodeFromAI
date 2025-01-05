@@ -8,7 +8,7 @@ module middle_module (
 );
 localparam TWO = 2;
     // 인스턴스화
-    sub_module u_sub_0 #(.test(0.0), x(1+2*(1+TWO)+1), z(TWO)) (
+    sub_module u_subTop_0 #(.test(0.0), x(1+2*(1+TWO)+1), z(TWO)) (
         .clk(clk),
         .reset(reset),
         .out(out)

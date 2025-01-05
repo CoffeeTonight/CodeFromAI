@@ -16,7 +16,7 @@ class parseFilelist:
         self.filelist = {}
         self.topFilePath = myutils.get_full_path(filepath)
         self.basepath = os.path.dirname(self.topFilePath)
-        self.parse_filelist(self.topFilePath, PATH="top")
+        self.parse_filelist(self.topFilePath, PATH=self.topFilePath)
         None
 
     def save_elaboration_results(self, module):
@@ -55,7 +55,7 @@ class parseFilelist:
             self.filelist.update({filelist_path: f"False: {PATH}"})
             self.logger["CRITICAL"] += [f"{filelist_path} was not existed."]
         else:
-            self.filelist.update({filelist_path: PATH})
+            self.filelist.update({filelist_path: f"True: {PATH}"})
             try:
                 filelist = myutils.read_file(filelist_path)
                 filelist = myutils.remove_comments(filelist)
@@ -72,11 +72,8 @@ class parseFilelist:
                             self.handle_incdir(f"{self.basepath}/{line[len('+incdir+'):].strip()}")
                         else:  # Verilog 파일 파싱
                             line = f"{self.basepath}/{line}"
-                            if os.path.exists(line):
-                                self.hdls.update({line: PATH})
-                            else:
-                                self.hdls.update({line: f"False: {PATH}"})
-                                self.logger["CRITICAL"] += [f"{line} was not existed."]
+                            self.hdls.update({line: f"{os.path.exists(line)}: {PATH}"})
+                            self.logger["CRITICAL"] += [f"{line} was not existed."] if os.path.exists(line) else []
             except FileNotFoundError:
                 print(f"Error: {filelist_path} not found.")
             except Exception as e:

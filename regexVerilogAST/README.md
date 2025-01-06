@@ -1,1 +1,1 @@
-##Those are with WRTN AI.
+# Those are by hands with WRTN AI

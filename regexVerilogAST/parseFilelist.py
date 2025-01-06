@@ -8,13 +8,16 @@ import myutils
 
 
 class parseFilelist:
-    def __init__(self, filepath):
+    def __init__(self, filepath, SETENV={}, allEnv2Curdir=True):
         self.parameters = {}  # 모듈 파라미터
         self.included_dirs = []  # 포함 디렉토리를 저장할 리스트
         self.logger = {"DEBUG": [], "ERROR": [], "WARNING": [], "CRITICAL": []}
         self.hdls = {}
+        self.setEnv = SETENV
+        self.allEnv2Curdir = allEnv2Curdir
         self.filelist = {}
-        self.topFilePath = myutils.get_full_path(filepath)
+        self.curdir = myutils.get_full_path("./")
+        self.topFilePath = self.getEnv(myutils.get_full_path(filepath))
         self.basepath = os.path.dirname(self.topFilePath)
         self.parse_filelist(self.topFilePath, PATH=self.topFilePath)
         None
@@ -43,6 +46,16 @@ class parseFilelist:
         with open(os.path.join(module_dir, f"{module.name}_elab.json"), 'w') as json_file:
             json.dump(module_data, json_file, indent=4)
 
+    def getEnv(self, x):
+        if self.allEnv2Curdir:
+            if "$" in x:
+                for i in re.findall(r"\$\w+|\${\w+}|\$\(\w+\)", x):
+                    x = x.replace(i, self.curdir)
+        elif self.setEnv:
+            for key, value in self.setEnv.items():
+                x = x.replace(f"${{{key}}}", value).replace(f"$({key})", value).replace(f"${key}", value)
+        return x
+
     def parse_filelist(self, filelist_path, PATH=""):
         """
         파일 리스트를 읽고, 포함된 Verilog 파일을 파싱합니다.
@@ -65,7 +78,7 @@ class parseFilelist:
                     if line:
                         # -f 옵션 처리 (nested filelist)
                         if line.startswith('-f'):
-                            nested_filelist_path = f"{self.basepath}/{line[len('-f'):].strip()}"
+                            nested_filelist_path = self.getEnv(f"{self.basepath}/{line[len('-f'):].strip()}")
                             self.parse_filelist(nested_filelist_path, PATH=f"{PATH} -> {nested_filelist_path}")
                         elif line.startswith('+incdir+'):
                             # 포함 디렉토리를 처리

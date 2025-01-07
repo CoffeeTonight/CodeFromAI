@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument('--search', type=str, help='Instance name to search for in the hierarchy.')
     args = parser.parse_args()
 
-    flist = parseFilelist.parseFilelist(args.filelist)
+    flist = parseFilelist.parseFilelist(args.filelist, CURDIR="./")
 
     # VerilogParser 인스턴스 생성
     verilog_parser = verilogParser.VerilogParser(flist, f"{args.output}/hdlpars", args.define)

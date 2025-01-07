@@ -8,7 +8,7 @@ import myutils
 
 
 class parseFilelist:
-    def __init__(self, filepath, SETENV={}, allEnv2Curdir=True):
+    def __init__(self, filepath, SETENV={}, allEnv2Curdir=True, CURDIR="./"):
         self.parameters = {}  # 모듈 파라미터
         self.included_dirs = []  # 포함 디렉토리를 저장할 리스트
         self.logger = {"DEBUG": [], "ERROR": [], "WARNING": [], "CRITICAL": []}
@@ -16,7 +16,7 @@ class parseFilelist:
         self.setEnv = SETENV
         self.allEnv2Curdir = allEnv2Curdir
         self.filelist = {}
-        self.curdir = myutils.get_full_path("./")
+        self.curdir = myutils.get_full_path(CURDIR if CURDIR else "./")
         self.topFilePath = self.getEnv(myutils.get_full_path(filepath))
         self.basepath = os.path.dirname(self.topFilePath)
         self.parse_filelist(self.topFilePath, PATH=self.topFilePath)

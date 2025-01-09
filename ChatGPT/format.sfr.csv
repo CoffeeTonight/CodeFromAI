@@ -2,4 +2,4 @@ Group Name,Group Repeat Count,Group Size,Subgroup Name,Subgroup Repeat Count,Sub
 MainGroup,2,0x40,SubGroup1,4,0x10,REG1,0x1000,0x00,FIELD1,[7:0],0x00,R/W,"Control bits for module 1"
 ,,,REG1,,,"",,"",FIELD2,[15:8],0x01,R/W,"Status bits for module 1"
 ,,,REG2,,,"",0x10,,FIELD1,[7:0],0x00,R/W,"Control bits for module 2"
-,,,REG2,,,"",,"",FIELD2,[15:8],0x01,R/W,"Status bits for module 2
+,,,REG2,,,"",,"",FIELD2,[15:8],0x01,R/W,"Status bits for module 2"

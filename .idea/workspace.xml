@@ -4,7 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc178653-4717-47eb-aeec-184d59f072b4" name="Changes" comment="wrtn" />
+    <list default="true" id="fc178653-4717-47eb-aeec-184d59f072b4" name="Changes" comment="wrtn">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/outputs_foundedHie/result_foundedHie.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/outputs_foundedHie/result_foundedHie.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -78,7 +84,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py" />
-      <option name="PARAMETERS" value="-p *top* -f $PROJECT_DIR$/regexVerilogAST/elab_outputs_dummy/Elaborated_Hierarchy_top_a.json" />
+      <option name="PARAMETERS" value="-f $PROJECT_DIR$/regexVerilogAST/elab_outputs_dummy/Elaborated_Hierarchy_top_a.json -p *sub_1*" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -309,7 +315,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/regexVerilogAST/parseFilelist.py</url>
-          <line>18</line>
+          <line>21</line>
           <option name="timeStamp" value="106" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">

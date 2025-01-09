@@ -1,16 +1,5 @@
-Group Name,Group Repeat Count,Group Size,Subgroup Name,Subgroup Repeat Count,Subgroup Size,Register Name,Offset,Bit Field,Bit Range,Default Value,Access Type,Description
-SystemCtrl,1,0x20,ClockCtrl,2,0x08,CLK_ENABLE,0x00,CLK_EN,[0],0x0,R/W,"Enable system clock"
-SystemCtrl,1,0x20,ClockCtrl,2,0x08,CLK_DIV,0x04,DIV_RATIO,[3:0],0x1,R/W,"Clock divider ratio for system clock"
-SystemCtrl,1,0x20,ClockCtrl,2,0x08,CLK_STATUS,0x08,CLK_STS,[0],0x0,R,"Current status of system clock"
-SystemCtrl,1,0x20,ResetCtrl,1,0x08,RST_CTRL,0x10,RST_EN,[0],0x0,R/W,"Enable reset for system"
-SystemCtrl,1,0x20,ResetCtrl,1,0x08,RST_STATUS,0x14,RST_STS,[0],0x0,R,"Current reset status"
-TimerGroup,2,0x30,Timer1,1,0x10,TIM1_CTRL,0x00,START,[0],0x0,R/W,"Start/stop Timer1"
-TimerGroup,2,0x30,Timer1,1,0x10,TIM1_VALUE,0x04,COUNTER,[15:0],0x0000,R/W,"Current Timer1 count value"
-TimerGroup,2,0x30,Timer2,1,0x10,TIM2_CTRL,0x10,START,[0],0x0,R/W,"Start/stop Timer2"
-TimerGroup,2,0x30,Timer2,1,0x10,TIM2_VALUE,0x14,COUNTER,[15:0],0x0000,R/W,"Current Timer2 count value"
-IOGroup,1,0x40,PortA,4,0x10,PORTA_DATA,0x00,DATA,[7:0],0x00,R/W,"Data register for Port A"
-IOGroup,1,0x40,PortA,4,0x10,PORTA_DIR,0x04,DIR,[7:0],0x00,R/W,"Direction register for Port A"
-IOGroup,1,0x40,PortA,4,0x10,PORTA_PULLUP,0x08,PULLUP,[7:0],0x00,R/W,"Pull-up enable for Port A"
-IOGroup,1,0x40,PortB,4,0x10,PORTB_DATA,0x10,DATA,[7:0],0x00,R/W,"Data register for Port B"
-IOGroup,1,0x40,PortB,4,0x10,PORTB_DIR,0x14,DIR,[7:0],0x00,R/W,"Direction register for Port B"
-IOGroup,1,0x40,PortB,4,0x10,PORTB_PULLUP,0x18,PULLUP,[7:0],0x00,R/W,"Pull-up enable for Port B"
+Group Name,Group Repeat Count,Group Size,Subgroup Name,Subgroup Repeat Count,Subgroup Size,Register Name,Base Address,Offset,Bit Field,Bit Range,Default Value,Access Type,Description
+MainGroup,2,0x40,SubGroup1,4,0x10,REG1,0x1000,0x00,FIELD1,[7:0],0x00,R/W,"Control bits for module 1"
+,,,REG1,,,"",,"",FIELD2,[15:8],0x01,R/W,"Status bits for module 1"
+,,,REG2,,,"",0x10,,FIELD1,[7:0],0x00,R/W,"Control bits for module 2"
+,,,REG2,,,"",,"",FIELD2,[15:8],0x01,R/W,"Status bits for module 2

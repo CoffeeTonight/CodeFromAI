@@ -8,9 +8,9 @@ TimerGroup,2,0x80,Timer1,1,0x20,TIM1_CTRL,0x20,START,[0],0x0,R/W,Start/stop Time
 ,,,,,,TIM1_VALUE,0x24,COUNTER,[15:0],0x0000,R/W,Current Timer1 count value
 ,,,,1,,TIM2_CTRL,0x30,START,[0],0x0,R/W,Start/stop Timer2
 ,,,,,,TIM2_VALUE,0x34,COUNTER,[15:0],0x0000,R/W,Current Timer2 count value
-IOGroup,1,0x100,PortA,4,0x20,PORTA_DATA,0x40,DATA,[7:0],0x00,R/W,Data register for Port A
-,,,,,,PORTA_DIR,0x44,DIR,[7:0],0x00,R/W,Direction register for Port A
-,,,,,,PORTA_PULLUP,0x48,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port A
-,,,PortB,4,0x20,PORTB_DATA,0x60,DATA,[7:0],0x00,R/W,Data register for Port B
-,,,,,,PORTB_DIR,0x64,DIR,[7:0],0x00,R/W,Direction register for Port B
-,,,,,,PORTB_PULLUP,0x68,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port B
+IOGroup,1,0x100,PortA,4,0x20,PORTA_DATA,0x100,DATA,[7:0],0x00,R/W,Data register for Port A
+,,,,,,PORTA_DIR,0x104,DIR,[7:0],0x00,R/W,Direction register for Port A
+,,,,,,PORTA_PULLUP,0x108,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port A
+,,,PortB,4,0x20,PORTB_DATA,0x120,DATA,[7:0],0x00,R/W,Data register for Port B
+,,,,,,PORTB_DIR,0x124,DIR,[7:0],0x00,R/W,Direction register for Port B
+,,,,,,PORTB_PULLUP,0x128,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port B

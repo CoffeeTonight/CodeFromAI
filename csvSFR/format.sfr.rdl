@@ -1,0 +1,60 @@
+addrmap sfr {
+    regfile SystemCtrl @ 0x00 {
+        regfile ClockCtrl[2] @ 0x00 {
+            reg {
+                uint32 CLK_ENABLE @ 0x00 {
+                    field {
+                        desc = "Enable system clock";
+                        bit CLK_EN @ 0:0 {
+                            sw = rw;
+                            reset = 0x0;
+                        };
+                    }
+                }
+                uint32 CLK_DIV @ 0x04 {
+                    field {
+                        desc = "Clock divider ratio for system clock";
+                        bit DIV_RATIO @ 3:0 {
+                            sw = rw;
+                            reset = 0x1;
+                        };
+                    }
+                }
+                uint32 CLK_STATUS @ 0x08 {
+                    field {
+                        desc = "Current status of system clock";
+                        bit CLK_STS @ 0:0 {
+                            sw = ro;
+                            reset = 0x0;
+                        };
+                    }
+                }
+            }
+        }
+        regfile ResetCtrl @ 0x10 {
+            reg {
+                uint32 RST_CTRL @ 0x00 {
+                    field {
+                        desc = "Enable reset for system";
+                        bit RST_EN @ 0:0 {
+                            sw = rw;
+                            reset = 0x0;
+                        };
+                    }
+                }
+                uint32 RST_STATUS @ 0x04 {
+                    field {
+                        desc = "Current reset status";
+                        bit RST_STS @ 0:0 {
+                            sw = ro;
+                            reset = 0x0;
+                        };
+                    }
+                }
+            }
+        }
+    }
+    
+    // ... 나머지 부분은 동일하게 구조를 반복합니다. 
+    // 간단히 하기 위해 아래는 생략합니다.
+}

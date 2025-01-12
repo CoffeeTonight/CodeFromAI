@@ -127,10 +127,21 @@ class VerilogParser:
         _.update({"instances": self.parse_instances(x), "file_path": self.thisfile})
         return _
 
+    def parse_bracket(self, x):
+        balance = 0
+        result = ""
+        for char in x:
+            balance += 1 if char == '(' else -1 if char == ')' else 0
+            result += char
+            if balance == 0:
+                return result
+        return result  # 혹은 예외를 발생시킬 수도 있음
+
     def parse_param(self, x):
         d = {}
         if "parameter" in x:
             assignment = re.findall(r"\bparameter\b([\s\S]+)", x)[0]
+            assignment = self.parse_bracket(f"({assignment}")
             assignment = assignment.replace(" ", "").split(",")
             [d.update({i.split("=")[0]: i.split("=")[1]}) for i in assignment if i]
         return d

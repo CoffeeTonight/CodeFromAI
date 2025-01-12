@@ -2,15 +2,15 @@ Group Name,Group Repeat Count,Group Size,Subgroup Name,Subgroup Repeat Count,Sub
 SystemCtrl,1,0x40,ClockCtrl,2,0x10,CLK_ENABLE,0x00,CLK_EN,[0],0x0,R/W,Enable system clock
 ,,,,,,CLK_DIV,0x04,DIV_RATIO,[3:0],0x1,R/W,Clock divider ratio for system clock
 ,,,,,,CLK_STATUS,0x08,CLK_STS,[0],0x0,R,Current status of system clock
-,,,ResetCtrl,1,0x10,RST_CTRL,0x20,RST_EN,[0],0x0,R/W,Enable reset for system
-,,,,,,RST_STATUS,0x24,RST_STS,[0],0x0,R,Current reset status
-TimerGroup,2,0x80,Timer1,1,0x20,TIM1_CTRL,0x00,START,[0],0x0,R/W,Start/stop Timer1
-,,,,,,TIM1_VALUE,0x04,COUNTER,[15:0],0x0000,R/W,Current Timer1 count value
-,,,,1,,TIM2_CTRL,0x10,START,[0],0x0,R/W,Start/stop Timer2
-,,,,,,TIM2_VALUE,0x14,COUNTER,[15:0],0x0000,R/W,Current Timer2 count value
-IOGroup,1,0x100,PortA,4,0x20,PORTA_DATA,0x00,DATA,[7:0],0x00,R/W,Data register for Port A
-,,,,,,PORTA_DIR,0x04,DIR,[7:0],0x00,R/W,Direction register for Port A
-,,,,,,PORTA_PULLUP,0x08,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port A
-,,,PortB,4,0x20,PORTB_DATA,0x10,DATA,[7:0],0x00,R/W,Data register for Port B
-,,,,,,PORTB_DIR,0x14,DIR,[7:0],0x00,R/W,Direction register for Port B
-,,,,,,PORTB_PULLUP,0x18,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port B
+,,,ResetCtrl,1,0x10,RST_CTRL,0x10,RST_EN,[0],0x0,R/W,Enable reset for system
+,,,,,,RST_STATUS,0x14,RST_STS,[0],0x0,R,Current reset status
+TimerGroup,2,0x80,Timer1,1,0x20,TIM1_CTRL,0x20,START,[0],0x0,R/W,Start/stop Timer1
+,,,,,,TIM1_VALUE,0x24,COUNTER,[15:0],0x0000,R/W,Current Timer1 count value
+,,,,1,,TIM2_CTRL,0x30,START,[0],0x0,R/W,Start/stop Timer2
+,,,,,,TIM2_VALUE,0x34,COUNTER,[15:0],0x0000,R/W,Current Timer2 count value
+IOGroup,1,0x100,PortA,4,0x20,PORTA_DATA,0x40,DATA,[7:0],0x00,R/W,Data register for Port A
+,,,,,,PORTA_DIR,0x44,DIR,[7:0],0x00,R/W,Direction register for Port A
+,,,,,,PORTA_PULLUP,0x48,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port A
+,,,PortB,4,0x20,PORTB_DATA,0x60,DATA,[7:0],0x00,R/W,Data register for Port B
+,,,,,,PORTB_DIR,0x64,DIR,[7:0],0x00,R/W,Direction register for Port B
+,,,,,,PORTB_PULLUP,0x68,PULLUP,[7:0],0x00,R/W,Pull-up enable for Port B

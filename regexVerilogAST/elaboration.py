@@ -244,6 +244,7 @@ if __name__ == "__main__":
     integrated_hierarchy = elaboration.integrate_modules()
 
     # 특정 instance 이름을 검색하고 hierarchy를 출력
+    args.search = "INSTANCE:sub"
     if args.search:
         MODULEINST = ([args.search.split(":")[-1].upper()] if ":" in args.search else ["INSTANCE"])
         MODULEINST = ["MODULE", "INSTANCE"] if "ALL" in args.search.upper() else MODULEINST

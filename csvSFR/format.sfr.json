@@ -1,0 +1,205 @@
+{
+  "SFR": {
+    "groups": [
+      {
+        "name": "SystemCtrl",
+        "repeatCount": 1,
+        "size": "0x40",
+        "subgroups": [
+          {
+            "name": "ClockCtrl",
+            "repeatCount": 2,
+            "size": "0x10",
+            "registers": [
+              {
+                "name": "CLK_ENABLE",
+                "offset": "0x00",
+                "bitField": "CLK_EN",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R/W",
+                "description": "Enable system clock"
+              },
+              {
+                "name": "CLK_DIV",
+                "offset": "0x04",
+                "bitField": "DIV_RATIO",
+                "bitRange": "[3:0]",
+                "defaultValue": "0x1",
+                "accessType": "R/W",
+                "description": "Clock divider ratio for system clock"
+              },
+              {
+                "name": "CLK_STATUS",
+                "offset": "0x08",
+                "bitField": "CLK_STS",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R",
+                "description": "Current status of system clock"
+              }
+            ]
+          },
+          {
+            "name": "ResetCtrl",
+            "repeatCount": 1,
+            "size": "0x10",
+            "registers": [
+              {
+                "name": "RST_CTRL",
+                "offset": "0x10",
+                "bitField": "RST_EN",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R/W",
+                "description": "Enable reset for system"
+              },
+              {
+                "name": "RST_STATUS",
+                "offset": "0x14",
+                "bitField": "RST_STS",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R",
+                "description": "Current reset status"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "TimerGroup",
+        "repeatCount": 2,
+        "size": "0x80",
+        "subgroups": [
+          {
+            "name": "Timer1",
+            "repeatCount": 1,
+            "size": "0x20",
+            "registers": [
+              {
+                "name": "TIM1_CTRL",
+                "offset": "0x20",
+                "bitField": "START",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R/W",
+                "description": "Start/stop Timer1"
+              },
+              {
+                "name": "TIM1_VALUE",
+                "offset": "0x24",
+                "bitField": "COUNTER",
+                "bitRange": "[15:0]",
+                "defaultValue": "0x0000",
+                "accessType": "R/W",
+                "description": "Current Timer1 count value"
+              }
+            ]
+          },
+          {
+            "name": "Timer2",
+            "repeatCount": 1,
+            "size": "0x20",
+            "registers": [
+              {
+                "name": "TIM2_CTRL",
+                "offset": "0x30",
+                "bitField": "START",
+                "bitRange": "[0]",
+                "defaultValue": "0x0",
+                "accessType": "R/W",
+                "description": "Start/stop Timer2"
+              },
+              {
+                "name": "TIM2_VALUE",
+                "offset": "0x34",
+                "bitField": "COUNTER",
+                "bitRange": "[15:0]",
+                "defaultValue": "0x0000",
+                "accessType": "R/W",
+                "description": "Current Timer2 count value"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "IOGroup",
+        "repeatCount": 1,
+        "size": "0x100",
+        "baseAddress": "0x100",
+        "subgroups": [
+          {
+            "name": "PortA",
+            "repeatCount": 4,
+            "size": "0x20",
+            "registers": [
+              {
+                "name": "PORTA_DATA",
+                "offset": "0x100",
+                "bitField": "DATA",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Data register for Port A"
+              },
+              {
+                "name": "PORTA_DIR",
+                "offset": "0x104",
+                "bitField": "DIR",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Direction register for Port A"
+              },
+              {
+                "name": "PORTA_PULLUP",
+                "offset": "0x108",
+                "bitField": "PULLUP",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Pull-up enable for Port A"
+              }
+            ]
+          },
+          {
+            "name": "PortB",
+            "repeatCount": 4,
+            "size": "0x20",
+            "registers": [
+              {
+                "name": "PORTB_DATA",
+                "offset": "0x120",
+                "bitField": "DATA",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Data register for Port B"
+              },
+              {
+                "name": "PORTB_DIR",
+                "offset": "0x124",
+                "bitField": "DIR",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Direction register for Port B"
+              },
+              {
+                "name": "PORTB_PULLUP",
+                "offset": "0x128",
+                "bitField": "PULLUP",
+                "bitRange": "[7:0]",
+                "defaultValue": "0x00",
+                "accessType": "R/W",
+                "description": "Pull-up enable for Port B"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

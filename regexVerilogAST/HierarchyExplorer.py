@@ -426,4 +426,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args.file, args.patterns if args.patterns else [])
-

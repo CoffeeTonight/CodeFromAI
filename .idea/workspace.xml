@@ -6,10 +6,13 @@
   <component name="ChangeListManager">
     <list default="true" id="fc178653-4717-47eb-aeec-184d59f072b4" name="Changes" comment="wrtn">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/design/HDLforAST/middle_module.v" beforeDir="false" afterPath="$PROJECT_DIR$/design/HDLforAST/middle_module.v" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/elaboration.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/elaboration.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/outputs_foundedHie/result_foundedHie.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/outputs_foundedHie/result_foundedHie.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/verilogParser.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/verilogParser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/workdir/elab/elaboration_None.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/workdir/elab/elaboration_None.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/workdir/hdlpars/midsub_module.f/middle_module.v.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/workdir/hdlpars/midsub_module.f/middle_module.v.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,7 +40,7 @@
 }</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/CoffeeTonight/CodeFromAI.git&quot;,
+    &quot;url&quot;: &quot;git@github.com:CoffeeTonight/CodeFromAI.git&quot;,
     &quot;accountId&quot;: &quot;4bdfaadb-4870-4ddf-9d48-5ac7c648153c&quot;
   }
 }</component>
@@ -54,8 +57,9 @@
     "Python.HierarchyExplorer (1).executor": "Run",
     "Python.HierarchyExplorer dummy.executor": "Run",
     "Python.HierarchyExplorer.executor": "Run",
-    "Python.elaboration.executor": "Debug",
-    "Python.hdlAST (1).executor": "Run",
+    "Python.elaboration.executor": "Run",
+    "Python.hdlAST (1).executor": "Debug",
+    "Python.hdlAST nt.executor": "Run",
     "Python.hdlAST.executor": "Debug",
     "Python.makeDummyElab.executor": "Run",
     "Python.parseFilelist.executor": "Debug",
@@ -64,6 +68,7 @@
     "Python.verilogParser (1).executor": "Run",
     "Python.verilogParser.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
     "last_opened_file_path": "/home/dyxn/PycharmProjects/a",
     "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
@@ -136,7 +141,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="hdlAST (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="hdlAST nt" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="CodeFromAI" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -203,7 +208,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="verilogParser (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="parseFilelist" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="CodeFromAI" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -216,7 +221,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/regexVerilogAST/verilogParser.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -228,26 +233,26 @@
     <list>
       <item itemvalue="Python.hdlAST" />
       <item itemvalue="Python.HierarchyExplorer dummy" />
+      <item itemvalue="Python.parseFilelist" />
       <item itemvalue="Python.makeDummyElab" />
       <item itemvalue="Python.elaboration" />
-      <item itemvalue="Python.hdlAST (1)" />
-      <item itemvalue="Python.verilogParser (1)" />
+      <item itemvalue="Python.hdlAST nt" />
       <item itemvalue="Python.HierarchyExplorer" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.HierarchyExplorer" />
-        <item itemvalue="Python.makeDummyElab" />
-        <item itemvalue="Python.hdlAST (1)" />
+        <item itemvalue="Python.hdlAST nt" />
         <item itemvalue="Python.elaboration" />
-        <item itemvalue="Python.verilogParser (1)" />
+        <item itemvalue="Python.parseFilelist" />
+        <item itemvalue="Python.makeDummyElab" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-6a3326d57233-c546a90a8094-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.24807.21" />
+        <option value="bundled-python-sdk-1b1018131e27-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.22562.180" />
       </set>
     </attachedChunks>
   </component>
@@ -314,14 +319,14 @@
           <option name="timeStamp" value="105" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/regexVerilogAST/parseFilelist.py</url>
-          <line>21</line>
-          <option name="timeStamp" value="106" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py</url>
           <line>380</line>
           <option name="timeStamp" value="107" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/regexVerilogAST/verilogParser.py</url>
+          <line>144</line>
+          <option name="timeStamp" value="110" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

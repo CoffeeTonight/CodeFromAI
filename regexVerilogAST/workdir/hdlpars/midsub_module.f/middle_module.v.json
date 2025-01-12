@@ -6,24 +6,10 @@
     "instances": {
         "middle_module": {
             "module": "module",
-            "parameter": {},
-            "ports": {
-                "clk": {
-                    "direction": "input",
-                    "type": "wire",
-                    "width": "[0]"
-                },
-                "reset": {
-                    "direction": "input",
-                    "type": "wire",
-                    "width": "[0]"
-                },
-                "out": {
-                    "direction": "output",
-                    "type": "wire",
-                    "width": "[0]"
-                }
+            "parameter": {
+                "(ONE": "1)"
             },
+            "ports": {},
             "body": {},
             "instances": {
                 "u_subTop_0": {

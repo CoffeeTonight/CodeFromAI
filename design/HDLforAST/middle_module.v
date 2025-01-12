@@ -1,12 +1,17 @@
 
 `include "sub_module.v"
 
-module middle_module (
-    input wire clk,
-    input wire reset,
-    output wire out
+module middle_module #(parameter ONE=1)(
+      clk,
+      reset,
+      out
 );
 localparam TWO = 2;
+
+    input wire clk;
+    input wire reset;
+    output wire out;
+
     // 인스턴스화
     sub_module u_subTop_0 #(.test(0.0), x(1+2*(1+TWO)+1), z(TWO)) (
         .clk(clk),

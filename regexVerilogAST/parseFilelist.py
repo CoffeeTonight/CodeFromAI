@@ -8,15 +8,15 @@ import myutils
 
 
 class parseFilelist:
-    def __init__(self, filepath, SETENV={}, allEnv2Curdir=True, CURDIR="./"):
+    def __init__(self, filepath, SETENV={}, allEnv2Thisdir=True, BASEDIR="./"):
         self.parameters = {}  # 모듈 파라미터
         self.included_dirs = []  # 포함 디렉토리를 저장할 리스트
         self.logger = {"DEBUG": [], "ERROR": [], "WARNING": [], "CRITICAL": []}
         self.hdls = {}
         self.setEnv = SETENV
-        self.allEnv2Curdir = allEnv2Curdir
+        self.allEnv2Thisdir = allEnv2Thisdir
         self.filelist = {}
-        self.curdir = myutils.get_full_path(CURDIR if CURDIR else "./")
+        self.BASEDIR = myutils.get_full_path(BASEDIR)
         self.topFilePath = self.getEnv(myutils.get_full_path(filepath))
         self.basepath = os.path.dirname(self.topFilePath)
         self.parse_filelist(self.topFilePath, PATH=self.topFilePath)
@@ -47,10 +47,10 @@ class parseFilelist:
             json.dump(module_data, json_file, indent=4)
 
     def getEnv(self, x):
-        if self.allEnv2Curdir:
+        if self.allEnv2Thisdir:
             if "$" in x:
                 for i in re.findall(r"\$\w+|\${\w+}|\$\(\w+\)", x):
-                    x = x.replace(i, self.curdir)
+                    x = x.replace(i, self.BASEDIR)
         elif self.setEnv:
             for key, value in self.setEnv.items():
                 x = x.replace(f"${{{key}}}", value).replace(f"$({key})", value).replace(f"${key}", value)

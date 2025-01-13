@@ -5,14 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fc178653-4717-47eb-aeec-184d59f072b4" name="Changes" comment="wrtn">
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/design/HDLforAST/middle_module.v" beforeDir="false" afterPath="$PROJECT_DIR$/design/HDLforAST/middle_module.v" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/elaboration.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/elaboration.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/hdlAST.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/parseFilelist.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/verilogParser.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/verilogParser.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/workdir/elab/elaboration_None.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/workdir/elab/elaboration_None.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regexVerilogAST/workdir/hdlpars/midsub_module.f/middle_module.v.json" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/workdir/hdlpars/midsub_module.f/middle_module.v.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py" beforeDir="false" afterPath="$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,29 +47,51 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.HierarchyExplorer (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.HierarchyExplorer dummy.executor&quot;: &quot;Run&quot;,
-    &quot;Python.HierarchyExplorer.executor&quot;: &quot;Run&quot;,
-    &quot;Python.elaboration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.hdlAST (1).executor&quot;: &quot;Debug&quot;,
-    &quot;Python.hdlAST nt.executor&quot;: &quot;Run&quot;,
-    &quot;Python.hdlAST.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.makeDummyElab.executor&quot;: &quot;Run&quot;,
-    &quot;Python.parseFilelist.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.preprocessor.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.temp.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.verilogParser (1).executor&quot;: &quot;Run&quot;,
-    &quot;Python.verilogParser.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/dyxn/PycharmProjects/a&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.HierarchyExplorer (1).executor": "Run",
+    "Python.HierarchyExplorer dummy.executor": "Run",
+    "Python.HierarchyExplorer.executor": "Run",
+    "Python.elaboration.executor": "Debug",
+    "Python.hdlAST (1).executor": "Debug",
+    "Python.hdlAST nt.executor": "Run",
+    "Python.hdlAST.executor": "Debug",
+    "Python.makeDummyElab.executor": "Run",
+    "Python.parseFilelist.executor": "Run",
+    "Python.preprocessor.executor": "Debug",
+    "Python.temp.executor": "Debug",
+    "Python.verilogParser (1).executor": "Run",
+    "Python.verilogParser.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/dyxn/PycharmProjects/a",
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Python.HierarchyExplorer">
+    <configuration name="HierarchyExplorer -p" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="CodeFromAI" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/regexVerilogAST" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py" />
+      <option name="PARAMETERS" value="-p *top*" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="HierarchyExplorer dummy" type="PythonConfigurationType" factoryName="Python">
       <module name="CodeFromAI" />
       <option name="ENV_FILES" value="" />
@@ -97,7 +114,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="HierarchyExplorer" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+    <configuration name="HierarchyExplorer" type="PythonConfigurationType" factoryName="Python">
       <module name="CodeFromAI" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -111,7 +128,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py" />
-      <option name="PARAMETERS" value="-p *top*" />
+      <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -172,7 +189,6 @@
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="" />
-      <option name="SDK_NAME" value="Python 3.10 (CodeFromAI)" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/wrtn" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
@@ -232,16 +248,17 @@
     </configuration>
     <list>
       <item itemvalue="Python.HierarchyExplorer dummy" />
+      <item itemvalue="Python.hdlAST" />
       <item itemvalue="Python.HierarchyExplorer" />
+      <item itemvalue="Python.HierarchyExplorer -p" />
       <item itemvalue="Python.elaboration" />
       <item itemvalue="Python.hdlAST nt" />
-      <item itemvalue="Python.hdlAST" />
       <item itemvalue="Python.makeDummyElab" />
       <item itemvalue="Python.parseFilelist" />
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.HierarchyExplorer" />
+        <item itemvalue="Python.HierarchyExplorer -p" />
         <item itemvalue="Python.hdlAST nt" />
         <item itemvalue="Python.elaboration" />
         <item itemvalue="Python.parseFilelist" />
@@ -252,7 +269,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-1b1018131e27-aa17d162503b-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-243.22562.180" />
+        <option value="bundled-python-sdk-d7ad00fb9fc3-c546a90a8094-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.23726.102" />
       </set>
     </attachedChunks>
   </component>
@@ -314,11 +331,6 @@
           <option name="timeStamp" value="72" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/regexVerilogAST/elaboration.py</url>
-          <line>117</line>
-          <option name="timeStamp" value="105" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/regexVerilogAST/HierarchyExplorer.py</url>
           <line>380</line>
           <option name="timeStamp" value="107" />
@@ -327,6 +339,11 @@
           <url>file://$PROJECT_DIR$/regexVerilogAST/verilogParser.py</url>
           <line>144</line>
           <option name="timeStamp" value="110" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/regexVerilogAST/elaboration.py</url>
+          <line>182</line>
+          <option name="timeStamp" value="111" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

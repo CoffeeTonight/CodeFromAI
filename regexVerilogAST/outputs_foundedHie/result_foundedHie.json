@@ -1,42 +1,86 @@
 {
+    "top_a": {
+        "topMpdule": "top_a",
+        "pattern": "\\w*top\\w*",
+        "#matches": 7,
+        "matches": {
+            "top_a": {
+                "hierarchy": "top_a",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": ""
+            },
+            "top_a.top_a": {
+                "hierarchy": "top_a.top_a",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
+            },
+            "top_a.top_a.u_middle_0.u_subTop_0": {
+                "hierarchy": "top_a.top_a.u_middle_0.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_a.test_module.u_middle.u_subTop_0": {
+                "hierarchy": "top_a.test_module.u_middle.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_a.top_module": {
+                "hierarchy": "top_a.top_module",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
+            },
+            "top_a.top_module.u_middle_0.u_subTop_0": {
+                "hierarchy": "top_a.top_module.u_middle_0.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_a.top_module.u_middle_a.u_subTop_0": {
+                "hierarchy": "top_a.top_module.u_middle_a.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            }
+        },
+        "tBuild_hierarchy": 0.0006036758422851562,
+        "tSearch_hierarchy": 0.00015354156494140625
+    },
     "test_module": {
         "topMpdule": "test_module",
         "pattern": "\\w*top\\w*",
         "#matches": 6,
         "matches": {
-            "test_module.test_module.u_middle.u_subTop_0": {
-                "hierarchy": "test_module.test_module.u_middle.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "test_module.top_module": {
-                "hierarchy": "test_module.top_module",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
-            },
-            "test_module.top_module.u_middle_0.u_subTop_0": {
-                "hierarchy": "test_module.top_module.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "test_module.top_module.u_middle_a.u_subTop_0": {
-                "hierarchy": "test_module.top_module.u_middle_a.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
             "test_module.top_a": {
                 "hierarchy": "test_module.top_a",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
             },
             "test_module.top_a.u_middle_0.u_subTop_0": {
                 "hierarchy": "test_module.top_a.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "test_module.test_module.u_middle.u_subTop_0": {
+                "hierarchy": "test_module.test_module.u_middle.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "test_module.top_module": {
+                "hierarchy": "test_module.top_module",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
+            },
+            "test_module.top_module.u_middle_0.u_subTop_0": {
+                "hierarchy": "test_module.top_module.u_middle_0.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "test_module.top_module.u_middle_a.u_subTop_0": {
+                "hierarchy": "test_module.top_module.u_middle_a.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
             }
         },
-        "tBuild_hierarchy": 0.0008597373962402344,
-        "tSearch_hierarchy": 0.00016570091247558594
+        "tBuild_hierarchy": 0.0007655620574951172,
+        "tSearch_hierarchy": 2.1696090698242188e-05
     },
     "top_module": {
         "topMpdule": "top_module",
@@ -45,85 +89,41 @@
         "matches": {
             "top_module": {
                 "hierarchy": "top_module",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
                 "fileload": ""
-            },
-            "top_module.test_module.u_middle.u_subTop_0": {
-                "hierarchy": "top_module.test_module.u_middle.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "top_module.top_module": {
-                "hierarchy": "top_module.top_module",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
-            },
-            "top_module.top_module.u_middle_0.u_subTop_0": {
-                "hierarchy": "top_module.top_module.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "top_module.top_module.u_middle_a.u_subTop_0": {
-                "hierarchy": "top_module.top_module.u_middle_a.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
             },
             "top_module.top_a": {
                 "hierarchy": "top_module.top_a",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
             },
             "top_module.top_a.u_middle_0.u_subTop_0": {
                 "hierarchy": "top_module.top_a.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_module.test_module.u_middle.u_subTop_0": {
+                "hierarchy": "top_module.test_module.u_middle.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_module.top_module": {
+                "hierarchy": "top_module.top_module",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/top_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f"
+            },
+            "top_module.top_module.u_middle_0.u_subTop_0": {
+                "hierarchy": "top_module.top_module.u_middle_0.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
+            },
+            "top_module.top_module.u_middle_a.u_subTop_0": {
+                "hierarchy": "top_module.top_module.u_middle_a.u_subTop_0",
+                "filepath": "/home/user/workspace/CodeFromAI/design/HDLforAST/./sub_module.v",
+                "fileload": "True: /home/user/workspace/CodeFromAI/design/HDLforAST/filelist.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/user/workspace/CodeFromAI/design/HDLforAST/sub_module.f"
             }
         },
-        "tBuild_hierarchy": 0.0010309219360351562,
-        "tSearch_hierarchy": 2.6941299438476562e-05
-    },
-    "top_a": {
-        "topMpdule": "top_a",
-        "pattern": "\\w*top\\w*",
-        "#matches": 7,
-        "matches": {
-            "top_a": {
-                "hierarchy": "top_a",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": ""
-            },
-            "top_a.test_module.u_middle.u_subTop_0": {
-                "hierarchy": "top_a.test_module.u_middle.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "top_a.top_module": {
-                "hierarchy": "top_a.top_module",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
-            },
-            "top_a.top_module.u_middle_0.u_subTop_0": {
-                "hierarchy": "top_a.top_module.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "top_a.top_module.u_middle_a.u_subTop_0": {
-                "hierarchy": "top_a.top_module.u_middle_a.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            },
-            "top_a.top_a": {
-                "hierarchy": "top_a.top_a",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/top_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f"
-            },
-            "top_a.top_a.u_middle_0.u_subTop_0": {
-                "hierarchy": "top_a.top_a.u_middle_0.u_subTop_0",
-                "filepath": "/home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/./sub_module.v",
-                "fileload": "True: /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/filelist.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/midsub_module.f -> /home/dyxn/PycharmProjects/CodeFromAI/design/HDLforAST/sub_module.f"
-            }
-        },
-        "tBuild_hierarchy": 0.0010597705841064453,
-        "tSearch_hierarchy": 2.47955322265625e-05
+        "tBuild_hierarchy": 0.0007903575897216797,
+        "tSearch_hierarchy": 2.1219253540039062e-05
     }
 }

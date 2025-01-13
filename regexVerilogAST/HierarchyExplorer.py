@@ -298,7 +298,7 @@ class HierarchyExplorer(QMainWindow):
             tree_time = time.time() - start_time
 
             # 찾고자 하는 정규 표현식 패턴
-            pattern = patterns.replace(",", "|").replace("*", "\w*")
+            pattern = patterns.replace(",", "|").replace("*", "\\w*")
 
             # 인스턴스 찾기
             pattern_start_time = time.time()

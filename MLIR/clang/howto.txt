@@ -1,0 +1,2 @@
+clang++ -S -emit-llvm  embeddedC.c -o embeddedC.ll
+clang -c embeddedC.c -o embeddedC.bc

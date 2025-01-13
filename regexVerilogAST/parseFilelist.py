@@ -18,7 +18,7 @@ class parseFilelist:
         self.filelist = {}
         self.BASEDIR = myutils.get_full_path(BASEDIR)
         self.topFilePath = self.getEnv(myutils.get_full_path(filepath))
-        self.basepath = os.path.dirname(self.topFilePath)
+        self.basepath = "" if SETENV else (os.path.dirname(self.topFilePath) + "/")
         self.parse_filelist(self.topFilePath, PATH=self.topFilePath)
         None
 
@@ -78,13 +78,13 @@ class parseFilelist:
                     if line:
                         # -f 옵션 처리 (nested filelist)
                         if line.startswith('-f'):
-                            nested_filelist_path = self.getEnv(f"{self.basepath}/{line[len('-f'):].strip()}")
+                            nested_filelist_path = self.getEnv(f"{self.basepath}{line[len('-f'):].strip()}")
                             self.parse_filelist(nested_filelist_path, PATH=f"{PATH} -> {nested_filelist_path}")
                         elif line.startswith('+incdir+'):
                             # 포함 디렉토리를 처리
-                            self.handle_incdir(f"{self.basepath}/{line[len('+incdir+'):].strip()}")
+                            self.handle_incdir(self.getEnv(f"{self.basepath}{line[len('+incdir+'):].strip()}"))
                         else:  # Verilog 파일 파싱
-                            line = f"{self.basepath}/{line}"
+                            line = self.getEnv(f"{self.basepath}{line}")
                             self.hdls.update({line: f"{os.path.exists(line)}: {PATH}"})
                             self.logger["CRITICAL"] += [f"{line} was not existed."] if os.path.exists(line) else []
             except FileNotFoundError:

@@ -55,3 +55,5 @@ if __name__ == "__main__":
                                           f'{args.output}/elab', top_module=args.top, clean_output=args.clean,
                                           log_level=log_level, HDLLOAD=verilog_parser.file_list.hdls)
     integrated_hierarchy = elaboration.integrate_modules()
+    hierarchy_path = elaboration.find_instance_hierarchy("sub", MODULEINST="INSTANCE")
+    print(hierarchy_path)

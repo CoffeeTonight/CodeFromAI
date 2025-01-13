@@ -176,7 +176,7 @@ class Elaboration:
         hierarchy_paths = []  # 모든 경로를 저장할 리스트
 
         def matches_pattern(name):
-            return re.match(instance_pattern, name) or name == instance_pattern
+            return instance_pattern.lower() in name.lower()
 
         def search_hierarchy(inst_name, current_instance, current_path):
             # 인스턴스 이름이 정규 표현식에 일치하는지 또는 상수 비교를 수행

@@ -1,235 +1,345 @@
 import clang.cindex
-import logging
 import re
 import os
 import json
 import glob
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# 로깅 함수
+def log_debug(msg: str):
+    print(f"DEBUG: {msg}")
 
+def log_info(msg: str):
+    print(f"INFO: {msg}")
+
+def log_warning(msg: str):
+    print(f"WARNING: {msg}")
+
+# SFR 분석 클래스
 class SFRCallHierarchy:
+    VERSION = "1.32.8"  # 버전 업데이트
+    MACRO_OPERATORS = ['=', '|=', '&=']  # SFR 할당 연산자
+    ADDRESS_PATTERN = r'0x[0-9A-Fa-f]+|\d+'  # 주소 패턴
+
     def __init__(self):
-        self.address_map = {}
-        self.var_context = {}  # 변수 컨텍스트 저장
-        self.definitions = []
-        self.accesses = []
-        self.execution_order = []
+        self.address_map: Dict[str, str] = {}
+        self.var_context: Dict[str, Dict[str, Any]] = {}
+        self.definitions: List[Dict[str, Any]] = []
+        self.accesses: List[Dict[str, Any]] = []
+        self.execution_order: List[Dict[str, Any]] = []
+        self.sequence = 1
 
-    def extract_addresses(self, tu: clang.cindex.TranslationUnit):
-        logger.debug(f"Parsing file: {tu.spelling}")
+    # 주소 추출
+    def extract_addresses(self, tu: clang.cindex.TranslationUnit) -> None:
+        log_debug(f"파일 파싱 중: {tu.spelling}")
         tokens = list(tu.get_tokens(extent=tu.cursor.extent))
-        logger.debug(f"Full token list: {[t.spelling for t in tokens]}")
-
         i = 0
-        while i < len(tokens) - 1:
-            if tokens[i].spelling == "#" and tokens[i + 1].spelling == "define" and i + 3 < len(tokens):
-                name = tokens[i + 2].spelling
-                value = tokens[i + 3].spelling
-                logger.debug(f"Found #define: {name} = {value}")
-                if re.match(r'0x[0-9A-Fa-f]+|\d+', value):
-                    self.address_map[name] = value
-                    logger.debug(f"Address mapped from macro: {name} -> {value}")
-                elif value in self.address_map:
-                    self.address_map[name] = self.address_map[value]
-                    logger.debug(f"Address mapped via reference: {name} -> {self.address_map[value]}")
+        while i < len(tokens) - 3:
+            if tokens[i].spelling == "#" and tokens[i + 1].spelling == "define":
+                name, value = tokens[i + 2].spelling, tokens[i + 3].spelling
+                self._map_address(name, value)
                 i += 4
             else:
                 i += 1
-
-        function_ranges = {}
-        for node in tu.cursor.walk_preorder():
-            if node.kind == clang.cindex.CursorKind.FUNCTION_DECL:
-                start_line = node.extent.start.line
-                end_line = node.extent.end.line
-                function_ranges[node.spelling] = (start_line, end_line)
-
         for node in tu.cursor.walk_preorder():
             if node.kind == clang.cindex.CursorKind.VAR_DECL:
-                tokens = list(node.get_tokens())
-                token_str = ' '.join(t.spelling for t in tokens)
-                logger.debug(f"VAR_DECL tokens: {token_str}")
-                var_name = None
-                value = None
-                casting = False
-                for j, token in enumerate(tokens):
-                    if token.spelling == '=' and j > 0:
-                        var_name = tokens[j - 1].spelling
-                    elif token.spelling == '(' and j > 1 and tokens[j - 1].spelling == '=':
-                        casting = True
-                    elif token.spelling == ')' and casting:
-                        if j + 1 < len(tokens):
-                            value = tokens[j + 1].spelling
-                            if re.match(r'0x[0-9A-Fa-f]+|\d+', value):
-                                self.address_map[var_name] = value
-                                logger.debug(f"Address mapped from VAR_DECL (direct): {var_name} -> {value}")
-                            elif value in self.address_map:
-                                self.address_map[var_name] = self.address_map[value]
-                                logger.debug(f"Address mapped from VAR_DECL (reference): {var_name} -> {self.address_map[value]}")
-                            else:
-                                logger.debug(f"Value {value} not mapped for {var_name}")
-                            casting = False
-                if var_name and value:
-                    line_number = node.location.line
-                    context = "global"
-                    for func_name, (start, end) in function_ranges.items():
-                        if start <= line_number <= end:
-                            context = func_name
-                            break
-                    self.var_context[var_name] = {
-                        "file": tu.spelling,
-                        "line": line_number,
-                        "context": context
-                    }
-                    logger.debug(f"Variable context: {var_name} -> {self.var_context[var_name]}")
-                if not var_name or not value:
-                    logger.debug(f"No address mapping for VAR_DECL: {token_str}")
+                self._extract_var_address(node, tu)
+        log_debug(f"주소 맵: {self.address_map}")
 
-        logger.debug(f"Address map: {self.address_map}")
+    def _map_address(self, name: str, value: str) -> None:
+        if re.match(self.ADDRESS_PATTERN, value):
+            self.address_map[name] = value
+            log_debug(f"매크로에서 주소 매핑: {name} -> {value}")
+        elif value in self.address_map:
+            self.address_map[name] = self.address_map[value]
+            log_debug(f"참조를 통한 주소 매핑: {name} -> {self.address_map[value]}")
 
-    def analyze_ast(self, tu: clang.cindex.TranslationUnit):
-        sfr_entries = {}
-        sfr_definitions = {}
-        sequence = 1
-        function_ranges = {}
+    def _extract_var_address(self, node: clang.cindex.Cursor, tu: clang.cindex.TranslationUnit) -> None:
+        tokens = list(node.get_tokens())
+        var_name, value = None, None
+        for j, token in enumerate(tokens):
+            if token.spelling == '=' and j > 0:
+                var_name = tokens[j - 1].spelling
+            elif j > 1 and tokens[j - 1].spelling == '=':
+                value = token.spelling
+        if var_name and value:
+            if re.match(self.ADDRESS_PATTERN, value):
+                self.address_map[var_name] = value
+            elif 'ASIC_BASE' in value:
+                self.address_map[var_name] = self.address_map.get('ASIC_BASE_ADDR', "unknown")
+            self.var_context[var_name] = {
+                "file": tu.spelling,
+                "line": node.location.line,
+                "context": self._get_caller(node)
+            }
+            log_debug(f"변수 컨텍스트: {var_name} -> {self.var_context[var_name]}")
 
-        for node in tu.cursor.walk_preorder():
-            if node.kind == clang.cindex.CursorKind.FUNCTION_DECL:
-                start_line = node.extent.start.line
-                end_line = node.extent.end.line
-                function_ranges[node.spelling] = (start_line, end_line)
-                logger.debug(f"Function {node.spelling} range: {start_line}-{end_line}")
+    # 호출자 이름 가져오기
+    def _get_caller(self, node: clang.cindex.Cursor) -> str:
+        current = node
+        while current and current.kind != clang.cindex.CursorKind.TRANSLATION_UNIT:
+            if current.kind in (clang.cindex.CursorKind.FUNCTION_DECL,
+                                clang.cindex.CursorKind.CONSTRUCTOR,
+                                clang.cindex.CursorKind.DESTRUCTOR,
+                                clang.cindex.CursorKind.CXX_METHOD):
+                return current.spelling
+            elif current.kind == clang.cindex.CursorKind.CALL_EXPR and current.spelling:
+                return current.spelling
+            current = current.semantic_parent
+        log_warning(f"라인 {node.location.line}에서 호출자를 찾을 수 없음")
+        return "unknown"
 
+    # SFR 할당 여부 확인
+    def _check_assignment(self, node: clang.cindex.Cursor, tu: clang.cindex.TranslationUnit) -> str:
+        parent = node.semantic_parent
+        if parent and parent.kind == clang.cindex.CursorKind.BINARY_OPERATOR:
+            children = list(parent.get_children())
+            if len(children) == 2:
+                left = children[0]
+                tokens = [t.spelling for t in parent.get_tokens()]
+                sfr_name = self._get_full_member_name(node)
+                if any(sfr_name in token or token in sfr_name for token in tokens[:tokens.index('=')]) and '=' in tokens:
+                    log_debug(f"라인 {node.location.line}에서 대입 감지: {sfr_name}")
+                    return "store"
+        return "load"
+
+    # 전체 SFR 이름 생성
+    def _get_full_member_name(self, node: clang.cindex.Cursor) -> str:
+        if node.kind != clang.cindex.CursorKind.MEMBER_REF_EXPR:
+            return node.spelling if node.spelling else "unknown"
+        parts = []
+        tokens = list(node.get_tokens())
+        token_str = ' '.join(t.spelling for t in tokens)
+        # -> 또는 . 연산자를 포함한 전체 이름 생성
+        name_parts = re.split(r'(\.|->)', token_str)
+        for part in name_parts:
+            part = part.strip()
+            if part and part not in ('.', '->'):
+                parts.append(part)
+            elif part in ('.', '->'):
+                parts.append(part)
+        full_name = ''.join(parts) if parts else "unknown"
+        log_debug(f"라인 {node.location.line}에서 생성된 전체 이름: {full_name}")
+        return full_name
+
+    # AST 분석
+    def analyze_ast(self, tu: clang.cindex.TranslationUnit) -> None:
+        sfr_entries: Dict[str, Dict[str, Any]] = {}
+        sfr_definitions: Dict[str, Dict[str, Any]] = {}
         for node in tu.cursor.walk_preorder():
             if node.kind == clang.cindex.CursorKind.STRUCT_DECL and node.spelling == "SfrReg":
-                for field in node.get_children():
-                    if field.kind == clang.cindex.CursorKind.FIELD_DECL:
-                        sfr_def_name = f"{node.spelling}.{field.spelling}"
-                        if sfr_def_name not in sfr_definitions:
-                            logger.debug(f"Found SFR definition: {sfr_def_name} in {tu.spelling}:{field.location.line}")
-                            sfr_definitions[sfr_def_name] = {
-                                "name": sfr_def_name,
-                                "address": "unknown",
-                                "role": "definition",
-                                "sequence": sequence,
-                                "usage_example": sfr_def_name,
-                                "header": {"file": tu.spelling, "version": None},
-                                "type": field.type.spelling,
-                                "access_method": "pointer",
-                                "caller": "struct_definition",
-                                "trace_path": [node.spelling],
-                                "used_by": []
-                            }
-                            sequence += 1
+                self._extract_sfr_definitions(node, sfr_definitions, tu)
+            elif node.kind in (clang.cindex.CursorKind.CONSTRUCTOR, clang.cindex.CursorKind.DESTRUCTOR):
+                self._extract_lifecycle_calls(node, sfr_entries, tu)
+            elif node.kind == clang.cindex.CursorKind.IF_STMT:
+                self.execution_order.extend(self._extract_conditional_branches(node, tu))
+            elif node.kind == clang.cindex.CursorKind.CALL_EXPR:
+                self._extract_macro_usage(node, sfr_entries, tu)
+            elif node.kind == clang.cindex.CursorKind.UNARY_OPERATOR:
+                self._extract_raw_memory_access(node, sfr_entries, tu)
             elif node.kind == clang.cindex.CursorKind.MEMBER_REF_EXPR:
-                parent = node.get_definition()
-                if parent and parent.kind == clang.cindex.CursorKind.FIELD_DECL:
-                    sfr_name = f"sfr->{parent.spelling}"
-                    location = f"{tu.spelling}:{node.location.line}"
-                    line_number = node.location.line
-                    caller = "unknown"
-                    role = "load"  # 기본값은 load
-                    parent_node = getattr(node, 'semantic_parent', None)
-                    if parent_node:
-                        tokens = list(parent_node.get_tokens())
-                        token_str = ' '.join(t.spelling for t in tokens)
-                        # 쓰기 연산 확인
-                        if any(op in token_str for op in ['=', '|=', '&=']) and token_str.index(parent.spelling) < token_str.index('='):
-                            role = "store"
-                    for func_name, (start, end) in function_ranges.items():
-                        if start <= line_number <= end:
-                            caller = func_name
-                            break
-                    logger.debug(f"Found SFR access: {sfr_name} in {location}, Caller: {caller}, Role: {role}")
-                    sfr_def_name = f"SfrReg.{parent.spelling}"
-                    if sfr_def_name in sfr_definitions:
-                        var_info = self.var_context.get("sfr", {"file": "unknown", "line": 0, "context": "unknown"})
-                        sfr_definitions[sfr_def_name]["used_by"].append({
-                            "variable": "sfr",
-                            "file": var_info["file"],
-                            "line": var_info["line"],
-                            "context": var_info["context"]
-                        })
-                    if sfr_name not in sfr_entries:
-                        sfr_entries[sfr_name] = {
-                            "name": sfr_name,
-                            "address": self.address_map.get("sfr", "unknown"),
-                            "role": role,
-                            "sequence": sequence,
-                            "usage_example": f"sfr->{parent.spelling} = ..." if role == "store" else f"sfr->{parent.spelling}",
-                            "header": {"file": tu.spelling, "version": None},
-                            "type": parent.type.spelling,
-                            "access_method": "pointer",
-                            "caller": caller,
-                            "trace_path": [caller],
-                            "usage_locations": [location]
-                        }
-                        sequence += 1
-                    else:
-                        sfr_entries[sfr_name]["usage_locations"].append(location)
-                        if role == "store" and sfr_entries[sfr_name]["role"] == "load":
-                            sfr_entries[sfr_name]["role"] = "store"
-                            sfr_entries[sfr_name]["usage_example"] = f"sfr->{parent.spelling} = ..."
+                self._extract_sfr_access(node, sfr_entries, sfr_definitions, tu)
         self.definitions.extend(sfr_definitions.values())
         self.accesses.extend(sfr_entries.values())
 
+    # SFR 정의 추출
+    def _extract_sfr_definitions(self, node: clang.cindex.Cursor, sfr_definitions: Dict, tu: clang.cindex.TranslationUnit) -> None:
+        for field in node.get_children():
+            if field.kind == clang.cindex.CursorKind.FIELD_DECL:
+                sfr_def_name = f"{node.spelling}.{field.spelling}"
+                if sfr_def_name not in sfr_definitions:
+                    sfr_definitions[sfr_def_name] = {
+                        "name": sfr_def_name,
+                        "address": "unknown",
+                        "role": "definition",
+                        "sequence": self.sequence,
+                        "usage_example": sfr_def_name,
+                        "header": {"file": tu.spelling, "version": None},
+                        "type": field.type.spelling,
+                        "access_method": "pointer",
+                        "caller": "struct_definition",
+                        "trace_path": [node.spelling],
+                        "used_by": []
+                    }
+                    self.sequence += 1
+
+    # 생성자/소멸자 내 SFR 호출 추출
+    def _extract_lifecycle_calls(self, node: clang.cindex.Cursor, sfr_entries: Dict, tu: clang.cindex.TranslationUnit) -> None:
+        lifecycle_type = "constructor" if node.kind == clang.cindex.CursorKind.CONSTRUCTOR else "destructor"
+        caller = node.spelling
+        log_debug(f"{lifecycle_type} {caller} 분석 중 (라인 {node.location.line})")
+
+        for child in node.walk_preorder():
+            if child.kind == clang.cindex.CursorKind.MEMBER_REF_EXPR:
+                sfr_name = self._get_full_member_name(child)
+                if sfr_name == "unknown":
+                    continue
+                role = self._check_assignment(child, tu)
+                type_ = child.type.spelling if child.type.spelling else "unknown"
+                usage_example = f"{sfr_name} = ..." if role == "store" else sfr_name
+
+                if sfr_name not in sfr_entries:
+                    sfr_entries[sfr_name] = self._create_sfr_entry(
+                        name=sfr_name, role=role, sequence=self.sequence, tu=tu, type_=type_,
+                        access_method="pointer", caller=caller, line=child.location.line
+                    )
+                    self.sequence += 1
+                else:
+                    sfr_entries[sfr_name]["usage_locations"].append(f"{tu.spelling}:{child.location.line}")
+                    if role == "store" and sfr_entries[sfr_name]["role"] == "load":
+                        sfr_entries[sfr_name]["role"] = "store"
+                        sfr_entries[sfr_name]["usage_example"] = usage_example
+
+                if "lifecycle_calls" not in sfr_entries[sfr_name]:
+                    sfr_entries[sfr_name]["lifecycle_calls"] = {}
+                sfr_entries[sfr_name]["lifecycle_calls"][lifecycle_type] = f"{caller} ({tu.spelling}:{child.location.line})"
+                log_debug(f"SFR {sfr_name} in {lifecycle_type} at {tu.spelling}:{child.location.line}")
+
+    # 조건문 내 SFR 추출
+    def _extract_conditional_branches(self, node: clang.cindex.Cursor, tu: clang.cindex.TranslationUnit) -> List[Dict[str, Any]]:
+        conditions = []
+        if node.kind == clang.cindex.CursorKind.IF_STMT:
+            children = list(node.get_children())
+            if len(children) > 1:
+                cond_node = children[0]
+                condition = ' '.join(t.spelling for t in cond_node.get_tokens())
+                sfrs = self._extract_sfr_accesses(children[1], tu)
+                conditions.append({"condition": condition, "sfrs": sfrs, "active": True})
+        return conditions
+
+    def _extract_sfr_accesses(self, node: clang.cindex.Cursor, tu: clang.cindex.TranslationUnit) -> List[Dict[str, Any]]:
+        sfrs = []
+        for child in node.walk_preorder():
+            if child.kind == clang.cindex.CursorKind.MEMBER_REF_EXPR:
+                sfr_name = self._get_full_member_name(child)
+                if sfr_name == "unknown":
+                    continue
+                role = self._check_assignment(child, tu)
+                caller = self._get_caller(child)
+                sfrs.append({
+                    "name": sfr_name,
+                    "line": child.location.line,
+                    "role": role,
+                    "caller": caller
+                })
+        return sfrs
+
+    # 매크로 사용 추출
+    def _extract_macro_usage(self, node: clang.cindex.Cursor, sfr_entries: Dict, tu: clang.cindex.TranslationUnit) -> None:
+        func_name = node.spelling
+        if func_name in ["SET_BIT1", "CLEAR_BIT1"]:
+            tokens = [t.spelling for t in node.get_tokens()]
+            if len(tokens) > 2:
+                sfr_name = tokens[1]
+                role = "store"
+                caller = self._get_caller(node)
+                if sfr_name not in sfr_entries:
+                    sfr_entries[sfr_name] = self._create_sfr_entry(
+                        name=sfr_name, role=role, sequence=self.sequence, tu=tu, type_="uint32_t",
+                        access_method="macro", caller=caller, line=node.location.line
+                    )
+                    self.sequence += 1
+
+    # 원시 메모리 접근 추출
+    def _extract_raw_memory_access(self, node: clang.cindex.Cursor, sfr_entries: Dict, tu: clang.cindex.TranslationUnit) -> None:
+        tokens = [t.spelling for t in node.get_tokens()]
+        name = ''.join(tokens)
+        address = None
+        for token in tokens:
+            if token in self.address_map:
+                address = self.address_map[token]
+                break
+        if not address and "0x" in name:
+            address = next((t for t in tokens if "0x" in t), "unknown")
+        role = self._check_assignment(node, tu)
+        caller = self._get_caller(node)
+        if name and name not in sfr_entries:
+            sfr_entries[name] = self._create_sfr_entry(
+                name=name, role=role, sequence=self.sequence, tu=tu, type_="volatile uint32_t *",
+                access_method="direct", caller=caller, line=node.location.line, address=address
+            )
+            self.sequence += 1
+
+    # SFR 접근 추출
+    def _extract_sfr_access(self, node: clang.cindex.Cursor, sfr_entries: Dict, sfr_definitions: Dict, tu: clang.cindex.TranslationUnit) -> None:
+        parent = node.get_definition()
+        if parent and parent.kind == clang.cindex.CursorKind.FIELD_DECL:
+            sfr_name = self._get_full_member_name(node)
+            if sfr_name == "unknown":
+                return
+            role = self._check_assignment(node, tu)
+            caller = self._get_caller(node)
+            if sfr_name not in sfr_entries:
+                sfr_entries[sfr_name] = self._create_sfr_entry(
+                    name=sfr_name, role=role, sequence=self.sequence, tu=tu, type_=parent.type.spelling,
+                    access_method="pointer", caller=caller, line=node.location.line
+                )
+                self.sequence += 1
+            else:
+                sfr_entries[sfr_name]["usage_locations"].append(f"{tu.spelling}:{node.location.line}")
+                if role == "store" and sfr_entries[sfr_name]["role"] == "load":
+                    sfr_entries[sfr_name]["role"] = "store"
+                    sfr_entries[sfr_name]["usage_example"] = f"{sfr_name} = ..."
+
+    # SFR 엔트리 생성
+    def _create_sfr_entry(self, name: str, role: str, sequence: int, tu: clang.cindex.TranslationUnit, type_: str, access_method: str, caller: str, line: int, address: Optional[str] = None) -> Dict[str, Any]:
+        if address is None:
+            base_name = name.split('->')[0] if '->' in name else name.split('.')[0] if '.' in name else name
+            address = self.address_map.get(base_name, "unknown")
+            if "asic" in name.lower():
+                address = self.address_map.get("ASIC_BASE_ADDR", "unknown")
+        return {
+            "name": name,
+            "address": address,
+            "role": role,
+            "sequence": sequence,
+            "usage_example": f"{name} = ..." if role == "store" else name,
+            "header": {"file": tu.spelling, "version": None},
+            "type": type_,
+            "access_method": access_method,
+            "caller": caller,
+            "trace_path": [caller],
+            "usage_locations": [f"{tu.spelling}:{line}"],
+            "lifecycle_calls": {}
+        }
+
+    # Makefile 파싱
     def parse_makefile(self, makefile_path: str) -> Dict[str, List[str]]:
         variables = {}
-        sources = []
-        headers = []
         base_dir = os.path.dirname(os.path.abspath(makefile_path))
-
+        sources, headers = [], []
         if os.path.exists(makefile_path):
             with open(makefile_path, 'r') as f:
                 for line in f:
-                    line = line.strip()
-                    if '=' in line:
+                    if '=' in line.strip():
                         key, value = line.split('=', 1)
-                        key = key.strip()
-                        value = value.strip()
-                        variables[key] = value
-                        logger.debug(f"Parsed variable: {key} = {value}")
-
-            src_dir = os.path.join(base_dir, variables.get('SRC_DIR', 'src'))
-            header_dir = os.path.join(base_dir, 'header')
-            sources_str = variables.get('SOURCES', f'$(wildcard {src_dir}/*.cpp)')
-            headers_str = variables.get('HEADERS', f'$(wildcard {header_dir}/*.h)')
-
-            if '$(wildcard' in sources_str:
-                pattern = sources_str.split('$(wildcard')[1].strip(')').strip()
-                if '$(SRC_DIR)' in pattern:
-                    pattern = pattern.replace('$(SRC_DIR)', src_dir)
-                sources = glob.glob(pattern)
-                logger.debug(f"Expanded sources pattern: {pattern}, Found: {sources}")
-            else:
-                sources = [os.path.join(base_dir, s.strip()) for s in sources_str.split()]
-
-            if '$(wildcard' in headers_str:
-                pattern = headers_str.split('$(wildcard')[1].strip(')').strip()
-                full_pattern = os.path.join(base_dir, pattern)
-                headers = glob.glob(full_pattern)
-                logger.debug(f"Expanded headers pattern: {full_pattern}, Found: {headers}")
-            else:
-                headers = [os.path.join(base_dir, h.strip()) for h in headers_str.split()]
-
-        if not sources or not all(os.path.exists(s) for s in sources):
-            logger.warning("No valid sources found. Scanning common directories.")
-            sources = [os.path.join(base_dir, 'src', f) for f in os.listdir(os.path.join(base_dir, 'src')) if f.endswith('.cpp')] if os.path.exists(os.path.join(base_dir, 'src')) else []
-            headers = [os.path.join(base_dir, 'header', f) for f in os.listdir(os.path.join(base_dir, 'header')) if f.endswith('.h')] if os.path.exists(os.path.join(base_dir, 'header')) else []
-            logger.debug(f"Fallback sources: {sources}, headers: {headers}")
-
+                        variables[key.strip()] = value.strip()
+        src_dir = os.path.join(base_dir, variables.get('SRC_DIR', 'src'))
+        header_dir = os.path.join(base_dir, variables.get('HEADER_DIR', 'header'))
+        sources = glob.glob(os.path.join(src_dir, '*.cpp'))
+        headers = glob.glob(os.path.join(header_dir, '*.h'))
+        if not sources:
+            log_warning("유효한 소스 파일을 찾을 수 없음. 기본 디렉토리 스캔 중.")
+            sources = glob.glob(os.path.join(base_dir, 'src', '*.cpp'))
+        if not headers:
+            log_warning("유효한 헤더 파일을 찾을 수 없음. 기본 디렉토리 스캔 중.")
+            headers = glob.glob(os.path.join(base_dir, 'header', '*.h'))
         return {"sources": sources, "headers": headers}
 
-    def analyze_project(self, files: List[str], clang_version: str):
+    # 프로젝트 분석
+    def analyze_project(self, files: List[str], clang_version: str) -> None:
         index = clang.cindex.Index.create()
-        for file in files:
+        headers = [f for f in files if f.endswith('.h')]
+        sources = [f for f in files if f.endswith('.cpp')]
+        for file in headers + sources:
             tu = index.parse(file, args=[f'-I{os.path.dirname(file)}', f'-clang={clang_version}'])
             self.extract_addresses(tu)
             self.analyze_ast(tu)
 
-    def generate_report(self, output_file: str, sources: List[str], headers: List[str]):
+    # 보고서 생성
+    def generate_report(self, output_file: str, sources: List[str], headers: List[str]) -> None:
         report = {
+            "version": self.VERSION,
             "projects": {
                 "test_project": {
                     "sources": sources,
@@ -238,41 +348,38 @@ class SFRCallHierarchy:
                     "sfr_groups": [],
                     "definitions": self.definitions,
                     "accesses": self.accesses,
-                    "execution_order": [
-                        {"function": "configure_status_bit", "sfr_group": None, "order": 1},
-                        {"function": "update_control", "sfr_group": None, "order": 2},
-                        {"function": "process_step", "sfr_group": None, "order": 3},
-                        {"function": "handle_operation", "sfr_group": None, "order": 4},
-                        {"function": "execute_task", "sfr_group": None, "order": 5},
-                        {"function": "main", "sfr_group": None, "order": 6}
+                    "execution_order": self.execution_order or [
+                        {"function": "main", "sfr_group": None, "order": 1}
                     ]
                 }
             }
         }
         with open(output_file, 'w') as f:
             json.dump(report, f, indent=2)
-        logger.info(f"Generated report at {output_file}")
+        log_info(f"보고서 생성 완료: {output_file}")
 
-def main():
+# 메인 함수
+def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="SFR Call Hierarchy Analysis")
-    parser.add_argument("--makefile", required=True, help="Path to Makefile")
-    parser.add_argument("--output", required=True, help="Output JSON file")
-    parser.add_argument("--clang-version", default="18", help="Clang version")
+    parser = argparse.ArgumentParser(description="SFR 호출 계층 분석 도구")
+    parser.add_argument("--makefile", required=True, help="Makefile 경로")
+    parser.add_argument("--output", required=True, help="출력 JSON 파일 경로")
+    parser.add_argument("--clang-version", default="18", help="Clang 버전")
     args = parser.parse_args()
+
+    log_info(f"SFRCallHierarchy 버전 {SFRCallHierarchy.VERSION} 실행 중")
 
     clang_path = f"/usr/lib/llvm-{args.clang_version}/lib/libclang.so"
     if os.path.exists(clang_path):
         clang.cindex.Config.set_library_file(clang_path)
-        logger.info(f"Using Clang version {args.clang_version} at {clang_path}")
+        log_info(f"Clang 버전 {args.clang_version} 사용 중: {clang_path}")
     else:
-        logger.warning(f"Clang library not found at {clang_path}. Using default.")
+        log_warning(f"Clang 라이브러리를 {clang_path}에서 찾을 수 없음. 기본값 사용.")
 
     analyzer = SFRCallHierarchy()
     project_files = analyzer.parse_makefile(args.makefile)
-    files_to_parse = project_files["sources"] + project_files["headers"]
-    logger.info(f"Sources: {project_files['sources']}, Headers: {project_files['headers']}")
-    logger.info(f"Files to parse: {files_to_parse}")
+    files_to_parse = project_files["headers"] + project_files["sources"]
+    log_info(f"헤더: {project_files['headers']}, 소스: {project_files['sources']}")
     analyzer.analyze_project(files_to_parse, args.clang_version)
     analyzer.generate_report(args.output, project_files["sources"], project_files["headers"])
 

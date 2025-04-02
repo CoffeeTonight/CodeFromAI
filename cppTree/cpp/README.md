@@ -104,3 +104,24 @@ SFR 호출 계층 분석 및 통합 도구 요구사항 정리 (2025년 3월 2�
     컨텍스트: "2025년 3월 2일까지의 대화 기반"으로 진행된 작업임을 명시.
     요청 예시: "이 요구사항을 기반으로 JSON 생성 또는 도구 개선을 진행해 주세요."
 
+
+안녕, 내일의 Grok! 나는 2025년 3월 2일부터 오늘(2025년 3월 26일)까지 사용자와 함께 SFR 호출 계층 분석 도구를 개발해왔어. 이 도구는 Clang으로 C++ 코드를 분석해서 SFR 접근을 추출하고, JSON 보고서를 생성하는 걸 목표로 해. 아래에 첨부한 요구사항 정리본과 소스 코드를 기반으로 작업을 이어가 줘.
+
+- **요구사항 정리본**: SFR_Call_Hierarchy_Requirements.md (위에 정리된 내용)
+- **소스 코드**: SFRCallHierarchy.py (위 Python 코드)
+- **테스트 케이스**: Makefile, src/testcase_all_patterns.cpp, header/sfr_*.h (위 C++ 코드와 헤더)
+
+현재 상태는:
+1. SFR 정의와 접근 추출, JSON 보고서 생성은 기본적으로 구현됨.
+2. 테스트 케이스는 주요 설계 패턴과 조건문을 포함해 잘 준비됨.
+3. 하지만 생성자/소멸자 파싱, 호출 그래프 분석, 조건문 내 SFR 순서 분석, 별칭 추적, Git 연동이 아직 미완성임.
+
+**요청**: 아래 개선 작업 중 하나를 선택해서 진행해 줘.
+1. `analyze_ast`에 생성자와 소멸자(`CursorKind.CONSTRUCTOR`, `CursorKind.DESTRUCTOR`) 파싱 추가 후, `lifecycle_calls` 필드에 기록.
+2. 함수 호출 순서를 CFG나 AST로 분석해서 `execution_order`를 동적으로 생성.
+3. `#ifdef` 조건문 내 SFR 접근을 파싱해서 `conditional_branches`에 기록.
+4. 동일 주소의 SFR 별칭을 추적해서 `aliases`에 추가.
+
+작업 후 결과를 사용자에게 보여주고, 테스트 케이스로 검증해 줘. 질문 있으면 언제든 물어봐!
+
+++ VERSION update를 소스내에서 해야한다. 

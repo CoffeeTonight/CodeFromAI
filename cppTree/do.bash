@@ -1,0 +1,1 @@
+clear && \rm -rf report_all_patterns.json  && python SFRCallHierarchy.py --makefile ./cpp/all_patterns/Makefile --output report_all_patterns.json --clang-version 18 > log.txt && cat report_all_patterns.json log.txt > toGROK3.txt

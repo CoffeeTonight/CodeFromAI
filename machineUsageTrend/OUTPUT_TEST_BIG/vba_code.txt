@@ -1,0 +1,34 @@
+
+        Private Sub Workbook_Open()
+            Dim ws As Worksheet
+            Dim chartObj As ChartObject
+            Dim rng As Range
+
+            Set ws = ThisWorkbook.Sheets("Sheet1")
+            For Each chartObj In ws.ChartObjects
+                chartObj.Delete
+            Next chartObj
+
+            Set rng = ws.Range("A1:" & ws.Cells(1, ws.Columns.Count).End(xlToLeft).Address)
+
+            With ws.DropDowns.Add(100, 10, 100, 15)
+                .ListFillRange = "=A2:A" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+                .LinkedCell = "$B$1"
+            End With
+
+            ws.Range("A1").AutoFilter Field:=1, Criteria1:=ws.Range("B1").Value
+            Set rng = ws.Range("A1:" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Address).SpecialCells(xlCellTypeVisible)
+
+            Set chartObj = ws.ChartObjects.Add(Left:=200, Top:=50, Width:=500, Height:=300)
+            With chartObj.Chart
+                .SetSourceData Source:=rng
+                .ChartType = xlLineMarkers
+                .HasTitle = True
+                .ChartTitle.Text = "Monthly Trend for " & ws.Range("B1").Value
+                .Axes(xlCategory).HasTitle = True
+                .Axes(xlCategory).AxisTitle.Text = "Columns"
+                .Axes(xlValue).HasTitle = True
+                .Axes(xlValue).AxisTitle.Text = "Values"
+            End With
+        End Sub
+        

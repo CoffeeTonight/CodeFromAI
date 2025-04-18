@@ -268,3 +268,15 @@ AUP Operation Scenario(please update by yourself if you founded missed something
   - AUP의 feature list를 작성 할 것
   - AUP의 code 재 작성마다 version을 올리며 형상관리를 할 것. 물론 로그에 그 버전이 출력되어 있어야 한다.
   - 이와 유사한 도구 개발을 조사해보고, cocotb, verible의 활용 사례 중, 특히 UVM을 다른 것으로 변환하는데 활용된 적이 있는 IEEE, DVCON 논문들을 찾아서 feature list작성 시 참고하고 link를 달아 둘 것.
+
+2020~2024년 IEEE/DVCON 논문
+
+    논문 1: "Efficient System-Level Verification: UVM and Embedded C/C++" (2023, DVCON)
+        활용: SFR 로그 구조(JSON) 설계, Cocotb 로그 생성 참고.
+    논문 2: "Datagen: Python Constrained Random Test Stimulus Framework" (2023, DVCON)
+        활용: Cocotb 테스트벤치 설계, DUT 없는 시뮬레이션.
+    논문 3: "Verification of SystemVerilog Designs Using Open-Source Tools" (2022, DVCON)
+        활용: Verible/Cocotb 통합, AST 파싱 로직.
+    논문 4: "Advanced methodologies, test benches, and flows (e.g., UVM, PSS)" (2024, DVCon Europe)
+        활용: SFR 시퀀스와 AST 매핑 전략.
+

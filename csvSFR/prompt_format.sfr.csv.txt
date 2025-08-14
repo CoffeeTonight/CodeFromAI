@@ -1,0 +1,61 @@
+Understand and internalize the following CSV format for defining Special Function Register (SFR) structures in a hardware system, presented as a Markdown table for readability. This format is used for tasks like generating, validating, or modifying SFR definitions. The CSV includes these fields: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. Here are the rules and structure:
+
+1. **Structure**:
+   - Groups are defined with a name, repeat count (integer), and size (hex, e.g., 0x40).
+   - Subgroups within groups have their own name, repeat count, and size.
+   - Registers can belong to subgroups or exist standalone within groups or between groups for realistic designs.
+   - Registers include bit fields with a name, bit range (e.g., [7:0]), default value (hex), and access type.
+
+2. **Offset Management**:
+   - Offsets (hex) must be unique, calculated based on group and subgroup sizes/repeat counts.
+   - Groups start sequentially, with gaps treated as reserved (no need to define every address).
+   - Specific groups may start at a fixed address (e.g., 0x100), with padding calculated automatically to align with prior group endings.
+
+3. **Access Types**:
+   - Support a variety of access types from the UVM reference[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html): RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC.
+
+4. **Testable Column**:
+   - The Testable column uses `Y` for fields testable via read/write, reset value checks, or verifiable behavior (e.g., RW, RO, RC), and `N` for non-testable fields (e.g., WO, WO1 without read feedback).
+
+5. **Simplification**:
+   - Use single-row definitions combining group, subgroup, and register details where possible.
+   - Leave fields blank for inherited values (e.g., Group Name for subgroups/registers) to reduce redundancy while maintaining clarity.
+   - Provide human-readable descriptions for registers and bit fields.
+
+6. **Usage**:
+   - This format supports tasks like generating SFR definitions, validating offsets for uniqueness, modifying existing definitions, or calculating address ranges.
+   - Ensure compatibility with CSV parsers and Markdown table rendering for web display.
+
+When tasked with SFR-related work, apply this format and rules. Output results as a Markdown table within an `<xaiArtifact>` tag, with a unique artifact_id (UUID), title "sfr_definition.csv", and contentType "text/markdown". Do not mention the tag outside the artifact.
+
+
+
+하드웨어 시스템의 SFR(Special Function Register) 구조를 정의하는 CSV 형식을 이해하고 내재화하세요. 이 형식은 SFR 정의 생성, 검증, 수정 등의 작업에 사용되며, 가독성을 위해 Markdown 테이블로 표현됩니다. CSV는 다음 필드를 포함합니다: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. 아래는 규칙과 구조입니다:
+
+1. **구조**:
+   - 그룹은 이름, 반복 횟수(정수), 크기(16진수, 예: 0x40)로 정의됩니다.
+   - 그룹 내 서브그룹은 자체 이름, 반복 횟수, 크기를 가집니다.
+   - 레지스터는 서브그룹에 속하거나, 그룹 내 또는 그룹 간에 독립적으로 존재할 수 있으며, 이는 현실적인 설계를 반영합니다.
+   - 레지스터는 비트 필드 이름, 비트 범위(예: [7:0]), 기본값(16진수), 접근 타입을 포함합니다.
+
+2. **오프셋 관리**:
+   - 오프셋(16진수)은 그룹 및 서브그룹 크기/반복 횟수에 따라 계산되어 고유해야 합니다.
+   - 그룹은 순차적으로 시작하며, 주소 간격은 예약(reserved)으로 처리되므로 모든 주소를 정의할 필요는 없습니다.
+   - 특정 그룹(예: IOGroup)은 고정 주소(예: 0x100)에서 시작할 수 있으며, 이전 그룹의 종료 주소에 맞춰 패딩이 자동 계산됩니다.
+
+3. **접근 타입**:
+   - UVM 참[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html)에 따라 다양한 접근 타입을 지원합니다: RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC.
+
+4. **Testable 컬럼**:
+   - Testable 컬럼은 읽기/쓰기, 기본값 검증, 또는 검증 가능한 동작(RW, RO, RC 등)의 경우 `Y`, 읽기 피드백이 없는 경우(WO, WO1 등) `N`을 사용합니다.
+
+5. **간소화**:
+   - 그룹, 서브그룹, 레지스터를 가능한 한 단일 행으로 정의하세요.
+   - 상위 필드(예: Group Name)를 서브그룹/레지스터에서 비워두어 중복을 줄이되, 명확성을 유지하세요.
+   - 레지스터와 비트 필드에 대해 사람이 이해하기 쉬운 설명을 제공하세요.
+
+6. **사용**:
+   - 이 형식은 SFR 정의 생성, 오프셋 고유성 검증, 기존 정의 수정, 주소 범위 계산 등의 작업을 지원합니다.
+   - CSV 파서 및 웹 표시를 위한 Markdown 테이블 렌더링과 호환되도록 하세요.
+
+SFR 관련 작업 요청 시 이 형식과 규칙을 적용하세요. 결과는 `<xaiArtifact>` 태그 내에 Markdown 테이블로 출력하며, artifact_id는 고유 UUID, title은 "sfr_definition.csv", contentType은 "text/markdown"로 설정하세요. 태그는 아티팩트 외부에서 언급하지 마세요.

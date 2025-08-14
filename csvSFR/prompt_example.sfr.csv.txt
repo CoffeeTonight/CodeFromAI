@@ -1,0 +1,61 @@
+Create a CSV file defining a Special Function Register (SFR) structure for a hardware system, formatted as a Markdown table for readability. The CSV must include the following fields: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. Follow these requirements:
+
+1. **Structure**:
+   - Define groups with a specified repeat count and size (in hex, e.g., 0x40).
+   - Include subgroups within groups, each with their own repeat count and size.
+   - Add standalone registers (not in subgroups) within or between groups for realism.
+   - Include registers with bit fields, specifying bit ranges (e.g., [7:0]), default values (in hex), and access types.
+
+2. **Offset Management**:
+   - Ensure offsets are unique and calculated based on group and subgroup sizes/repeat counts.
+   - Start groups sequentially, with gaps treated as reserved (no need to fill every address).
+   - Ensure one group (e.g., IOGroup) starts at a specific address (e.g., 0x100), calculating padding automatically.
+
+3. **Access Types**:
+   - Use a variety of access types from the UVM reference[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html), including RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC.
+
+4. **Testable Column**:
+   - Add a Testable column with values `Y` (for testable fields like RW, RO, RC, etc., or verifiable reset values) or `N` (for non-testable fields like WO, WO1 without read feedback).
+
+5. **Simplification**:
+   - Use single-row definitions for group, subgroup, and register where possible.
+   - Leave fields blank for inherited values (e.g., Group Name for subgroups/registers) to reduce redundancy while preserving clarity.
+   - Ensure human-readable descriptions for each register/bit field.
+
+6. **Example**:
+   - Replicate the structure of the provided example: SystemCtrl (1×0x40) with standalone registers and subgroups (ClockCtrl, ResetCtrl); TimerGroup (2×0x80) with subgroups (TimerConfig, InterruptSub) and a standalone register; IOGroup (1×0x100, starting at 0x100) with subgroups (PortA 4×0x20, PortB 3×0x20); PeripheralCtrl (1×0x30) with standalone registers.
+   - Ensure offsets are unique (e.g., SystemCtrl: 0x00–0x3F, TimerGroup: 0x40–0x13F, IOGroup: 0x100–0x1FF, etc.).
+   - Include diverse bit fields, access types, and testable values.
+
+Output the result as a Markdown table within an `<xaiArtifact>` tag, with a unique artifact_id (UUID), title "sfr_definition.csv", and contentType "text/markdown". Do not mention the tag outside the artifact.
+
+
+하드웨어 시스템의 SFR(Special Function Register) 구조를 정의하는 CSV 파일을 생성하고, 가독성을 위해 Markdown 테이블 형식으로 출력하세요. CSV는 다음 필드를 포함해야 합니다: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. 아래 요구사항을 따르세요:
+
+1. **구조**:
+   - 그룹을 반복 횟수와 크기(16진수, 예: 0x40)로 정의하세요.
+   - 그룹 내에 서브그룹을 포함하며, 각 서브그룹은 자체 반복 횟수와 크기를 가집니다.
+   - 현실적인 설계를 위해 그룹 내 또는 그룹 간에 서브그룹에 속하지 않는 독립 레지스터를 추가하세요.
+   - 레지스터는 비트 필드, 비트 범위(예: [7:0]), 기본값(16진수), 접근 타입을 포함해야 합니다.
+
+2. **오프셋 관리**:
+   - 오프셋은 그룹 및 서브그룹 크기/반복 횟수에 따라 계산하여 고유해야 합니다.
+   - 그룹은 순차적으로 시작하며, 주소 간격은 예약(reserved)으로 처리되므로 모든 주소를 채울 필요는 없습니다.
+   - 특정 그룹(예: IOGroup)은 지정된 주소(예: 0x100)에서 시작하도록 하며, 패딩은 자동 계산됩니다.
+
+3. **접근 타입**:
+   - UVM 참[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html)에 따라 다양한 접근 타입(RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC)을 사용하세요.
+
+4. **Testable 컬럼**:
+   - Testable 컬럼은 `Y`(RW, RO, RC 등 테스트 가능하거나 기본값 검증 가능한 필드) 또는 `N`(WO, WO1 등 읽기 피드백 없는 비테스트 필드)로 정의하세요.
+
+5. **간소화**:
+   - 그룹, 서브그룹, 레지스터를 가능한 한 단일 행으로 정의하세요.
+   - 상위 필드(예: Group Name)를 서브그룹/레지스터에서 비워두어 중복을 줄이되, 명확성을 유지하세요.
+   - 각 레지스터/비트 필드에 대해 사람이 이해하기 쉬운 설명을 제공하세요.
+
+6. **예제**:
+   - 제공된 예제 구조를 따르세요: SystemCtrl (1×0x40, 독립 레지스터 및 서브그룹 ClockCtrl, ResetCtrl 포함); TimerGroup (2×0x80, 서브그룹 TimerConfig, InterruptSub 및 독립 레지스터 포함); IOGroup (1×0x100, 0x100에서 시작, 서브그룹 PortA 4×0x20, PortB 3×0x20 포함); PeripheralCtrl (1×0x30, 독립 레지스터 포함).
+   - 오프셋은 고유해야 하며(예: SystemCtrl: 0x00–0x3F, TimerGroup: 0x40–0x13F, IOGroup: 0x100–0x1FF 등), 다양한 비트 필드, 접근 타입, 테스트 가능 값을 포함하세요.
+
+결과는 `<xaiArtifact>` 태그 내에 Markdown 테이블로 출력하며, artifact_id는 고유 UUID, title은 "sfr_definition.csv", contentType은 "text/markdown"로 설정하세요. 태그는 아티팩트 외부에서 언급하지 마세요.

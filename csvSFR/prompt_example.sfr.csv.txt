@@ -1,61 +1,79 @@
-Create a CSV file defining a Special Function Register (SFR) structure for a hardware system, formatted as a Markdown table for readability. The CSV must include the following fields: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. Follow these requirements:
+The following describes the rules for a System Functional Register (SFR) specification provided in CSV format, defining the memory map and register details for a System-on-Chip (SoC) design, including group, subgroup, and SFR-level repetitions.
 
-1. **Structure**:
-   - Define groups with a specified repeat count and size (in hex, e.g., 0x40).
-   - Include subgroups within groups, each with their own repeat count and size.
-   - Add standalone registers (not in subgroups) within or between groups for realism.
-   - Include registers with bit fields, specifying bit ranges (e.g., [7:0]), default values (in hex), and access types.
+**CSV Structure**:
+- **Columns**:
+  - **Group Name**: Name of the top-level group (e.g., `SystemCtrl`, `TimerGroup`, `IOGroup`, `InterruptGroup`). Empty if the register belongs to the previous group.
+  - **Group Repeat Count**: Number of group repetitions (e.g., `2` for two instances). Empty if `1`.
+  - **Group Size**: Group size in bytes (e.g., `0x80`). Empty if not applicable.
+  - **Subgroup Name**: Name of the subgroup within a group (e.g., `ClockCtrl`, `PortA`). Empty if no subgroup or inherited from the previous row.
+  - **Subgroup Repeat Count**: Number of subgroup repetitions (e.g., `4`). Empty if `1`.
+  - **Subgroup Size**: Subgroup size in bytes (e.g., `0x20`). Empty if not applicable.
+  - **Register Name**: SFR name (e.g., `GlobalConfig`, `ClockConfig`). Empty for subfields of the same register.
+  - **Offset**: Starting address offset of the SFR relative to the group or subgroup (e.g., `0x00`, `0x140`). Empty for subfields.
+  - **Bit Field**: Defines SFR size/repetition or subfield name.
+    - Top-level SFR: `<SFR size>,<repeat count>` (e.g., `0x10,0..1` for 16-byte SFR, 2 repetitions) or empty for default `4,1` (4 bytes, 1 repetition).
+    - Subfield: Name of the bit field (e.g., `Mode`, `Enable`).
+  - **Bit Range**: Bit range for SFR or subfield (e.g., `[31:0]`, `[0:0]`). For top-level SFRs, typically reflects maximum access size (32-bit, `[31:0]`). Undefined bits are reserved.
+  - **Default Value**: Default value of SFR or subfield (e.g., `0x0`, `0xF`).
+  - **Access Type**: Access mode (e.g., `RW`, `RO`, `WO`, `W1C`, `W0C`, `RS`, `WC`, `WRC`, `WS`, `W1T`, `W0T`, `WO1`, `W1S`, `W0S`, `WRS`, `W1CRS`, `W0SRC`).
+  - **Testable**: Testable status (`Y` or `N`).
+  - **Description**: Description of SFR or subfield.
 
-2. **Offset Management**:
-   - Ensure offsets are unique and calculated based on group and subgroup sizes/repeat counts.
-   - Start groups sequentially, with gaps treated as reserved (no need to fill every address).
-   - Ensure one group (e.g., IOGroup) starts at a specific address (e.g., 0x100), calculating padding automatically.
+**Rules**:
+1. **SFR Size and Repetition**:
+   - If `Bit Field` is empty in the top-level SFR row, assume 32-bit (4 bytes, `4,1`).
+   - If `Bit Field` is `<SFR size>,<repeat count>` (e.g., `0x10,0..1`), SFR size is in bytes, and repetition defines multiple instances (e.g., offsets `0x04`, `0x14`).
+   - Subfields (e.g., `Mode`, `Enable`) are defined within the SFR’s offset and `Bit Range`.
 
-3. **Access Types**:
-   - Use a variety of access types from the UVM reference[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html), including RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC.
+2. **Bit Range**:
+   - Top-level SFRs typically use `[31:0]` for 32-bit access but may match subfield ranges if only specific bits are defined (e.g., `[0:0]`). Undefined bits are reserved.
+   - Subfields specify exact bit ranges (e.g., `[1:0]`, `[7:4]`).
 
-4. **Testable Column**:
-   - Add a Testable column with values `Y` (for testable fields like RW, RO, RC, etc., or verifiable reset values) or `N` (for non-testable fields like WO, WO1 without read feedback).
+3. **Offset Gaps**:
+   - Gaps between offsets (e.g., `0x24` to `0x100`) are intentional for future design additions and are not errors.
 
-5. **Simplification**:
-   - Use single-row definitions for group, subgroup, and register where possible.
-   - Leave fields blank for inherited values (e.g., Group Name for subgroups/registers) to reduce redundancy while preserving clarity.
-   - Ensure human-readable descriptions for each register/bit field.
+4. **Repetition Structure**:
+   - **Group Repeat**: Defined by `Group Repeat Count` and `Group Size` (e.g., `TimerGroup`: 2 repetitions, size `0x80`, offsets `0x140`, `0x1C0`).
+   - **Subgroup Repeat**: Defined by `Subgroup Repeat Count` and `Subgroup Size` (e.g., `PortA`: 4 repetitions, size `0x20`, offsets `0x200`, `0x220`, `0x240`, `0x260`).
+   - **SFR Repeat**: Defined by `Bit Field` (e.g., `0x10,0..3` for 4 repetitions of 16-byte SFR).
 
-6. **Example**:
-   - Replicate the structure of the provided example: SystemCtrl (1×0x40) with standalone registers and subgroups (ClockCtrl, ResetCtrl); TimerGroup (2×0x80) with subgroups (TimerConfig, InterruptSub) and a standalone register; IOGroup (1×0x100, starting at 0x100) with subgroups (PortA 4×0x20, PortB 3×0x20); PeripheralCtrl (1×0x30) with standalone registers.
-   - Ensure offsets are unique (e.g., SystemCtrl: 0x00–0x3F, TimerGroup: 0x40–0x13F, IOGroup: 0x100–0x1FF, etc.).
-   - Include diverse bit fields, access types, and testable values.
+   
 
-Output the result as a Markdown table within an `<xaiArtifact>` tag, with a unique artifact_id (UUID), title "sfr_definition.csv", and contentType "text/markdown". Do not mention the tag outside the artifact.
+아래는 System-on-Chip (SoC) 설계의 메모리 맵과 레지스터 세부 정보를 정의하는 CSV 형식의 System Functional Register (SFR) 사양 작성 규칙입니다. 그룹, 서브그룹, SFR 수준의 반복 구조를 포함합니다.
 
+**CSV 구조**:
+- **열**:
+  - **Group Name**: 최상위 그룹 이름 (예: `SystemCtrl`, `TimerGroup`, `IOGroup`, `InterruptGroup`). 이전 그룹에 속하면 공란.
+  - **Group Repeat Count**: 그룹 반복 횟수 (예: `2`는 두 번 반복). `1`이면 공란.
+  - **Group Size**: 그룹의 바이트 크기 (예: `0x80`). 적용되지 않으면 공란.
+  - **Subgroup Name**: 그룹 내 서브그룹 이름 (예: `ClockCtrl`, `PortA`). 서브그룹 없거나 이전 행에서 상속되면 공란.
+  - **Subgroup Repeat Count**: 서브그룹 반복 횟수 (예: `4`). `1`이면 공란.
+  - **Subgroup Size**: 서브그룹의 바이트 크기 (예: `0x20`). 적용되지 않으면 공란.
+  - **Register Name**: SFR 이름 (예: `GlobalConfig`, `ClockConfig`). 동일 레지스터의 하위 필드일 경우 공란.
+  - **Offset**: 그룹 또는 서브그룹 기준 SFR의 시작 오프셋 (예: `0x00`, `0x140`). 하위 필드일 경우 공란.
+  - **Bit Field**: SFR 크기/반복 또는 하위 필드 이름 정의.
+    - 상위 SFR: `<SFR size>,<repeat count>` 형식 (예: `0x10,0..1`은 16바이트 SFR, 2회 반복) 또는 기본값 `4,1` (4바이트, 1회 반복)일 경우 공란.
+    - 하위 필드: 비트 필드 이름 (예: `Mode`, `Enable`).
+  - **Bit Range**: SFR 또는 하위 필드의 비트 범위 (예: `[31:0]`, `[0:0]`). 상위 SFR은 최대 접근 크기(32비트, `[31:0]`)를 반영. 정의되지 않은 비트는 예약(reserved).
+  - **Default Value**: SFR 또는 하위 필드의 기본값 (예: `0x0`, `0xF`).
+  - **Access Type**: 접근 모드 (예: `RW`, `RO`, `WO`, `W1C`, `W0C`, `RS`, `WC`, `WRC`, `WS`, `W1T`, `W0T`, `WO1`, `W1S`, `W0S`, `WRS`, `W1CRS`, `W0SRC`).
+  - **Testable**: 테스트 가능 여부 (`Y` 또는 `N`).
+  - **Description**: SFR 또는 하위 필드의 설명.
 
-하드웨어 시스템의 SFR(Special Function Register) 구조를 정의하는 CSV 파일을 생성하고, 가독성을 위해 Markdown 테이블 형식으로 출력하세요. CSV는 다음 필드를 포함해야 합니다: Group Name, Group Repeat Count, Group Size, Subgroup Name, Subgroup Repeat Count, Subgroup Size, Register Name, Offset, Bit Field, Bit Range, Default Value, Access Type, Testable, Description. 아래 요구사항을 따르세요:
+**규칙**:
+1. **SFR 크기 및 반복**:
+   - 상위 SFR 행의 `Bit Field`가 공란이면 32비트(4바이트, `4,1`)로 가정.
+   - `Bit Field`가 `<SFR size>,<repeat count>` (예: `0x10,0..1`)이면 SFR 크기는 바이트 단위, 반복 횟수는 다중 인스턴스 정의 (예: 오프셋 `0x04`, `0x14`).
+   - 하위 필드 (예: `Mode`, `Enable`)는 SFR의 오프셋과 `Bit Range` 내에서 정의.
 
-1. **구조**:
-   - 그룹을 반복 횟수와 크기(16진수, 예: 0x40)로 정의하세요.
-   - 그룹 내에 서브그룹을 포함하며, 각 서브그룹은 자체 반복 횟수와 크기를 가집니다.
-   - 현실적인 설계를 위해 그룹 내 또는 그룹 간에 서브그룹에 속하지 않는 독립 레지스터를 추가하세요.
-   - 레지스터는 비트 필드, 비트 범위(예: [7:0]), 기본값(16진수), 접근 타입을 포함해야 합니다.
+2. **Bit Range**:
+   - 상위 SFR은 일반적으로 32비트 접근을 위해 `[31:0]` 사용, 특정 비트만 정의되면 하위 필드와 동일 가능 (예: `[0:0]`). 정의되지 않은 비트는 예약(reserved).
+   - 하위 필드는 정확한 비트 범위 지정 (예: `[1:0]`, `[7:4]`).
 
-2. **오프셋 관리**:
-   - 오프셋은 그룹 및 서브그룹 크기/반복 횟수에 따라 계산하여 고유해야 합니다.
-   - 그룹은 순차적으로 시작하며, 주소 간격은 예약(reserved)으로 처리되므로 모든 주소를 채울 필요는 없습니다.
-   - 특정 그룹(예: IOGroup)은 지정된 주소(예: 0x100)에서 시작하도록 하며, 패딩은 자동 계산됩니다.
+3. **오프셋 간격**:
+   - 오프셋 간 공백 (예: `0x24`에서 `0x100` 사이)은 미래 설계 추가를 위해 의도적으로 띄운 것.
 
-3. **접근 타입**:
-   - UVM 참[](https://verificationacademy.com/verification-methodology-reference/uvm/docs_1.1a/html/files/reg/uvm_reg_field-svh.html)에 따라 다양한 접근 타입(RW, RO, WO, W1C, W0C, RC, RS, WC, WRC, WS, W1T, W0T, WO1, W1S, W0S, WRS, W1CRS, W0SRC)을 사용하세요.
-
-4. **Testable 컬럼**:
-   - Testable 컬럼은 `Y`(RW, RO, RC 등 테스트 가능하거나 기본값 검증 가능한 필드) 또는 `N`(WO, WO1 등 읽기 피드백 없는 비테스트 필드)로 정의하세요.
-
-5. **간소화**:
-   - 그룹, 서브그룹, 레지스터를 가능한 한 단일 행으로 정의하세요.
-   - 상위 필드(예: Group Name)를 서브그룹/레지스터에서 비워두어 중복을 줄이되, 명확성을 유지하세요.
-   - 각 레지스터/비트 필드에 대해 사람이 이해하기 쉬운 설명을 제공하세요.
-
-6. **예제**:
-   - 제공된 예제 구조를 따르세요: SystemCtrl (1×0x40, 독립 레지스터 및 서브그룹 ClockCtrl, ResetCtrl 포함); TimerGroup (2×0x80, 서브그룹 TimerConfig, InterruptSub 및 독립 레지스터 포함); IOGroup (1×0x100, 0x100에서 시작, 서브그룹 PortA 4×0x20, PortB 3×0x20 포함); PeripheralCtrl (1×0x30, 독립 레지스터 포함).
-   - 오프셋은 고유해야 하며(예: SystemCtrl: 0x00–0x3F, TimerGroup: 0x40–0x13F, IOGroup: 0x100–0x1FF 등), 다양한 비트 필드, 접근 타입, 테스트 가능 값을 포함하세요.
-
-결과는 `<xaiArtifact>` 태그 내에 Markdown 테이블로 출력하며, artifact_id는 고유 UUID, title은 "sfr_definition.csv", contentType은 "text/markdown"로 설정하세요. 태그는 아티팩트 외부에서 언급하지 마세요.
+4. **반복 구조**:
+   - **그룹 반복**: `Group Repeat Count`와 `Group Size`로 정의 (예: `TimerGroup`은 2회 반복, 크기 `0x80`, 오프셋 `0x140`, `0x1C0`).
+   - **서브그룹 반복**: `Subgroup Repeat Count`와 `Subgroup Size`로 정의 (예: `PortA`는 4회 반복, 크기 `0x20`, 오프셋 `0x200`, `0x220`, `0x240`, `0x260`).
+   - **SFR 반복**: `Bit Field`로 정의 (예: `0x10,0..3`은 16바이트 SFR 4회 반복).

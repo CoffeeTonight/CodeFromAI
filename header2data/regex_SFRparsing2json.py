@@ -26,28 +26,40 @@ class HeaderToJsonConverter:
         self.surfix = {'pre': 'SFR_'}
         self.SFR = []
         self.fSfrHie = {}
+        self.mmapC = {}
         self.build()
+        self.save()
         None
 
     def run(self, bitFields):
         self.SFR = bitFields
         self.genSFR()
-        return self.fSfrHie
+        return {'memorymap': self.mmapC, 'sfr': self.fSfrHie}
+
+    def save(self):
+        if not self.db:
+            with open(f"{self.output_dir}/reverseTreeSFR.json", 'w', encoding="utf8") as f:
+                f.write(json.dumps(self.dTree, indent=4))
 
     def genSFR(self):
         for self.sfr in self.SFR:
             for fnm, v in self.dTree.items():
-                if fnm not in self.fSfrHie:
-                    self.fSfrHie[fnm] = {}
                 self.sfrHie = []
                 self.bitField = v['bitField']
                 if self.sfr not in self.bitField:
-                    break
+                    continue
                 else:
                     if self.fullSFRPath(self.sfr, v):
+                        if fnm not in self.fSfrHie:
+                            self.fSfrHie[fnm] = {}
+                            self.mmapC[fnm] = {}
                         if self.sfr not in self.fSfrHie[fnm]:
                             self.fSfrHie[fnm].update({self.sfr: []})
-                        self.fSfrHie[fnm][self.sfr] += self.sfrHie 
+                            self.mmapC[fnm].update({self.sfr: []})
+                        self.fSfrHie[fnm][self.sfr] += self.sfrHie
+                        for i in self.sfrHie:
+                            _ = i.split("->")[0]
+                            self.mmapC[fnm][self.sfr] += [f"volatile {_} * const {_} = (volatile {_} *)BASE_ADDR_{_}"]
 
     def fullSFRPath(self, sfr, d):
         self.dBitHie = [{i['upper']: i['c']} for i in d['bitField'][sfr]]
@@ -62,7 +74,7 @@ class HeaderToJsonConverter:
                 _ = self.fullHieSFR(i['upper'], d, top=top)
                 return _ + i['c'][i['c'].index('.'):]
             else:
-                return i['c']
+                return i['c'].replace(".", "->")
 
     def build(self):
         if not self.db:
@@ -80,11 +92,12 @@ class HeaderToJsonConverter:
             with open(f"{self.output_dir}/rTree.json", "w", encoding="utf8") as f:
                 f.write(json.dumps(self.dTree, indent=4))
         else:
-            self.dTree = json.load(self.db)
+            with open(self.db, "r", encoding="utf8") as f:
+                self.dTree = json.load(f)
             
     def make(self, d):
-        self.union = re.findall(r"typedef volatile union _([\w]+) {([^,]+)[^;]+;", self.l, flags=re.MULTILINE|re.DOTALL)
-        self.struct = re.findall(r"typedef volatile struct _([\w]+) {([^,]+)[^;]+;", self.l, flags=re.MULTILINE|re.DOTALL)
+        self.union = re.findall(r"typedef volatile union _([\w]+)\s*{([^,]+)[^;]+;", self.l, flags=re.MULTILINE|re.DOTALL)
+        self.struct = re.findall(r"typedef volatile struct _([\w]+)\s*{([^,]+)[^;]+;", self.l, flags=re.MULTILINE|re.DOTALL)
         self.dS = {}
         self.dB = {}
         self.getStructDB(self.struct)
@@ -105,7 +118,7 @@ class HeaderToJsonConverter:
     def getBitFieldDB(self, x):
         if x:
             for (unm, u) in x:
-                _b = re.findall(r"struct {([^}]+)} ([\w]+);", u, flags=re.MULTILINE|re.DOTALL)
+                _b = re.findall(r"struct\s*{([^}]+)} ([\w]+);", u, flags=re.MULTILINE|re.DOTALL)
                 for st in _b:
                     mnm = self.delSurfix(st[1])
                     bits = st[0]

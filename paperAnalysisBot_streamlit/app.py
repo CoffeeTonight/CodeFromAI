@@ -52,13 +52,13 @@ selected_model, top_k, temperature = sidebar.render()
 
 # 탭 선택
 tab_options = [
-    "Tech Tree",
-    "Trend 분석",
-    "Challenges",
-    "오픈소스 프로젝트",
+    "제어 패널",
     "히스토리",
     "Chatbot",
-    "제어 패널"
+    "기본분석:Tech Tree",
+    "기본분석:Trend 분석",
+    "기본분석:Challenges",
+    "기본분석:오픈소스 프로젝트",
 ]
 
 if "main_tab" not in st.session_state:

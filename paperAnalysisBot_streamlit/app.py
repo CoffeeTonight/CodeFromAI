@@ -62,7 +62,7 @@ tab_options = [
 ]
 
 if "main_tab" not in st.session_state:
-    st.session_state.main_tab = "Tech Tree"
+    st.session_state.main_tab = "제어 패널"
 
 with st.sidebar:
     st.markdown("### 📑 분석 탭 선택")

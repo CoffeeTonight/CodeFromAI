@@ -43,7 +43,7 @@ with st.spinner("RAG 엔진 초기화 중..."):
         status.success("✅ 초기화 완료!")
         progress.empty()
 
-st.title("🧠 반도체 LLM 논문 분석 도구")
+st.title("🧠 논문 분석 LLM 도구")
 st.markdown("최신 arXiv 논문을 자동 수집·분석·시각화하는 RAG 기반 도구")
 
 # 사이드바
@@ -76,13 +76,13 @@ with st.sidebar:
 
 # 탭 매핑
 tabs = {
-    "Tech Tree": TechTreeTab(),
-    "Trend 분석": TrendTab(),
-    "Challenges": ChallengesTab(),
-    "오픈소스 프로젝트": OpenSourceTab(),
+    "제어 패널": ControlTab(),
     "히스토리": HistoryTab(),
     "Chatbot": ChatbotTab(),
-    "제어 패널": ControlTab(),
+    "기본분석:Tech Tree": TechTreeTab(),
+    "기본분석:Trend 분석": TrendTab(),
+    "기본분석:Challenges": ChallengesTab(),
+    "기본분석:오픈소스 프로젝트": OpenSourceTab(),
 }
 
 # 선택된 탭 렌더링

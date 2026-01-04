@@ -120,7 +120,7 @@ class RAGEngine:
 
     # core/rag_engine.py 내 함수
     def build_or_load_index(self, clean: bool = False):
-        """FAISS 인덱스 로드 또는 생성 (새 PDF 없으면 로드만, clean=True면 강제 재생성)"""
+        """FAISS 인덱스 로드 또는 생성 (텍스트 저장 포함)"""
         faiss_index_path = self.data_dir / "faiss_index"
         faiss_index_file = faiss_index_path / "index.faiss"
         documents_file = faiss_index_path / "documents.pkl"
@@ -138,11 +138,13 @@ class RAGEngine:
             index = faiss.read_index(str(faiss_index_file))
             with open(documents_file, "rb") as f:
                 documents = pickle.load(f)
-            vector_store = FaissVectorStore(faiss_index=index)  # 정확한 클래스 이름
+            vector_store = FaissVectorStore(faiss_index=index)
             storage_context = StorageContext.from_defaults(vector_store=vector_store)
-            vector_index = VectorStoreIndex.from_vector_store(
-                vector_store,
-                storage_context=storage_context
+            # 텍스트 저장된 documents 사용
+            vector_index = VectorStoreIndex.from_documents(
+                documents,
+                storage_context=storage_context,
+                embed_model=Settings.embed_model
             )
             self.query_engine = vector_index.as_query_engine(similarity_top_k=5)
             return self.query_engine
@@ -158,9 +160,10 @@ class RAGEngine:
                     documents = pickle.load(f)
                 vector_store = FaissVectorStore(faiss_index=index)
                 storage_context = StorageContext.from_defaults(vector_store=vector_store)
-                vector_index = VectorStoreIndex.from_vector_store(
-                    vector_store,
-                    storage_context=storage_context
+                vector_index = VectorStoreIndex.from_documents(
+                    documents,
+                    storage_context=storage_context,
+                    embed_model=Settings.embed_model
                 )
                 self.query_engine = vector_index.as_query_engine(similarity_top_k=5)
                 return self.query_engine
@@ -183,7 +186,7 @@ class RAGEngine:
         print("임베딩 생성 및 FAISS 인덱스 빌드 시작...")
         dimension = len(Settings.embed_model.get_text_embedding("test"))
         faiss_index = faiss.IndexFlatL2(dimension)
-        vector_store = FaissVectorStore(faiss_index=faiss_index)  # 정확한 클래스 이름
+        vector_store = FaissVectorStore(faiss_index=faiss_index)
 
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
@@ -193,7 +196,7 @@ class RAGEngine:
             embed_model=Settings.embed_model
         )
 
-        # 저장
+        # 저장 (텍스트 + 임베딩)
         faiss_index_path.mkdir(parents=True, exist_ok=True)
         faiss.write_index(faiss_index, str(faiss_index_file))
         with open(documents_file, "wb") as f:

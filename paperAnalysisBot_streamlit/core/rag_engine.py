@@ -52,6 +52,7 @@ class RAGEngine:
         Settings.chunk_size = Config.CHUNK_SIZE
         Settings.chunk_overlap = Config.CHUNK_OVERLAP
         Settings.llm = self.llm
+        self.query_engine = None
 
     def convert_pdf_to_md(self, force_reconvert: bool = False):
         """paper 폴더의 모든 PDF를 Markdown으로 변환"""

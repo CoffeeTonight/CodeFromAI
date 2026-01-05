@@ -87,6 +87,7 @@ def save_to_history(title: str, entry_type: str, content: str):
 
 
 def load_latest_history(analysis_type: str) -> str:
+    print(f"[DEBUG] load_latest_history 호출: {analysis_type}")
     """가장 최근 분석 결과 로드 (해당 타입)"""
     history_dir = Config.HISTORY_DIR
     if not history_dir.exists():
@@ -99,7 +100,7 @@ def load_latest_history(analysis_type: str) -> str:
 
     # 가장 최근 파일 선택 (파일명 기준 정렬)
     latest_file = max(files, key=lambda p: p.stat().st_mtime)
-
+    print(f"[DEBUG] 최신 파일: {latest_file}")
     # 파일에서 해당 타입 찾기
     with open(latest_file, "r", encoding="utf-8") as f:
         for line in f:
@@ -109,10 +110,11 @@ def load_latest_history(analysis_type: str) -> str:
             try:
                 entry = json.loads(line)
                 if entry.get("type") == analysis_type:
+                    print(f"[DEBUG] {analysis_type} 결과 발견!")
                     return entry.get("content", "내용 없음")
             except:
                 continue
-
+    print(f"[DEBUG] {analysis_type} 결과 없음")
     return "해당 분석 결과가 없습니다."
 
 
@@ -162,3 +164,66 @@ def get_available_times_for_date(title: str, date_str: str) -> list:
                 times.append(match.group(1))
     times.sort(reverse=True)
     return times
+
+def get_analysis_timestamp(analysis_type: str) -> Optional[datetime]:
+    """가장 최근 해당 타입 분석의 timestamp 반환"""
+    history_dir = Config.HISTORY_DIR
+    if not history_dir.exists():
+        return None
+
+    files = list(history_dir.glob("daily_analysis_*.jsonl"))
+    if not files:
+        return None
+
+    latest_file = max(files, key=lambda p: p.stat().st_mtime)
+
+    with open(latest_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("type") == analysis_type:
+                    ts_str = entry.get("timestamp")
+                    if ts_str:
+                        return datetime.fromisoformat(ts_str)
+            except:
+                continue
+    return None
+
+
+LOG_DIR = Config.DB_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def log_to_file(message: str):
+    """실시간 로그를 파일에 저장 (날짜별 파일)"""
+    today = datetime.now().strftime("%Y%m%d")
+    log_file = LOG_DIR / f"update_log_{today}.txt"
+
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    line = f"[{timestamp}] {message}\n"
+
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(line)
+
+
+def get_latest_log() -> str:
+    """가장 최근 로그 파일 내용 반환"""
+    if not LOG_DIR.exists():
+        return "로그 폴더가 없습니다."
+
+    log_files = list(LOG_DIR.glob("update_log_*.txt"))
+    if not log_files:
+        return "저장된 로그가 없습니다."
+
+    latest_file = max(log_files, key=lambda p: p.stat().st_mtime)
+    try:
+        with open(latest_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        date_str = latest_file.stem.split("_")[-1]
+        formatted_date = datetime.strptime(date_str, "%Y%m%d").strftime("%Y년 %m월 %d일")
+        return f"### {formatted_date} 실행 로그\n\n{content}"
+    except:
+        return "로그 읽기 실패"

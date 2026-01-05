@@ -1,9 +1,15 @@
 # core/prompt_manager.py
-from config import Config
-from rag_engine import RAGEngine
-from open_source_tracker import OpenSourceTracker
-from datetime import datetime
+import sys
+from pathlib import Path
 
+# 프로젝트 루트 경로 추가 (import 오류 완전 방지)
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
+from core.config import Config
+from core.rag_engine import RAGEngine  # 절대 경로 (안정적)
+from core.open_source_tracker import OpenSourceTracker  # 절대 경로
+from datetime import datetime
 
 class PromptManager:
     def __init__(self):
@@ -78,7 +84,7 @@ LLM을 반도체 설계·검증에 적용할 때 주요 기술적 난제 5가지
             return error_msg
 
 
-# __main__ 테스트
+# __main__ 테스트 (경로 추가 포함)
 if __name__ == "__main__":
     print("=== Prompt Manager 테스트 시작 ===")
     pm = PromptManager()

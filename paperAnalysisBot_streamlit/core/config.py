@@ -32,8 +32,9 @@ class Config:
 
     # RAG 설정
     CHUNK_SIZE = 1024
-    CHUNK_OVERLAP = 200
-    EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # 384차원
+    CHUNK_OVERLAP = 256
+    # EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # 384차원
+    EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"  # 더 정확하지만 느림
 
     # 실행 환경에 따른 Ollama URL 자동 결정
     @staticmethod

@@ -1,0 +1,13 @@
+#module                 :RTL module base name to genrate
+#base_addr              :base address of SFR module
+#addr_offset            :additional offset to base address
+#enable                 :generation enable (1,True,true,Y,yes and Yes are enable)
+#sheet                  :sheet name for this SFR module
+#addr_parameter         :parameter definition in base_addr & addr_offset. ex) 0x100+(0x10*NUM) in base_addr or addr_offset, then addr_parameter will define NUM as 0..3, means range from 0 to 3, 0x10*0, 0x10*1 .. 0x10*3
+#sheet_parameter        :parameter definition to allow to a sheet overall. this will overwrite the parameter if same name parameter was defined in the sheet.
+#bus_if                 :SFR bus interface. one of apb, ahb, axi and customA, customB.
+#bus_data_width         :one of 8/16/32/64/128/256/512
+#base_addr_check_off    :lint off for this sheet to check base address overwrapping with other sheets
+#naming_surfix          :module naming rule. there're prefix & postfix
+#is_packet              :Set this if defined SFR was for a packet(1,True,true,Y,yes and Yes are positive)
+module,base_addr,addr_offset,enable,sheet,addr_parameter,sheet_parameter,bus_if,bus_data_width,base_addr_check_off,naming_surfix,is_packet

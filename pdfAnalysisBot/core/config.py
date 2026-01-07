@@ -159,6 +159,24 @@ class Config:
         cls.ARXIV_SORT_BY = sort_by
         cls.ARXIV_SORT_ORDER = sort_order
 
+    PAPER_SCORE_WEIGHTS = {
+        "latest": 40,  # 최신성 (제출 날짜)
+        "citation": 30,  # 인용 수
+        "similarity": 20,  # 임베딩 유사도
+        "implementation": 10  # GitHub stars / 구현 수
+    }
+
+    @classmethod
+    def set_paper_weights(cls, latest: int, citation: int, similarity: int, implementation: int):
+        total = latest + citation + similarity + implementation
+        if total == 0:
+            raise ValueError("가중치 합계는 0이 될 수 없습니다.")
+        cls.PAPER_SCORE_WEIGHTS = {
+            "latest": latest,
+            "citation": citation,
+            "similarity": similarity,
+            "implementation": implementation
+        }
 # 초기화 실행
 Config.init_directories()
 

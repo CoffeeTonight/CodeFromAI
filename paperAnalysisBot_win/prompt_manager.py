@@ -60,15 +60,17 @@ class PromptManager:
 
         base_prompt = self.prompt_dict[analysis_type]
         open_source = self.get_open_source_info()
-
         full_prompt = base_prompt.format(open_source=open_source)
 
         if self.query_engine is None:
             return "RAG 엔진이 준비되지 않았습니다."
 
-        print(f"\n{analysis_type.upper()} 분석 중...")
+        print(f"\n{analysis_type.upper()} 분석 중... (모델: {Config.SELECTED_MODEL})")
         response = self.query_engine.query(full_prompt)
-        return str(response)
+        result = str(response)
+
+        # utils.save_to_history 호출 시 llm_model 자동 전달 (None이면 config에서 가져옴)
+        return result
 
 # __main__ 테스트
 if __name__ == "__main__":

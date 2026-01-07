@@ -6,6 +6,7 @@ from prompt_manager import PromptManager
 from utils import save_to_history
 import logging
 import schedule
+from config import Config
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,10 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 def download_papers():
-    logger.info("Download New Papers 시작")
     manager = PaperManager()
+    manager.verify_and_cleanup_history(mode="auto")  # 의도적 삭제 존중
     downloaded = manager.download_from_arxiv(max_results=30)
     manager.scan_user_added_papers()
+
+    # 매일 실행 끝날 때 현재 상태 스냅샷 저장
+    manager.generate_current_papers_snapshot()
     logger.info(f"{downloaded}개 새 논문 다운로드 및 사용자 추가 논문 스캔 완료")
     return downloaded
 
@@ -40,15 +44,18 @@ def generate_analysis():
         "open_source_summary": pm.generate_analysis("open_source_summary")
     }
 
-    # 히스토리 저장
+    current_model = Config.SELECTED_MODEL  # 명시적으로 가져와서 기록
+
+    # 히스토리 저장 (llm_model 자동 포함)
     for analysis_type, result in analyses.items():
         save_to_history(
             title="daily_analysis",
             entry_type=analysis_type,
-            content=result
+            content=result,
+            metadata={"note": f"Generated using {current_model}"}
         )
 
-    logger.info("일일 분석 완료 - 히스토리에 저장됨")
+    logger.info(f"일일 분석 완료 - 히스토리에 저장됨 (LLM: {current_model})")
     return analyses
 
 

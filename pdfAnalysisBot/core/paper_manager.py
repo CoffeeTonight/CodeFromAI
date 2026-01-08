@@ -94,8 +94,8 @@ class PaperManager:
             print(f"제목 추출 실패 ({pdf_path.name}): {e}")
             return None
 
-    def download_from_arxiv(self, query: Optional[str] = None, max_results: Optional[int] = None, target_count: Optional[int] = None) -> int:
-        max_results = max_results or Config.ARXIV_MAX_RESULTS  # config에서 가져옴
+        def download_from_arxiv(self, query: Optional[str] = None, max_results: Optional[int] = None, target_count: Optional[int] = None) -> int:
+        max_results = max_results or Config.ARXIV_MAX_RESULTS
         query = query or Config.DEFAULT_ARXIV_QUERY
 
         current_count = len(list(self.paper_dir.glob("*.pdf")))
@@ -109,54 +109,99 @@ class PaperManager:
             max_results = max(max_results, needed)
             print(f"목표 {target_count}개 → 최대 {max_results}개 검색")
 
-        # Config에서 정렬 기준 가져오기
+        # 정렬 기준
         sort_by_map = {
-            "submitted_date": arxiv.SortCriterion.SubmittedDate,
-            "last_updated_date": arxiv.SortCriterion.LastUpdatedDate,
-            "relevance": arxiv.SortCriterion.Relevance
+            "submitted_date": "submittedDate",
+            "last_updated_date": "lastUpdatedDate",
+            "relevance": "relevance"
         }
         sort_order_map = {
-            "ascending": arxiv.SortOrder.Ascending,
-            "descending": arxiv.SortOrder.Descending
+            "ascending": "ascending",
+            "descending": "descending"
         }
-
-        sort_criterion = sort_by_map.get(Config.ARXIV_SORT_BY, arxiv.SortCriterion.Relevance)
-        sort_order = sort_order_map.get(Config.ARXIV_SORT_ORDER, arxiv.SortOrder.Descending)
+        sort_by = sort_by_map.get(Config.ARXIV_SORT_BY, "relevance")
+        sort_order = sort_order_map.get(Config.ARXIV_SORT_ORDER, "descending")
 
         print(f"arXiv 정렬: {Config.ARXIV_SORT_BY} ({Config.ARXIV_SORT_ORDER})")
-
-        search = arxiv.Search(
-            query=query,
-            max_results=max_results,
-            sort_by=sort_criterion,
-            sort_order=sort_order
-        )
+        print(f"arXiv 다운로드 방식: {'명시적 RSS (회사 추천)' if not Config.ARXIV_USE_LIB else 'arxiv 라이브러리'}")
 
         downloaded = 0
-        client = arxiv.Client()
         current_llm = Config.SELECTED_MODEL
 
-        for result in client.results(search):
-            arxiv_id = result.entry_id.split('/')[-1]
+        if Config.ARXIV_USE_LIB:
+            # arXiv 라이브러리 방식
+            sort_criterion_map = {
+                "submitted_date": arxiv.SortCriterion.SubmittedDate,
+                "last_updated_date": arxiv.SortCriterion.LastUpdatedDate,
+                "relevance": arxiv.SortCriterion.Relevance
+            }
+            sort_order_criterion_map = {
+                "ascending": arxiv.SortOrder.Ascending,
+                "descending": arxiv.SortOrder.Descending
+            }
+            search = arxiv.Search(
+                query=query,
+                max_results=max_results,
+                sort_by=sort_criterion_map.get(Config.ARXIV_SORT_BY, arxiv.SortCriterion.Relevance),
+                sort_order=sort_order_criterion_map.get(Config.ARXIV_SORT_ORDER, arxiv.SortOrder.Descending)
+            )
+            client = arxiv.Client()
+            results = client.results(search)
+        else:
+            # 명시적 RSS 방식 (회사에서 잘 됨)
+            encoded_query = requests.utils.quote(query)
+            rss_url = (
+                f"https://export.arxiv.org/api/query?"
+                f"search_query={encoded_query}"
+                f"&start=0&max_results={max_results}"
+                f"&sortBy={sort_by}&sortOrder={sort_order}"
+            )
+            print(f"RSS URL: {rss_url}")
+
+            try:
+                response = session.get(rss_url, timeout=120)
+                response.raise_for_status()
+            except Exception as e:
+                print(f"RSS 요청 실패: {e}")
+                return 0
+
+            feed = feedparser.parse(response.content)
+            if feed.bozo:
+                print(f"피드 파싱 오류: {feed.bozo_exception}")
+                return 0
+
+            results = feed.entries
+
+        for result in results:
+            if Config.ARXIV_USE_LIB:
+                arxiv_id = result.entry_id.split('/')[-1].split('v')[0]  # 버전 제거
+                title = result.title
+                authors = [a.name for a in result.authors]
+                pdf_url = result.pdf_url
+            else:
+                arxiv_id = result.id.split('/')[-1].split('v')[0]
+                title = result.title
+                authors = [a.get('name', '') for a in result.get('authors', [])]
+                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+
             versioned_id = arxiv_id
 
             if any(e.get("arxiv_id") == versioned_id for e in self.download_history):
                 continue
 
             filename = self.paper_dir / f"{versioned_id}.pdf"
-            pdf_url = result.pdf_url
 
             try:
-                print(f"다운로드 시도: {result.title} ({versioned_id})")
+                print(f"다운로드 시도: {title} ({versioned_id})")
                 response = session.get(pdf_url, timeout=120)
                 response.raise_for_status()
                 filename.write_bytes(response.content)
-                print(f"다운로드 완료: {result.title}")
+                print(f"다운로드 완료: {title}")
 
                 entry = {
                     "arxiv_id": versioned_id,
-                    "title": result.title,
-                    "authors": [author.name for author in result.authors],
+                    "title": title,
+                    "authors": authors,
                     "downloaded_at": datetime.now().isoformat(),
                     "source": "arXiv",
                     "pdf_url": pdf_url,
@@ -171,7 +216,7 @@ class PaperManager:
                 if github_links:
                     os_entry = {
                         "arxiv_id": versioned_id,
-                        "title": result.title,
+                        "title": title,
                         "github_links": github_links,
                         "detected_at": datetime.now().isoformat(),
                         "detected_with_llm": current_llm,

@@ -12,9 +12,23 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai import OpenAI  # 회사 LLM용
 from llama_index.llms.ollama import Ollama  # Ollama용
 from llama_index.core import Settings
+
 from core.config import Config
+from core.utils import get_logger  # 중앙 로거 사용
 from pymupdf4llm import to_markdown
 import pymupdf
+
+# 전역 싱글톤
+_engine_instance = None
+
+logger = get_logger("RAGEngine")
+
+def get_rag_engine():
+    global _engine_instance
+    if _engine_instance is None:
+        _engine_instance = RAGEngine()
+        _engine_instance.build_or_load_index()  # 최초 1회만
+    return _engine_instance
 
 class RAGEngine:
     def __init__(self):
@@ -34,7 +48,7 @@ class RAGEngine:
                 request_timeout=current_config.get("timeout", 1200.0),
                 temperature=current_config.get("temperature", 0.3)
             )
-            print(f"[LLM] Ollama 사용: {current_config['model']}")
+            logger.info(f"[LLM] Ollama 사용: {current_config['model']}")
         elif llm_type == "openai_compatible":
             self.llm = OpenAI(
                 model=current_config["model"],
@@ -42,11 +56,9 @@ class RAGEngine:
                 api_key=current_config["api_key"],
                 max_tokens=current_config.get("max_tokens", 8192),
                 temperature=current_config.get("temperature", 0.3),
-                request_timeout=current_config.get("timeout", 180),
-                # 인증서 필요 시
-                # http_client=your_custom_session
+                request_timeout=current_config.get("timeout", 180)
             )
-            print(f"[LLM] 회사 LLM 사용: {current_config['model']} ({current_config['api_url']})")
+            logger.info(f"[LLM] 회사 LLM 사용: {current_config['model']} ({current_config['api_url']})")
         else:
             raise ValueError(f"지원하지 않는 LLM 타입: {llm_type}")
 
@@ -57,138 +69,145 @@ class RAGEngine:
         Settings.chunk_overlap = Config.CHUNK_OVERLAP
 
     def _cleanup_orphan_md(self):
-        """PDF 없는 MD 파일 자동 삭제 (RAG 정합성 유지)"""
-        existing_pdfs = {p.stem for p in self.paper_dir.glob("*.pdf")}
+        """PDF 없는 MD 파일 자동 삭제 (모든 서브폴더)"""
+        all_paper_dirs = [
+            Config.ARXIV_PAPER_DIR,
+            Config.SEMANTIC_PAPER_DIR,
+            Config.CONFERENCE_PAPER_DIR,
+            Config.USER_PAPER_DIR
+        ]
+
         deleted = 0
-        for md_file in self.data_dir.glob("*.md"):
-            if md_file.stem not in existing_pdfs:
-                print(f"[정리] PDF 삭제됨 → MD 자동 삭제: {md_file.name}")
-                md_file.unlink(missing_ok=True)
-                deleted += 1
+        for paper_subdir in all_paper_dirs:
+            if not paper_subdir.exists():
+                continue
+            data_subdir = Config.DATA_DIR / paper_subdir.name
+            if not data_subdir.exists():
+                continue
+
+            existing_pdfs = {p.stem for p in paper_subdir.glob("*.pdf")}
+            for md_file in data_subdir.glob("*.md"):
+                if md_file.stem not in existing_pdfs:
+                    logger.info(f"[정리] PDF 없음 → MD 삭제: {md_file}")
+                    md_file.unlink(missing_ok=True)
+                    deleted += 1
         if deleted:
-            print(f"[정리 완료] {deleted}개 고아 MD 파일 삭제")
+            logger.info(f"[정리 완료] {deleted}개 고아 MD 파일 삭제")
 
     def convert_pdf_to_md(self, force_reconvert: bool = False):
-        """PDF → MD 변환 + 고아 MD 정리"""
-        print("PDF → MD 변환 시작")
+        logger.info("PDF → MD 변환 시작")
 
         # 고아 MD 정리
         self._cleanup_orphan_md()
 
-        total_pdfs = len(list(self.paper_dir.glob("*.pdf")))
-        print(f"총 PDF 파일: {total_pdfs}개")
+        total_converted = 0
 
-        if force_reconvert:
-            print("강제 재변환: 기존 MD 모두 삭제")
-            for md_file in self.data_dir.glob("*.md"):
-                md_file.unlink(missing_ok=True)
+        # 모든 paper 서브폴더에서 변환 대상 찾기
+        for paper_subdir in [Config.ARXIV_PAPER_DIR, Config.SEMANTIC_PAPER_DIR, Config.CONFERENCE_PAPER_DIR, Config.USER_PAPER_DIR]:
+            if not paper_subdir.exists():
+                continue
 
-        existing_md = {f.stem for f in self.data_dir.glob("*.md")}
-        pdfs_to_convert = [
-            p for p in self.paper_dir.glob("*.pdf")
-            if force_reconvert or p.stem not in existing_md
-        ]
+            data_subdir = Config.DATA_DIR / paper_subdir.name
+            data_subdir.mkdir(parents=True, exist_ok=True)
 
-        print(f"이번에 변환할 파일: {len(pdfs_to_convert)}개")
+            existing_md = {f.stem for f in data_subdir.glob("*.md")} if data_subdir.exists() else set()
 
-        if not pdfs_to_convert:
-            print("새로운 변환 대상 없음")
-            return 0
+            pdfs_to_convert = [
+                p for p in paper_subdir.glob("*.pdf")
+                if force_reconvert or p.stem not in existing_md
+            ]
 
-        def convert_single(pdf_path: Path):
-            md_path = self.data_dir / (pdf_path.stem + ".md")
-            print(f"변환 중: {pdf_path.name}")
-            try:
-                md_text = to_markdown(str(pdf_path))
-            except Exception as e:
-                print(f"경고: {pdf_path.name} 변환 실패 → fallback ({e})")
+            logger.info(f"{paper_subdir.name} 폴더: {len(pdfs_to_convert)}개 변환 대상")
+
+            for pdf_path in pdfs_to_convert:
+                md_path = data_subdir / (pdf_path.stem + ".md")
+                logger.info(f"변환 중: {pdf_path.name}")
                 try:
-                    doc = pymupdf.open(str(pdf_path))
-                    md_text = "\n\n".join(page.get_text("text") for page in doc)
-                    doc.close()
-                except Exception as fe:
-                    print(f"fallback 실패: {fe}")
-                    md_text = f"[PDF 변환 실패: {pdf_path.name}]"
-            md_path.write_text(md_text, encoding="utf-8")
-            return 1
+                    md_text = to_markdown(str(pdf_path))
+                except Exception as e:
+                    logger.warning(f"{pdf_path.name} 변환 실패 → fallback 사용 ({e})")
+                    try:
+                        doc = pymupdf.open(str(pdf_path))
+                        md_text = "\n\n".join(page.get_text("text") for page in doc)
+                        doc.close()
+                    except Exception as fe:
+                        logger.error(f"fallback 실패: {fe}")
+                        md_text = f"[PDF 변환 실패: {pdf_path.name}]"
+                md_path.write_text(md_text, encoding="utf-8")
+                total_converted += 1
 
-        converted = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(convert_single, p) for p in pdfs_to_convert]
-            for future in concurrent.futures.as_completed(futures):
-                converted += future.result()
-
-        print(f"변환 완료: {converted}개")
-        return converted
+        logger.info(f"총 {total_converted}개 PDF 변환 완료")
+        return total_converted
 
     def build_or_load_index(self, clean: bool = False):
         persist_dir = str(self.data_dir / "faiss_index")
 
         if clean and os.path.exists(persist_dir):
-            print("clean=True: 기존 인덱스 삭제")
+            logger.info("clean=True: 기존 인덱스 삭제")
             shutil.rmtree(persist_dir)
 
         # 고아 정리 + 변환
         self._cleanup_orphan_md()
         self.convert_pdf_to_md()
 
-        md_files = list(self.data_dir.glob("*.md"))
+        # 모든 서브폴더에서 MD 로드
+        md_files = list(self.data_dir.rglob("*.md"))
         if not md_files:
-            print("MD 파일 없음 → 인덱스 생성 불가")
+            logger.error("MD 파일 없음 → 인덱스 생성 불가")
             return None
 
-        print(f"{len(md_files)}개 MD 파일로 인덱스 처리")
+        logger.info(f"총 {len(md_files)}개 MD 파일 (모든 출처) 로드")
 
-        # 문서 로드 (인코딩 안전)
         documents = []
         for md_path in md_files:
             try:
                 text = md_path.read_text(encoding="utf-8", errors="replace")
-                documents.append(Document(text=text, metadata={"source": md_path.stem}))
+                source_type = md_path.parent.name
+                documents.append(Document(
+                    text=text,
+                    metadata={
+                        "source": md_path.stem,
+                        "source_type": source_type,
+                        "file_path": str(md_path)
+                    }
+                ))
             except Exception as e:
-                print(f"MD 읽기 실패 {md_path.name}: {e}")
-                continue
+                logger.error(f"MD 읽기 실패 {md_path}: {e}")
 
         if not documents:
-            print("문서 로드 실패")
+            logger.error("문서 로드 실패")
             return None
 
-        # 노드 분할
         node_parser = SentenceSplitter(chunk_size=Config.CHUNK_SIZE, chunk_overlap=Config.CHUNK_OVERLAP)
         nodes = node_parser.get_nodes_from_documents(documents)
-        print(f"{len(nodes)}개 노드 생성")
+        logger.info(f"{len(nodes)}개 노드 생성")
 
-        # 인덱스 로드/생성 (LlamaIndex 공식 방식)
         try:
             if os.path.exists(persist_dir):
-                print("기존 인덱스 로드 시도")
+                logger.info("기존 인덱스 로드")
                 storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
-                self.index = load_index_from_storage(
-                    storage_context=storage_context,
-                    embed_model=Settings.embed_model
-                )
-                print("기존 인덱스 로드 성공")
+                self.index = load_index_from_storage(storage_context, embed_model=Settings.embed_model)
             else:
-                print("새 인덱스 생성 시작")
+                logger.info("새 인덱스 생성 시작")
                 self.index = VectorStoreIndex(
                     nodes=nodes,
                     embed_model=Settings.embed_model,
                     show_progress=True
                 )
                 self.index.storage_context.persist(persist_dir=persist_dir)
-                print("새 인덱스 생성 및 저장 완료")
+                logger.info("새 인덱스 생성 및 저장 완료")
 
             self.query_engine = self.index.as_query_engine(similarity_top_k=5)
-            print("RAG 엔진 준비 완료!")
+            logger.info("통합 RAG 인덱스 준비 완료!")
             return self.query_engine
 
         except Exception as e:
-            print(f"인덱스 처리 실패: {e}")
+            logger.error(f"인덱스 처리 실패: {e}")
             return None
 
     def query(self, question: str) -> str:
         if self.query_engine is None:
-            print("query_engine 없음 → 재시도")
+            logger.warning("query_engine 없음 → 재시도")
             self.build_or_load_index()
         if self.query_engine is None:
             return "RAG 엔진이 준비되지 않았습니다."
@@ -196,11 +215,12 @@ class RAGEngine:
             response = self.query_engine.query(question)
             return str(response)
         except Exception as e:
+            logger.error(f"쿼리 실패: {e}")
             return f"쿼리 실패: {str(e)}"
 
 
 if __name__ == "__main__":
-    print("=== RAG Engine 테스트 시작 ===")
+    logger.info("=== RAG Engine 테스트 시작 ===")
     engine = RAGEngine()
     engine.build_or_load_index(clean=False)
 
@@ -211,6 +231,6 @@ if __name__ == "__main__":
     ]
 
     for q in test_questions:
-        print(f"\nQ: {q}")
+        logger.info(f"\nQ: {q}")
         answer = engine.query(q)
-        print(f"A: {answer[:500]}...")
+        logger.info(f"A: {answer[:500]}...")

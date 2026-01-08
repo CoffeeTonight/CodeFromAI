@@ -1,10 +1,9 @@
-# scheduler.py (backend 또는 core 어디에든 놓을 수 있음)
+# backend/scheduler.py (backend 또는 core 어디에든 놓을 수 있음)
 import sys
 from pathlib import Path
 import time
 from datetime import datetime
 import schedule
-import logging
 
 # 프로젝트 루트 경로 자동 탐지
 current_file = Path(__file__).resolve()
@@ -21,13 +20,10 @@ from core.rag_engine import RAGEngine
 from core.prompt_manager import PromptManager
 from core.utils import save_to_history
 from core.config import Config
+from core.utils import get_logger  # 중앙 로거 사용
 
-# 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# 로거 설정 (모듈별 이름으로 구분)
+logger = get_logger("Scheduler")
 
 def download_papers():
     logger.info("1. 논문 처리 시작...")
@@ -39,7 +35,6 @@ def download_papers():
         downloaded = 0
     else:
         logger.info("arXiv에서 새 논문 다운로드 시작 (목표 30개 유지)")
-        # 모자란 만큼만 다운로드 (target_count=30)
         downloaded = manager.download_from_arxiv(target_count=30)
 
     # 사용자 추가 논문 스캔 + 스냅샷
@@ -85,22 +80,23 @@ def generate_analysis():
 
 def daily_update_job():
     logger.info("=== 일일 분석 업데이트 시작 ===")
-    print(f"[시간] {datetime.now().astimezone()}")
+    logger.info(f"[시간] {datetime.now().astimezone()}")
 
     download_papers()
     update_rag_index()
     result = generate_analysis()
 
-    logger.info("=== 일일 분석 업데이트 완료 ===\n")
-    print("\n=== 분석 결과 요약 ===")
+    logger.info("=== 일일 분석 업데이트 완료 ===")
+
+    logger.info("\n=== 분석 결과 요약 ===")
     for key, value in result.items():
-        print(f"\n{key.upper()}:\n{str(value)[:500]}...")
-    print("\n=== 완료 ===\n")
+        logger.info(f"\n{key.upper()}:\n{str(value)[:500]}...")
+    logger.info("\n=== 완료 ===\n")
 
 if __name__ == "__main__":
-    print(f"스케줄러 시작 - 현재 시간: {datetime.now().astimezone()}")
-    print("매일 오전 8시 (한국 시간)에 실행")
-    print(f"arXiv 다운로드 모드: {'스킵 (로컬 PDF만 분석)' if Config.SKIP_ARXIV_DOWNLOAD else '활성화 (목표 30개 유지)'}")
+    logger.info(f"스케줄러 시작 - 현재 시간: {datetime.now().astimezone()}")
+    logger.info("매일 오전 8시 (한국 시간)에 실행")
+    logger.info(f"arXiv 다운로드 모드: {'스킵 (로컬 PDF만 분석)' if Config.SKIP_ARXIV_DOWNLOAD else '활성화 (목표 30개 유지)'}")
 
     schedule.every().day.at("08:00", "Asia/Seoul").do(daily_update_job)
 

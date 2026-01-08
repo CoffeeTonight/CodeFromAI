@@ -1,10 +1,14 @@
-# open_source_tracker.py
+# core/open_source_tracker.py
 import json
 import re
 from pathlib import Path
 from typing import List, Dict
-from core.config import Config
 from datetime import datetime
+
+from core.config import Config
+from core.utils import get_logger  # 중앙 로거 가져오기
+
+logger = get_logger("OpenSourceTracker")  # 모듈 이름으로 구분
 
 class OpenSourceTracker:
     def __init__(self):
@@ -14,22 +18,39 @@ class OpenSourceTracker:
     def _load_data(self) -> List[Dict]:
         """jsonl 파일 로드"""
         if not self.db_path.exists():
+            logger.info("오픈소스 DB 파일 없음 → 빈 리스트 반환")
             return []
+
         data = []
-        with open(self.db_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    data.append(json.loads(line))
+        try:
+            with open(self.db_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        if isinstance(entry, dict):
+                            data.append(entry)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"JSON 파싱 실패 (라인 {line_num}): {e}")
+        except Exception as e:
+            logger.error(f"오픈소스 DB 로드 실패: {e}")
+
+        logger.info(f"오픈소스 DB 로드 완료: {len(data)}개 항목")
         return data
 
     def _save_data(self):
         """jsonl 파일 저장"""
-        with open(self.db_path, 'w', encoding='utf-8') as f:
-            for item in self.data:
-                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        try:
+            with open(self.db_path, 'w', encoding='utf-8') as f:
+                for item in self.data:
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            logger.info(f"오픈소스 DB 저장 완료: {len(self.data)}개 항목")
+        except Exception as e:
+            logger.error(f"오픈소스 DB 저장 실패: {e}")
 
-    def extract_github_links(self, pdf_path: Path) -> List[str]:
+    def _extract_github_links(self, pdf_path: Path) -> List[str]:
         """PDF에서 GitHub 링크 추출"""
         try:
             import fitz  # PyMuPDF
@@ -41,10 +62,17 @@ class OpenSourceTracker:
 
             pattern = r'https?://(?:www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
             links = re.findall(pattern, text)
-            return list(set(links))  # 중복 제거
+            unique_links = list(set(links))
+            if unique_links:
+                logger.info(f"GitHub 링크 발견 ({pdf_path.name}): {len(unique_links)}개")
+            return unique_links
         except Exception as e:
-            print(f"GitHub 추출 실패 ({pdf_path.name}): {e}")
+            logger.warning(f"GitHub 추출 실패 ({pdf_path.name}): {e}")
             return []
+
+    def _save_open_source_info(self, entry: Dict):
+        self.data.append(entry)
+        logger.debug(f"오픈소스 정보 추가: {entry.get('title')}")
 
     def update_from_papers(self):
         """paper 폴더의 모든 PDF에서 오픈소스 추출 및 업데이트"""
@@ -59,7 +87,7 @@ class OpenSourceTracker:
             if title in existing_titles:
                 continue
 
-            links = self.extract_github_links(pdf_path)
+            links = self._extract_github_links(pdf_path)
             if links:
                 entry = {
                     "title": title,
@@ -67,47 +95,53 @@ class OpenSourceTracker:
                     "github_links": links,
                     "updated_at": datetime.now().isoformat()
                 }
-                self.data.append(entry)
+                self._save_open_source_info(entry)
                 updated += 1
-                print(f"오픈소스 발견: {title} → {len(links)}개 링크")
 
         if updated > 0:
             self._save_data()
-        print(f"{updated}개 새로운 오픈소스 프로젝트 추가 완료")
+
+        logger.info(f"{updated}개 새로운 오픈소스 프로젝트 추가 완료")
         return updated
 
     def get_open_source_list(self) -> List[Dict]:
         """현재 저장된 오픈소스 목록 반환"""
+        logger.debug(f"오픈소스 목록 요청: {len(self.data)}개")
         return self.data
 
     def get_open_source_summary(self) -> str:
         """프롬프트용 요약 문자열 생성"""
         if not self.data:
-            return "현재 공개된 오픈소스 프로젝트가 없습니다."
+            summary = "현재 공개된 오픈소스 프로젝트가 없습니다."
+            logger.info("오픈소스 요약: 없음")
+            return summary
 
         summary = "공개된 오픈소스 프로젝트:\n"
         for item in self.data:
             summary += f"- {item['title']}\n"
             for link in item['github_links']:
                 summary += f"  → {link}\n"
+
+        logger.info(f"오픈소스 요약 생성 완료: {len(self.data)}개 프로젝트")
         return summary
 
 
-# __main__ 테스트
+# 테스트
 if __name__ == "__main__":
-    print("=== Open Source Tracker 테스트 시작 ===")
+    logger.info("=== Open Source Tracker 테스트 시작 ===")
+
     tracker = OpenSourceTracker()
 
-    print("오픈소스 업데이트 시작...")
+    logger.info("오픈소스 업데이트 시작...")
     tracker.update_from_papers()
 
-    print("\n현재 오픈소스 목록:")
+    logger.info("\n현재 오픈소스 목록:")
     for item in tracker.get_open_source_list():
-        print(f"- {item['title']}")
+        logger.info(f"- {item['title']}")
         for link in item['github_links']:
-            print(f"  → {link}")
+            logger.info(f"  → {link}")
 
-    print("\n요약 문자열:")
-    print(tracker.get_open_source_summary())
+    logger.info("\n요약 문자열:")
+    logger.info(tracker.get_open_source_summary())
 
-    print("\n테스트 완료!")
+    logger.info("\n테스트 완료!")

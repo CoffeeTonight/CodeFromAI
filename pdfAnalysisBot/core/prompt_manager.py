@@ -1,15 +1,28 @@
-# prompt_manager.py
+# core/prompt_manager.py
 from core.config import Config
-from core.rag_engine import RAGEngine
-from core.open_source_tracker import OpenSourceTracker  # 추가!
+from core.rag_engine import get_rag_engine  # 싱글톤 사용
+from core.open_source_tracker import OpenSourceTracker
+from core.utils import get_logger  # 중앙 로거
+
+logger = get_logger("PromptManager")
 
 class PromptManager:
     def __init__(self):
-        self.rag_engine = RAGEngine()
-        self.query_engine = self.rag_engine.build_or_load_index()
+        logger.info("PromptManager 초기화 시작")
 
-        self.open_source_tracker = OpenSourceTracker()  # 오픈소스 트래커 초기화
-        self.open_source_tracker.update_from_papers()  # 실행 시 최신화
+        # RAG 엔진 싱글톤 사용 (재빌드 방지)
+        self.rag_engine = get_rag_engine()
+        self.query_engine = self.rag_engine.query_engine
+
+        if self.query_engine is None:
+            logger.error("RAG 엔진 준비 실패")
+        else:
+            logger.info("RAG 엔진 연결 완료")
+
+        # 오픈소스 트래커 초기화 및 업데이트
+        self.open_source_tracker = OpenSourceTracker()
+        updated = self.open_source_tracker.update_from_papers()
+        logger.info(f"오픈소스 트래커 업데이트 완료: {updated}개 신규 프로젝트")
 
         self.prompt_dict = {
             "tech_tree": """
@@ -43,46 +56,59 @@ class PromptManager:
         """오픈소스 정보 문자열 생성"""
         sources = self.open_source_tracker.get_open_source_list()
         if not sources:
-            return "공개된 오픈소스 프로젝트가 없습니다."
-        
-        info = "공개된 오픈소스 프로젝트:\n"
+            summary = "현재 공개된 오픈소스 프로젝트가 없습니다."
+            logger.info("오픈소스 요약: 없음")
+            return summary
+
+        summary = "공개된 오픈소스 프로젝트:\n"
         for item in sources:
             title = item.get("title", "제목 없음")
             links = item.get("github_links", [])
-            info += f"- {title}\n"
+            summary += f"- {title}\n"
             for link in links:
-                info += f"  → {link}\n"
-        return info
+                summary += f"  → {link}\n"
+
+        logger.info(f"오픈소스 요약 생성 완료: {len(sources)}개 프로젝트")
+        return summary
 
     def generate_analysis(self, analysis_type: str) -> str:
         if analysis_type not in self.prompt_dict:
+            logger.warning(f"지원하지 않는 분석 유형 요청: {analysis_type}")
             return "지원하지 않는 분석 유형입니다."
+
+        logger.info(f"{analysis_type.upper()} 분석 시작 (모델: {Config.SELECTED_MODEL})")
 
         base_prompt = self.prompt_dict[analysis_type]
         open_source = self.get_open_source_info()
         full_prompt = base_prompt.format(open_source=open_source)
 
         if self.query_engine is None:
+            logger.error(f"{analysis_type.upper()} 분석 실패: RAG 엔진 준비되지 않음")
             return "RAG 엔진이 준비되지 않았습니다."
 
-        print(f"\n{analysis_type.upper()} 분석 중... (모델: {Config.SELECTED_MODEL})")
-        response = self.query_engine.query(full_prompt)
-        result = str(response)
+        try:
+            response = self.query_engine.query(full_prompt)
+            result = str(response)
+            logger.info(f"{analysis_type.upper()} 분석 성공")
+            return result
+        except Exception as e:
+            logger.error(f"{analysis_type.upper()} 분석 실패: {e}")
+            return f"분석 중 오류 발생: {str(e)}"
 
-        # utils.save_to_history 호출 시 llm_model 자동 전달 (None이면 config에서 가져옴)
-        return result
 
-# __main__ 테스트
+# 테스트
 if __name__ == "__main__":
-    print("=== Prompt Manager 테스트 시작 ===")
+    logger.info("=== Prompt Manager 테스트 시작 ===")
+
     pm = PromptManager()
-    
+
     analyses = ["tech_tree", "trend_analysis", "challenges", "open_source_summary"]
-    
+
     for analysis_type in analyses:
+        logger.info(f"\n=== {analysis_type.upper()} 분석 시작 ===")
         result = pm.generate_analysis(analysis_type)
-        print(f"\n=== {analysis_type.upper()} 결과 ===")
-        print(result)
-        print("-" * 80)
-    
-    print("\n모든 분석 완료!")
+        logger.info(f"=== {analysis_type.upper()} 결과 ===")
+        logger.info(result[:500] + "..." if len(result) > 500 else result)
+        logger.info("-" * 80)
+
+    logger.info("\n모든 분석 완료!")

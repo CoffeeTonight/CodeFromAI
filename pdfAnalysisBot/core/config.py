@@ -177,15 +177,6 @@ class Config:
             "similarity": similarity,
             "implementation": implementation
         }
-
-    # arXiv 다운로드 방식 설정
-    ARXIV_USE_LIB = False  # False: 명시적 RSS URL 방식 (회사에서 잘 됨, default)
-                           # True: arxiv 라이브러리 방식
-
-    # Streamlit에서 토글 가능하게 메서드 추가
-    @classmethod
-    def set_arxiv_use_lib(cls, value: bool):
-        cls.ARXIV_USE_LIB = value
 # 초기화 실행
 Config.init_directories()
 

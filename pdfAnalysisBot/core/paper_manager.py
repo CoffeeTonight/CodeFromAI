@@ -1,198 +1,415 @@
-# core/config.py
+# core/paper_manager.py
 import os
-import platform
+import json
+import re
+import shutil
 from pathlib import Path
-from typing import Dict, Any
+from datetime import datetime
+from typing import List, Dict, Optional
 
-class Config:
-    SKIP_ARXIV_DOWNLOAD = False  # True로 하면 arXiv 다운로드 완전 스킵
-    # 현재 선택된 모델 (Streamlit에서 변경 가능)
-    SELECTED_MODEL = "llama3.2:3b"  # 기본값: 빠른 테스트용 (안전)
+import arxiv
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from core.config import Config
 
-    # DSPy 사용 여부
-    USE_DSPY = False
+# SSL 경고 무시 및 안정적인 세션 설정
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-    # 프로젝트 루트 경로
-    BASE_DIR = Path(__file__).parent.resolve()
-    DB_DIR = BASE_DIR / ".db_pallm"
+session = requests.Session()
+retry_strategy = Retry(
+    total=5,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["HEAD", "GET"]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
+session.verify = False
 
-    # 폴더 경로
-    PAPER_DIR = DB_DIR / "paper"
-    DATA_DIR = DB_DIR / "data"
-    HISTORY_DIR = DB_DIR / "history"
 
-    # 파일 경로
-    DOWNLOAD_HISTORY_PATH = DB_DIR / "download_history.jsonl"
-    OPEN_SOURCE_DB_PATH = DB_DIR / "open_source.jsonl"
+class PaperManager:
+    def __init__(self):
+        self.paper_dir = Config.PAPER_DIR
+        self.history_path = Config.DOWNLOAD_HISTORY_PATH
+        self.open_source_path = Config.OPEN_SOURCE_DB_PATH
+        self.download_history = self._load_download_history()
 
-    # arXiv 기본 쿼리
-    DEFAULT_ARXIV_QUERY = (
-        '("large language model" OR LLM OR AI) AND '
-        '(semiconductor OR design OR verification OR SoC OR UVM)'
-    )
+    def _load_download_history(self) -> List[Dict]:
+        history = []
+        if not self.history_path.exists():
+            return history
 
-    # RAG 설정
-    CHUNK_SIZE = 1024
-    CHUNK_OVERLAP = 200
-    EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+        with open(self.history_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if isinstance(entry, dict):
+                        history.append(entry)
+                except json.JSONDecodeError as e:
+                    print(f"[경고] JSON 파싱 실패 (라인 {line_num}): {e}")
+        return history
 
-    @classmethod
-    def toggle_arxiv_download(cls, value: bool):
-        cls.SKIP_ARXIV_DOWNLOAD = value
+    def _save_download_history(self, entry: Dict):
+        with open(self.history_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    # 실행 환경에 따른 Ollama URL 자동 결정
-    @staticmethod
-    def get_ollama_base_url() -> str:
-        system = platform.system()
-        if system == "Windows":
-            return "http://localhost:11434"
-        elif system == "Linux":
-            if "microsoft" in platform.uname().release.lower():  # WSL2
-                return "http://host.docker.internal:11434"
+    def _extract_github_links(self, pdf_path: Path) -> List[str]:
+        try:
+            import fitz
+            doc = fitz.open(pdf_path)
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            doc.close()
+
+            pattern = r'https?://(?:www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
+            links = re.findall(pattern, text)
+            return list(set(links))
+        except Exception as e:
+            print(f"GitHub 추출 실패 ({pdf_path.name}): {e}")
+            return []
+
+    def _save_open_source_info(self, entry: Dict):
+        with open(self.open_source_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    def _extract_title_from_pdf(self, pdf_path: Path) -> Optional[str]:
+        try:
+            import fitz
+            doc = fitz.open(pdf_path)
+            first_page_text = doc[0].get_text()
+            doc.close()
+
+            lines = [line.strip() for line in first_page_text.split("\n") if line.strip()]
+            for line in lines[:15]:
+                if len(line) > 20 and (line.isupper() or line.endswith((".", ":", "?")) or "Abstract" in line):
+                    return line
+            return lines[0] if lines else None
+        except Exception as e:
+            print(f"제목 추출 실패 ({pdf_path.name}): {e}")
+            return None
+
+    def download_from_arxiv(self, query: Optional[str] = None, max_results: Optional[int] = None, target_count: Optional[int] = None) -> int:
+        max_results = max_results or Config.ARXIV_MAX_RESULTS  # config에서 가져옴
+        query = query or Config.DEFAULT_ARXIV_QUERY
+
+        current_count = len(list(self.paper_dir.glob("*.pdf")))
+        print(f"현재 PDF 수: {current_count}개")
+
+        if target_count is not None:
+            needed = max(0, target_count - current_count)
+            if needed == 0:
+                print(f"목표 {target_count}개 달성 → 다운로드 스킵")
+                return 0
+            max_results = max(max_results, needed)
+            print(f"목표 {target_count}개 → 최대 {max_results}개 검색")
+
+        # Config에서 정렬 기준 가져오기
+        sort_by_map = {
+            "submitted_date": arxiv.SortCriterion.SubmittedDate,
+            "last_updated_date": arxiv.SortCriterion.LastUpdatedDate,
+            "relevance": arxiv.SortCriterion.Relevance
+        }
+        sort_order_map = {
+            "ascending": arxiv.SortOrder.Ascending,
+            "descending": arxiv.SortOrder.Descending
+        }
+
+        sort_criterion = sort_by_map.get(Config.ARXIV_SORT_BY, arxiv.SortCriterion.Relevance)
+        sort_order = sort_order_map.get(Config.ARXIV_SORT_ORDER, arxiv.SortOrder.Descending)
+
+        print(f"arXiv 정렬: {Config.ARXIV_SORT_BY} ({Config.ARXIV_SORT_ORDER})")
+
+        search = arxiv.Search(
+            query=query,
+            max_results=max_results,
+            sort_by=sort_criterion,
+            sort_order=sort_order
+        )
+
+        downloaded = 0
+        client = arxiv.Client()
+        current_llm = Config.SELECTED_MODEL
+
+        for result in client.results(search):
+            arxiv_id = result.entry_id.split('/')[-1]
+            versioned_id = arxiv_id
+
+            if any(e.get("arxiv_id") == versioned_id for e in self.download_history):
+                continue
+
+            filename = self.paper_dir / f"{versioned_id}.pdf"
+            pdf_url = result.pdf_url
+
+            try:
+                print(f"다운로드 시도: {result.title} ({versioned_id})")
+                response = session.get(pdf_url, timeout=120)
+                response.raise_for_status()
+                filename.write_bytes(response.content)
+                print(f"다운로드 완료: {result.title}")
+
+                entry = {
+                    "arxiv_id": versioned_id,
+                    "title": result.title,
+                    "authors": [author.name for author in result.authors],
+                    "downloaded_at": datetime.now().isoformat(),
+                    "source": "arXiv",
+                    "pdf_url": pdf_url,
+                    "processed_with_llm": current_llm,
+                    "processed_at": datetime.now().isoformat()
+                }
+                self._save_download_history(entry)
+                self.download_history.append(entry)
+                downloaded += 1
+
+                github_links = self._extract_github_links(filename)
+                if github_links:
+                    os_entry = {
+                        "arxiv_id": versioned_id,
+                        "title": result.title,
+                        "github_links": github_links,
+                        "detected_at": datetime.now().isoformat(),
+                        "detected_with_llm": current_llm,
+                        "note": "GitHub 링크 자동 추출"
+                    }
+                    self._save_open_source_info(os_entry)
+                    print(f"  → 오픈소스 발견: {len(github_links)}개 링크")
+
+            except Exception as e:
+                print(f"다운로드 실패 ({versioned_id}): {e}")
+
+        print(f"총 {downloaded}개 새 논문 다운로드 완료 (LLM: {current_llm})")
+        return downloaded
+
+    def scan_user_added_papers(self) -> int:
+        added = 0
+        current_ids = {e.get("arxiv_id") for e in self.download_history if e.get("arxiv_id")}
+        current_llm = Config.SELECTED_MODEL
+
+        for file in self.paper_dir.iterdir():
+            if file.suffix.lower() != ".pdf":
+                continue
+            arxiv_id = file.stem
+            if arxiv_id not in current_ids:
+                title = self._extract_title_from_pdf(file) or "사용자 직접 추가 (제목 자동 추출 실패)"
+                entry = {
+                    "arxiv_id": arxiv_id,
+                    "title": title,
+                    "authors": [],
+                    "downloaded_at": datetime.now().isoformat(),
+                    "source": "user_added",
+                    "pdf_url": "",
+                    "processed_with_llm": current_llm,
+                    "note": "사용자 수동 추가 논문 감지"
+                }
+                self._save_download_history(entry)
+                self.download_history.append(entry)
+                current_ids.add(arxiv_id)
+                added += 1
+                print(f"사용자 추가 논문 감지: {file.name} → 제목: {title}")
+
+        if added > 0:
+            print(f"{added}개 사용자 추가 논문 등록 완료 (LLM: {current_llm})")
+        return added
+
+    def verify_and_cleanup_history(self, mode: str = "auto") -> Dict[str, int]:
+        """paper 폴더와 히스토리 동기화 (의도적 삭제 존중)"""
+        if not self.paper_dir.exists():
+            self.paper_dir.mkdir(parents=True, exist_ok=True)
+            return {"missing": 0, "cleaned": 0, "redownloaded": 0}
+
+        existing_pdfs = {f.stem for f in self.paper_dir.iterdir() if f.suffix.lower() == ".pdf"}
+        missing_entries = []
+        valid_entries = []
+
+        print(f"히스토리 기록: {len(self.download_history)}개")
+        print(f"실제 PDF 파일: {len(existing_pdfs)}개")
+
+        for entry in self.download_history:
+            aid = entry.get("arxiv_id")
+            if aid and aid in existing_pdfs:
+                valid_entries.append(entry)
+            elif aid:
+                missing_entries.append(entry)
+
+        if not missing_entries:
+            print("모든 논문 PDF가 정상 존재합니다.")
+            return {"missing": 0, "cleaned": 0, "redownloaded": 0}
+
+        print(f"\n{len(missing_entries)}개 PDF가 존재하지 않습니다.")
+
+        cleaned = 0
+        redownloaded = 0
+
+        if mode == "auto":
+            print("→ mode='auto': 누락 보고만 하고 아무 작업 안 함 (의도적 삭제 존중)")
+
+        elif mode == "cleanup":
+            print("→ mode='cleanup': 누락 엔트리 히스토리에서 삭제")
+            backup = self.history_path.with_suffix(".jsonl.backup")
+            shutil.copy(self.history_path, backup)
+            print(f"백업: {backup}")
+            with open(self.history_path, "w", encoding="utf-8") as f:
+                for e in valid_entries:
+                    f.write(json.dumps(e, ensure_ascii=False) + "\n")
+            self.download_history = valid_entries
+            cleaned = len(missing_entries)
+
+        elif mode == "redownload":
+            print("→ mode='redownload': 누락된 arXiv 논문 자동 재다운로드")
+            redownloaded = self.redownload_missing_papers()
+
+        elif mode == "interactive":
+            print("→ mode='interactive': 수동 선택")
+            for entry in missing_entries:
+                title = entry.get("title", "제목 없음")
+                aid = entry.get("arxiv_id")
+                src = entry.get("source")
+                ans = input(f"[누락] {aid} | {title} ({src})\n  [k]eep / [d]elete / [r]edownload ? (k/d/r): ").lower()
+                if ans == "d":
+                    cleaned += 1
+                elif ans == "r" and src == "arXiv":
+                    if self._redownload_single(entry):
+                        redownloaded += 1
+
+            if cleaned > 0:
+                valid_entries = [e for e in self.download_history if e.get("arxiv_id") not in {m.get("arxiv_id") for m in missing_entries if ans == "d"}]
+                self._rewrite_history(valid_entries)
+
+        return {"missing": len(missing_entries), "cleaned": cleaned, "redownloaded": redownloaded}
+
+    def _redownload_single(self, entry: Dict) -> bool:
+        pdf_url = entry.get("pdf_url")
+        aid = entry.get("arxiv_id")
+        if not pdf_url or not aid:
+            return False
+        filename = self.paper_dir / f"{aid}.pdf"
+        try:
+            resp = session.get(pdf_url, timeout=120)
+            resp.raise_for_status()
+            filename.write_bytes(resp.content)
+            print(f"재다운로드 성공: {aid}")
+            return True
+        except Exception as e:
+            print(f"재다운로드 실패 {aid}: {e}")
+            return False
+
+    def redownload_missing_papers(self, max_results: Optional[int] = None) -> int:
+        redownloaded = 0
+        existing = {f.stem for f in self.paper_dir.iterdir() if f.suffix.lower() == ".pdf"}
+        for entry in self.download_history:
+            aid = entry.get("arxiv_id")
+            if aid and aid not in existing and entry.get("source") == "arXiv":
+                if self._redownload_single(entry):
+                    redownloaded += 1
+                if max_results and redownloaded >= max_results:
+                    break
+        return redownloaded
+
+    def _rewrite_history(self, entries: List[Dict]):
+        backup = self.history_path.with_suffix(".jsonl.backup")
+        shutil.copy(self.history_path, backup)
+        with open(self.history_path, "w", encoding="utf-8") as f:
+            for e in entries:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        self.download_history = entries
+
+    def generate_current_papers_snapshot(self) -> int:
+        """현재 paper 폴더의 모든 PDF를 스캔해 current_papers.jsonl 생성"""
+        snapshot_path = Config.DB_DIR / "current_papers.jsonl"
+        entries = []
+
+        print("current_papers.jsonl 스냅샷 생성 중...")
+
+        for pdf_file in self.paper_dir.iterdir():
+            if pdf_file.suffix.lower() != ".pdf":
+                continue
+            aid = pdf_file.stem
+
+            hist_entry = next((e for e in self.download_history if e.get("arxiv_id") == aid), None)
+            if hist_entry:
+                entry = {
+                    "arxiv_id": aid,
+                    "title": hist_entry.get("title", "제목 없음"),
+                    "authors": hist_entry.get("authors", []),
+                    "source": hist_entry.get("source", "unknown"),
+                    "added_at": hist_entry.get("downloaded_at", "unknown"),
+                    "has_github": bool(self._extract_github_links(pdf_file)),
+                    "file_exists": True
+                }
             else:
-                return "http://localhost:11434"
-        else:
-            return "http://localhost:11434"
+                title = self._extract_title_from_pdf(pdf_file) or "제목 자동 추출 실패"
+                entry = {
+                    "arxiv_id": aid,
+                    "title": title,
+                    "authors": [],
+                    "source": "user_added",
+                    "added_at": datetime.now().isoformat(),
+                    "has_github": bool(self._extract_github_links(pdf_file)),
+                    "file_exists": True,
+                    "notes": "사용자 직접 추가"
+                }
+            entries.append(entry)
 
-    # LLM 모델 옵션 (이름: 설정 딕셔너리)
-    LLM_MODELS: Dict[str, Dict[str, Any]] = {
-        "llama3.2:3b": {
-            "name": "Llama3.2 3B (Ollama)",
-            "model": "llama3.2:3b",
-            "type": "ollama",
-            "api_base": get_ollama_base_url(),
-            "temperature": 0.3,
-            "max_tokens": 2048,
-            "timeout": 1200.0
-        },
-        "qwen3:32b": {
-            "name": "Qwen3 32B (Ollama)",
-            "model": "qwen3:32b",
-            "type": "ollama",
-            "api_base": get_ollama_base_url(),
-            "temperature": 0.3,
-            "max_tokens": 4096,
-            "timeout": 600.0
-        },
-        "qwen2:7b": {
-            "name": "Qwen2 7B (Ollama)",
-            "model": "qwen2:7b",
-            "type": "ollama",
-            "api_base": get_ollama_base_url(),
-            "temperature": 0.3,
-            "max_tokens": 2048,
-            "timeout": 180.0
-        },
-        "phi3:medium": {
-            "name": "Phi-3 Medium (Ollama)",
-            "model": "phi3:medium",
-            "type": "ollama",
-            "api_base": get_ollama_base_url(),
-            "temperature": 0.3,
-            "max_tokens": 2048,
-            "timeout": 240.0
-        },
-        # ==================== 회사 내부 LLM ====================
-        "company_llm": {
-            "name": "회사 내부 LLM (Internal)",
-            "model": "gpt-4o-company-v1",  # 회사에서 지정한 모델명
-            "type": "openai_compatible",   # OpenAI 스타일 API
-            "api_url": "https://llm-gateway.company.com/v1/chat/completions",
-            "api_key": os.getenv("COMPANY_LLM_API_KEY", "your-api-key-here"),  # 환경변수 우선
-            "user_key": os.getenv("COMPANY_LLM_USER_KEY", "your-user-key-here"),
-            "cert_path": str(BASE_DIR / "certs" / "company_root_ca.pem"),  # 필요 시
-            "verify_ssl": True,        # False로 하면 인증서 무시 (테스트용)
-            "lce": True,               # License Check Enforcement
-            "context_length": 32768,   # 회사 LLM 컨텍스트 길이
-            "temperature": 0.3,
-            "max_tokens": 8192,
-            "timeout": 180
-        }
-    }
+        with open(snapshot_path, "w", encoding="utf-8") as f:
+            for e in entries:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
 
-    @classmethod
-    def get_current_llm_config(cls) -> Dict[str, Any]:
-        """현재 선택된 모델의 설정 반환"""
-        if cls.SELECTED_MODEL not in cls.LLM_MODELS:
-            print(f"[경고] 선택된 모델 '{cls.SELECTED_MODEL}' 없음 → 기본값으로 변경")
-            cls.SELECTED_MODEL = "llama3.2:3b"
+        print(f"current_papers.jsonl 생성 완료: {len(entries)}개 논문")
+        return len(entries)
 
-        config = cls.LLM_MODELS[cls.SELECTED_MODEL].copy()
+    def get_open_source_list(self) -> List[Dict]:
+        results = []
+        if self.open_source_path.exists():
+            with open(self.open_source_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            results.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+        return results
 
-        # Ollama 모델은 항상 최신 URL 적용
-        if config.get("type") == "ollama":
-            config["api_base"] = cls.get_ollama_base_url()
 
-        return config
+# Prefect 호환 (옵션)
+try:
+    from prefect import task
 
-    @classmethod
-    def get_available_models(cls) -> list:
-        """Streamlit에서 모델 선택 드롭다운용"""
-        return [key for key in cls.LLM_MODELS.keys()]
+    @task(name="Download New Papers")
+    def download_task(query: Optional[str] = None, max_results: int = 20):
+        manager = PaperManager()
+        return manager.download_from_arxiv(query=query, max_results=max_results)
 
-    @classmethod
-    def init_directories(cls):
-        for dir_path in [cls.DB_DIR, cls.PAPER_DIR, cls.DATA_DIR, cls.HISTORY_DIR]:
-            dir_path.mkdir(parents=True, exist_ok=True)
+    @task(name="Scan User Added Papers")
+    def scan_task():
+        manager = PaperManager()
+        return manager.scan_user_added_papers()
 
-        # 히스토리 파일 초기화
-        if not cls.DOWNLOAD_HISTORY_PATH.exists():
-            cls.DOWNLOAD_HISTORY_PATH.touch()
+except ImportError:
+    pass
 
-        if not cls.OPEN_SOURCE_DB_PATH.exists():
-            cls.OPEN_SOURCE_DB_PATH.touch()
-
-    # arXiv 정렬 기준 설정
-    ARXIV_MAX_RESULTS = 50
-    ARXIV_SORT_BY = "relevance"  # "submitted_date", "last_updated_date", "relevance" 중 선택
-    ARXIV_SORT_ORDER = "descending"  # "ascending" 또는 "descending"
-
-    # Streamlit에서 변경 쉽게 하기 위한 메서드
-    @classmethod
-    def set_arxiv_sort(cls, sort_by: str, sort_order: str = "descending"):
-        valid_sort_by = ["submitted_date", "last_updated_date", "relevance"]
-        valid_order = ["ascending", "descending"]
-        if sort_by not in valid_sort_by:
-            raise ValueError(f"sort_by는 {valid_sort_by} 중 하나여야 합니다.")
-        if sort_order not in valid_order:
-            raise ValueError(f"sort_order는 {valid_order} 중 하나여야 합니다.")
-        cls.ARXIV_SORT_BY = sort_by
-        cls.ARXIV_SORT_ORDER = sort_order
-
-    PAPER_SCORE_WEIGHTS = {
-        "latest": 40,  # 최신성 (제출 날짜)
-        "citation": 30,  # 인용 수
-        "similarity": 20,  # 임베딩 유사도
-        "implementation": 10  # GitHub stars / 구현 수
-    }
-
-    @classmethod
-    def set_paper_weights(cls, latest: int, citation: int, similarity: int, implementation: int):
-        total = latest + citation + similarity + implementation
-        if total == 0:
-            raise ValueError("가중치 합계는 0이 될 수 없습니다.")
-        cls.PAPER_SCORE_WEIGHTS = {
-            "latest": latest,
-            "citation": citation,
-            "similarity": similarity,
-            "implementation": implementation
-        }
-
-    # arXiv 다운로드 방식 설정
-    ARXIV_USE_LIB = False  # False: 명시적 RSS URL 방식 (회사에서 잘 됨, default)
-                           # True: arxiv 라이브러리 방식
-
-    # Streamlit에서 토글 가능하게 메서드 추가
-    @classmethod
-    def set_arxiv_use_lib(cls, value: bool):
-        cls.ARXIV_USE_LIB = value
-# 초기화 실행
-Config.init_directories()
 
 # 테스트
 if __name__ == "__main__":
-    print("현재 환경:", platform.system())
-    print("Ollama URL:", Config.get_ollama_base_url())
-    print("사용 가능한 모델:", Config.get_available_models())
-    print("현재 모델:", Config.SELECTED_MODEL)
-    print("설정:", Config.get_current_llm_config())
+    print("=== Paper Manager 최종 테스트 ===")
+    print(f"현재 LLM: {Config.SELECTED_MODEL}")
+    manager = PaperManager()
+
+    manager.verify_and_cleanup_history(mode="auto")
+    manager.scan_user_added_papers()
+    manager.download_from_arxiv(max_results=5)
+    manager.generate_current_papers_snapshot()
+
+    print("\n현재 오픈소스:")
+    for item in manager.get_open_source_list():
+        print(f"- {item.get('title')} (LLM: {item.get('detected_with_llm')})")
+        for link in item.get("github_links", []):
+            print(f"  → {link}")
+
+    print("\n테스트 완료!")

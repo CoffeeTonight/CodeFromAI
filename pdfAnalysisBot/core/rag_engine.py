@@ -205,6 +205,53 @@ class RAGEngine:
             logger.error(f"인덱스 처리 실패: {e}")
             return None
 
+    def manual_rag_query(self, question: str, top_k: int = 10) -> str:
+        """
+        회사 LLM에서 top_k 지원 안 할 때 수동으로 RAG 수행
+        """
+        if self.index is None:
+            logger.warning("인덱스 없음 → 빌드 시도")
+            self.build_or_load_index()
+        if self.index is None:
+            return "RAG 인덱스 준비 실패"
+
+        # 1. Retriever로 top_k개 청크 검색
+        retriever = self.index.as_retriever(similarity_top_k=top_k)
+        nodes = retriever.retrieve(question)
+
+        if not nodes:
+            return "관련 문서 없음"
+
+        # 2. 검색된 청크들 합쳐서 컨텍스트 만들기
+        context_parts = []
+        for i, node in enumerate(nodes, 1):
+            source = node.metadata.get("source_type", "unknown")
+            title = node.metadata.get("source", "제목 없음")
+            context_parts.append(f"[문서 {i} | 출처: {source} | {title}]\n{node.text}\n")
+
+        context = "\n".join(context_parts)
+
+        # 3. 프롬프트 구성
+        prompt = f"""
+너는 반도체 SoC 설계 및 검증 분야 전문가다.
+아래 제공된 문서들을 바탕으로 질문에 정확하고 전문적으로 답변해.
+
+질문: {question}
+
+참고 문서들:
+{context}
+
+답변:
+"""
+
+        # 4. 회사 LLM 직접 호출 (Settings.llm 사용)
+        try:
+            response = Settings.llm.complete(prompt)
+            return str(response.text)
+        except Exception as e:
+            logger.error(f"회사 LLM 호출 실패: {e}")
+            return f"LLM 호출 실패: {e}"
+    
     def query(self, question: str) -> str:
         if self.query_engine is None:
             logger.warning("query_engine 없음 → 재시도")
@@ -233,4 +280,5 @@ if __name__ == "__main__":
     for q in test_questions:
         logger.info(f"\nQ: {q}")
         answer = engine.query(q)
+
         logger.info(f"A: {answer[:500]}...")

@@ -54,16 +54,23 @@ class CompanyLLM(CustomLLM):
     @property
     def metadata(self) -> LLMMetadata:
         return LLMMetadata(
-            context_window=32768,  # 회사 LLM 컨텍스트 길이
+            context_window=32768,
             num_output=8192
         )
 
     def complete(self, prompt: str, **kwargs) -> CompletionResponse:
-        """회사 API의 send_query 인터페이스 사용"""
+        """non-streaming (fallback)"""
+        # 스트리밍 generator에서 첫 번째 결과만 가져오기
+        stream_gen = self.stream_complete(prompt, **kwargs)
+        full_text = ""
+        for resp in stream_gen:
+            full_text += resp.text
+        return CompletionResponse(text=full_text)
+
+    def stream_complete(self, prompt: str, **kwargs):
+        """회사 API의 send_query 스트리밍 연결"""
         try:
-            # 회사 API 클래스 직접 호출 (가정: CompanyAPI 클래스 존재)
-            # 만약 별도 모듈에 있다면 from company_api import CompanyAPI
-            from company_api import CompanyAPI  # 회사에서 제공한 모듈 import
+            from company_api import CompanyAPI  # 회사 제공 모듈
 
             api = CompanyAPI(
                 api_url=self.api_url,
@@ -77,13 +84,13 @@ class CompanyLLM(CustomLLM):
             verbose = kwargs.get("verbose", False)
             history = kwargs.get("history", "")
 
-            response_text = api.send_query(prompt=prompt, verbose=verbose, HISTORY=history)
-
-            return CompletionResponse(text=response_text)
+            # send_query가 generator 반환한다고 가정
+            for token in api.send_query(prompt=prompt, verbose=verbose, HISTORY=history):
+                yield CompletionResponse(text=token)
 
         except Exception as e:
-            logger.error(f"회사 LLM 호출 실패: {e}")
-            return CompletionResponse(text=f"LLM 호출 실패: {str(e)}")
+            logger.error(f"회사 LLM 스트리밍 실패: {e}")
+            yield CompletionResponse(text=f"스트리밍 실패: {str(e)}")
 
 class RAGEngine:
     def __init__(self):

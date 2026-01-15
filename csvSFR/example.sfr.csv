@@ -54,5 +54,6 @@
 |                 |                    |            |                 |                       |               | DMAStatus        |0x408| Busy          | [0:0]     | 0x0           | RO          | Y        | DMA busy status                                  
 |||||||doubleint|0x494||[63:0]|0|RW|Y|double int size sfr
 |||||||long|0x49C||[127:0]|0|RW|Y|long size sfr
+||||||||||||||
 |||||||longlong|0x4AC||[255:0]|0|RW|Y|long long size sfr
 |||||||custom512|0x4CC||[511:0]|0|RW|Y|512b size sfr

@@ -1,9 +1,9 @@
 module,base_addr,addr_offset,enable,sheet,addr_parameter,sheet_parameter,bus_if,bus_data_width,base_addr_check_off,naming_surfix,is_packet
-SystemCtrl,0x00000000,0x0,Yes,SystemCtrl,,apb,32,,_ctrl,No,
-,,0x10000,Yes,TimerGroup,NUM=0..1,,ahb,64,,_group,No
-,,0x20000,Yes,IOGroup,,axi,32,,_io,No,
-PeripheralCtrl,0x30000000,0x0,Yes,PeripheralCtrl,,apb,32,,_peri,No,
-MainComplex,0x40000000,0x0,Yes,ComplexSFR,,axi,128,,_main,No,
-SubComplexA,0x50000000,0x0,Yes,ComplexSFR,NUM=0..3,,axi,128,,_sub_a,No
-SubComplexB,0x60000000,0x0,Yes,ComplexSFR,,axi,128,,_sub_b,No,
-ExtraModule,0x80000000,0x1000,No,ComplexSFR,,apb,32,Y,_extra,No,
+SystemCtrl,0x0000,0x0,Yes,SystemCtrl,,apb3,8,,_ctrl,No
+,,0x1000,Yes,TimerGroup,NUM=0..1,,apb4,16,,_group,No
+,,0x2000,Yes,IOGroup,,ahb3,32,,_io,No
+PeripheralCtrl,0x3000,0x0,Yes,PeripheralCtrl,,ahb4,64,,_peri,No
+MainComplex,0x4000,0x0,Yes,ComplexSFR,,axi3,128,,_main,No
+SubComplexA,0x5000,0x0,Yes,ComplexSFR,NUM=0..3,,axi4,256,,_sub_a,No
+SubComplexB,0x6000,0x0,Yes,ComplexSFR,,apb3,8,,_sub_b,No
+ExtraModule,0x8000,0x1000,No,ComplexSFR,,apb4,16,Y,_extra,No

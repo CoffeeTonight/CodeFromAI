@@ -1,0 +1,4 @@
+module,base_addr,addr_offset,enable,sheet,addr_parameter,sheet_parameter,bus_if,bus_data_width,base_addr_check_off,naming_surfix,is_packet
+PeriGroupA,0xC000,0x0,Yes,ComplexSFR,,axi3,32,,_peri_a,No
+PeriGroupB,0xD000,0x0,Yes,ComplexSFR,NUM=0..2,,axi4,64,,_peri_b,No
+LegacyModule,0xE000,0x0,Yes,LegacySFR,,ahb3,128,Y,_legacy,No

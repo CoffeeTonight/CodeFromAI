@@ -1,0 +1,23 @@
+verifclaw/
+├── core/
+│   ├── __init__.py
+│   ├── state.py          # Persistent State
+│   ├── graph.py          # LangGraph 메인 그래프
+│   └── nodes/            # 스킬들 (나중에 하나씩 추가)
+├── memory/
+│   ├── __init__.py
+│   └── graphiti_client.py # Graphiti KG 래퍼
+├── skills/
+│   ├── __init__.py
+│   └── dpi_socket_master.py  # 실시간 forcing (이번에 먼저 완성)
+├── bridge/
+│   └── dpi_c_wrapper.py
+├── daemon/
+│   ├── __init__.py
+│   ├── main.py           # FastAPI + Heartbeat daemon
+│   └── config.py
+├── tests/
+│   └── test_axi_poc.py
+├── docker-compose.yml    # Neo4j
+├── .env
+└── pyproject.toml

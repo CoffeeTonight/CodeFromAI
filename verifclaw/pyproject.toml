@@ -1,0 +1,24 @@
+[project]
+name = "verifclaw"
+version = "0.1.0"
+description = "Persistent Agentic SoC Verification Engineer (Python Native VerifClaw)"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-openai",
+    "langchain-community",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]",
+    "pydantic>=2.10",
+    "graphiti-core[neo4j]>=0.7.0",
+    "python-dotenv",
+    "aiohttp",
+    "asyncio",
+]
+
+[tool.uv]
+dev-dependencies = ["pytest", "black", "ruff"]
+
+[project.scripts]
+verifclaw = "daemon.main:main"

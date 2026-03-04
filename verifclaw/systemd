@@ -1,0 +1,13 @@
+[Unit]
+Description=VerifClaw Persistent Verification Agent
+After=network.target
+
+[Service]
+User=youruser
+WorkingDirectory=/path/to/verifclaw
+ExecStart=/home/youruser/.local/bin/uv run verifclaw
+Restart=always
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

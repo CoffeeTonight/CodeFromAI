@@ -1,0 +1,15 @@
+{
+  "directed": true,
+  "multigraph": true,
+  "graph": {},
+  "nodes": [
+    {
+      "type": "episode",
+      "content": "AXI protocol corner case: burst length 256 with AWLEN overflow - Samsung 2025 project",
+      "source": "verifclaw",
+      "timestamp": "2026-03-04T10:11:34.656608",
+      "id": "axi_corner_2025"
+    }
+  ],
+  "edges": []
+}

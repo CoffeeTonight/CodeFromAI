@@ -1,0 +1,13 @@
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-openai
+langchain-community
+fastapi>=0.115.0
+uvicorn[standard]
+pydantic>=2.10
+python-dotenv
+aiohttp
+apscheduler
+graphiti-core[kuzu]>=0.7.0
+networkx
+fastapi

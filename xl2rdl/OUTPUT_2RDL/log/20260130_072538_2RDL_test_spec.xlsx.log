@@ -1,0 +1,21 @@
+2026-01-30 07:25:38,724 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-30 07:25:38,724 [INFO] Output directory: OUTPUT_2RDL
+2026-01-30 07:25:38,725 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-30 07:25:38,772 [INFO] === Conversion Started ===
+2026-01-30 07:25:38,772 [INFO] Loading memorymap sheets...
+2026-01-30 07:25:38,772 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-30 07:25:38,897 [WARNING] SFR sheet not found: IOGroup
+2026-01-30 07:25:38,898 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-30 07:25:38,898 [WARNING] SFR sheet not found: TimerGroup
+2026-01-30 07:25:38,898 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-30 07:25:38,974 [DEBUG] Parsed 9 parameters
+2026-01-30 07:25:38,991 [DEBUG] Parameter replacement completed
+2026-01-30 07:25:38,994 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-30 07:25:38,996 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-30 07:25:39,003 [INFO] soc_top.rdl generated (49 lines)
+2026-01-30 07:25:39,007 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-30 07:25:39,009 [INFO] Generating detailed RDL for ComplexSFR (57 rows)
+2026-01-30 07:25:39,019 [DEBUG] Row 42: 반복 레지스터 배열 선언 - singleRepeat
+2026-01-30 07:25:39,019 [DEBUG] Row 46: 반복 레지스터 배열 선언 - singleRepeatedField
+2026-01-30 07:25:39,023 [INFO] Saved detailed RDL for ComplexSFR: OUTPUT_2RDL/systemrdl/ComplexSFR.rdl
+2026-01-30 07:25:39,024 [INFO] === Conversion Completed Successfully ===

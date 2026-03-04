@@ -1,0 +1,25 @@
+2026-01-15 02:24:07,020 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-15 02:24:07,021 [INFO] Output directory: OUTPUT_2RDL
+2026-01-15 02:24:07,021 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-15 02:24:07,033 [INFO] === Conversion Started ===
+2026-01-15 02:24:07,033 [INFO] Loading memorymap sheets...
+2026-01-15 02:24:07,033 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-15 02:24:07,046 [INFO] SFR sheets referenced in memorymap: {'IOGroup', 'TimerGroup', 'PeripheralCtrl', 'SystemCtrl'}
+2026-01-15 02:24:07,080 [INFO] Loaded SFR sheet 'IOGroup' (1 rows)
+2026-01-15 02:24:07,086 [INFO] Loaded SFR sheet 'TimerGroup' (2 rows)
+2026-01-15 02:24:07,092 [INFO] Loaded SFR sheet 'PeripheralCtrl' (1 rows)
+2026-01-15 02:24:07,096 [INFO] Loaded SFR sheet 'SystemCtrl' (4 rows)
+2026-01-15 02:24:07,097 [INFO] Generating soc_top.rdl
+2026-01-15 02:24:07,097 [INFO] Processing memorymap sheet: memorymap
+2026-01-15 02:24:07,098 [INFO] Processing memorymap sheet: memorymap_a
+2026-01-15 02:24:07,098 [INFO] soc_top.rdl generated (14 lines)
+2026-01-15 02:24:07,099 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-15 02:24:07,099 [INFO] Generating detailed RDL for IOGroup (1 rows)
+2026-01-15 02:24:07,101 [INFO] Saved detailed RDL for IOGroup: OUTPUT_2RDL/systemrdl/IOGroup.rdl
+2026-01-15 02:24:07,101 [INFO] Generating detailed RDL for TimerGroup (2 rows)
+2026-01-15 02:24:07,102 [INFO] Saved detailed RDL for TimerGroup: OUTPUT_2RDL/systemrdl/TimerGroup.rdl
+2026-01-15 02:24:07,102 [INFO] Generating detailed RDL for PeripheralCtrl (1 rows)
+2026-01-15 02:24:07,103 [INFO] Saved detailed RDL for PeripheralCtrl: OUTPUT_2RDL/systemrdl/PeripheralCtrl.rdl
+2026-01-15 02:24:07,103 [INFO] Generating detailed RDL for SystemCtrl (4 rows)
+2026-01-15 02:24:07,105 [INFO] Saved detailed RDL for SystemCtrl: OUTPUT_2RDL/systemrdl/SystemCtrl.rdl
+2026-01-15 02:24:07,105 [INFO] === Conversion Completed Successfully ===

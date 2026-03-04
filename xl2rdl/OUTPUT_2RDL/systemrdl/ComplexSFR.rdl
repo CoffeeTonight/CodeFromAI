@@ -1,0 +1,370 @@
+addrmap ComplexSFR {
+  parameter int BUS_WIDTH = 32;  // From memorymap bus_data_width
+  reg GlobalConfig @ 0x00 {
+    field Mode [1:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "System-wide mode control";
+    };
+    field Power [2:2] {
+      sw = w; hw = r;
+      reset = 0x0;
+      desc = "Write-only power enable";
+    };
+    };
+  reg Control @ 0x04 {
+    field Enable [0:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Enables clock source";
+    };
+    field Divider [7:1] {
+      sw = rw; hw = rw;
+      reset = 0x1;
+      desc = "Sets clock divider value";
+    };
+    };
+  reg ClockStatus @ 0x08 {
+    field Locked [0:0] {
+      sw = r; hw = w;
+      reset = 0x0;
+      desc = "PLL lock status";
+    };
+    field Error [1:1] {
+      sw = r; hw = w; onread = clr;
+      reset = 0x0;
+      desc = "Read clears error flag";
+    };
+    };
+  reg ResetReg @ 0x14 {
+    field SoftReset [0:0] {
+      sw = w; hw = r;
+      reset = 0x0;
+      desc = "Write-only soft reset trigger";
+    };
+    field Watchdog [1:1] {
+      sw = w; hw = r; onwrite = clr;
+      reset = 0x0;
+      desc = "Write 1 to clear watchdog";
+    };
+    };
+  reg InterruptCtrl @ 0x18 {
+    field Mask [3:0] {
+      sw = rw; hw = rw;
+      reset = 0xF;
+      desc = "Interrupt mask bits";
+    };
+    field Pending [7:4] {
+      sw = r; hw = w;
+      reset = 0x0;
+      desc = "Pending interrupts (read-only)";
+    };
+    };
+  reg TimerLoad @ 0x40 {
+    field LoadValue [31:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Load timer counter value (1st instance)";
+    };
+    };
+  reg Control @ 0x44 {
+    field Enable [0:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Enable/disable timer";
+    };
+    field Mode [2:1] {
+      sw = w; hw = r;
+      reset = 0x0;
+      desc = "Write-only mode selection";
+    };
+    };
+  reg TimerStatus @ 0x48 {
+    field Overflow [0:0] {
+      sw = w; hw = r; onwrite = onetoggle;
+      reset = 0x0;
+      desc = "Write 1 to toggle overflow flag";
+    };
+    field Underflow [1:1] {
+      sw = w; hw = r; onwrite = clr;
+      reset = 0x0;
+      desc = "Write 0 to clear underflow";
+    };
+    };
+  reg TimerLoad @ 0xC0 {
+    field LoadValue [31:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Load timer counter value (2nd instance)";
+    };
+    };
+  reg TimerControl @ 0xC4 {
+    field Enable [0:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Enable/disable timer";
+    };
+    };
+  reg IntEnable @ 0xE0 {
+    field TimerInt [0:0] {
+      sw = rw; hw = rw;
+      reset = 0x0;
+      desc = "Enable timer interrupt (2nd instance)";
+    };
+    };
+  reg IntStatus @ 0xE4 {
+    field Pending [0:0] {
+      sw = r; hw = w; onread = set;
+      reset = 0x0;
+      desc = "Read sets status bit";
+    };
+    field Clear [1:1] {
+      sw = w; hw = r; onwrite = clr;
+      reset = 0x0;
+      desc = "Write clears all pending";
+    };
+    };
+  reg MiscReg @ 0xF0 {
+    field Status [3:0] {
+      sw = r; hw = w;
+      reset = 0x0;
+      desc = "Standalone status register";
+    };
+    };
+  reg DataReg @ 0x100 {
+    field Output [7:0] {
+      sw = rw; hw = rw;
+      reset = 0x00;
+      desc = "Port data output (1st instance)";
+    };
+    field Input [15:8] {
+      sw = r; hw = w;
+      reset = 0x00;
+      desc = "Port data input (read-only)";
+    };
+    };
+  reg DirReg @ 0x104 {
+    field Direction [7:0] {
+      sw = rw; hw = rw;
+      reset = 0xFF;
+      desc = "Set pin directions";
+    };
+    };
+  reg InterruptReg @ 0x108 {
+    field Mask [3:0] {
+      sw = rw; hw = rw; onread = clr;
+      reset = 0x0;
+      desc = "Write as-is, read clears";
+    };
+    field Trigger [7:4] {
+      sw = w; hw = r; onwrite = set;
+      reset = 0x0;
+      desc = "Write sets bits";
+    };
+    };
+  reg DataReg @ 0x120 {
+    field Output [7:0] {
+      sw = rw; hw = rw;
+      reset = 0x00;
+      desc = "Port data output (2nd instance)";
+    };
+    reg DataReg @ 0x140 {
+      field Output [7:0] {
+        sw = rw; hw = rw;
+        reset = 0x00;
+        desc = "Port data output (3rd instance)";
+      };
+      reg DataReg @ 0x160 {
+        field Output [7:0] {
+          sw = rw; hw = rw;
+          reset = 0x00;
+          desc = "Port data output (4th instance)";
+        };
+        };
+      reg ConfigReg @ 0x180 {
+        field PullUp [3:0] {
+          sw = rw; hw = rw;
+          reset = 0x0;
+          desc = "Pull-up configuration (1st instance)";
+        };
+        field Drive [7:4] {
+          sw = w; hw = r; onwrite = oneset;
+          reset = 0x0;
+          desc = "Write once after reset";
+        };
+        };
+      reg StatusReg @ 0x184 {
+        field Level [7:0] {
+          sw = r; hw = w;
+          reset = 0x0;
+          desc = "Pin level status";
+        };
+        };
+      reg EventReg @ 0x188 {
+        field EventFlag [0:0] {
+          sw = w; hw = r; onwrite = oneset;
+          reset = 0x0;
+          desc = "Write 1 sets flag";
+        };
+        field ClearFlag [1:1] {
+          sw = w; hw = r; onwrite = zeroset;
+          reset = 0x0;
+          desc = "Write 0 sets flag (negated)";
+        };
+        };
+      reg PowerCtrl @ 0x200 {
+        field Enable [0:0] {
+          sw = rw; hw = rw;
+          reset = 0x0;
+          desc = "Power enable for peripheral";
+        };
+        field SleepMode [2:1] {
+          sw = r; hw = w; onread = clr;
+          reset = 0x0;
+          desc = "Read clears sleep mode";
+        };
+        };
+      reg DMAConfig @ 0x204 {
+        field Channel [3:0] {
+          sw = rw; hw = rw; onread = set;
+          reset = 0x0;
+          desc = "Write as-is, read sets bits";
+        };
+        };
+      reg DMAStatus @ 0x208 {
+        field Busy [0:0] {
+          sw = r; hw = w;
+          reset = 0x0;
+          desc = "DMA busy status";
+        };
+        };
+      reg ErrorReg @ 0x20C {
+        field Code [7:0] {
+          sw = rw; hw = rw;
+          reset = 0x0;
+          desc = "Write clears, read error";
+        };
+        };
+      reg TestReg @ 0x210 {
+        field ToggleBit [0:0] {
+          sw = w; hw = r; onwrite = zerotoggle;
+          reset = 0x0;
+          desc = "Write 0 toggles bit";
+        };
+        };
+      reg AdvIntReg @ 0x214 {
+        field Pending [3:0] {
+          sw = w; hw = r; onwrite = clr; onread = set;
+          reset = 0x0;
+          desc = "Write 1 clears matching, read sets all";
+        };
+        field Set [7:4] {
+          sw = w; hw = r; onwrite = clr; onread = set;
+          reset = 0x0;
+          desc = "Write 0 sets matching, read clears all";
+        };
+        };
+      reg singleRepeat singleRepeat_inst[4] @= 0x10 {
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0x55;
+          desc = "single repeated sfr";
+        };
+        };
+      reg singleSFR @ 0x340 {
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0xff;
+          desc = "single sfr";
+        };
+        };
+      reg singleField @ 0x344 {
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0xf00;
+          desc = "single field sfr";
+        };
+        field field0 [15:7] {
+          sw = rw; hw = rw;
+          reset = 0x71;
+          desc = "field";
+        };
+        };
+      reg singleRepeatedField singleRepeatedField_inst[2] @= 0x4 {
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0xf0;
+          desc = "single repeated field sfr";
+        };
+        field field0 [15:8] {
+          sw = rw; hw = rw;
+          reset = 0xf;
+          desc = "field0";
+        };
+        field field1 [7:0] {
+          sw = rw; hw = rw;
+          reset = 0;
+          desc = "field1";
+        };
+        };
+      reg PowerCtrl @ 0x400 {
+        field Enable [0:0] {
+          sw = rw; hw = rw;
+          reset = 0x0;
+          desc = "Power enable for peripheral";
+        };
+        field SleepMode [2:1] {
+          sw = r; hw = w; onread = clr;
+          reset = 0x0;
+          desc = "Read clears sleep mode";
+        };
+        };
+      reg DMAConfig @ 0x404 {
+        field Channel [3:0] {
+          sw = rw; hw = rw; onread = set;
+          reset = 0x0;
+          desc = "Write as-is, read sets bits";
+        };
+        };
+      reg DMAStatus @ 0x408 {
+        field Busy [0:0] {
+          sw = r; hw = w;
+          reset = 0x0;
+          desc = "DMA busy status";
+        };
+        };
+      reg doubleint doubleint_inst[2] @= 0x4 {
+        regwidth = 64;
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0;
+          desc = "double int size sfr";
+        };
+        };
+      reg long long_inst[4] @= 0x4 {
+        regwidth = 128;
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0;
+          desc = "long size sfr";
+        };
+        };
+      reg longlong longlong_inst[8] @= 0x4 {
+        regwidth = 256;
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0;
+          desc = "long long size sfr";
+        };
+        };
+      reg custom512 custom512_inst[16] @= 0x4 {
+        regwidth = 512;
+        field data [31:0] {
+          sw = rw; hw = rw;
+          reset = 0;
+          desc = "512b size sfr";
+        };
+      };
+    };
+  };
+};

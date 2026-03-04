@@ -1,0 +1,19 @@
+/* High-Level Nested SystemRDL */
+
+addrmap CoreTop_u0_map {
+  regfile Cluster_gf {
+    regfile Channel_sgf {
+      reg Config_t {
+        field { sw=rw; hw=r; reset=0x0; desc="Ch Enable"; } Enable [0:0];
+      } Config @ 0x0;
+      reg DataPath_t {
+        field { sw=rw; hw=r; reset=0x0; desc="Data Content"; } Payload [31:0];
+      } DataPath[3] @= 0x4 @ 0x10;
+    } Channel[4] @= 0x100;
+  } Cluster[2] @= 0x1000;
+  regfile Global_gf {
+    reg Status_t {
+      field { sw=r; hw=rw; reset=0x0; desc="Global Ready"; } Ready [0:0];
+    } Status @ 0x0;
+  } Global[1] @= 0x100;
+} CoreTop_u0 @ 0x0;

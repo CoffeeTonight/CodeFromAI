@@ -1,0 +1,20 @@
+2026-01-26 03:22:18,046 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-26 03:22:18,047 [INFO] Output directory: OUTPUT_2RDL
+2026-01-26 03:22:18,048 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-26 03:22:18,092 [INFO] === Conversion Started ===
+2026-01-26 03:22:18,093 [INFO] Loading memorymap sheets...
+2026-01-26 03:22:18,093 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-26 03:22:18,271 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-26 03:22:18,272 [WARNING] SFR sheet not found: IOGroup
+2026-01-26 03:22:18,272 [WARNING] SFR sheet not found: TimerGroup
+2026-01-26 03:22:18,383 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-26 03:22:18,385 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-26 03:22:18,387 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-26 03:22:18,397 [INFO] soc_top.rdl generated (49 lines)
+2026-01-26 03:22:18,401 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-26 03:22:18,404 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 290, in run
+    rdl_content = self.generate_sfr_addrmap(sheet_name, df)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SFRToSystemRDL' object has no attribute 'generate_sfr_addrmap'

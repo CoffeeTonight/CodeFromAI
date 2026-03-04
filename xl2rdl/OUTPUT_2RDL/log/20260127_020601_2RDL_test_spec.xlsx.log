@@ -1,0 +1,14 @@
+2026-01-27 02:06:01,841 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-27 02:06:01,841 [INFO] Output directory: OUTPUT_2RDL
+2026-01-27 02:06:01,842 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-27 02:06:01,890 [INFO] === Conversion Started ===
+2026-01-27 02:06:01,890 [INFO] Loading memorymap sheets...
+2026-01-27 02:06:01,891 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-27 02:06:02,135 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 316, in run
+    self.load_sheets()
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 177, in load_sheets
+    self.parameters[sheet_name] = self.parse_parameters(df_full)
+                                  ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SFRToSystemRDL' object has no attribute 'parse_parameters'

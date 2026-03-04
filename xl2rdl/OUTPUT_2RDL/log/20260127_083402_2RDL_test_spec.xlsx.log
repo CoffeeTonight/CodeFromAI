@@ -1,0 +1,19 @@
+2026-01-27 08:34:02,599 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-27 08:34:02,600 [INFO] Output directory: OUTPUT_2RDL
+2026-01-27 08:34:02,601 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-27 08:34:02,645 [INFO] === Conversion Started ===
+2026-01-27 08:34:02,646 [INFO] Loading memorymap sheets...
+2026-01-27 08:34:02,646 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-27 08:34:02,812 [WARNING] SFR sheet not found: TimerGroup
+2026-01-27 08:34:02,901 [DEBUG] Parsed 9 parameters
+2026-01-27 08:34:02,920 [DEBUG] Parameter replacement completed
+2026-01-27 08:34:02,924 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-27 08:34:02,926 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-27 08:34:02,926 [WARNING] SFR sheet not found: IOGroup
+2026-01-27 08:34:02,926 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-27 08:34:02,928 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 302, in run
+    top_rdl = self.generate_top_memorymap()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SFRToSystemRDL' object has no attribute 'generate_top_memorymap'

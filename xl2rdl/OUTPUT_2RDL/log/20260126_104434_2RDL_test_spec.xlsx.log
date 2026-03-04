@@ -1,0 +1,124 @@
+2026-01-26 10:44:34,758 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-26 10:44:34,759 [INFO] Output directory: OUTPUT_2RDL
+2026-01-26 10:44:34,760 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-26 10:44:34,810 [INFO] === Conversion Started ===
+2026-01-26 10:44:34,811 [INFO] Loading memorymap sheets...
+2026-01-26 10:44:34,811 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-26 10:44:34,951 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-26 10:44:35,032 [DEBUG] Parsed 9 parameters
+2026-01-26 10:44:35,055 [DEBUG] Parameter replacement completed
+2026-01-26 10:44:35,061 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-26 10:44:35,062 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-26 10:44:35,062 [WARNING] SFR sheet not found: IOGroup
+2026-01-26 10:44:35,063 [WARNING] SFR sheet not found: TimerGroup
+2026-01-26 10:44:35,064 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-26 10:44:35,075 [INFO] soc_top.rdl generated (49 lines)
+2026-01-26 10:44:35,078 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-26 10:44:35,079 [INFO] Generating detailed RDL for ComplexSFR (57 rows)
+2026-01-26 10:44:35,086 [DEBUG] Row 0: Group changed to SystemCtrl | Group: '' | Subgroup: '' | Reg: '' | Indent: 1
+2026-01-26 10:44:35,086 [DEBUG] Row 0: Reg started GlobalConfig | Group: 'SystemCtrl' | Subgroup: '' | Reg: '' | Indent: 2
+2026-01-26 10:44:35,087 [DEBUG] Row 0: Field Mode | Group: 'SystemCtrl' | Subgroup: '' | Reg: 'GlobalConfig' | Indent: 3
+2026-01-26 10:44:35,087 [DEBUG] Row 1: Field Power | Group: 'SystemCtrl' | Subgroup: '' | Reg: 'GlobalConfig' | Indent: 3
+2026-01-26 10:44:35,088 [DEBUG] Row 2: Subgroup changed to Ctrl | Group: 'SystemCtrl' | Subgroup: '' | Reg: 'GlobalConfig' | Indent: 3
+2026-01-26 10:44:35,088 [DEBUG] Row 2: Reg started Control | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,088 [DEBUG] Row 2: Field Enable | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 4
+2026-01-26 10:44:35,088 [DEBUG] Row 3: Field Divider | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 4
+2026-01-26 10:44:35,088 [DEBUG] Row 4: Reg started ClockStatus | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 4
+2026-01-26 10:44:35,089 [DEBUG] Row 4: Field Locked | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'ClockStatus' | Indent: 5
+2026-01-26 10:44:35,089 [DEBUG] Row 5: Field Error | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'ClockStatus' | Indent: 5
+2026-01-26 10:44:35,089 [DEBUG] Row 6: Subgroup changed to ResetCtrl | Group: 'SystemCtrl' | Subgroup: 'Ctrl' | Reg: 'ClockStatus' | Indent: 5
+2026-01-26 10:44:35,090 [DEBUG] Row 6: Reg started ResetReg | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,090 [DEBUG] Row 6: Field SoftReset | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'ResetReg' | Indent: 4
+2026-01-26 10:44:35,090 [DEBUG] Row 7: Field Watchdog | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'ResetReg' | Indent: 4
+2026-01-26 10:44:35,090 [DEBUG] Row 8: Reg started InterruptCtrl | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'ResetReg' | Indent: 4
+2026-01-26 10:44:35,090 [DEBUG] Row 8: Field Mask | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'InterruptCtrl' | Indent: 5
+2026-01-26 10:44:35,091 [DEBUG] Row 9: Field Pending | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'InterruptCtrl' | Indent: 5
+2026-01-26 10:44:35,091 [DEBUG] Row 10: Group changed to TimerGroup | Group: 'SystemCtrl' | Subgroup: 'ResetCtrl' | Reg: 'InterruptCtrl' | Indent: 5
+2026-01-26 10:44:35,091 [DEBUG] Row 10: Subgroup changed to Ctrl | Group: 'TimerGroup' | Subgroup: '' | Reg: '' | Indent: 2
+2026-01-26 10:44:35,091 [DEBUG] Row 10: Reg started TimerLoad | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,091 [DEBUG] Row 10: Field LoadValue | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'TimerLoad' | Indent: 4
+2026-01-26 10:44:35,092 [DEBUG] Row 11: Reg started Control | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'TimerLoad' | Indent: 4
+2026-01-26 10:44:35,092 [DEBUG] Row 11: Field Enable | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 5
+2026-01-26 10:44:35,092 [DEBUG] Row 12: Field Mode | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 5
+2026-01-26 10:44:35,092 [DEBUG] Row 13: Reg started TimerStatus | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'Control' | Indent: 5
+2026-01-26 10:44:35,093 [DEBUG] Row 13: Field Overflow | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'TimerStatus' | Indent: 6
+2026-01-26 10:44:35,093 [DEBUG] Row 14: Field Underflow | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'TimerStatus' | Indent: 6
+2026-01-26 10:44:35,093 [DEBUG] Row 15: Subgroup changed to TimerConfig | Group: 'TimerGroup' | Subgroup: 'Ctrl' | Reg: 'TimerStatus' | Indent: 6
+2026-01-26 10:44:35,093 [DEBUG] Row 15: Reg started TimerLoad | Group: 'TimerGroup' | Subgroup: 'TimerConfig' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,094 [DEBUG] Row 15: Field LoadValue | Group: 'TimerGroup' | Subgroup: 'TimerConfig' | Reg: 'TimerLoad' | Indent: 4
+2026-01-26 10:44:35,094 [DEBUG] Row 16: Reg started TimerControl | Group: 'TimerGroup' | Subgroup: 'TimerConfig' | Reg: 'TimerLoad' | Indent: 4
+2026-01-26 10:44:35,094 [DEBUG] Row 16: Field Enable | Group: 'TimerGroup' | Subgroup: 'TimerConfig' | Reg: 'TimerControl' | Indent: 5
+2026-01-26 10:44:35,094 [DEBUG] Row 17: Subgroup changed to InterruptSub | Group: 'TimerGroup' | Subgroup: 'TimerConfig' | Reg: 'TimerControl' | Indent: 5
+2026-01-26 10:44:35,095 [DEBUG] Row 17: Reg started IntEnable | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,095 [DEBUG] Row 17: Field TimerInt | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'IntEnable' | Indent: 4
+2026-01-26 10:44:35,095 [DEBUG] Row 18: Reg started IntStatus | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'IntEnable' | Indent: 4
+2026-01-26 10:44:35,095 [DEBUG] Row 18: Field Pending | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'IntStatus' | Indent: 5
+2026-01-26 10:44:35,095 [DEBUG] Row 19: Field Clear | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'IntStatus' | Indent: 5
+2026-01-26 10:44:35,096 [DEBUG] Row 20: Reg started MiscReg | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'IntStatus' | Indent: 5
+2026-01-26 10:44:35,096 [DEBUG] Row 20: Field Status | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'MiscReg' | Indent: 6
+2026-01-26 10:44:35,096 [DEBUG] Row 21: Group changed to IOGroup | Group: 'TimerGroup' | Subgroup: 'InterruptSub' | Reg: 'MiscReg' | Indent: 6
+2026-01-26 10:44:35,096 [DEBUG] Row 21: Subgroup changed to PortA | Group: 'IOGroup' | Subgroup: '' | Reg: '' | Indent: 2
+2026-01-26 10:44:35,096 [DEBUG] Row 21: Reg started DataReg | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,097 [DEBUG] Row 21: Field Output | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,097 [DEBUG] Row 22: Field Input | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,097 [DEBUG] Row 23: Reg started DirReg | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,097 [DEBUG] Row 23: Field Direction | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'DirReg' | Indent: 5
+2026-01-26 10:44:35,098 [DEBUG] Row 24: Reg started InterruptReg | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'DirReg' | Indent: 5
+2026-01-26 10:44:35,098 [DEBUG] Row 24: Field Mask | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'InterruptReg' | Indent: 6
+2026-01-26 10:44:35,098 [DEBUG] Row 25: Field Trigger | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'InterruptReg' | Indent: 6
+2026-01-26 10:44:35,098 [DEBUG] Row 26: Subgroup changed to PortB | Group: 'IOGroup' | Subgroup: 'PortA' | Reg: 'InterruptReg' | Indent: 6
+2026-01-26 10:44:35,098 [DEBUG] Row 26: Reg started DataReg | Group: 'IOGroup' | Subgroup: 'PortB' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,099 [DEBUG] Row 26: Field Output | Group: 'IOGroup' | Subgroup: 'PortB' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,099 [DEBUG] Row 27: Subgroup changed to PortC | Group: 'IOGroup' | Subgroup: 'PortB' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,099 [DEBUG] Row 27: Reg started DataReg | Group: 'IOGroup' | Subgroup: 'PortC' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,099 [DEBUG] Row 27: Field Output | Group: 'IOGroup' | Subgroup: 'PortC' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,099 [DEBUG] Row 28: Subgroup changed to PortD | Group: 'IOGroup' | Subgroup: 'PortC' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,100 [DEBUG] Row 28: Reg started DataReg | Group: 'IOGroup' | Subgroup: 'PortD' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,100 [DEBUG] Row 28: Field Output | Group: 'IOGroup' | Subgroup: 'PortD' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,100 [DEBUG] Row 29: Subgroup changed to PortE | Group: 'IOGroup' | Subgroup: 'PortD' | Reg: 'DataReg' | Indent: 4
+2026-01-26 10:44:35,101 [DEBUG] Row 29: Reg started ConfigReg | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: '' | Indent: 3
+2026-01-26 10:44:35,101 [DEBUG] Row 29: Field PullUp | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'ConfigReg' | Indent: 4
+2026-01-26 10:44:35,101 [DEBUG] Row 30: Field Drive | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'ConfigReg' | Indent: 4
+2026-01-26 10:44:35,101 [DEBUG] Row 31: Reg started StatusReg | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'ConfigReg' | Indent: 4
+2026-01-26 10:44:35,102 [DEBUG] Row 31: Field Level | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'StatusReg' | Indent: 5
+2026-01-26 10:44:35,102 [DEBUG] Row 32: Reg started EventReg | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'StatusReg' | Indent: 5
+2026-01-26 10:44:35,102 [DEBUG] Row 32: Field EventFlag | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'EventReg' | Indent: 6
+2026-01-26 10:44:35,102 [DEBUG] Row 33: Field ClearFlag | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'EventReg' | Indent: 6
+2026-01-26 10:44:35,103 [DEBUG] Row 34: Group changed to PeripheralCtrl | Group: 'IOGroup' | Subgroup: 'PortE' | Reg: 'EventReg' | Indent: 6
+2026-01-26 10:44:35,103 [DEBUG] Row 34: Reg started PowerCtrl | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: '' | Indent: 2
+2026-01-26 10:44:35,103 [DEBUG] Row 34: Field Enable | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,103 [DEBUG] Row 35: Field SleepMode | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,103 [DEBUG] Row 36: Reg started DMAConfig | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,104 [DEBUG] Row 36: Field Channel | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'DMAConfig' | Indent: 4
+2026-01-26 10:44:35,104 [DEBUG] Row 37: Reg started DMAStatus | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'DMAConfig' | Indent: 4
+2026-01-26 10:44:35,104 [DEBUG] Row 37: Field Busy | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'DMAStatus' | Indent: 5
+2026-01-26 10:44:35,104 [DEBUG] Row 38: Reg started ErrorReg | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'DMAStatus' | Indent: 5
+2026-01-26 10:44:35,104 [DEBUG] Row 38: Field Code | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'ErrorReg' | Indent: 6
+2026-01-26 10:44:35,105 [DEBUG] Row 39: Reg started TestReg | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'ErrorReg' | Indent: 6
+2026-01-26 10:44:35,105 [DEBUG] Row 39: Field ToggleBit | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'TestReg' | Indent: 7
+2026-01-26 10:44:35,105 [DEBUG] Row 40: Reg started AdvIntReg | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'TestReg' | Indent: 7
+2026-01-26 10:44:35,105 [DEBUG] Row 40: Field Pending | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'AdvIntReg' | Indent: 8
+2026-01-26 10:44:35,105 [DEBUG] Row 41: Field Set | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'AdvIntReg' | Indent: 8
+2026-01-26 10:44:35,106 [DEBUG] Row 42: Reg started singleRepeat | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'AdvIntReg' | Indent: 8
+2026-01-26 10:44:35,106 [DEBUG] Row 42: SFR repeat singleRepeat | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeat' | Indent: 9
+2026-01-26 10:44:35,106 [DEBUG] Row 43: Reg started singleSFR | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeat' | Indent: 9
+2026-01-26 10:44:35,107 [DEBUG] Row 44: Reg started singleField | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleSFR' | Indent: 10
+2026-01-26 10:44:35,108 [DEBUG] Row 45: Field field0 | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleField' | Indent: 11
+2026-01-26 10:44:35,108 [DEBUG] Row 46: Reg started singleRepeatedField | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleField' | Indent: 11
+2026-01-26 10:44:35,108 [DEBUG] Row 46: SFR repeat singleRepeatedField | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeatedField' | Indent: 12
+2026-01-26 10:44:35,109 [DEBUG] Row 47: Field field0 | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeatedField' | Indent: 12
+2026-01-26 10:44:35,109 [DEBUG] Row 48: Field field1 | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeatedField' | Indent: 12
+2026-01-26 10:44:35,109 [DEBUG] Row 49: Group changed to PeripheralCtrl2 | Group: 'PeripheralCtrl' | Subgroup: '' | Reg: 'singleRepeatedField' | Indent: 12
+2026-01-26 10:44:35,109 [DEBUG] Row 49: Reg started PowerCtrl | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: '' | Indent: 2
+2026-01-26 10:44:35,110 [DEBUG] Row 49: Field Enable | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,110 [DEBUG] Row 50: Field SleepMode | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,110 [DEBUG] Row 51: Reg started DMAConfig | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'PowerCtrl' | Indent: 3
+2026-01-26 10:44:35,110 [DEBUG] Row 51: Field Channel | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'DMAConfig' | Indent: 4
+2026-01-26 10:44:35,110 [DEBUG] Row 52: Reg started DMAStatus | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'DMAConfig' | Indent: 4
+2026-01-26 10:44:35,111 [DEBUG] Row 52: Field Busy | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'DMAStatus' | Indent: 5
+2026-01-26 10:44:35,111 [DEBUG] Row 53: Reg started doubleint | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'DMAStatus' | Indent: 5
+2026-01-26 10:44:35,111 [DEBUG] Row 54: Reg started long | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'doubleint' | Indent: 6
+2026-01-26 10:44:35,111 [DEBUG] Row 55: Reg started longlong | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'long' | Indent: 7
+2026-01-26 10:44:35,112 [DEBUG] Row 56: Reg started custom512 | Group: 'PeripheralCtrl2' | Subgroup: '' | Reg: 'longlong' | Indent: 8
+2026-01-26 10:44:35,115 [INFO] Saved detailed RDL for ComplexSFR: OUTPUT_2RDL/systemrdl/ComplexSFR.rdl
+2026-01-26 10:44:35,116 [INFO] === Conversion Completed Successfully ===

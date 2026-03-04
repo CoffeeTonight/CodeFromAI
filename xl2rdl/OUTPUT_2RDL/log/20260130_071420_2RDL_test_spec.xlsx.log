@@ -1,0 +1,122 @@
+2026-01-30 07:14:20,143 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-30 07:14:20,144 [INFO] Output directory: OUTPUT_2RDL
+2026-01-30 07:14:20,144 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-30 07:14:20,186 [INFO] === Conversion Started ===
+2026-01-30 07:14:20,186 [INFO] Loading memorymap sheets...
+2026-01-30 07:14:20,187 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-30 07:14:20,324 [WARNING] SFR sheet not found: IOGroup
+2026-01-30 07:14:20,324 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-30 07:14:20,324 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-30 07:14:20,325 [WARNING] SFR sheet not found: TimerGroup
+2026-01-30 07:14:20,402 [DEBUG] Parsed 9 parameters
+2026-01-30 07:14:20,419 [DEBUG] Parameter replacement completed
+2026-01-30 07:14:20,422 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-30 07:14:20,423 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-30 07:14:20,430 [INFO] soc_top.rdl generated (49 lines)
+2026-01-30 07:14:20,433 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-30 07:14:20,435 [INFO] Generating detailed RDL for ComplexSFR (57 rows)
+2026-01-30 07:14:20,444 [DEBUG] Row 0: Group changed to SystemCtrl
+2026-01-30 07:14:20,445 [DEBUG] Row 0: 단일 레지스터 시작 - GlobalConfig
+2026-01-30 07:14:20,445 [DEBUG] Row 0: 필드 추가 - Mode
+2026-01-30 07:14:20,446 [DEBUG] Row 1: 필드 추가 - Power
+2026-01-30 07:14:20,446 [DEBUG] Row 2: Subgroup changed to Ctrl
+2026-01-30 07:14:20,446 [DEBUG] Row 2: 단일 레지스터 시작 - Control
+2026-01-30 07:14:20,446 [DEBUG] Row 2: 필드 추가 - Enable
+2026-01-30 07:14:20,447 [DEBUG] Row 3: 필드 추가 - Divider
+2026-01-30 07:14:20,447 [DEBUG] Row 4: 단일 레지스터 시작 - ClockStatus
+2026-01-30 07:14:20,447 [DEBUG] Row 4: 필드 추가 - Locked
+2026-01-30 07:14:20,447 [DEBUG] Row 5: 필드 추가 - Error
+2026-01-30 07:14:20,447 [DEBUG] Row 6: Subgroup changed to ResetCtrl
+2026-01-30 07:14:20,448 [DEBUG] Row 6: 단일 레지스터 시작 - ResetReg
+2026-01-30 07:14:20,448 [DEBUG] Row 6: 필드 추가 - SoftReset
+2026-01-30 07:14:20,448 [DEBUG] Row 7: 필드 추가 - Watchdog
+2026-01-30 07:14:20,448 [DEBUG] Row 8: 단일 레지스터 시작 - InterruptCtrl
+2026-01-30 07:14:20,448 [DEBUG] Row 8: 필드 추가 - Mask
+2026-01-30 07:14:20,449 [DEBUG] Row 9: 필드 추가 - Pending
+2026-01-30 07:14:20,449 [DEBUG] Row 10: Group changed to TimerGroup
+2026-01-30 07:14:20,449 [DEBUG] Row 10: Subgroup changed to Ctrl
+2026-01-30 07:14:20,449 [DEBUG] Row 10: 단일 레지스터 시작 - TimerLoad
+2026-01-30 07:14:20,449 [DEBUG] Row 10: 필드 추가 - LoadValue
+2026-01-30 07:14:20,450 [DEBUG] Row 11: 단일 레지스터 시작 - Control
+2026-01-30 07:14:20,450 [DEBUG] Row 11: 필드 추가 - Enable
+2026-01-30 07:14:20,450 [DEBUG] Row 12: 필드 추가 - Mode
+2026-01-30 07:14:20,450 [DEBUG] Row 13: 단일 레지스터 시작 - TimerStatus
+2026-01-30 07:14:20,450 [DEBUG] Row 13: 필드 추가 - Overflow
+2026-01-30 07:14:20,451 [DEBUG] Row 14: 필드 추가 - Underflow
+2026-01-30 07:14:20,451 [DEBUG] Row 15: Subgroup changed to TimerConfig
+2026-01-30 07:14:20,451 [DEBUG] Row 15: 단일 레지스터 시작 - TimerLoad
+2026-01-30 07:14:20,451 [DEBUG] Row 15: 필드 추가 - LoadValue
+2026-01-30 07:14:20,451 [DEBUG] Row 16: 단일 레지스터 시작 - TimerControl
+2026-01-30 07:14:20,452 [DEBUG] Row 16: 필드 추가 - Enable
+2026-01-30 07:14:20,452 [DEBUG] Row 17: Subgroup changed to InterruptSub
+2026-01-30 07:14:20,452 [DEBUG] Row 17: 단일 레지스터 시작 - IntEnable
+2026-01-30 07:14:20,452 [DEBUG] Row 17: 필드 추가 - TimerInt
+2026-01-30 07:14:20,452 [DEBUG] Row 18: 단일 레지스터 시작 - IntStatus
+2026-01-30 07:14:20,453 [DEBUG] Row 18: 필드 추가 - Pending
+2026-01-30 07:14:20,453 [DEBUG] Row 19: 필드 추가 - Clear
+2026-01-30 07:14:20,453 [DEBUG] Row 20: 단일 레지스터 시작 - MiscReg
+2026-01-30 07:14:20,453 [DEBUG] Row 20: 필드 추가 - Status
+2026-01-30 07:14:20,453 [DEBUG] Row 21: Group changed to IOGroup
+2026-01-30 07:14:20,454 [DEBUG] Row 21: Subgroup changed to PortA
+2026-01-30 07:14:20,454 [DEBUG] Row 21: 단일 레지스터 시작 - DataReg
+2026-01-30 07:14:20,454 [DEBUG] Row 21: 필드 추가 - Output
+2026-01-30 07:14:20,454 [DEBUG] Row 22: 필드 추가 - Input
+2026-01-30 07:14:20,455 [DEBUG] Row 23: 단일 레지스터 시작 - DirReg
+2026-01-30 07:14:20,455 [DEBUG] Row 23: 필드 추가 - Direction
+2026-01-30 07:14:20,455 [DEBUG] Row 24: 단일 레지스터 시작 - InterruptReg
+2026-01-30 07:14:20,455 [DEBUG] Row 24: 필드 추가 - Mask
+2026-01-30 07:14:20,455 [DEBUG] Row 25: 필드 추가 - Trigger
+2026-01-30 07:14:20,456 [DEBUG] Row 26: Subgroup changed to PortB
+2026-01-30 07:14:20,456 [DEBUG] Row 26: 단일 레지스터 시작 - DataReg
+2026-01-30 07:14:20,456 [DEBUG] Row 26: 필드 추가 - Output
+2026-01-30 07:14:20,456 [DEBUG] Row 27: Subgroup changed to PortC
+2026-01-30 07:14:20,456 [DEBUG] Row 27: 단일 레지스터 시작 - DataReg
+2026-01-30 07:14:20,456 [DEBUG] Row 27: 필드 추가 - Output
+2026-01-30 07:14:20,457 [DEBUG] Row 28: Subgroup changed to PortD
+2026-01-30 07:14:20,457 [DEBUG] Row 28: 단일 레지스터 시작 - DataReg
+2026-01-30 07:14:20,457 [DEBUG] Row 28: 필드 추가 - Output
+2026-01-30 07:14:20,457 [DEBUG] Row 29: Subgroup changed to PortE
+2026-01-30 07:14:20,457 [DEBUG] Row 29: 단일 레지스터 시작 - ConfigReg
+2026-01-30 07:14:20,457 [DEBUG] Row 29: 필드 추가 - PullUp
+2026-01-30 07:14:20,458 [DEBUG] Row 30: 필드 추가 - Drive
+2026-01-30 07:14:20,458 [DEBUG] Row 31: 단일 레지스터 시작 - StatusReg
+2026-01-30 07:14:20,458 [DEBUG] Row 31: 필드 추가 - Level
+2026-01-30 07:14:20,458 [DEBUG] Row 32: 단일 레지스터 시작 - EventReg
+2026-01-30 07:14:20,458 [DEBUG] Row 32: 필드 추가 - EventFlag
+2026-01-30 07:14:20,459 [DEBUG] Row 33: 필드 추가 - ClearFlag
+2026-01-30 07:14:20,459 [DEBUG] Row 34: Group changed to PeripheralCtrl
+2026-01-30 07:14:20,459 [DEBUG] Row 34: 단일 레지스터 시작 - PowerCtrl
+2026-01-30 07:14:20,459 [DEBUG] Row 34: 필드 추가 - Enable
+2026-01-30 07:14:20,459 [DEBUG] Row 35: 필드 추가 - SleepMode
+2026-01-30 07:14:20,459 [DEBUG] Row 36: 단일 레지스터 시작 - DMAConfig
+2026-01-30 07:14:20,460 [DEBUG] Row 36: 필드 추가 - Channel
+2026-01-30 07:14:20,460 [DEBUG] Row 37: 단일 레지스터 시작 - DMAStatus
+2026-01-30 07:14:20,460 [DEBUG] Row 37: 필드 추가 - Busy
+2026-01-30 07:14:20,460 [DEBUG] Row 38: 단일 레지스터 시작 - ErrorReg
+2026-01-30 07:14:20,460 [DEBUG] Row 38: 필드 추가 - Code
+2026-01-30 07:14:20,461 [DEBUG] Row 39: 단일 레지스터 시작 - TestReg
+2026-01-30 07:14:20,461 [DEBUG] Row 39: 필드 추가 - ToggleBit
+2026-01-30 07:14:20,461 [DEBUG] Row 40: 단일 레지스터 시작 - AdvIntReg
+2026-01-30 07:14:20,461 [DEBUG] Row 40: 필드 추가 - Pending
+2026-01-30 07:14:20,461 [DEBUG] Row 41: 필드 추가 - Set
+2026-01-30 07:14:20,462 [DEBUG] Row 42: 반복 레지스터 배열 시작 - singleRepeat
+2026-01-30 07:14:20,462 [DEBUG] Row 43: 단일 레지스터 시작 - singleSFR
+2026-01-30 07:14:20,462 [DEBUG] Row 44: 단일 레지스터 시작 - singleField
+2026-01-30 07:14:20,462 [DEBUG] Row 45: 필드 추가 - field0
+2026-01-30 07:14:20,462 [DEBUG] Row 46: 반복 레지스터 배열 시작 - singleRepeatedField
+2026-01-30 07:14:20,463 [DEBUG] Row 47: 필드 추가 - field0
+2026-01-30 07:14:20,463 [DEBUG] Row 48: 필드 추가 - field1
+2026-01-30 07:14:20,463 [DEBUG] Row 49: Group changed to PeripheralCtrl2
+2026-01-30 07:14:20,463 [DEBUG] Row 49: 단일 레지스터 시작 - PowerCtrl
+2026-01-30 07:14:20,463 [DEBUG] Row 49: 필드 추가 - Enable
+2026-01-30 07:14:20,464 [DEBUG] Row 50: 필드 추가 - SleepMode
+2026-01-30 07:14:20,464 [DEBUG] Row 51: 단일 레지스터 시작 - DMAConfig
+2026-01-30 07:14:20,464 [DEBUG] Row 51: 필드 추가 - Channel
+2026-01-30 07:14:20,464 [DEBUG] Row 52: 단일 레지스터 시작 - DMAStatus
+2026-01-30 07:14:20,464 [DEBUG] Row 52: 필드 추가 - Busy
+2026-01-30 07:14:20,465 [DEBUG] Row 53: 단일 레지스터 시작 - doubleint
+2026-01-30 07:14:20,465 [DEBUG] Row 54: 단일 레지스터 시작 - long
+2026-01-30 07:14:20,465 [DEBUG] Row 55: 단일 레지스터 시작 - longlong
+2026-01-30 07:14:20,465 [DEBUG] Row 56: 단일 레지스터 시작 - custom512
+2026-01-30 07:14:20,468 [INFO] Saved detailed RDL for ComplexSFR: OUTPUT_2RDL/systemrdl/ComplexSFR.rdl
+2026-01-30 07:14:20,470 [INFO] === Conversion Completed Successfully ===

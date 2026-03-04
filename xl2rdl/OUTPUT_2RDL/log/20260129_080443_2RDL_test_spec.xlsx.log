@@ -1,0 +1,26 @@
+2026-01-29 08:04:43,146 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-29 08:04:43,146 [INFO] Output directory: OUTPUT_2RDL
+2026-01-29 08:04:43,147 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-29 08:04:43,193 [INFO] === Conversion Started ===
+2026-01-29 08:04:43,194 [INFO] Loading memorymap sheets...
+2026-01-29 08:04:43,194 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-29 08:04:43,315 [WARNING] SFR sheet not found: TimerGroup
+2026-01-29 08:04:43,392 [DEBUG] Parsed 9 parameters
+2026-01-29 08:04:43,408 [DEBUG] Parameter replacement completed
+2026-01-29 08:04:43,411 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-29 08:04:43,412 [WARNING] SFR sheet not found: IOGroup
+2026-01-29 08:04:43,412 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-29 08:04:43,412 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-29 08:04:43,413 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-29 08:04:43,421 [INFO] soc_top.rdl generated (49 lines)
+2026-01-29 08:04:43,428 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-29 08:04:43,431 [INFO] Generating detailed RDL for ComplexSFR (57 rows)
+2026-01-29 08:04:43,432 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 396, in run
+    rdl_content = self.generate_sfr_addrmap(sheet_name, df)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 285, in generate_sfr_addrmap
+    context = RdlContext()
+              ^^^^^^^^^^
+NameError: name 'RdlContext' is not defined

@@ -1,0 +1,239 @@
+2026-01-26 09:42:09,184 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-26 09:42:09,184 [INFO] Output directory: OUTPUT_2RDL
+2026-01-26 09:42:09,185 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-26 09:42:09,225 [INFO] === Conversion Started ===
+2026-01-26 09:42:09,226 [INFO] Loading memorymap sheets...
+2026-01-26 09:42:09,226 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-26 09:42:09,353 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-26 09:42:09,353 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-26 09:42:09,353 [WARNING] SFR sheet not found: TimerGroup
+2026-01-26 09:42:09,354 [WARNING] SFR sheet not found: IOGroup
+2026-01-26 09:42:09,430 [DEBUG] Parsed 9 parameters
+2026-01-26 09:42:09,448 [DEBUG] Parameter replacement completed
+2026-01-26 09:42:09,451 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-26 09:42:09,452 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-01-26 09:42:09,471 [INFO] soc_top.rdl generated (49 lines)
+2026-01-26 09:42:09,476 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-26 09:42:09,479 [INFO] Generating detailed RDL for ComplexSFR (57 rows)
+2026-01-26 09:42:09,484 [DEBUG] Row 0: Group changed to SystemCtrl
+2026-01-26 09:42:09,485 [DEBUG] PUSH addrmap SystemCtrl → stack size: 2
+2026-01-26 09:42:09,485 [DEBUG] Row 0: Reg started GlobalConfig
+2026-01-26 09:42:09,485 [DEBUG] PUSH reg GlobalConfig → stack size: 3
+2026-01-26 09:42:09,485 [DEBUG] Row 0: Field Mode
+2026-01-26 09:42:09,486 [DEBUG] Row 1: Field Power
+2026-01-26 09:42:09,486 [DEBUG] Row 2: Subgroup changed to Ctrl
+2026-01-26 09:42:09,486 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,486 [DEBUG] PUSH regfile Ctrl → stack size: 3
+2026-01-26 09:42:09,486 [DEBUG] Row 2: Reg started Control
+2026-01-26 09:42:09,486 [DEBUG] PUSH reg Control → stack size: 4
+2026-01-26 09:42:09,487 [DEBUG] Row 2: Field Enable
+2026-01-26 09:42:09,487 [DEBUG] Row 3: Field Divider
+2026-01-26 09:42:09,487 [DEBUG] Row 4: Reg started ClockStatus
+2026-01-26 09:42:09,487 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,487 [DEBUG] PUSH reg ClockStatus → stack size: 4
+2026-01-26 09:42:09,488 [DEBUG] Row 4: Field Locked
+2026-01-26 09:42:09,488 [DEBUG] Row 5: Field Error
+2026-01-26 09:42:09,488 [DEBUG] Row 6: Subgroup changed to ResetCtrl
+2026-01-26 09:42:09,488 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,488 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,488 [DEBUG] PUSH regfile ResetCtrl → stack size: 3
+2026-01-26 09:42:09,489 [DEBUG] Row 6: Reg started ResetReg
+2026-01-26 09:42:09,489 [DEBUG] PUSH reg ResetReg → stack size: 4
+2026-01-26 09:42:09,489 [DEBUG] Row 6: Field SoftReset
+2026-01-26 09:42:09,489 [DEBUG] Row 7: Field Watchdog
+2026-01-26 09:42:09,489 [DEBUG] Row 8: Reg started InterruptCtrl
+2026-01-26 09:42:09,489 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,490 [DEBUG] PUSH reg InterruptCtrl → stack size: 4
+2026-01-26 09:42:09,490 [DEBUG] Row 8: Field Mask
+2026-01-26 09:42:09,490 [DEBUG] Row 9: Field Pending
+2026-01-26 09:42:09,490 [DEBUG] Row 10: Group changed to TimerGroup
+2026-01-26 09:42:09,490 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,490 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,490 [DEBUG] POP → stack size: 1
+2026-01-26 09:42:09,491 [DEBUG] PUSH addrmap TimerGroup TimerGroup_inst[2] → stack size: 2
+2026-01-26 09:42:09,491 [DEBUG] Row 10: Subgroup changed to Ctrl
+2026-01-26 09:42:09,491 [DEBUG] PUSH regfile Ctrl → stack size: 3
+2026-01-26 09:42:09,491 [DEBUG] Row 10: Reg started TimerLoad
+2026-01-26 09:42:09,491 [DEBUG] PUSH reg TimerLoad → stack size: 4
+2026-01-26 09:42:09,491 [DEBUG] Row 10: Field LoadValue
+2026-01-26 09:42:09,491 [DEBUG] Row 11: Reg started Control
+2026-01-26 09:42:09,492 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,492 [DEBUG] PUSH reg Control → stack size: 4
+2026-01-26 09:42:09,492 [DEBUG] Row 11: Field Enable
+2026-01-26 09:42:09,492 [DEBUG] Row 12: Field Mode
+2026-01-26 09:42:09,492 [DEBUG] Row 13: Reg started TimerStatus
+2026-01-26 09:42:09,493 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,493 [DEBUG] PUSH reg TimerStatus → stack size: 4
+2026-01-26 09:42:09,493 [DEBUG] Row 13: Field Overflow
+2026-01-26 09:42:09,493 [DEBUG] Row 14: Field Underflow
+2026-01-26 09:42:09,493 [DEBUG] Row 15: Subgroup changed to TimerConfig
+2026-01-26 09:42:09,493 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,493 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,494 [DEBUG] PUSH regfile TimerConfig → stack size: 3
+2026-01-26 09:42:09,494 [DEBUG] Row 15: Reg started TimerLoad
+2026-01-26 09:42:09,494 [DEBUG] PUSH reg TimerLoad → stack size: 4
+2026-01-26 09:42:09,494 [DEBUG] Row 15: Field LoadValue
+2026-01-26 09:42:09,494 [DEBUG] Row 16: Reg started TimerControl
+2026-01-26 09:42:09,494 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,494 [DEBUG] PUSH reg TimerControl → stack size: 4
+2026-01-26 09:42:09,494 [DEBUG] Row 16: Field Enable
+2026-01-26 09:42:09,495 [DEBUG] Row 17: Subgroup changed to InterruptSub
+2026-01-26 09:42:09,495 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,495 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,495 [DEBUG] PUSH regfile InterruptSub → stack size: 3
+2026-01-26 09:42:09,495 [DEBUG] Row 17: Reg started IntEnable
+2026-01-26 09:42:09,495 [DEBUG] PUSH reg IntEnable → stack size: 4
+2026-01-26 09:42:09,495 [DEBUG] Row 17: Field TimerInt
+2026-01-26 09:42:09,496 [DEBUG] Row 18: Reg started IntStatus
+2026-01-26 09:42:09,496 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,496 [DEBUG] PUSH reg IntStatus → stack size: 4
+2026-01-26 09:42:09,496 [DEBUG] Row 18: Field Pending
+2026-01-26 09:42:09,496 [DEBUG] Row 19: Field Clear
+2026-01-26 09:42:09,496 [DEBUG] Row 20: Reg started MiscReg
+2026-01-26 09:42:09,497 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,497 [DEBUG] PUSH reg MiscReg → stack size: 4
+2026-01-26 09:42:09,497 [DEBUG] Row 20: Field Status
+2026-01-26 09:42:09,497 [DEBUG] Row 21: Group changed to IOGroup
+2026-01-26 09:42:09,497 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,497 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,497 [DEBUG] POP → stack size: 1
+2026-01-26 09:42:09,498 [DEBUG] PUSH addrmap IOGroup → stack size: 2
+2026-01-26 09:42:09,498 [DEBUG] Row 21: Subgroup changed to PortA
+2026-01-26 09:42:09,498 [DEBUG] PUSH regfile PortA PortA_inst[4] → stack size: 3
+2026-01-26 09:42:09,498 [DEBUG] Row 21: Reg started DataReg
+2026-01-26 09:42:09,498 [DEBUG] PUSH reg DataReg → stack size: 4
+2026-01-26 09:42:09,498 [DEBUG] Row 21: Field Output
+2026-01-26 09:42:09,498 [DEBUG] Row 22: Field Input
+2026-01-26 09:42:09,498 [DEBUG] Row 23: Reg started DirReg
+2026-01-26 09:42:09,499 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,499 [DEBUG] PUSH reg DirReg → stack size: 4
+2026-01-26 09:42:09,499 [DEBUG] Row 23: Field Direction
+2026-01-26 09:42:09,499 [DEBUG] Row 24: Reg started InterruptReg
+2026-01-26 09:42:09,499 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,499 [DEBUG] PUSH reg InterruptReg → stack size: 4
+2026-01-26 09:42:09,499 [DEBUG] Row 24: Field Mask
+2026-01-26 09:42:09,500 [DEBUG] Row 25: Field Trigger
+2026-01-26 09:42:09,500 [DEBUG] Row 26: Subgroup changed to PortB
+2026-01-26 09:42:09,500 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,500 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,500 [DEBUG] PUSH regfile PortB → stack size: 3
+2026-01-26 09:42:09,500 [DEBUG] Row 26: Reg started DataReg
+2026-01-26 09:42:09,501 [DEBUG] PUSH reg DataReg → stack size: 4
+2026-01-26 09:42:09,501 [DEBUG] Row 26: Field Output
+2026-01-26 09:42:09,501 [DEBUG] Row 27: Subgroup changed to PortC
+2026-01-26 09:42:09,501 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,501 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,501 [DEBUG] PUSH regfile PortC → stack size: 3
+2026-01-26 09:42:09,502 [DEBUG] Row 27: Reg started DataReg
+2026-01-26 09:42:09,502 [DEBUG] PUSH reg DataReg → stack size: 4
+2026-01-26 09:42:09,502 [DEBUG] Row 27: Field Output
+2026-01-26 09:42:09,502 [DEBUG] Row 28: Subgroup changed to PortD
+2026-01-26 09:42:09,502 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,502 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,503 [DEBUG] PUSH regfile PortD → stack size: 3
+2026-01-26 09:42:09,503 [DEBUG] Row 28: Reg started DataReg
+2026-01-26 09:42:09,503 [DEBUG] PUSH reg DataReg → stack size: 4
+2026-01-26 09:42:09,503 [DEBUG] Row 28: Field Output
+2026-01-26 09:42:09,503 [DEBUG] Row 29: Subgroup changed to PortE
+2026-01-26 09:42:09,503 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,503 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,504 [DEBUG] PUSH regfile PortE PortE_inst[3] → stack size: 3
+2026-01-26 09:42:09,504 [DEBUG] Row 29: Reg started ConfigReg
+2026-01-26 09:42:09,504 [DEBUG] PUSH reg ConfigReg → stack size: 4
+2026-01-26 09:42:09,504 [DEBUG] Row 29: Field PullUp
+2026-01-26 09:42:09,504 [DEBUG] Row 30: Field Drive
+2026-01-26 09:42:09,505 [DEBUG] Row 31: Reg started StatusReg
+2026-01-26 09:42:09,505 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,505 [DEBUG] PUSH reg StatusReg → stack size: 4
+2026-01-26 09:42:09,505 [DEBUG] Row 31: Field Level
+2026-01-26 09:42:09,505 [DEBUG] Row 32: Reg started EventReg
+2026-01-26 09:42:09,505 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,505 [DEBUG] PUSH reg EventReg → stack size: 4
+2026-01-26 09:42:09,506 [DEBUG] Row 32: Field EventFlag
+2026-01-26 09:42:09,506 [DEBUG] Row 33: Field ClearFlag
+2026-01-26 09:42:09,506 [DEBUG] Row 34: Group changed to PeripheralCtrl
+2026-01-26 09:42:09,506 [DEBUG] POP → stack size: 3
+2026-01-26 09:42:09,506 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,506 [DEBUG] POP → stack size: 1
+2026-01-26 09:42:09,507 [DEBUG] PUSH addrmap PeripheralCtrl PeripheralCtrl_inst[3] → stack size: 2
+2026-01-26 09:42:09,507 [DEBUG] Row 34: Reg started PowerCtrl
+2026-01-26 09:42:09,507 [DEBUG] PUSH reg PowerCtrl → stack size: 3
+2026-01-26 09:42:09,507 [DEBUG] Row 34: Field Enable
+2026-01-26 09:42:09,507 [DEBUG] Row 35: Field SleepMode
+2026-01-26 09:42:09,507 [DEBUG] Row 36: Reg started DMAConfig
+2026-01-26 09:42:09,507 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,508 [DEBUG] PUSH reg DMAConfig → stack size: 3
+2026-01-26 09:42:09,508 [DEBUG] Row 36: Field Channel
+2026-01-26 09:42:09,508 [DEBUG] Row 37: Reg started DMAStatus
+2026-01-26 09:42:09,508 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,508 [DEBUG] PUSH reg DMAStatus → stack size: 3
+2026-01-26 09:42:09,508 [DEBUG] Row 37: Field Busy
+2026-01-26 09:42:09,508 [DEBUG] Row 38: Reg started ErrorReg
+2026-01-26 09:42:09,509 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,509 [DEBUG] PUSH reg ErrorReg → stack size: 3
+2026-01-26 09:42:09,509 [DEBUG] Row 38: Field Code
+2026-01-26 09:42:09,509 [DEBUG] Row 39: Reg started TestReg
+2026-01-26 09:42:09,509 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,510 [DEBUG] PUSH reg TestReg → stack size: 3
+2026-01-26 09:42:09,510 [DEBUG] Row 39: Field ToggleBit
+2026-01-26 09:42:09,510 [DEBUG] Row 40: Reg started AdvIntReg
+2026-01-26 09:42:09,510 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,510 [DEBUG] PUSH reg AdvIntReg → stack size: 3
+2026-01-26 09:42:09,510 [DEBUG] Row 40: Field Pending
+2026-01-26 09:42:09,510 [DEBUG] Row 41: Field Set
+2026-01-26 09:42:09,511 [DEBUG] Row 42: Reg started singleRepeat
+2026-01-26 09:42:09,511 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,511 [DEBUG] PUSH reg singleRepeat → stack size: 3
+2026-01-26 09:42:09,511 [DEBUG] Row 42: SFR repeat singleRepeat
+2026-01-26 09:42:09,511 [DEBUG] Row 43: Reg started singleSFR
+2026-01-26 09:42:09,511 [DEBUG] POP empty reg singleRepeat → removed
+2026-01-26 09:42:09,511 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,512 [DEBUG] PUSH reg singleSFR → stack size: 3
+2026-01-26 09:42:09,512 [DEBUG] Row 44: Reg started singleField
+2026-01-26 09:42:09,512 [DEBUG] POP empty reg singleSFR → removed
+2026-01-26 09:42:09,512 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,512 [DEBUG] PUSH reg singleField → stack size: 3
+2026-01-26 09:42:09,512 [DEBUG] Row 45: Field field0
+2026-01-26 09:42:09,513 [DEBUG] Row 46: Reg started singleRepeatedField
+2026-01-26 09:42:09,513 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,513 [DEBUG] PUSH reg singleRepeatedField → stack size: 3
+2026-01-26 09:42:09,513 [DEBUG] Row 46: SFR repeat singleRepeatedField
+2026-01-26 09:42:09,513 [DEBUG] Row 47: Field field0
+2026-01-26 09:42:09,513 [DEBUG] Row 48: Field field1
+2026-01-26 09:42:09,514 [DEBUG] Row 49: Group changed to PeripheralCtrl2
+2026-01-26 09:42:09,514 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,514 [DEBUG] POP → stack size: 1
+2026-01-26 09:42:09,514 [DEBUG] PUSH addrmap PeripheralCtrl2 PeripheralCtrl2_inst[3] → stack size: 2
+2026-01-26 09:42:09,514 [DEBUG] Row 49: Reg started PowerCtrl
+2026-01-26 09:42:09,514 [DEBUG] PUSH reg PowerCtrl → stack size: 3
+2026-01-26 09:42:09,514 [DEBUG] Row 49: Field Enable
+2026-01-26 09:42:09,515 [DEBUG] Row 50: Field SleepMode
+2026-01-26 09:42:09,515 [DEBUG] Row 51: Reg started DMAConfig
+2026-01-26 09:42:09,515 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,515 [DEBUG] PUSH reg DMAConfig → stack size: 3
+2026-01-26 09:42:09,515 [DEBUG] Row 51: Field Channel
+2026-01-26 09:42:09,515 [DEBUG] Row 52: Reg started DMAStatus
+2026-01-26 09:42:09,515 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,515 [DEBUG] PUSH reg DMAStatus → stack size: 3
+2026-01-26 09:42:09,516 [DEBUG] Row 52: Field Busy
+2026-01-26 09:42:09,516 [DEBUG] Row 53: Reg started doubleint
+2026-01-26 09:42:09,516 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,516 [DEBUG] PUSH reg doubleint → stack size: 3
+2026-01-26 09:42:09,516 [DEBUG] Row 54: Reg started long
+2026-01-26 09:42:09,516 [DEBUG] POP empty reg doubleint → removed
+2026-01-26 09:42:09,516 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,517 [DEBUG] PUSH reg long → stack size: 3
+2026-01-26 09:42:09,517 [DEBUG] Row 55: Reg started longlong
+2026-01-26 09:42:09,517 [DEBUG] POP empty reg long → removed
+2026-01-26 09:42:09,517 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,517 [DEBUG] PUSH reg longlong → stack size: 3
+2026-01-26 09:42:09,517 [DEBUG] Row 56: Reg started custom512
+2026-01-26 09:42:09,517 [DEBUG] POP empty reg longlong → removed
+2026-01-26 09:42:09,518 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,518 [DEBUG] PUSH reg custom512 → stack size: 3
+2026-01-26 09:42:09,519 [DEBUG] Final closing - stack size: 3
+2026-01-26 09:42:09,519 [DEBUG] POP empty reg custom512 → removed
+2026-01-26 09:42:09,519 [DEBUG] POP → stack size: 2
+2026-01-26 09:42:09,519 [DEBUG] POP → stack size: 1
+2026-01-26 09:42:09,521 [INFO] Saved detailed RDL for ComplexSFR: OUTPUT_2RDL/systemrdl/ComplexSFR.rdl
+2026-01-26 09:42:09,522 [INFO] === Conversion Completed Successfully ===

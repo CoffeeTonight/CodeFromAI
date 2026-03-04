@@ -1,0 +1,30 @@
+2026-01-27 01:54:35,935 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-27 01:54:35,936 [INFO] Output directory: OUTPUT_2RDL
+2026-01-27 01:54:35,938 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-27 01:54:35,974 [INFO] === Conversion Started ===
+2026-01-27 01:54:35,974 [INFO] Loading memorymap sheets...
+2026-01-27 01:54:35,975 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-27 01:54:36,005 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 175, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index_class_helper.pxi", line 70, in pandas._libs.index.Int64Engine._check_type
+KeyError: 'module'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 316, in run
+    self.load_sheets()
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 163, in load_sheets
+    df['module'] = df['module'].ffill()
+                   ~~^^^^^^^^^^
+  File "/home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages/pandas/core/frame.py", line 4113, in __getitem__
+    indexer = self.columns.get_loc(key)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'module'

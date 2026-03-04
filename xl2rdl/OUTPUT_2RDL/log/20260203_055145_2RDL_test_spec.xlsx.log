@@ -1,0 +1,19 @@
+2026-02-03 05:51:45,026 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-02-03 05:51:45,026 [INFO] Output directory: OUTPUT_2RDL
+2026-02-03 05:51:45,028 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-02-03 05:51:45,044 [INFO] === Conversion Started ===
+2026-02-03 05:51:45,044 [INFO] Loading memorymap sheets...
+2026-02-03 05:51:45,044 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-02-03 05:51:45,121 [WARNING] SFR sheet not found: TimerGroup
+2026-02-03 05:51:45,121 [WARNING] SFR sheet not found: IOGroup
+2026-02-03 05:51:45,121 [WARNING] SFR sheet not found: SystemCtrl
+2026-02-03 05:51:45,121 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-02-03 05:51:45,139 [DEBUG] Parsed 9 parameters
+2026-02-03 05:51:45,143 [DEBUG] Parameter replacement completed
+2026-02-03 05:51:45,144 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-02-03 05:51:45,145 [INFO] Generating soc_top.rdl with shared bus support and dynamic naming
+2026-02-03 05:51:45,148 [INFO] soc_top.rdl generated (49 lines)
+2026-02-03 05:51:45,149 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-02-03 05:51:45,150 [INFO] Generating detailed RDL for ComplexSFR (bus_width=32) (57 rows)
+2026-02-03 05:51:45,155 [INFO] Saved detailed RDL for ComplexSFR: OUTPUT_2RDL/systemrdl/ComplexSFR.rdl
+2026-02-03 05:51:45,155 [INFO] === Conversion Completed Successfully ===

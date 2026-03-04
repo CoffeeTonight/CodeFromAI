@@ -1,0 +1,30 @@
+addrmap SystemCtrl {
+  addrmap SystemCtrl {
+    reg GlobalConfig {
+      field Mode [1:0] {
+        sw = rw; hw = rw;
+        reset = 0x0;
+        desc = "System mode";
+      };
+      field Power [2:2] {
+        sw = w; hw = r;
+        reset = 0x0;
+        desc = "Power enable";
+      };
+      regfile ClockCtrl ClockCtrl_inst[4] @= 0x10;
+        } @ 0x00;
+        reg ClockConfig {
+          field Enable [0:0] {
+            sw = rw; hw = rw;
+            reset = 0x0;
+            desc = "Clock enable";
+          };
+          field Divider [7:1] {
+            sw = rw; hw = rw;
+            reset = 0x1;
+            desc = "Divider";
+          };
+          } @ 0x04;
+        }
+      }
+};

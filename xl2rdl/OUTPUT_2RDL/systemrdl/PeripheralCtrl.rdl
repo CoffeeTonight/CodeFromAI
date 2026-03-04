@@ -1,0 +1,11 @@
+addrmap PeripheralCtrl {
+  addrmap PeripheralCtrl {
+    reg PowerCtrl {
+      field Enable [0:0] {
+        sw = rw; hw = rw;
+        reset = 0x0;
+        desc = "Power enable";
+      };
+      } @ 0x200;
+  }
+};

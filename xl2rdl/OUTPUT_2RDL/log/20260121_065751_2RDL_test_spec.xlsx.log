@@ -1,0 +1,25 @@
+2026-01-21 06:57:51,440 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-21 06:57:51,440 [INFO] Output directory: OUTPUT_2RDL
+2026-01-21 06:57:51,440 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx
+2026-01-21 06:57:51,454 [INFO] === Conversion Started ===
+2026-01-21 06:57:51,454 [INFO] Loading memorymap sheets...
+2026-01-21 06:57:51,454 [INFO] Found 2 memorymap sheets: ['memorymap', 'memorymap_a']
+2026-01-21 06:57:51,559 [WARNING] SFR sheet not found: SystemCtrl
+2026-01-21 06:57:51,559 [WARNING] SFR sheet not found: IOGroup
+2026-01-21 06:57:51,560 [WARNING] SFR sheet not found: PeripheralCtrl
+2026-01-21 06:57:51,560 [WARNING] SFR sheet not found: TimerGroup
+2026-01-21 06:57:51,578 [INFO] Loaded SFR sheet 'ComplexSFR' (57 rows)
+2026-01-21 06:57:51,579 [INFO] Generating soc_top.rdl with shared bus support
+2026-01-21 06:57:51,580 [WARNING] Bus type mismatch: ahb vs apb. Using first bus.
+2026-01-21 06:57:51,580 [WARNING] Bus type mismatch: axi vs apb. Using first bus.
+2026-01-21 06:57:51,580 [WARNING] Bus type mismatch: axi vs apb. Using first bus.
+2026-01-21 06:57:51,580 [WARNING] Bus type mismatch: axi vs apb. Using first bus.
+2026-01-21 06:57:51,581 [WARNING] Bus type mismatch: axi vs apb. Using first bus.
+2026-01-21 06:57:51,581 [INFO] soc_top.rdl generated (31 lines)
+2026-01-21 06:57:51,584 [INFO] Saved top addrmap: OUTPUT_2RDL/systemrdl/soc_top.rdl
+2026-01-21 06:57:51,585 [ERROR] Conversion failed
+Traceback (most recent call last):
+  File "/home/user/tools/CodeFromAI/xl2rdl/xl2rdl.py", line 266, in run
+    rdl_content = self.generate_sfr_addrmap(sheet_name, df)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SFRToSystemRDL' object has no attribute 'generate_sfr_addrmap'

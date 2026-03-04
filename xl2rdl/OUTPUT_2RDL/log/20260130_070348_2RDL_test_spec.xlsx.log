@@ -1,0 +1,3 @@
+2026-01-30 07:03:48,999 [INFO] Starting conversion for: /home/user/tools/CodeFromAI/xl2rdl/test_spec.xlsx
+2026-01-30 07:03:49,000 [INFO] Output directory: OUTPUT_2RDL
+2026-01-30 07:03:49,001 [INFO] Source XLSX already exists at: OUTPUT_2RDL/source_xlsx/test_spec.xlsx

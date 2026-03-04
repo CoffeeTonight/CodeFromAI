@@ -1,0 +1,20 @@
+addrmap TimerGroup {
+  addrmap TimerGroup TimerGroup_inst[4] @= 0x80;
+    regfile TimerConfig {
+      reg TimerLoad {
+        field LoadValue [31]:0 {
+          sw = rw; hw = rw;
+          reset = 0x0;
+          desc = "Load value";
+        };
+        } @ 0x40;
+        reg TimerControl {
+          field Enable [0:0] {
+            sw = rw; hw = rw;
+            reset = 0x0;
+            desc = "Enable timer";
+          };
+          } @ 0x44;
+        }
+      }
+};

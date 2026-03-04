@@ -1,0 +1,13 @@
+addrmap IOGroup {
+  addrmap IOGroup {
+    regfile PortA PortA_inst[4] @= 0x20;
+      reg DataReg {
+        field Output [7:0] {
+          sw = rw; hw = rw;
+          reset = 0x00;
+          desc = "Output";
+        };
+        } @ 0x100;
+      }
+    }
+};

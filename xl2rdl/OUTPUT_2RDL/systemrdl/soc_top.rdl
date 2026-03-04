@@ -1,0 +1,49 @@
+addrmap soc_top {
+  bus apb_bus_32 {
+    width = 32;
+  };
+  apb_bus_32 apb_if_32;
+
+  // SystemCtrl - Bus: apb, Width: 32
+  SystemCtrl SystemCtrl_ctrl_apb_32 @ 0x0 using apb_if_32;
+
+  bus ahb_bus_64 {
+    width = 64;
+  };
+  ahb_bus_64 ahb_if_64;
+
+  // SystemCtrl - Bus: ahb, Width: 64
+  TimerGroup SystemCtrl_group_ahb_64 @ 0x10000 using ahb_if_64;
+
+  bus axi_bus_32 {
+    width = 32;
+  };
+  axi_bus_32 axi_if_32;
+
+  // SystemCtrl - Bus: axi, Width: 32
+  IOGroup SystemCtrl_io_axi_32 @ 0x20000 using axi_if_32;
+
+  // PeripheralCtrl - Bus: apb, Width: 32
+  PeripheralCtrl PeripheralCtrl_peri_apb_32 @ 0x30000000 using apb_if_32;
+
+  bus axi_bus_128 {
+    width = 128;
+  };
+  axi_bus_128 axi_if_128;
+
+  // MainComplex - Bus: axi, Width: 128
+  ComplexSFR MainComplex_main_axi_128 @ 0x40000000 using axi_if_128;
+
+  // SubComplexA - Bus: axi, Width: 128
+  ComplexSFR SubComplexA_sub_a_axi_128 @ 0x50000000 using axi_if_128;
+
+  // SubComplexB - Bus: axi, Width: 128
+  ComplexSFR SubComplexB_sub_b_axi_128 @ 0x60000000 using axi_if_128;
+
+  // PeriGroupA - Bus: apb, Width: 32
+  ComplexSFR PeriGroupA_peri_a_apb_32 @ 0xc0000000 using apb_if_32;
+
+  // PeriGroupB - Bus: apb, Width: 32
+  ComplexSFR PeriGroupB_peri_b_apb_32 @ 0xd0000000 using apb_if_32;
+
+};

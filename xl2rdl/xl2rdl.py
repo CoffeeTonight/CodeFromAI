@@ -300,16 +300,16 @@ class SFRToSystemRDL:
         self.logger.info(f"soc_top.rdl generated ({len(lines)} lines)")
         return '\n'.join(lines)
 
-    def generate_sfr_addrmap(self, sheet_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
-        self.logger.info(f"Generating detailed RDL for {sheet_name} (bus_width={bus_width}) ({len(df)} rows)")
-        lines = [f'addrmap {sheet_name} {{']
-
-        lines.append(f'  parameter int BUS_WIDTH = {bus_width};  // From memorymap bus_data_width')
+    def generate_sfr_addrmap(self, sheet_name: str, module_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
+        self.logger.info(f"Generating RDL for {module_name} (sheet={sheet_name}, bus_width={bus_width}) ({len(df)} rows)")
+        lines = [f'addrmap {module_name} {{']
 
         context = RdlContext()
         params = self.parameters.get(sheet_name, {})
 
-        for row_idx, row in enumerate(tqdm(df.itertuples(index=False), total=len(df), desc=f"Processing {sheet_name}")):
+        added_field = False
+
+        for row_idx, row in enumerate(tqdm(df.itertuples(index=False), total=len(df), desc=f"Processing {sheet_name} ({module_name})")):
             row_dict = row._asdict()
             group = row_dict.get('Group_Name', '').strip()
             subgroup = row_dict.get('Subgroup_Name', '').strip()
@@ -322,23 +322,62 @@ class SFRToSystemRDL:
             desc = row_dict.get('Description', '').replace('"', '\\"')
 
             group_repeat_str = row_dict.get('Group_Repeat_Count', '')
-            group_size = row_dict.get('Group_Size', '')
+            group_size = row_dict.get('Group_Size', '0x0').strip()
             subgroup_repeat_str = row_dict.get('Subgroup_Repeat_Count', '')
-            subgroup_size = row_dict.get('Subgroup_Size', '')
+            subgroup_size = row_dict.get('Subgroup_Size', '0x0').strip()
             group_repeat = len(params[group_repeat_str]) if group_repeat_str in params and isinstance(params[group_repeat_str], list) else int(group_repeat_str or 1)
             subgroup_repeat = len(params[subgroup_repeat_str]) if subgroup_repeat_str in params and isinstance(params[subgroup_repeat_str], list) else int(subgroup_repeat_str or 1)
 
             if not any([group, subgroup, reg, bit_field, offset]):
-                self.logger.debug(f"Row {row_idx}: empty row → skip")
                 continue
 
-            # 그룹/서브그룹 처리 (생략 - 이전과 동일하게 유지)
+            # 그룹 변경
+            if group and group != context.current_group:
+                while context.indent_level > 1:
+                    context.indent_level -= 1
+                    lines.append('  ' * context.indent_level + '};')
+                context.current_group = group
+                context.reset_subgroup()
+                stride = group_size
+                indent = '  ' * context.indent_level
+                lines.append(f'{indent}addrmap {{')
+                context.indent_level += 1
+                # ... 내부 내용 추가 후
+                context.indent_level -= 1
+                lines.append(f'{indent}}} {group}')
+                if group_repeat > 1:
+                    lines[-1] += f" {group}_inst[{group_repeat}]"
+                if stride != '0x0':
+                    lines[-1] += f" @ {stride}"
+                lines[-1] += ';'
+
+            # 서브그룹 변경
+            if subgroup and subgroup != context.current_subgroup:
+                while context.indent_level > 2:
+                    context.indent_level -= 1
+                    lines.append('  ' * context.indent_level + '};')
+                context.current_subgroup = subgroup
+                context.reset_reg()
+                stride = subgroup_size
+                indent = '  ' * context.indent_level
+                lines.append(f'{indent}regfile {{')
+                context.indent_level += 1
+                # ... 내부 내용 추가 후
+                context.indent_level -= 1
+                lines.append(f'{indent}}} {subgroup}')
+                if subgroup_repeat > 1:
+                    lines[-1] += f" {subgroup}_inst[{subgroup_repeat}]"
+                if stride != '0x0':
+                    lines[-1] += f" @ {stride}"
+                lines[-1] += ';'
 
             # 이전 레지스터 닫기
             if reg and reg != context.current_reg:
                 if context.current_reg:
                     lines.append('  ' * context.indent_level + '};')
                     context.indent_level -= 1
+
+                added_field = False
 
             is_repeat = bit_field and re.match(r'^0x[0-9a-fA-F]+ *,.*', bit_field)
 
@@ -351,127 +390,98 @@ class SFRToSystemRDL:
                     self.logger.warning(f"Row {row_idx}: Bit_Range 파싱 실패 '{bit_range}' - {e}")
 
             array_count = max(1, (bit_width + bus_width - 1) // bus_width)
-            stride_byte = bus_width // 8
-            stride = hex(stride_byte) if stride_byte > 0 else '0x4'
-
-            added_field = False
+            stride = hex(bus_width // 8) if bus_width > 0 else '0x4'
 
             if reg:
                 context.current_reg = reg
                 indent = '  ' * context.indent_level
 
+                lines.append(f'{indent}reg {{')
+
+                context.indent_level += 1
+
+                if bit_width > 32:
+                    lines.append(f'{"  " * context.indent_level}regwidth = {bit_width};')
+
+                if bit_range and access and not added_field:
+                    field_indent = '  ' * context.indent_level
+                    field_name = bit_field if bit_field and bit_field.isidentifier() else 'data'
+                    field_bit_range = f'[{bus_width-1}:0]' if array_count > 1 else bit_range
+                    lines.append(f'{field_indent}field {{')
+                    lines.append(f'{field_indent}  {access_to_property(access)}')
+                    if default:
+                        lines.append(f'{field_indent}  reset = {self.parse_verilog_hex(str(default))};')
+                    if desc:
+                        lines.append(f'{field_indent}  desc = "{desc}";')
+                    lines.append(f'{field_indent}}} {field_name} {field_bit_range} = 0;')
+                    added_field = True
+
+                context.indent_level -= 1
+                lines.append(f'{indent}}} {reg}')
+
+                # 배열 인스턴스 (이름과 [N] 붙여씀, 공백 없음)
                 if is_repeat:
                     size_str, repeat_str = [s.strip() for s in bit_field.split(',', 1)]
                     repeat = 1
                     if repeat_str in params and isinstance(params[repeat_str], list):
                         repeat = len(params[repeat_str])
                     elif '..' in repeat_str:
-                        try:
-                            start, end = map(int, repeat_str.split('..'))
-                            repeat = end - start + 1
-                        except:
-                            self.logger.warning(f"Row {row_idx}: 반복 범위 파싱 실패 '{repeat_str}'")
+                        start, end = map(int, repeat_str.split('..'))
+                        repeat = end - start + 1
                     else:
-                        try:
-                            repeat = int(repeat_str or 1)
-                        except:
-                            pass
-                    # is_repeat 시 stride = size_str (엑셀 지정값 우선)
-                    lines.append(f'{indent}reg {reg} {reg}_inst[{repeat}] @= {size_str} {{')
+                        repeat = int(repeat_str or 1)
+                    lines[-1] += f"{reg}_inst[{repeat}]"
+
                 elif array_count > 1:
-                    # bus_width 기반 배열 (stride 무조건 bus_width 기반)
-                    lines.append(f'{indent}reg {reg} {reg}_inst[{array_count}] @= {stride} {{')
-                else:
-                    addr_part = f' @ {offset}' if offset and offset != '0x0' else ''
-                    lines.append(f'{indent}reg {reg}{addr_part} {{')
+                    lines[-1] += f"{reg}_inst[{array_count}]"
 
-                context.indent_level += 1
-
-                # regwidth = 전체 원래 bit_width
-                if bit_width > 32:
-                    lines.append(f'{indent}  regwidth = {bit_width};')
-
-                # 배열 선언 행에서 필드 추가
-                if bit_range and access and not added_field:
-                    field_indent = '  ' * context.indent_level
-                    field_name = bit_field if bit_field and bit_field.isidentifier() and not bit_field.startswith('0x') else 'data'
-                    # 배열화 시 필드 범위 BUS_WIDTH 단위로 조정
-                    field_bit_range = f'[{bus_width-1}:0]' if array_count > 1 else bit_range
-                    lines.append(f'{field_indent}field {field_name} {field_bit_range} {{')
-                    lines.append(f'{field_indent}  {access_to_property(access)}')
-                    if default:
-                        lines.append(f'{field_indent}  reset = {self.parse_verilog_hex(str(default))};')
-                    if desc:
-                        lines.append(f'{field_indent}  desc = "{desc}";')
-                    lines.append(f'{field_indent}}};')
-                    added_field = True
-
-            # 별도 필드 행
-            if bit_field and bit_field.strip() and not is_repeat and not added_field:
-                if not context.current_reg:
-                    continue
-                indent = '  ' * context.indent_level
-                field_name = bit_field if bit_field.isidentifier() else 'data'
-                lines.append(f'{indent}field {field_name} {bit_range} {{')
-                lines.append(f'{indent}  {access_to_property(access)}')
-                if default:
-                    lines.append(f'{indent}  reset = {self.parse_verilog_hex(str(default))};')
-                if desc:
-                    lines.append(f'{indent}  desc = "{desc}";')
-                lines.append(f'{indent}}};')
-
-        # 블록 닫기
-        while context.indent_level > 1:
-            context.indent_level -= 1
-            lines.append('  ' * context.indent_level + '};')
-
-        lines.append('};')
-
-        # 빈 레지스터 제거 (최종 강화 버전)
-        cleaned_lines = []
-        skip_block = False
-        temp_block = []
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('reg ') and '{' in stripped:
-                skip_block = True
-                temp_block = [line]
-            elif skip_block:
-                temp_block.append(line)
-                if '}' in stripped:
-                    has_field = any('field ' in l.strip() for l in temp_block)
-                    if has_field or '_inst[' in temp_block[0].strip():
-                        cleaned_lines.extend(temp_block)
-                    skip_block = False
-                    temp_block = []
-            else:
-                cleaned_lines.append(line)
-
-        lines = cleaned_lines
-
-        if len(lines) <= 5:
-            lines.insert(1, f'  // WARNING: 거의 내용이 없는 addrmap - {sheet_name}')
-            self.logger.warning(f"Empty or minimal addrmap for {sheet_name}")
-
-        return '\n'.join(lines)
-
+                # 주소 지정 (같은 줄에 붙임)
+                addr_suffix = ""
+                if is_repeat and size_str and size_str != '0x
     def run(self):
         self.logger.info("=== Conversion Started ===")
         try:
             self.load_sheets()
 
+            # module별 정보 매핑
+            module_to_sheet = {}
+            module_to_bw = {}
+            prev_module = ""
+            for mm_name, mm_df in self.memorymap_dfs.items():
+                for _, row in tqdm(mm_df.iterrows(), total=len(mm_df), desc=f"Mapping {mm_name}"):
+                    if str(row['enable']).lower() not in ['1', 'true', 'y', 'yes']:
+                        continue
+                    
+                    module = str(row['module']).strip() or prev_module
+                    prev_module = module
+                    sheet = str(row['sheet']).strip()
+                    bw = int(row.get('bus_data_width', 32))
+                    
+                    module_to_sheet[module] = sheet
+                    module_to_bw[module] = bw
+
+            # soc_top.rdl 생성
             top_rdl = self.generate_top_memorymap()
             top_path = self.systemrdl_dir / "soc_top.rdl"
             with open(top_path, 'w', encoding='utf-8') as f:
                 f.write(top_rdl)
             self.logger.info(f"Saved top addrmap: {top_path}")
 
-            for sheet_name, df in tqdm(self.sfr_dfs.items(), desc="Generating individual RDLs"):
-                rdl_content = self.generate_sfr_addrmap(sheet_name, df)
-                path = self.systemrdl_dir / f"{sheet_name}.rdl"
+            # module별 RDL 생성
+            for module, sheet_name in module_to_sheet.items():
+                if sheet_name not in self.sfr_dfs:
+                    self.logger.warning(f"SFR sheet not loaded for module {module} → skip")
+                    continue
+                
+                df = self.sfr_dfs[sheet_name]
+                bw = module_to_bw.get(module, 32)
+                
+                # sheet_name과 module_name 둘 다 전달
+                rdl_content = self.generate_sfr_addrmap(sheet_name, module, df, bus_width=bw)
+                path = self.systemrdl_dir / f"{module}.rdl"
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(rdl_content)
-                self.logger.info(f"Saved detailed RDL for {sheet_name}: {path}")
+                self.logger.info(f"Saved RDL for module {module} (sheet={sheet_name}, bus_width={bw}): {path}")
 
             self.logger.info("=== Conversion Completed Successfully ===")
         except Exception as e:

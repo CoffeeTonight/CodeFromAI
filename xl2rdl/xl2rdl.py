@@ -10,6 +10,7 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import Any, Dict, List, Union
 from dataclasses import dataclass, field
+import numpy as np
 
 # Access Type Mapping
 ACCESS_MAP = {
@@ -300,16 +301,86 @@ class SFRToSystemRDL:
         self.logger.info(f"soc_top.rdl generated ({len(lines)} lines)")
         return '\n'.join(lines)
 
+    def get_diff(self, x):
+        x = x.split("..") if x else ['0', '1']
+        return 1 if x[0] == x[-1] else int(x[-1], 10 if x[-1].isdigit() else 16) - int(x[0], 10 if x[0].isdigit() else 16)
+
+    def get_int(self, x):
+        return int(x, 10 if x.isdigit() else 16) if x else 1
+
+    def cal_addr_from_repeat_range(self, row):
+        a = 'Group_Name'
+        b = 'Group_Repeat_Count'
+        c = 'Group_Size'
+        d = 'Subgroup_Name'
+        e = 'Subgroup_Repeat_Count'
+        f = 'Subgroup_Size'
+        h = 'Bit_Field'
+        if pd.notnull(row[a]) and str(row[a]).strip() != '':
+            return self.get_diff(row[b]) * self.get_int(row[c])
+        if pd.notnull(row[d]) and str(row[d]).strip() != '':
+            return self.get_diff(row[e]) * self.get_int(row[f])
+        if pd.notnull(row[h]) and "," in str(row[h]):
+            rp_rg = str(row[h]).split(',')
+            return self.get_int(rp_rg[0]) * self.get_diff(rp_rg[-1])
+        return 0
+
     def generate_sfr_addrmap(self, sheet_name: str, module_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
-        self.logger.info(f"Generating RDL for {module_name} (sheet={sheet_name}, bus_width={bus_width}) ({len(df)} rows)")
+        self.logger.info(
+            f"Generating RDL for {module_name} (sheet={sheet_name}, bus_width={bus_width}) ({len(df)} rows)")
         lines = [f'addrmap {module_name} {{']
+        df['Reggroup'] = 
+        df['addr_start'] = df['Offset'].apply(
+            lambda x: int(str(x), 16) if pd.notnull(x) and str(x).strip() and str(x) != "-4" else -4)
+
+        # 2. cal_addr_from_repeat_range 함수가 행 전체를 참조한다면, 병렬화 처리가 가능한지 확인하세요.
+        # 만약 함수가 너무 느리다면 내부 연산을 Pandas Vectorization으로 교체하는 것이 우선입니다.
+        df['addr_end'] = df.apply(lambda row: int(self.cal_addr_from_repeat_range(row) + int(str(row['Offset']), 16))
+        if row['addr_start'] != -4 else -4, axis=1)
+
+        # 3. 테이블 ID 생성 (벡터화)
+        df['table_id'] = (df['addr_start'] != -4).cumsum()
+
+        # 4. 마스터 ID 생성 (Pandas 내장 최적화)
+        # groupby().agg()는 C 수준에서 실행되므로 매우 빠릅니다.
+        table_map = df[df['addr_start'] != -4].groupby('table_id', as_index=False).agg(
+            start=('addr_start', 'first'),
+            end=('addr_end', 'max')
+        )
+
+        # [핵심] 누적 최댓값을 미리 계산하여 정렬된 상태에서 루프 없이 새 그룹 판별
+        # 이전까지의 누적 최대 끝값(curr_max_e)을 cummax로 한 번에 구합니다.
+        max_ends = table_map['end'].cummax().shift(1).fillna(-1)
+        table_map['master_id'] = (table_map['start'] >= max_ends).cumsum()
+
+        # 5. 최종 병합 (루프 최소화)
+        df = df.merge(table_map[['table_id', 'master_id']], on='table_id', how='left').fillna(0)
+
+        # 최종 결과물 생성
+        final_grouped = {m_id: [t_df for _, t_df in m_group.groupby('table_id')]
+                         for m_id, m_group in df[df['master_id'] > 0].groupby('master_id')}
+
+        split_indices = df[df['addr_end'] > df['addr_start']].index.tolist()
+        if 0 not in split_indices:
+            split_indices = [0] + split_indices
+        tables = []
+        for i in range(len(split_indices)):
+            start = split_indices[i]
+            end = split_indices[i + 1] if i + 1 < len(split_indices) else len(df)
+            tables.append(df.iloc[start:end].copy())
+
+        for row_idx, row in enumerate(
+                tqdm(df.itertuples(index=False), total=len(df), desc=f"Processing {sheet_name} ({module_name})")):
+            row_d = row._asdict()
+
 
         context = RdlContext()
         params = self.parameters.get(sheet_name, {})
 
         added_field = False
 
-        for row_idx, row in enumerate(tqdm(df.itertuples(index=False), total=len(df), desc=f"Processing {sheet_name} ({module_name})")):
+        for row_idx, row in enumerate(
+                tqdm(df.itertuples(index=False), total=len(df), desc=f"Processing {sheet_name} ({module_name})")):
             row_dict = row._asdict()
             group = row_dict.get('Group_Name', '').strip()
             subgroup = row_dict.get('Subgroup_Name', '').strip()
@@ -325,8 +396,10 @@ class SFRToSystemRDL:
             group_size = row_dict.get('Group_Size', '0x0').strip()
             subgroup_repeat_str = row_dict.get('Subgroup_Repeat_Count', '')
             subgroup_size = row_dict.get('Subgroup_Size', '0x0').strip()
-            group_repeat = len(params[group_repeat_str]) if group_repeat_str in params and isinstance(params[group_repeat_str], list) else int(group_repeat_str or 1)
-            subgroup_repeat = len(params[subgroup_repeat_str]) if subgroup_repeat_str in params and isinstance(params[subgroup_repeat_str], list) else int(subgroup_repeat_str or 1)
+            group_repeat = len(params[group_repeat_str]) if group_repeat_str in params and isinstance(
+                params[group_repeat_str], list) else int(group_repeat_str or 1)
+            subgroup_repeat = len(params[subgroup_repeat_str]) if subgroup_repeat_str in params and isinstance(
+                params[subgroup_repeat_str], list) else int(subgroup_repeat_str or 1)
 
             if not any([group, subgroup, reg, bit_field, offset]):
                 continue
@@ -406,7 +479,7 @@ class SFRToSystemRDL:
                 if bit_range and access and not added_field:
                     field_indent = '  ' * context.indent_level
                     field_name = bit_field if bit_field and bit_field.isidentifier() else 'data'
-                    field_bit_range = f'[{bus_width-1}:0]' if array_count > 1 else bit_range
+                    field_bit_range = f'[{bus_width - 1}:0]' if array_count > 1 else bit_range
                     lines.append(f'{field_indent}field {{')
                     lines.append(f'{field_indent}  {access_to_property(access)}')
                     if default:
@@ -437,7 +510,65 @@ class SFRToSystemRDL:
 
                 # 주소 지정 (같은 줄에 붙임)
                 addr_suffix = ""
-                if is_repeat and size_str and size_str != '0x
+                if is_repeat and size_str and size_str != '0x0':
+                    addr_suffix = f" @ {size_str}"
+                elif array_count > 1:
+                    addr_suffix = f" @ {stride}"
+                elif offset and offset != '0x0':
+                    addr_suffix = f" @ {offset}"
+
+                lines[-1] += addr_suffix + ';'
+
+            # 별도 필드 행
+            if bit_field and bit_field.strip() and not is_repeat and not added_field:
+                if not context.current_reg:
+                    self.logger.warning(f"Row {row_idx}: 필드 '{bit_field}'가 레지스터 없이 등장 → 스킵")
+                    continue
+                indent = '  ' * context.indent_level
+                field_name = bit_field if bit_field.isidentifier() else 'data'
+                lines.append(f'{indent}field {{')
+                lines.append(f'{indent}  {access_to_property(access)}')
+                if default:
+                    lines.append(f'{indent}  reset = {self.parse_verilog_hex(str(default))};')
+                if desc:
+                    lines.append(f'{indent}  desc = "{desc}";')
+                lines.append(f'{indent}}} {field_name} {bit_range} = 0;')
+
+        while context.indent_level > 1:
+            context.indent_level -= 1
+            lines.append('  ' * context.indent_level + '};')
+
+        lines.append('};')
+
+        # 빈 레지스터 제거
+        cleaned_lines = []
+        skip_block = False
+        temp_block = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('reg ') and '{' in stripped:
+                skip_block = True
+                temp_block = [line]
+            elif skip_block:
+                temp_block.append(line)
+                if '}' in stripped:
+                    has_field = any('field ' in l.strip() for l in temp_block)
+                    has_array = '_inst[' in temp_block[0].strip()
+                    if has_field or has_array:
+                        cleaned_lines.extend(temp_block)
+                    skip_block = False
+                    temp_block = []
+            else:
+                cleaned_lines.append(line)
+
+        lines = cleaned_lines
+
+        if len(lines) <= 5:
+            lines.insert(1, f'  // WARNING: 거의 내용이 없는 addrmap - {module_name}')
+            self.logger.warning(f"Empty or minimal addrmap for {module_name}")
+
+        return '\n'.join(lines)
+
     def run(self):
         self.logger.info("=== Conversion Started ===")
         try:
@@ -540,7 +671,7 @@ def create_test_xlsx():
             ['', '', '', '', '', '', '', '', 'Error', '[1:1]', '0x0', 'RC', 'Y', 'Read clears error flag'],
             ['', '', '', 'ResetCtrl', '1', '0x10', 'ResetReg', '0x14', 'SoftReset', '[0:0]', '0x0', 'WO', 'N', 'Write-only soft reset trigger'],
             ['', '', '', '', '', '', '', '', 'Watchdog', '[1:1]', '0x0', 'W1C', 'Y', 'Write 1 to clear watchdog'],
-            ['', '', '', '', '', '', 'InterruptCtrl', '0x18', 'Mask', '[3:0]', '0xF', 'RW', 'Y', 'Interrupt mask bits'],
+            ['', '', '', '', '', '', 'InterruptCtrl', '0x18', '0x4, 0..1', '', '0xF', 'RW', 'Y', 'Interrupt mask bits'],
             ['', '', '', '', '', '', '', '', 'Pending', '[7:4]', '0x0', 'RO', 'Y', 'Pending interrupts (read-only)'],
             ['TimerGroup', '2', '0x80', 'Ctrl', '1', '0x20', 'TimerLoad', '0x40', 'LoadValue', '[31:0]', '0x0', 'RW', 'Y', 'Load timer counter value (1st instance)'],
             ['', '', '', '', '', '', 'Control', '0x44', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Enable/disable timer'],

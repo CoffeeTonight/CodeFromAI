@@ -308,57 +308,202 @@ class SFRToSystemRDL:
     def get_int(self, x):
         return int(x, 10 if x.isdigit() else 16) if x else 1
 
-    def cal_addr_from_repeat_range(self, row):
-        a = 'Group_Name'
-        b = 'Group_Repeat_Count'
-        c = 'Group_Size'
-        d = 'Subgroup_Name'
-        e = 'Subgroup_Repeat_Count'
-        f = 'Subgroup_Size'
-        h = 'Bit_Field'
-        if pd.notnull(row[a]) and str(row[a]).strip() != '':
-            return self.get_diff(row[b]) * self.get_int(row[c])
-        if pd.notnull(row[d]) and str(row[d]).strip() != '':
-            return self.get_diff(row[e]) * self.get_int(row[f])
-        if pd.notnull(row[h]) and "," in str(row[h]):
-            rp_rg = str(row[h]).split(',')
-            return self.get_int(rp_rg[0]) * self.get_diff(rp_rg[-1])
-        return 0
+    def calculate_addr_end_vectorized(self, df):
+        """
+        cal_addr_from_repeat_range를 벡터화하여 전체 df에 한 번에 적용
+        반환: df에 'addr_end' 컬럼 추가 (기존 df 수정)
+        """
+        # 기본값 -4
+        df['addr_end'] = -4
 
-    def generate_sfr_addrmap(self, sheet_name: str, module_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
-        self.logger.info(
-            f"Generating RDL for {module_name} (sheet={sheet_name}, bus_width={bus_width}) ({len(df)} rows)")
-        lines = [f'addrmap {module_name} {{']
-        df['Reggroup'] = 
-        df['addr_start'] = df['Offset'].apply(
-            lambda x: int(str(x), 16) if pd.notnull(x) and str(x).strip() and str(x) != "-4" else -4)
+        # 유효 행 마스크
+        valid = df['addr_start'] != -4
 
-        # 2. cal_addr_from_repeat_range 함수가 행 전체를 참조한다면, 병렬화 처리가 가능한지 확인하세요.
-        # 만약 함수가 너무 느리다면 내부 연산을 Pandas Vectorization으로 교체하는 것이 우선입니다.
-        df['addr_end'] = df.apply(lambda row: int(self.cal_addr_from_repeat_range(row) + int(str(row['Offset']), 16))
-        if row['addr_start'] != -4 else -4, axis=1)
+        # Group_Name이 있는 경우
+        mask_group = valid & df['Group_Name'].notnull() & df['Group_Name'].str.strip().ne('')
+        df.loc[mask_group, 'addr_end'] = (
+                df.loc[mask_group, 'Group_Repeat_Count'].apply(self.get_diff) *
+                df.loc[mask_group, 'Group_Size'].apply(self.get_int)
+        )
 
-        # 3. 테이블 ID 생성 (벡터화)
-        df['table_id'] = (df['addr_start'] != -4).cumsum()
+        # Subgroup_Name이 있는 경우 (Group_Name 없는 행만)
+        mask_sub = valid & df['Subgroup_Name'].notnull() & df['Subgroup_Name'].str.strip().ne('') & ~mask_group
+        df.loc[mask_sub, 'addr_end'] = (
+                df.loc[mask_sub, 'Subgroup_Repeat_Count'].apply(self.get_diff) *
+                df.loc[mask_sub, 'Subgroup_Size'].apply(self.get_int)
+        )
 
-        # 4. 마스터 ID 생성 (Pandas 내장 최적화)
-        # groupby().agg()는 C 수준에서 실행되므로 매우 빠릅니다.
-        table_map = df[df['addr_start'] != -4].groupby('table_id', as_index=False).agg(
+        # Bit_Field에 ','가 있는 경우 (위 두 조건 모두 없는 행만)
+        mask_bit = valid & df['Bit_Field'].notnull() & df['Bit_Field'].str.contains(',',
+                                                                                    na=False) & ~mask_group & ~mask_sub
+        if mask_bit.any():
+            rp_rg = df.loc[mask_bit, 'Bit_Field'].str.split(',', expand=True)
+            df.loc[mask_bit, 'addr_end'] = (
+                    rp_rg[0].apply(self.get_int) *
+                    rp_rg[1].apply(self.get_diff)
+            )
+
+        return df
+
+    def safe_hex_to_int(self, series):
+        cleaned_series = series.astype(str).str.replace(r'^(0x|h)', '', case=False, regex=True).str.strip()
+        def _parse_hex(val):
+            try:
+                return int(val, 16)
+            except ValueError:
+                try:
+                    return int(val)
+                except ValueError:
+                    return -4
+        return cleaned_series.map(_parse_hex)
+
+    def calculate_addr_end(self, df):
+        """addr_end 벡터화 계산 (cal_addr_from_repeat_range 대체 가정)"""
+        valid = df['addr_start'] != -4
+        # cal_addr_from_repeat_range 로직을 벡터화 (예시: 반복 크기 * 크기)
+        repeat_size = df['Reggroup_Repeat_Count'] * df['Reggroup_size']
+        df['addr_end'] = -4
+        df.loc[valid, 'addr_end'] = df.loc[valid, 'addr_start'] + repeat_size.loc[valid]
+        return df
+
+    def group_by_hierarchy(self, df, group_levels=['Group_Name', 'Subgroup_Name']):
+        def recursive_group(sub_df, levels):
+            if not levels:
+                # 최하위: table_id별 DataFrame 리스트
+                if 'table_id' in sub_df.columns:
+                    table_ids = sub_df['table_id'].unique()
+                    return [sub_df[sub_df['table_id'] == tid] for tid in sorted(table_ids)]
+                return [sub_df]
+            current_level = levels[0]
+            grouped = {}
+            for key, g_df in sub_df.groupby(current_level, sort=False):
+                grouped[key] = recursive_group(g_df, levels[1:])
+            return grouped
+        return recursive_group(df, group_levels)
+
+    def process_register_ranges(self, df):
+        """
+        메인 처리 로직: Bit_Field → size/repeat → addr_start/end → table/master_id → 계층 그룹화
+        """
+        # 1. split & 정리
+        split_data = df['Bit_Field'].astype(str).str.strip().str.split(',', n=1, expand=True).fillna('')
+        size_str = split_data[0].str.strip()
+        repeat_str = split_data[1].str.strip()
+        del split_data  # 메모리 정리
+
+        # 2. Reggroup_size (10진수 우선 + 16진수 fallback)
+        df['Reggroup_size'] = df['size_str'].apply(self.safe_size).astype(int)
+
+        # 3. Reggroup_Repeat_Count (벡터화)
+        df['Reggroup_Repeat_Count'] = 1
+        repeat_series = repeat_str.str.replace(r'\s+', '', regex=True)
+        mask_dots = repeat_series.str.contains(r'\.\.', na=False)
+        if mask_dots.any():
+            dots_split = repeat_series.loc[mask_dots].str.split(r'\.\.', expand=True)
+            start = pd.to_numeric(dots_split[0], errors='coerce').fillna(0).astype(int)
+            end = pd.to_numeric(dots_split[1], errors='coerce').fillna(0).astype(int)
+            df.loc[mask_dots, 'Reggroup_Repeat_Count'] = (end - start + 1).clip(lower=1).fillna(1).astype(int)
+
+        mask_simple = ~mask_dots & (repeat_series != '') & repeat_series.str.isdigit()
+        df.loc[mask_simple, 'Reggroup_Repeat_Count'] = repeat_series.loc[mask_simple].astype(int)
+
+        # 임시 컬럼 정리
+        df = df.drop(columns=['size_str', 'repeat_str'], errors='ignore')
+
+        # 4. addr_start 벡터화
+        df['addr_start'] = self.safe_hex_to_int(df['Offset'])
+
+        # 5. addr_end 벡터화
+        df = self.calculate_addr_end(df)
+
+        # 6. table_id & master_id 계산
+        valid_mask = df['addr_start'] != -4
+        df['table_id'] = valid_mask.cumsum()
+
+        table_map = df[valid_mask].groupby('table_id', as_index=False).agg(
             start=('addr_start', 'first'),
             end=('addr_end', 'max')
         )
 
-        # [핵심] 누적 최댓값을 미리 계산하여 정렬된 상태에서 루프 없이 새 그룹 판별
-        # 이전까지의 누적 최대 끝값(curr_max_e)을 cummax로 한 번에 구합니다.
         max_ends = table_map['end'].cummax().shift(1).fillna(-1)
         table_map['master_id'] = (table_map['start'] >= max_ends).cumsum()
 
-        # 5. 최종 병합 (루프 최소화)
         df = df.merge(table_map[['table_id', 'master_id']], on='table_id', how='left').fillna(0)
 
-        # 최종 결과물 생성
-        final_grouped = {m_id: [t_df for _, t_df in m_group.groupby('table_id')]
-                         for m_id, m_group in df[df['master_id'] > 0].groupby('master_id')}
+        # 7. 최종 재귀 그룹화 (Group/Subgroup/Reggroup 등 계층)
+        final_grouped = self.group_by_hierarchy(df, group_levels=['Group_Name', 'Subgroup_Name', 'Reggroup_Name'])
+
+        return final_grouped, df
+
+    def safe_size(self, s):
+        s = str(s).strip()
+        if not s: return 0
+        try:
+            return int(s)  # 10진수 우선
+        except ValueError:
+            s_lower = s.lower()
+            if s_lower.startswith('0x'):
+                s = s[2:]
+            elif s_lower.startswith('h'):
+                s = s[1:]
+            try:
+                return int(s, 16)
+            except ValueError:
+                return 0
+
+    def generate_sfr_addrmap(self, sheet_name: str, module_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
+        self.logger.info(f"Generating RDL for {module_name} ({len(df)} rows)")
+
+        # 1. 속성 파싱 및 계산 로직 (기존과 동일)
+        split_data = df['Bit_Field'].astype(str).str.strip().str.split(',', n=1, expand=True).fillna('')
+        size_strs = split_data[0].str.strip()
+        repeat_strs = split_data[1].str.strip()
+        del split_data
+
+        df['Reggroup_size'] = [self.safe_size(s) for s in size_strs]
+        df['Reggroup_Repeat_Count'] = 1
+        repeat_series = repeat_strs.str.replace(r'\s+', '', regex=True)
+        mask_dots = repeat_series.str.contains(r'\.\.', na=False)
+
+        if mask_dots.any():
+            dots_split = repeat_series.loc[mask_dots].str.split(r'\.\.', expand=True)
+            start = pd.to_numeric(dots_split[0], errors='coerce').fillna(0).astype(int)
+            end = pd.to_numeric(dots_split[1], errors='coerce').fillna(0).astype(int)
+            df.loc[mask_dots, 'Reggroup_Repeat_Count'] = (end - start + 1).clip(lower=1).fillna(1).astype(int)
+
+        mask_simple = ~mask_dots & (repeat_series != '') & repeat_series.str.isdigit()
+        df.loc[mask_simple, 'Reggroup_Repeat_Count'] = repeat_series.loc[mask_simple].astype(int)
+
+        # 2. Reggroup_Name 결정 및 식별자 할당
+        df['Reggroup_Name'] = df['Register_Name'].astype(str).str.strip()
+        norm_bitfield = df['Bit_Field'].astype(str).str.replace(r'\s+', '', regex=True)
+        mask_repeat = norm_bitfield.str.contains(r'\.\.', na=False)
+        df.loc[mask_repeat, 'Reggroup_Name'] = norm_bitfield
+
+        # 3. 주소 계산
+        df['addr_start'] = self.safe_hex_to_int(df['Offset'])
+        df = self.calculate_addr_end(df)
+
+        # [NEW] 전처리: 반복 그룹 내부 레지스터 자식화 (주소 포함 관계)
+        # 반복 범위가 있는 행(부모)을 찾고, 그 주소 사이에 들어오는 행들을 자식 그룹으로 편입
+        for _, parent in df.loc[mask_repeat].iterrows():
+            mask_child = (df['addr_start'] > parent['addr_start']) & \
+                         (df['addr_end'] <= parent['addr_end'])
+            df.loc[mask_child, 'Subgroup_Name'] = parent['Reggroup_Name']
+
+        # 4. 테이블/마스터 ID 계산 및 머지
+        valid_mask = df['addr_start'] != -4
+        df['table_id'] = valid_mask.cumsum()
+        table_map = df[valid_mask].groupby('table_id', as_index=False).agg(
+            start=('addr_start', 'first'), end=('addr_end', 'max')
+        )
+        max_ends = table_map['end'].cummax().shift(1).fillna(-1)
+        table_map['master_id'] = (table_map['start'] >= max_ends).cumsum()
+        df = df.merge(table_map[['table_id', 'master_id']], on='table_id', how='left').fillna(0)
+
+        # 5. 최종 재귀 그룹화
+        final_grouped = self.group_by_hierarchy(df, group_levels=['Group_Name', 'Subgroup_Name', 'Reggroup_Name'])
+
 
         split_indices = df[df['addr_end'] > df['addr_start']].index.tolist()
         if 0 not in split_indices:

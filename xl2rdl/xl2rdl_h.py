@@ -9,7 +9,6 @@ import shutil
 import argparse
 from typing import Any, Dict
 
-
 ACCESS_MAP = {
     'RW': {'sw': 'rw', 'hw': 'rw'},
     'RO': {'sw': 'r', 'hw': 'w'},
@@ -83,7 +82,7 @@ class RdlContext:
         self.current_reg = ""
 
     def add(self, text: str):
-        indent = 4*" " * self.indent_level
+        indent = 4 * " " * self.indent_level
         self.lines.append(indent + text)
 
     def push(self):
@@ -361,7 +360,7 @@ class SFRToSystemRDL:
     def generate_sfr_addrmap(self, sheet_name: str, module_name: str, df: pd.DataFrame, bus_width: int = 32) -> str:
         self.logger.info(f"Generating RDL for {module_name} from sheet {sheet_name} ({len(df)} rows)")
 
-        # 1. 넓은 Bit_Range 전처리 (bus_width보다 큰 경우 배열화)
+        # 넓은 Bit_Range 전처리
         df = self.preprocess_wide_bit_range(df, bus_width)
 
         ctx = RdlContext()
@@ -371,11 +370,12 @@ class SFRToSystemRDL:
         ctx.pop()
         ctx.add(") {")
 
-        # Offset 정수 변환 & 정렬
         df['offset_int'] = df['Offset'].apply(to_addr_int)
         df = df.sort_values('offset_int').reset_index(drop=True).fillna('')
 
-        active_repeat = None  # reg 레벨 반복 그룹 상태
+        active_repeat = None
+        stride = bus_width // 8
+        bus_msb = bus_width - 1
 
         for idx, row in df.iterrows():
             reg_name = str(row.get('Register_Name', '')).strip()
@@ -384,28 +384,26 @@ class SFRToSystemRDL:
 
             offset_int = row['offset_int']
             bit_field_str = str(row.get('Bit_Field', '')).strip()
-            bit_range = str(row.get('Bit_Range', '')).strip() or "[31:0]"
+            bit_range = str(row.get('Bit_Range', '')).strip() or f"[{bus_msb}:0]"
             access = str(row.get('Access_Type', 'RW')).strip()
             reset_val = self.parse_verilog_hex(str(row.get('Default_Value', '0')))
             desc = str(row.get('Description', '')).strip().replace('"', '\\"')
 
-            group_name = str(row.get('Group_Name', '')).strip()
-            subgroup_name = str(row.get('Subgroup_Name', '')).strip()
+            def get_repeat_int(x):
+                if '..' in x:
+                    start, end = map(int, x.split('..'))
+                    return abs(end - start) + 1
+                else:
+                    return int(x)
 
-            # ────────────────────────────────────────
-            # 그룹 열기 (Repeat Count 반영)
-            # ────────────────────────────────────────
-            group_repeat = 1
-            if 'Group_Repeat_Count' in row and pd.notna(row['Group_Repeat_Count']):
-                repeat_val = str(row['Group_Repeat_Count']).strip()
-                if '..' in repeat_val:
-                    try:
-                        start, end = map(int, repeat_val.split('..'))
-                        group_repeat = max(1, end - start + 1)
-                    except:
-                        pass
-                elif repeat_val.isdigit():
-                    group_repeat = int(repeat_val)
+            grp_list = []
+            for i in ["Group", "Subgroup"]:
+                if f"{i}_Name" in row:
+                    grp_list += [
+                        str(row.get(f'{i}_Name', '')).strip()
+                        , get_repeat_int(str(row.get(f'{i}_Repeat_Count', '')).strip())
+                        , to_addr_int(str(row.get(f'{i}_Size', '')).strip())
+                    ]
 
             if group_name and group_name != ctx.current_group:
                 while ctx.indent_level > 0:
@@ -413,56 +411,30 @@ class SFRToSystemRDL:
                 ctx.current_group = group_name
                 ctx.current_subgroup = ""
                 ctx.current_reg = ""
-                ctx.add_block_start("addrmap", group_name, f"[{group_repeat}]" if group_repeat > 1 else "")
-
-            # ────────────────────────────────────────
-            # 서브그룹 열기 (Repeat Count 반영)
-            # ────────────────────────────────────────
-            subgroup_repeat = 1
-            if 'Subgroup_Repeat_Count' in row and pd.notna(row['Subgroup_Repeat_Count']):
-                repeat_val = str(row['Subgroup_Repeat_Count']).strip()
-                if '..' in repeat_val:
-                    try:
-                        start, end = map(int, repeat_val.split('..'))
-                        subgroup_repeat = max(1, end - start + 1)
-                    except:
-                        pass
-                elif repeat_val.isdigit():
-                    subgroup_repeat = int(repeat_val)
+                ctx.add_block_start("regfile")
 
             if subgroup_name and subgroup_name != ctx.current_subgroup:
                 while ctx.indent_level > 1:
                     ctx.close_block()
                 ctx.current_subgroup = subgroup_name
                 ctx.current_reg = ""
-                ctx.add_block_start("regfile", subgroup_name, f"[{subgroup_repeat}]" if subgroup_repeat > 1 else "")
+                ctx.add_block_start("regfile")
 
-            # ────────────────────────────────────────
-            # reg 레벨 반복 시작 감지 (Bit_Field 패턴)
-            # ────────────────────────────────────────
-            is_repeat_start = False
-            stride = 4
-            repeat_count = 1
-            if ',' in bit_field_str and '..' in bit_field_str:
+            repeat_count = 0
+            if ',' in bit_field_str:
                 parts = bit_field_str.split(',', 1)
                 if len(parts) == 2:
                     stride_str, range_part = [p.strip() for p in parts]
-                    stride = to_addr_int(stride_str) or 4
-                    try:
-                        start, end = map(int, range_part.split('..'))
-                        repeat_count = max(1, end - start + 1)
-                        is_repeat_start = repeat_count > 1
-                    except:
-                        pass
+                    repeat_count = get_repeat_int(range_part)
 
-            if is_repeat_start:
+            if repeat_count:
                 if active_repeat and active_repeat['index'] < active_repeat['count']:
                     self.logger.warning(f"미완성 repeat 그룹: {active_repeat['reg_name']}")
                     ctx.add(f"reg {active_repeat['reg_name']}[{active_repeat['count']}] {{")
                     ctx.push()
                     for f in active_repeat['fields']:
                         ctx.add(f"    field {{ {f['props']} reset = {f['reset']}; }} {f['name']} {f['range']};")
-                    ctx.close_block(f"@ {hex(active_repeat['base_offset'])}")
+                    ctx.close_block(f" {active_repeat['reg_name']} @ {hex(active_repeat['base_offset'])}")
                 active_repeat = {
                     'reg_name': reg_name,
                     'base_offset': offset_int,
@@ -473,9 +445,7 @@ class SFRToSystemRDL:
                 }
                 continue
 
-            # ────────────────────────────────────────
             # 반복 그룹 이어가기
-            # ────────────────────────────────────────
             if active_repeat:
                 expected = active_repeat['base_offset'] + active_repeat['index'] * active_repeat['stride']
                 if offset_int == expected:
@@ -485,7 +455,8 @@ class SFRToSystemRDL:
                         'name': field_name,
                         'range': bit_range,
                         'props': props,
-                        'reset': reset_val
+                        'reset': reset_val,
+                        'desc': desc
                     })
                     active_repeat['index'] += 1
 
@@ -493,60 +464,51 @@ class SFRToSystemRDL:
                         ctx.add(f"reg {active_repeat['reg_name']}[{active_repeat['count']}] {{")
                         ctx.push()
 
-                        # regwidth 추가 (필요할 때만 - bus_width와 다를 때)
+                        # regwidth 추가 (필요할 때만)
                         if active_repeat['fields']:
                             first_range = active_repeat['fields'][0]['range']
                             try:
-                                match = re.search(r'\[(\d+):(\d+)\]', first_range)
-                                if match:
-                                    msb = int(match.group(1))
-                                    lsb = int(match.group(2))
-                                    bit_width = msb - lsb + 1
-                                    if bit_width > bus_width:
-                                        ctx.add(f"    regwidth = {bit_width};")
+                                msb, lsb = map(int, re.findall(r'\[(\d+):(\d+)\]', first_range)[0])
+                                bit_width = msb - lsb + 1
+                                if bit_width != bus_width:
+                                    ctx.add(f"    regwidth = {bit_width};")
                             except:
                                 pass
 
                         for f in active_repeat['fields']:
                             field_line = f"    field {{ {f['props']} reset = {f['reset']};"
-                            if desc:
-                                field_line += f" desc = \"{desc}\";"
+                            if f['desc']:
+                                field_line += f" desc = \"{f['desc']}\";"
                             field_line += f" }} {f['name']} {f['range']};"
                             ctx.add(field_line)
 
-                        ctx.close_block(f"@ {hex(active_repeat['base_offset'])}")
+                        ctx.close_block(f" {active_repeat['reg_name']} @ {hex(active_repeat['base_offset'])}")
                         active_repeat = None
                     continue
                 else:
                     self.logger.warning(f"Repeat offset mismatch: {hex(offset_int)} (expected {hex(expected)})")
                     active_repeat = None
 
-            # ────────────────────────────────────────
-            # 일반 레지스터 (여러 필드 지원)
-            # ────────────────────────────────────────
+            # 일반 레지스터
             if reg_name != ctx.current_reg:
                 if ctx.current_reg:
-                    ctx.close_block(f"@ {hex(ctx.current_reg_offset)}")
+                    ctx.close_block(f" {ctx.current_reg} @ {hex(ctx.current_reg_offset)}")
                 ctx.current_reg = reg_name
                 ctx.current_reg_offset = offset_int
-                ctx.add_block_start("reg")
 
-                # regwidth 추가 (필요할 때만 - bus_width와 다를 때)
+                ctx.add("reg {")
+                ctx.push()
+
+                # regwidth 추가 (필요할 때만 - bus_width와 다르고 32비트 초과일 때만)
                 bit_width = 32
                 if bit_range and bit_range.strip():
                     try:
-                        match = re.search(r'\[(\d+):(\d+)\]', bit_range)
-                        if match:
-                            msb = int(match.group(1))
-                            lsb = int(match.group(2))
-                            bit_width = msb - lsb + 1
-                        else:
-                            bit_width = bus_width
+                        msb, lsb = map(int, re.findall(r'\[(\d+):(\d+)\]', bit_range)[0])
+                        bit_width = msb - lsb + 1
                     except:
                         bit_width = bus_width
 
-                # regwidth 추가 조건: bus_width와 다를 때만
-                if bit_width > bus_width:
+                if bit_width != bus_width and bit_width > 32:
                     ctx.add(f"    regwidth = {bit_width};")
 
             if bit_range:
@@ -558,11 +520,9 @@ class SFRToSystemRDL:
                 field_line += f" }} {field_name} {bit_range};"
                 ctx.add(field_line)
 
-        # ────────────────────────────────────────
-        # 마지막 레지스터 및 블록 닫기
-        # ────────────────────────────────────────
+        # 마지막 닫기
         if ctx.current_reg:
-            ctx.close_block(f"@ {hex(ctx.current_reg_offset)}")
+            ctx.close_block(f" {ctx.current_reg} @ {hex(ctx.current_reg_offset)}")
 
         while ctx.indent_level > 0:
             ctx.close_block()
@@ -615,16 +575,20 @@ class SFRToSystemRDL:
             self.logger.error("Conversion failed", exc_info=True)
             raise
 
+
 def create_test_xlsx():
     test_xlsx = "test_spec.xlsx"
     with pd.ExcelWriter(test_xlsx, engine='openpyxl') as writer:
         # memorymap
         mm_data = {
-            'module': ['SystemCtrl', '', '', 'PeripheralCtrl', 'MainComplex', 'SubComplexA', 'SubComplexB', 'ExtraModule'],
-            'base_addr': ['0x00000000', '0x10000', '0x20000', '0x30000000', '0x40000000', '0x50000000', '0x60000000', '0x80000000'],
+            'module': ['SystemCtrl', '', '', 'PeripheralCtrl', 'MainComplex', 'SubComplexA', 'SubComplexB',
+                       'ExtraModule'],
+            'base_addr': ['0x00000000', '0x10000', '0x20000', '0x30000000', '0x40000000', '0x50000000', '0x60000000',
+                          '0x80000000'],
             'addr_offset': ['0x0', '0x0', '0x0', '0x0', '0x0', '0x0', '0x0', '0x1000'],
             'enable': ['Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No'],
-            'sheet': ['SystemCtrl', 'TimerGroup', 'IOGroup', 'PeripheralCtrl', 'ComplexSFR', 'ComplexSFR', 'ComplexSFR', 'ComplexSFR'],
+            'sheet': ['SystemCtrl', 'TimerGroup', 'IOGroup', 'PeripheralCtrl', 'ComplexSFR', 'ComplexSFR', 'ComplexSFR',
+                      'ComplexSFR'],
             'addr_parameter': ['', 'NUM=0..1', '', '', '', 'NUM=0..3', '', ''],
             'sheet_parameter': ['', '', '', '', '', '', '', ''],
             'bus_if': ['apb', 'ahb', 'axi', 'apb', 'axi', 'axi', 'axi', 'apb'],
@@ -634,7 +598,7 @@ def create_test_xlsx():
             'is_packet': ['No', 'No', 'No', 'No', 'No', 'No', 'No', 'No']
         }
         pd.DataFrame(mm_data).to_excel(writer, sheet_name='memorymap', index=False)
-        
+
         # memorymap_a
         mm_a_data = {
             'module': ['PeriGroupA', 'PeriGroupB'],
@@ -651,66 +615,94 @@ def create_test_xlsx():
             'is_packet': ['No', 'No']
         }
         pd.DataFrame(mm_a_data).to_excel(writer, sheet_name='memorymap_a', index=False)
-        
+
         # ComplexSFR
         complex_sfr_data = [
             ['Parameter', 'NUM', '0..3'],
             ['Parameter', 'SFR_REPEAT', '0..2'], ['Parameter', 'BITW', '31'],
             ['Parameter', 'ADDR_OFFSET', 'h100'], ['Parameter', 'RESET_VAL', '0xA5'],
-            ['Parameter', 'SIZE_64', '64'], ['Parameter', 'SIZE_128', '128'], ['Parameter', 'SIZE_256', '256'], ['Parameter', 'SIZE_512', '512'],
-            ['Group Name', 'Group Repeat Count', 'Group Size', 'Subgroup Name', 'Subgroup Repeat Count', 'Subgroup Size', 'Register Name', 'Offset', 'Bit Field', 'Bit Range', 'Default Value', 'Access Type', 'Testable', 'Description'],
-            ['SystemCtrl', '1', '0x40', '', '', '', 'GlobalConfig', '0x00', 'Mode', '[1:0]', '0x0', 'RW', 'Y', 'System-wide mode control'],
+            ['Parameter', 'SIZE_64', '64'], ['Parameter', 'SIZE_128', '128'], ['Parameter', 'SIZE_256', '256'],
+            ['Parameter', 'SIZE_512', '512'],
+            ['Group Name', 'Group Repeat Count', 'Group Size', 'Subgroup Name', 'Subgroup Repeat Count',
+             'Subgroup Size', 'Register Name', 'Offset', 'Bit Field', 'Bit Range', 'Default Value', 'Access Type',
+             'Testable', 'Description'],
+            ['SystemCtrl', '1', '0x40', '', '', '', 'GlobalConfig', '0x00', 'Mode', '[1:0]', '0x0', 'RW', 'Y',
+             'System-wide mode control'],
             ['', '', '', '', '', '', '', '', 'Power', '[2:2]', '0x0', 'WO', 'N', 'Write-only power enable'],
-            ['', '', '', 'Ctrl', '1', '0x10', 'Control', '0x04', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Enables clock source'],
+            ['', '', '', 'Ctrl', '1', '0x10', 'Control', '0x04', 'Enable', '[0:0]', '0x0', 'RW', 'Y',
+             'Enables clock source'],
             ['', '', '', '', '', '', '', '', 'Divider', '[7:1]', '0x1', 'RW', 'Y', 'Sets clock divider value'],
             ['', '', '', '', '', '', 'ClockStatus', '0x08', 'Locked', '[0:0]', '0x0', 'RO', 'Y', 'PLL lock status'],
             ['', '', '', '', '', '', '', '', 'Error', '[1:1]', '0x0', 'RC', 'Y', 'Read clears error flag'],
-            ['', '', '', 'ResetCtrl', '1', '0x10', 'ResetReg', '0x14', 'SoftReset', '[0:0]', '0x0', 'WO', 'N', 'Write-only soft reset trigger'],
+            ['', '', '', 'ResetCtrl', '1', '0x10', 'ResetReg', '0x14', 'SoftReset', '[0:0]', '0x0', 'WO', 'N',
+             'Write-only soft reset trigger'],
             ['', '', '', '', '', '', '', '', 'Watchdog', '[1:1]', '0x0', 'W1C', 'Y', 'Write 1 to clear watchdog'],
             ['', '', '', '', '', '', 'InterruptCtrl', '0x18', '0x4, 0..1', '', '0xF', 'RW', 'Y', 'Interrupt mask bits'],
             ['', '', '', '', '', '', '', '', 'Pending', '[7:4]', '0x0', 'RO', 'Y', 'Pending interrupts (read-only)'],
-            ['TimerGroup', '2', '0x80', 'Ctrl', '1', '0x20', 'TimerLoad', '0x40', 'LoadValue', '[31:0]', '0x0', 'RW', 'Y', 'Load timer counter value (1st instance)'],
+            ['TimerGroup', '2', '0x80', 'Ctrl', '1', '0x20', 'TimerLoad', '0x40', 'LoadValue', '[31:0]', '0x0', 'RW',
+             'Y', 'Load timer counter value (1st instance)'],
             ['', '', '', '', '', '', 'Control', '0x44', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Enable/disable timer'],
             ['', '', '', '', '', '', '', '', 'Mode', '[2:1]', '0x0', 'WO', 'N', 'Write-only mode selection'],
-            ['', '', '', '', '', '', 'TimerStatus', '0x48', 'Overflow', '[0:0]', '0x0', 'W1T', 'Y', 'Write 1 to toggle overflow flag'],
+            ['', '', '', '', '', '', 'TimerStatus', '0x48', 'Overflow', '[0:0]', '0x0', 'W1T', 'Y',
+             'Write 1 to toggle overflow flag'],
             ['', '', '', '', '', '', '', '', 'Underflow', '[1:1]', '0x0', 'W0C', 'Y', 'Write 0 to clear underflow'],
-            ['', '', '', 'TimerConfig', '1', '0x20', 'TimerLoad', '0xC0', 'LoadValue', '[31:0]', '0x0', 'RW', 'Y', 'Load timer counter value (2nd instance)'],
-            ['', '', '', '', '', '', 'TimerControl', '0xC4', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Enable/disable timer'],
-            ['', '', '', 'InterruptSub', '1', '0x10', 'IntEnable', '0xE0', 'TimerInt', '[0:0]', '0x0', 'RW', 'Y', 'Enable timer interrupt (2nd instance)'],
+            ['', '', '', 'TimerConfig', '1', '0x20', 'TimerLoad', '0xC0', 'LoadValue', '[31:0]', '0x0', 'RW', 'Y',
+             'Load timer counter value (2nd instance)'],
+            ['', '', '', '', '', '', 'TimerControl', '0xC4', 'Enable', '[0:0]', '0x0', 'RW', 'Y',
+             'Enable/disable timer'],
+            ['', '', '', 'InterruptSub', '1', '0x10', 'IntEnable', '0xE0', 'TimerInt', '[0:0]', '0x0', 'RW', 'Y',
+             'Enable timer interrupt (2nd instance)'],
             ['', '', '', '', '', '', 'IntStatus', '0xE4', 'Pending', '[0:0]', '0x0', 'RS', 'Y', 'Read sets status bit'],
             ['', '', '', '', '', '', '', '', 'Clear', '[1:1]', '0x0', 'WC', 'Y', 'Write clears all pending'],
-            ['', '', '', '', '', '', 'MiscReg', '0xF0', 'Status', '[3:0]', '0x0', 'RO', 'Y', 'Standalone status register'],
-            ['IOGroup', '1', '0x100', 'PortA', '4', '0x20', 'DataReg', '0x100', 'Output', '[7:0]', '0x00', 'RW', 'Y', 'Port data output (1st instance)'],
+            ['', '', '', '', '', '', 'MiscReg', '0xF0', 'Status', '[3:0]', '0x0', 'RO', 'Y',
+             'Standalone status register'],
+            ['IOGroup', '1', '0x100', 'PortA', '4', '0x20', 'DataReg', '0x100', 'Output', '[7:0]', '0x00', 'RW', 'Y',
+             'Port data output (1st instance)'],
             ['', '', '', '', '', '', '', '', 'Input', '[15:8]', '0x00', 'RO', 'Y', 'Port data input (read-only)'],
             ['', '', '', '', '', '', 'DirReg', '0x104', 'Direction', '[7:0]', '0xFF', 'RW', 'Y', 'Set pin directions'],
-            ['', '', '', '', '', '', 'InterruptReg', '0x108', 'Mask', '[3:0]', '0x0', 'WRC', 'Y', 'Write as-is, read clears'],
+            ['', '', '', '', '', '', 'InterruptReg', '0x108', 'Mask', '[3:0]', '0x0', 'WRC', 'Y',
+             'Write as-is, read clears'],
             ['', '', '', '', '', '', '', '', 'Trigger', '[7:4]', '0x0', 'WS', 'Y', 'Write sets bits'],
-            ['', '', '', 'PortB', '', '', 'DataReg', '0x120', 'Output', '[7:0]', '0x00', 'RW', 'Y', 'Port data output (2nd instance)'],
-            ['', '', '', 'PortC', '', '', 'DataReg', '0x140', 'Output', '[7:0]', '0x00', 'RW', 'Y', 'Port data output (3rd instance)'],
-            ['', '', '', 'PortD', '', '', 'DataReg', '0x160', 'Output', '[7:0]', '0x00', 'RW', 'Y', 'Port data output (4th instance)'],
-            ['', '', '', 'PortE', '3', '0x20', 'ConfigReg', '0x180', 'PullUp', '[3:0]', '0x0', 'RW', 'Y', 'Pull-up configuration (1st instance)'],
+            ['', '', '', 'PortB', '', '', 'DataReg', '0x120', 'Output', '[7:0]', '0x00', 'RW', 'Y',
+             'Port data output (2nd instance)'],
+            ['', '', '', 'PortC', '', '', 'DataReg', '0x140', 'Output', '[7:0]', '0x00', 'RW', 'Y',
+             'Port data output (3rd instance)'],
+            ['', '', '', 'PortD', '', '', 'DataReg', '0x160', 'Output', '[7:0]', '0x00', 'RW', 'Y',
+             'Port data output (4th instance)'],
+            ['', '', '', 'PortE', '3', '0x20', 'ConfigReg', '0x180', 'PullUp', '[3:0]', '0x0', 'RW', 'Y',
+             'Pull-up configuration (1st instance)'],
             ['', '', '', '', '', '', '', '', 'Drive', '[7:4]', '0x0', 'WO1', 'N', 'Write once after reset'],
             ['', '', '', '', '', '', 'StatusReg', '0x184', 'Level', '[7:0]', '0x0', 'RO', 'Y', 'Pin level status'],
             ['', '', '', '', '', '', 'EventReg', '0x188', 'EventFlag', '[0:0]', '0x0', 'W1S', 'Y', 'Write 1 sets flag'],
             ['', '', '', '', '', '', '', '', 'ClearFlag', '[1:1]', '0x0', 'W0S', 'Y', 'Write 0 sets flag (negated)'],
-            ['PeripheralCtrl', '3', '0x30', '', '', '', 'PowerCtrl', '0x200', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Power enable for peripheral'],
+            ['PeripheralCtrl', '3', '0x30', '', '', '', 'PowerCtrl', '0x200', 'Enable', '[0:0]', '0x0', 'RW', 'Y',
+             'Power enable for peripheral'],
             ['', '', '', '', '', '', '', '', 'SleepMode', '[2:1]', '0x0', 'RC', 'Y', 'Read clears sleep mode'],
-            ['', '', '', '', '', '', 'DMAConfig', '0x204', 'Channel', '[3:0]', '0x0', 'WRS', 'Y', 'Write as-is, read sets bits'],
+            ['', '', '', '', '', '', 'DMAConfig', '0x204', 'Channel', '[3:0]', '0x0', 'WRS', 'Y',
+             'Write as-is, read sets bits'],
             ['', '', '', '', '', '', 'DMAStatus', '0x208', 'Busy', '[0:0]', '0x0', 'RO', 'Y', 'DMA busy status'],
-            ['', '', '', '', '', '', 'ErrorReg', '0x20C', 'Code', '[7:0]', '0x0', 'WOC', 'Y', 'Write clears, read error'],
-            ['', '', '', '', '', '', 'TestReg', '0x210', 'ToggleBit', '[0:0]', '0x0', 'W0T', 'Y', 'Write 0 toggles bit'],
-            ['', '', '', '', '', '', 'AdvIntReg', '0x214', 'Pending', '[3:0]', '0x0', 'W1CRS', 'Y', 'Write 1 clears matching, read sets all'],
-            ['', '', '', '', '', '', '', '', 'Set', '[7:4]', '0x0', 'W0SRC', 'Y', 'Write 0 sets matching, read clears all'],
-            ['', '', '', '', '', '', 'singleRepeat', '0x300', '0x10,0..3', '[31:0]', '0x55', 'RW', 'Y', 'single repeated sfr'],
+            ['', '', '', '', '', '', 'ErrorReg', '0x20C', 'Code', '[7:0]', '0x0', 'WOC', 'Y',
+             'Write clears, read error'],
+            ['', '', '', '', '', '', 'TestReg', '0x210', 'ToggleBit', '[0:0]', '0x0', 'W0T', 'Y',
+             'Write 0 toggles bit'],
+            ['', '', '', '', '', '', 'AdvIntReg', '0x214', 'Pending', '[3:0]', '0x0', 'W1CRS', 'Y',
+             'Write 1 clears matching, read sets all'],
+            ['', '', '', '', '', '', '', '', 'Set', '[7:4]', '0x0', 'W0SRC', 'Y',
+             'Write 0 sets matching, read clears all'],
+            ['', '', '', '', '', '', 'singleRepeat', '0x300', '0x10,0..3', '[31:0]', '0x55', 'RW', 'Y',
+             'single repeated sfr'],
             ['', '', '', '', '', '', 'singleSFR', '0x340', '', '[31:0]', '0xff', 'RW', 'Y', 'single sfr'],
             ['', '', '', '', '', '', 'singleField', '0x344', '', '[31:0]', '0xf00', 'RW', 'Y', 'single field sfr'],
             ['', '', '', '', '', '', '', '', 'field0', '[15:7]', '0x71', 'RW', 'Y', 'field'],
-            ['', '', '', '', '', '', 'singleRepeatedField', '0x348', '0x4,0..1', '[31:0]', '0xf0', 'RW', 'Y', 'single repeated field sfr'],
+            ['', '', '', '', '', '', 'singleRepeatedField', '0x348', '0x4,0..1', '[31:0]', '0xf0', 'RW', 'Y',
+             'single repeated field sfr'],
             ['', '', '', '', '', '', '', '', 'field0', '[15:8]', '0xf', 'RW', 'Y', 'field0'],
             ['', '', '', '', '', '', '', '', 'field1', '[7:0]', '0', 'RW', 'Y', 'field1'],
-            ['PeripheralCtrl2', '3', '0x30', '', '', '', 'PowerCtrl', '0x400', 'Enable', '[0:0]', '0x0', 'RW', 'Y', 'Power enable for peripheral'],
+            ['PeripheralCtrl2', '3', '0x30', '', '', '', 'PowerCtrl', '0x400', 'Enable', '[0:0]', '0x0', 'RW', 'Y',
+             'Power enable for peripheral'],
             ['', '', '', '', '', '', '', '', 'SleepMode', '[2:1]', '0x0', 'RC', 'Y', 'Read clears sleep mode'],
-            ['', '', '', '', '', '', 'DMAConfig', '0x404', 'Channel', '[3:0]', '0x0', 'WRS', 'Y', 'Write as-is, read sets bits'],
+            ['', '', '', '', '', '', 'DMAConfig', '0x404', 'Channel', '[3:0]', '0x0', 'WRS', 'Y',
+             'Write as-is, read sets bits'],
             ['', '', '', '', '', '', 'DMAStatus', '0x408', 'Busy', '[0:0]', '0x0', 'RO', 'Y', 'DMA busy status'],
             ['', '', '', '', '', '', 'doubleint', '0x494', '', '[63:0]', '0', 'RW', 'Y', 'double int size sfr'],
             ['', '', '', '', '', '', 'long', '0x49C', '', '[127:0]', '0', 'RW', 'Y', 'long size sfr'],
@@ -718,7 +710,7 @@ def create_test_xlsx():
             ['', '', '', '', '', '', 'custom512', '0x4CC', '', '[511:0]', '0', 'RW', 'Y', '512b size sfr']
         ]
         pd.DataFrame(complex_sfr_data).to_excel(writer, sheet_name='ComplexSFR', index=False, header=False)
-    
+
     return test_xlsx
 
 

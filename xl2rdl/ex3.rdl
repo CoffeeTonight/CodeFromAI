@@ -1,0 +1,60 @@
+addrmap MainComplex 
+#(longint BUS_WIDTH = 128) 
+	{
+    default regwidth = 32;
+    default sw = rw;
+    default hw = r;
+    addrmap SystemCtrl{
+        reg {
+                field { sw = rw; hw = rw; desc = "System-wide mode control"; } Mode [7:0] = 0;
+        }CTRL @ 0x0;
+        regfile  {
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Enables clock source"; } Enable;
+            }  Control;
+            reg {
+                    field { sw = r; hw = w; reset = 0x0; desc = "PLL lock status"; } Locked [0:0];
+            } OK;
+        }CONT @ 0x4;
+        regfile {
+            reg {
+                    field { sw = w; hw = r; reset = 0x0; desc = "Write-only soft reset trigger"; } SoftReset [0:0];
+            } RST[2];
+        }ResetCtrl[4] @ 0x10 += 0x20;
+        reg {
+                field { sw = rw; hw = rw; desc = "System-wide mode control"; } Mode [7:0] = 0;
+        }CTRL1;
+    }SystemCtrl @ 0x0;
+    regfile  {
+        regfile  {
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Load timer counter value (1st instance)"; } LoadValue [31:0];
+            }  TimerLoad @ 0x40;
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Enable/disable timer"; } Enable [0:0];
+            }  Control @ 0x44;
+            reg {
+                    field { sw = w; hw = r; onwrite = woclr; reset = 0x0; desc = "Write 1 to toggle overflow flag"; } Overflow [0:0];
+            }OO;
+        }Ctrl;
+        regfile  {
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Load timer counter value (2nd instance)"; } LoadValue [31:0];
+            }  TimerLoad @ 0xc0;
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Enable/disable timer"; } Enable [0:0];
+            }OQ;
+        }TimerConfig;
+        regfile  {
+            reg {
+                    field { sw = rw; hw = rw; reset = 0x0; desc = "Enable timer interrupt (2nd instance)"; } TimerInt [0:0];
+            }  IntEnable @ 0xe0;
+            reg {
+                    field { sw = r; hw = w; onread = rset; reset = 0x0; desc = "Read sets status bit"; } Pending [0:0];
+            }  IntStatus @ 0xe4;
+            reg {
+                    field { sw = r; hw = w; reset = 0x0; desc = "Standalone status register"; } Status [3:0];
+            }OP;
+        }InterruptSub;
+    }TimerGroup[2] @ 0x100 += 0x800;
+};

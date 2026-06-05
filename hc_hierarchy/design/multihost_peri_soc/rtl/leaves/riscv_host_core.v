@@ -1,0 +1,13 @@
+// Leaf: riscv_host_core
+module riscv_host_core (
+    input  logic clk,
+    input  logic rst_n,
+inout logic [1:0] debug_pad
+);
+    `include "orion_cfg.svh"
+    logic [31:0] scratch;
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) scratch <= 32'h0;
+        else scratch <= scratch + 1'b1;
+    end
+endmodule

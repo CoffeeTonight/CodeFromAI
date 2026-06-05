@@ -1,0 +1,14 @@
+# Batch DQL — design/synthetic_deep_rtl/top_deep_soc.hc.f (~991 sources)
+# Index first (slow, resume-safe):
+#   ./scripts/index_synthetic_full.sh design/synthetic_deep_rtl/deep_soc.hch.db
+# Query:
+#   hch-query -d design/synthetic_deep_rtl/deep_soc.hch.db fixtures/dql_batch_synthetic_full.txt -o full_batch.tsv
+
+path = "deep_soc_top"
+path ^= "deep_soc_top.u_"
+module ~ "jupiter*"
+module ~ "ecc*"
+module IN ("jupiter_noc", "nvme_host", "pmu")
+port ~ "clk"
+file ~ "*deep_soc_top*"
+node_count == 1 AND path ^= "deep_soc_top"

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>hc_hierarchy</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">hch</span>
+      <span class="title">Hierarchy Explorer</span>
+    </div>
+    <div class="meta-wrap">
+      <div id="meta-bar" class="meta-bar">Loading index…</div>
+      <button type="button" id="btn-meta-toggle" class="ghost meta-toggle" title="Index details">ⓘ</button>
+    </div>
+  </header>
+  <div id="meta-panel" class="meta-panel hidden" aria-label="Index metadata"></div>
+
+  <main class="layout">
+    <aside class="panel tree-panel">
+      <div class="panel-head">
+        <h2>Hierarchy</h2>
+        <button type="button" id="btn-reload-tree" class="ghost" title="Reload roots">↻</button>
+      </div>
+      <div id="tree" class="tree" role="tree" aria-label="Instance tree"></div>
+    </aside>
+
+    <section class="panel main-panel">
+      <div class="dql-bar">
+        <label for="dql-input">DQL</label>
+        <input
+          id="dql-input"
+          type="text"
+          spellcheck="false"
+          placeholder='port_path ^= "top.clk"  ·  inst ~ "u_*"  ·  expand_ports'
+        />
+        <button type="button" id="btn-run-dql" class="primary">Run</button>
+        <button type="button" id="btn-export-text" class="ghost" title="Copy results as text">Text</button>
+        <button type="button" id="btn-download-text" class="ghost" title="Download .txt">↓</button>
+        <span id="query-status" class="query-status"></span>
+      </div>
+      <div class="results-wrap">
+        <table class="results" id="results-table">
+          <thead>
+            <tr>
+              <th>full_path</th>
+              <th>inst</th>
+              <th>module</th>
+              <th>depth</th>
+              <th>file</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="panel source-panel">
+      <div class="panel-head">
+        <h2>Source</h2>
+        <span id="source-path" class="source-path"></span>
+      </div>
+      <pre id="source-view" class="source-view"><code class="muted">Select a tree node or query row</code></pre>
+      <pre id="text-export" class="text-export hidden" aria-label="Query text export"></pre>
+      <div id="ports-box" class="ports-box hidden">
+        <h3>Ports</h3>
+        <ul id="ports-list"></ul>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <span>Backend: SQLite index · DQL</span>
+    <a href="/api/meta" target="_blank" rel="noopener">/api/meta</a>
+  </footer>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

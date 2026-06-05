@@ -1,0 +1,1 @@
+"""Read-only hierarchy explorer (PySide6)."""

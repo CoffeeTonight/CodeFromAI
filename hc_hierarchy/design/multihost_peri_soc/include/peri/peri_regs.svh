@@ -1,0 +1,5 @@
+`ifndef PERI_REGS_SVH
+`define PERI_REGS_SVH
+`define ORION_UART_BASE 32'h4000_0000
+`define ORION_SPI_BASE  32'h4001_0000
+`endif

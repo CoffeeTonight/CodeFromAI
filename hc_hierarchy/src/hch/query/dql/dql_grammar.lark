@@ -1,0 +1,50 @@
+// DQL grammar (JIRA-JQL style) — hc_hierarchy
+
+start: expr
+
+expr: or_term
+
+or_term: and_term ( "OR"i and_term )*
+
+and_term: not_term ( "AND"i not_term )*
+
+not_term: "NOT"i atom  -> not_atom
+        | atom
+
+atom: "(" expr ")"
+    | comparison
+    | bare
+
+comparison: WORD comparison_op value                              -> field_op
+          | WORD "IN"i "(" value_list ")"                       -> field_in
+          | WORD "NOT"i "IN"i "(" value_list ")"                -> field_not_in
+
+comparison_op: EQ2 | EQ | NE | TILDE | NOT_TILDE | PREFIX | GE | LE | GT | LT
+
+bare: WORD
+
+value_list: value ( "," value )*
+
+value: STRING | WORD | NUM
+
+NUM: /\d+/
+
+TILDE:     "~"
+NOT_TILDE: "!~"
+PREFIX:    "^="
+GE:        ">="
+LE:        "<="
+GT:        ">"
+LT:        "<"
+EQ2: "=="
+EQ: "="
+NE: "!="
+
+STRING: /"(\\.|[^"\\])*"|'(\\.|[^'\\])*'/
+
+WORD: /[a-zA-Z_][a-zA-Z0-9_.*\-?]*/
+
+%import common.WS
+%ignore WS
+COMMENT: /\/\/[^\n]*/
+%ignore COMMENT

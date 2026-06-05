@@ -1,0 +1,15 @@
+// Auto-generated dummy module for deep hierarchy testing
+// Module: usb4_host
+// Generated: 2026-06-01T14:21:39.910279
+
+module usb4_host (
+    input  logic clk,
+    input  logic rst_n,
+    inout logic tx_data,
+    inout logic rx_data,
+    inout logic irq,
+    inout logic link_up
+);
+
+    // Placeholder implementation for filelist + DQL testing
+endmodule

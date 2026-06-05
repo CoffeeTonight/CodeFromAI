@@ -1,0 +1,8 @@
+# Batch DQL — design/synthetic_deep_rtl/quick.hc.f (top: deep_soc_top)
+# Run after: hch-index design/synthetic_deep_rtl/quick.hc.f -o quick.hch.db --top deep_soc_top
+
+path = "deep_soc_top"
+path ^= "deep_soc_top.u_"
+module ~ "jupiter*"
+module ~ "ecc*"
+port ~ "clk"

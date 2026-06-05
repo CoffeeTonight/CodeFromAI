@@ -1,0 +1,22 @@
+# Batch DQL — design/HDLforAST (top_module)
+# Run: hch-query -d hdlforast.hch.db fixtures/dql_batch_hdlforast.txt
+
+# top exists
+path = "top_module"
+
+# subtree under middle instance
+path ^= "top_module.u_middle_0"
+
+# module glob
+module ~ "middle*"
+
+# port on subtree (indexed instance_ports)
+port ~ "clk" AND path ^= "top_module"
+
+# OR across module types
+(module ~ "middle*" OR module ~ "sub_*") AND path ^= "top_module"
+
+# direct children of top (one dot in path)
+node_count == 1 AND path ^= "top_module"
+# deepest hits under top (post-filter)
+lastnode AND path ^= "top_module"

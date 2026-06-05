@@ -1,0 +1,1 @@
+${HCH_ROOT}/design/extras/parse_p2/rtl/p2_features.v

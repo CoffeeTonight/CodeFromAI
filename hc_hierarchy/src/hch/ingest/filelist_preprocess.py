@@ -1,0 +1,325 @@
+"""
+Expand Verilog filelists (-f / -F) and emit pyslang-safe lines.
+
+VCS semantics:
+  -f nested.f  — locate nested.f relative to the containing .f directory;
+                 paths inside nested.f are relative to nested.f's directory.
+  -F nested.f  — locate nested.f relative to index_cwd (EDA run directory);
+                 paths inside nested.f are relative to index_cwd.
+
+pyslang does not implement -F; we flatten to absolute +incdir+, +define+, and
+source paths (no nested -f/-F).
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, List, Mapping, Optional, Set, Union
+
+
+@dataclass
+class FilelistResult:
+    top_path: Path
+    base_dir: Path
+    source_files: List[Path] = field(default_factory=list)
+    incdirs: List[Path] = field(default_factory=list)
+    defines: Dict[str, str] = field(default_factory=dict)
+    library_files: List[Path] = field(default_factory=list)
+    library_dirs: List[Path] = field(default_factory=list)
+    libexts: List[str] = field(default_factory=lambda: [".v", ".sv", ".vh", ".svh"])
+    slang_options: List[str] = field(default_factory=list)
+    unsupported_options: List[str] = field(default_factory=list)
+    top_modules: List[str] = field(default_factory=list)
+    work_library: str = ""
+    errors: List[str] = field(default_factory=list)
+    index_cwd_used: Optional[Path] = None
+
+
+def _strip_comments(line: str) -> str:
+    line = re.sub(r"/\*.*?\*/", "", line, flags=re.DOTALL)
+    if "//" in line:
+        line = line.split("//", 1)[0]
+    return line.strip()
+
+
+def expand_filelist(
+    top_filelist: Union[str, Path],
+    env: Optional[Dict[str, str]] = None,
+    *,
+    index_cwd: Optional[Union[str, Path]] = None,
+) -> FilelistResult:
+    """
+    Expand a top ``.f`` into :class:`FilelistResult`.
+
+    ``index_cwd`` is the directory tools use for ``-F`` (see :func:`filelist_cwd.resolve_index_cwd`).
+    """
+    from hch.ingest.filelist_cwd import resolve_index_cwd
+
+    top = Path(top_filelist).resolve()
+    cwd = resolve_index_cwd(top, index_cwd, env)
+    env = env or {}
+    result = FilelistResult(top_path=top, base_dir=top.parent)
+    seen_fl: Set[Path] = set()
+    seen_src: Set[Path] = set()
+
+    def expand_env(s: str) -> str:
+        for k, v in env.items():
+            s = s.replace(f"${{{k}}}", v).replace(f"${k}", v)
+        return os.path.expandvars(s)
+
+    def resolve_path(raw: str, base: Path) -> Path:
+        raw = expand_env(raw.strip().strip('"').strip("'"))
+        p = Path(raw)
+        if not p.is_absolute():
+            p = base / p
+        return p.resolve()
+
+    def add_source(sp: Path) -> None:
+        if sp in seen_src:
+            return
+        seen_src.add(sp)
+        if sp.exists():
+            result.source_files.append(sp)
+        else:
+            result.errors.append(f"Source not found: {sp}")
+
+    def add_incdir(ip: Path) -> None:
+        if ip not in result.incdirs:
+            result.incdirs.append(ip)
+
+    def parse_one(fpath: Path, *, content_base: Path) -> None:
+        if fpath in seen_fl:
+            return
+        seen_fl.add(fpath)
+        if not fpath.exists():
+            result.errors.append(f"Filelist not found: {fpath}")
+            return
+        base = content_base
+        text = fpath.read_text(encoding="utf-8", errors="ignore")
+        for raw_line in text.splitlines():
+            line = _strip_comments(raw_line)
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("+incdir+"):
+                body = line[len("+incdir+") :]
+                parts = [body] if "+./" not in body and "+../" not in body else re.split(
+                    r"(?=\+(?:\./|\.\./|/|[A-Za-z_$]))", body
+                )
+                for part in parts:
+                    part = part.lstrip("+").strip()
+                    if not part:
+                        continue
+                    add_incdir(resolve_path(part, base))
+            elif line.startswith("+define+"):
+                body = line[len("+define+") :]
+                if "=" in body:
+                    k, v = body.split("=", 1)
+                else:
+                    k, v = body, "1"
+                result.defines[k.strip()] = v.strip()
+            elif line.startswith("+libext+"):
+                body = line[len("+libext+") :]
+                for part in re.split(r"\+", body):
+                    ext = part.strip()
+                    if ext and not ext.startswith("."):
+                        ext = "." + ext
+                    if ext and ext not in result.libexts:
+                        result.libexts.append(ext)
+            elif line.startswith("-v "):
+                vp = resolve_path(line[3:].strip(), base)
+                if vp not in result.library_files:
+                    result.library_files.append(vp)
+            elif line.startswith("-y "):
+                yp = resolve_path(line[3:].strip(), base)
+                if yp not in result.library_dirs:
+                    result.library_dirs.append(yp)
+            elif line.startswith("+libdir+"):
+                body = line[len("+libdir+") :]
+                for part in re.split(r"\+", body):
+                    part = part.lstrip("+").strip()
+                    if part:
+                        result.slang_options.append(
+                            f"+libdir+{resolve_path(part, base)}"
+                        )
+            elif line.startswith("+librescan"):
+                result.slang_options.append("+librescan")
+            elif line.startswith("-sverilog") or line == "-sverilog":
+                result.slang_options.append("-sverilog")
+            elif line.startswith("-timescale="):
+                result.slang_options.append(line)
+            elif line.startswith("+ntb"):
+                result.unsupported_options.append(line[:40])
+            elif line.startswith("-top ") or line.startswith("-topmodule "):
+                top_name = line.split(maxsplit=1)[1].strip() if " " in line else ""
+                if top_name and top_name not in result.top_modules:
+                    result.top_modules.append(top_name)
+            elif line.startswith("-work ") or line.startswith("-worklib "):
+                result.work_library = line.split(maxsplit=1)[1].strip()
+            elif line.startswith("+top+"):
+                body = line[len("+top+") :].strip()
+                if body and body not in result.top_modules:
+                    result.top_modules.append(body)
+            elif line.startswith("-f "):
+                nested = line[3:].strip()
+                np = resolve_path(nested, fpath.parent)
+                parse_one(np, content_base=np.parent)
+            elif line.startswith("-F "):
+                nested = line[3:].strip()
+                np = resolve_path(nested, cwd)
+                parse_one(np, content_base=cwd)
+            else:
+                tokens = line.split()
+                if len(tokens) >= 2 and tokens[0] in ("-top", "-topmodule"):
+                    if tokens[1] not in result.top_modules:
+                        result.top_modules.append(tokens[1])
+                elif len(tokens) >= 2 and tokens[0] in ("-work", "-worklib"):
+                    result.work_library = tokens[1]
+                for tok in tokens:
+                    if tok.endswith((".v", ".sv", ".vh", ".svh")):
+                        add_source(resolve_path(tok, base))
+
+    parse_one(top, content_base=top.parent)
+    add_incdir(result.base_dir)
+    result.index_cwd_used = cwd
+    return result
+
+
+def build_slang_filelist_lines(fl: FilelistResult) -> List[str]:
+    """Flatten :class:`FilelistResult` to lines pyslang ``processCommandFiles`` accepts."""
+    lines: List[str] = []
+    if fl.libexts:
+        lines.append("+libext+" + "+".join(fl.libexts))
+    for inc in fl.incdirs:
+        lines.append(f"+incdir+{Path(inc).resolve()}")
+    for name, val in sorted(fl.defines.items()):
+        lines.append(f"+define+{name}={val}" if val else f"+define+{name}")
+    for ydir in fl.library_dirs:
+        lines.append(f"-y {Path(ydir).resolve()}")
+    for vfile in fl.library_files:
+        lines.append(f"-v {Path(vfile).resolve()}")
+    for opt in fl.slang_options:
+        if opt:
+            lines.append(opt)
+    for src in fl.source_files:
+        lines.append(str(Path(src).resolve()))
+    return lines
+
+
+def _defines_cache_tag(defines: Mapping[str, str]) -> str:
+    if not defines:
+        return ""
+    import hashlib
+    import json
+
+    blob = json.dumps(sorted(defines.items()), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode()).hexdigest()[:12]
+
+
+def slang_filelist_cache_path(
+    fl: FilelistResult,
+    cache_hint: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Stable path for a cached pyslang filelist (prefer beside output DB)."""
+    tag = _defines_cache_tag(fl.defines)
+    tag_part = f".{tag}" if tag else ""
+
+    def _with_tag(path: Path) -> Path:
+        if not tag:
+            return path
+        return path.parent / f"{path.stem}{tag_part}{path.suffix}"
+
+    if cache_hint:
+        hint = Path(cache_hint)
+        if hint.suffix == ".db" or hint.name.endswith(".hch.db"):
+            return _with_tag(hint.parent / f"{hint.name}.slang.f")
+        return _with_tag(hint.resolve())
+    return _with_tag((fl.base_dir / f".{fl.top_path.stem}.hch_slang.f").resolve())
+
+
+def slang_filelist_is_stale(
+    dest: Path,
+    filelist_mtimes: Dict[str, float],
+) -> bool:
+    if not dest.exists():
+        return True
+    try:
+        dest_mt = dest.stat().st_mtime
+    except OSError:
+        return True
+    for path, mt in filelist_mtimes.items():
+        p = Path(path)
+        if not p.exists():
+            return True
+        try:
+            if p.stat().st_mtime > dest_mt:
+                return True
+        except OSError:
+            return True
+    return False
+
+
+def write_slang_filelist(
+    fl: FilelistResult,
+    dest: Optional[Union[str, Path]] = None,
+) -> Path:
+    """Write preprocessed filelist; return path."""
+    body = "\n".join(build_slang_filelist_lines(fl)) + "\n"
+    if dest is not None:
+        out = Path(dest)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(body, encoding="utf-8")
+        return out.resolve()
+    fd, path = tempfile.mkstemp(suffix=".f", prefix="hch_slang_")
+    os.close(fd)
+    out = Path(path)
+    out.write_text(body, encoding="utf-8")
+    return out.resolve()
+
+
+def write_slang_filelist_cached(
+    fl: FilelistResult,
+    *,
+    index_cwd: Optional[Path] = None,
+    cache_path: Optional[Union[str, Path]] = None,
+    filelist_mtimes: Optional[Dict[str, float]] = None,
+) -> Path:
+    """Write or reuse preprocessed slang filelist when nested .f mtimes are unchanged."""
+    from hch.ingest.filelist_cache import collect_filelist_mtimes
+
+    cwd = index_cwd or fl.index_cwd_used or fl.base_dir
+    dest = slang_filelist_cache_path(fl, cache_path)
+    mtimes = filelist_mtimes
+    if mtimes is None:
+        mtimes = collect_filelist_mtimes(fl.top_path, index_cwd=cwd)
+    if not slang_filelist_is_stale(dest, mtimes):
+        return dest.resolve()
+    return write_slang_filelist(fl, dest)
+
+
+@dataclass
+class PreprocessedFilelist:
+    expanded: FilelistResult
+    slang_lines: List[str] = field(default_factory=list)
+    slang_path: Optional[Path] = None
+
+
+def preprocess_filelist_for_slang(
+    top_filelist: Union[str, Path],
+    env: Optional[Dict[str, str]] = None,
+    *,
+    index_cwd: Optional[Union[str, Path]] = None,
+    write_path: Optional[Union[str, Path]] = None,
+) -> PreprocessedFilelist:
+    """Expand -f/-F with EDA semantics and build a pyslang-safe filelist."""
+    fl = expand_filelist(top_filelist, env, index_cwd=index_cwd)
+    lines = build_slang_filelist_lines(fl)
+    slang_path = (
+        write_slang_filelist(fl, write_path)
+        if fl.source_files or fl.library_files or fl.library_dirs
+        else None
+    )
+    return PreprocessedFilelist(expanded=fl, slang_lines=lines, slang_path=slang_path)

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hc-hierarchy"
+version = "0.1.0"
+description = "RTL hierarchy index and DQL query (pyslang)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "lark>=1.1.5",
+]
+
+[project.optional-dependencies]
+engine = ["pyslang>=9.0"]
+gui = ["PySide6>=6.5"]
+dev = ["pytest>=7.0"]
+fast = ["orjson>=3.9"]
+
+[project.scripts]
+hch-verify = "hch.apps.verify_cli:main"
+hch-index = "hch.apps.index_cli:main"
+hch-query = "hch.apps.query_cli:main"
+hch-gui = "hch.apps.gui_cli:main"
+hch-web = "hch.apps.web_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"hch.apps" = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "requires_engine: needs pyslang",
+    "slow: large synthetic_deep_rtl full filelist",
+]

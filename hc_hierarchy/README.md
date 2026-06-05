@@ -168,6 +168,23 @@ PYTHONPATH=src python3 scripts/self_check_tier_e.py
 
 ---
 
+## Windows / Linux 경로
+
+- DB·`module_ref`·slang filelist 경로는 **절대경로 + `/` 구분자**로 통일 (`hch.platform_paths`).
+- `.f` 안에 `rtl\top.v` 또는 `rtl/top.v` 둘 다 가능.
+- DQL: `file ~ "*extras*dup*"` — 쿼리에 `\` 또는 `/` 사용 가능.
+- PowerShell 예:
+
+```powershell
+cd C:\path\to\hc_hierarchy
+pip install -e ".[engine,dev]"
+$env:PYTHONPATH = "src"
+hch-index design\HDLforAST\filelist.f -o design.hch.db --top top_module `
+  --index-cwd design\HDLforAST
+```
+
+검증 스크립트(`.sh`)는 Git Bash/WSL에서 실행; Windows만 쓸 때는 `pytest tests/phase29/ tests/phase28/ -q`.
+
 ## Git에 올리기
 
 ```bash
@@ -181,6 +198,15 @@ git commit -m "hc_hierarchy v1 indexing tool"
 - `design/HDLforAST` — 저장소에 **실파일** 포함 (외부 symlink 제거됨)
 - `design/synthetic_deep_rtl` — ~23MB 스트레스 RTL (테스트용, 필요 시 LFS 고려)
 - 생성물은 커밋하지 않음: `.gitignore` 참고
+
+## 생성물 정리
+
+```bash
+python3 scripts/clean.py              # .hch.db, slang 캐시, logs 등
+python3 scripts/clean.py --dry-run    # 삭제 목록만
+python3 scripts/clean.py --all        # + .pytest_cache, __pycache__, build/
+# Windows: python scripts\clean.py
+```
 
 ## 검증 스크립트
 

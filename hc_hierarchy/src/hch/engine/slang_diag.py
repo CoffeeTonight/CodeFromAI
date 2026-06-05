@@ -78,13 +78,15 @@ def collect_tree_parse_diagnostics_by_file(
     by_file: Dict[str, Dict[str, object]] = defaultdict(
         lambda: {"errors": 0, "warnings": 0, "messages": [], "status": "ok"}
     )
+    from hch.platform_paths import path_to_db
+
     for src in sources:
-        by_file[str(Path(src).resolve())]  # ensure key exists
+        by_file[path_to_db(src)]  # ensure key exists
 
     de = getattr(driver, "diagEngine", None)
     sm = getattr(driver, "sourceManager", None)
     for tree, src in pair_trees_with_sources(trees, sources):
-        path = str(Path(src).resolve()) if src else ""
+        path = path_to_db(src) if src else ""
         if not path and sm is not None:
             path = diagnostic_source_path(
                 getattr(tree, "root", None) or tree, sm

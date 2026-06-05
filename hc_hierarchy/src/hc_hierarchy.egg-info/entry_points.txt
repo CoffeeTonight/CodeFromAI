@@ -1,6 +1,0 @@
-[console_scripts]
-hch-gui = hch.apps.gui_cli:main
-hch-index = hch.apps.index_cli:main
-hch-query = hch.apps.query_cli:main
-hch-verify = hch.apps.verify_cli:main
-hch-web = hch.apps.web_cli:main

@@ -59,7 +59,9 @@ def ingest_source_files(
 ) -> Dict[str, ModuleRecord]:
     _require_pyslang()
     paths = [Path(f).resolve() for f in filenames]
-    inc = [str(Path(d).resolve()) for d in (include_dirs or [])]
+    from hch.platform_paths import path_to_slang
+
+    inc = [path_to_slang(d) for d in (include_dirs or [])]
     trees = parse_syntax_trees(
         paths,
         include_dirs=inc,
@@ -139,7 +141,9 @@ def ingest_filelist_result(
     ) or stats.get("primitive_count", 0)
     parse_errors_by_file: Dict[str, Dict[str, object]] = {}
     for src in sources:
-        key = str(Path(src).resolve())
+        from hch.platform_paths import path_to_db
+
+        key = path_to_db(src)
         parse_errors_by_file[key] = {
             "errors": 0,
             "warnings": 0,

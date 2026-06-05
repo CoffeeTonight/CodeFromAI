@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from hch.platform_paths import (  # noqa: F401 — re-export
+    path_to_db,
+    path_to_posix,
+    path_to_slang,
+    paths_equal,
+    resolve_path,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 

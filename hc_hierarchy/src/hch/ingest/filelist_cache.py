@@ -10,6 +10,7 @@ from typing import Dict, Optional, Set
 
 from hch.ingest.filelist import FilelistResult, parse_filelist_simple
 from hch.ingest.filelist_cwd import resolve_index_cwd
+from hch.platform_paths import path_to_db
 
 
 @dataclass
@@ -50,7 +51,7 @@ def collect_filelist_mtimes(
         seen.add(fl)
         if not fl.exists():
             continue
-        key = str(fl)
+        key = path_to_db(fl)
         try:
             out[key] = fl.stat().st_mtime
         except OSError:

@@ -10,7 +10,10 @@ from hch.schema import ModuleRecord
 
 
 def module_ref(file_path: str, module_name: str) -> str:
-    return f"{file_path}::{module_name}"
+    from hch.platform_paths import path_to_db
+
+    fp = path_to_db(file_path) if file_path else ""
+    return f"{fp}::{module_name}"
 
 
 def definition_paths_for_record(
@@ -24,7 +27,9 @@ def definition_paths_for_record(
     def add(raw: str) -> None:
         if not raw:
             return
-        p = str(Path(raw).resolve())
+        from hch.platform_paths import path_to_db
+
+        p = path_to_db(raw)
         if p not in seen:
             seen.add(p)
             paths.append(p)

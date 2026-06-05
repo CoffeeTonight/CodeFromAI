@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Mapping, Optional, Sequence, Tuple
 
 from hch.ingest.multi_def import module_ref
+from hch.platform_paths import path_contains, path_to_db, paths_equal
 
 
 def paths_for_module_name(
@@ -17,7 +18,7 @@ def paths_for_module_name(
     out: list[str] = []
     seen: set[str] = set()
     for p in raw:
-        key = str(Path(p).resolve())
+        key = path_to_db(p)
         if key not in seen:
             seen.add(key)
             out.append(key)
@@ -42,17 +43,19 @@ def resolve_instance_module_ref(
     paths = paths_for_module_name(module_name, mod_paths_by_name or {})
     if not paths:
         fp = edge_file or parent_module_file
-        return module_ref(str(Path(fp).resolve()) if fp else "", module_name)
+        return module_ref(path_to_db(fp) if fp else "", module_name)
 
     if edge_file:
-        edge_res = str(Path(edge_file).resolve())
+        edge_res = path_to_db(edge_file)
         for p in paths:
-            if p == edge_res or edge_res.endswith(p) or p.endswith(edge_res):
+            if paths_equal(p, edge_res) or path_contains(edge_res, p) or path_contains(
+                p, edge_res
+            ):
                 return module_ref(p, module_name)
 
     if parent_module_file:
-        parent_dir = str(Path(parent_module_file).resolve().parent)
-        local = [p for p in paths if parent_dir in p]
+        parent_dir = path_to_db(Path(parent_module_file).parent)
+        local = [p for p in paths if path_contains(p, parent_dir)]
         if len(local) == 1:
             return module_ref(local[0], module_name)
 

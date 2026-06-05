@@ -190,9 +190,12 @@ class HierarchyDbService:
         return payload
 
     def allowed_source(self, filepath: str) -> bool:
+        from hch.platform_paths import path_to_db
+
+        fp = path_to_db(filepath)
         row = self.conn.execute(
             "SELECT 1 FROM files WHERE filepath = ? LIMIT 1",
-            (filepath,),
+            (fp,),
         ).fetchone()
         return row is not None
 
@@ -203,10 +206,12 @@ class HierarchyDbService:
         max_bytes: int = 512_000,
         highlight: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        fp = str(Path(filepath).resolve())
+        from hch.platform_paths import path_to_db, resolve_path
+
+        fp = path_to_db(filepath)
         if not self.allowed_source(fp):
             raise PermissionError("File not in index")
-        path = Path(fp)
+        path = resolve_path(fp)
         if not path.is_file():
             raise FileNotFoundError(filepath)
         data = path.read_bytes()

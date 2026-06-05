@@ -71,12 +71,14 @@ def expand_filelist(
             s = s.replace(f"${{{k}}}", v).replace(f"${k}", v)
         return os.path.expandvars(s)
 
+    from hch.platform_paths import normalize_filelist_token, resolve_path as _resolve_abs
+
     def resolve_path(raw: str, base: Path) -> Path:
-        raw = expand_env(raw.strip().strip('"').strip("'"))
+        raw = expand_env(normalize_filelist_token(raw))
         p = Path(raw)
         if not p.is_absolute():
             p = base / p
-        return p.resolve()
+        return _resolve_abs(p)
 
     def add_source(sp: Path) -> None:
         if sp in seen_src:
@@ -190,22 +192,24 @@ def expand_filelist(
 
 def build_slang_filelist_lines(fl: FilelistResult) -> List[str]:
     """Flatten :class:`FilelistResult` to lines pyslang ``processCommandFiles`` accepts."""
+    from hch.platform_paths import path_to_slang
+
     lines: List[str] = []
     if fl.libexts:
         lines.append("+libext+" + "+".join(fl.libexts))
     for inc in fl.incdirs:
-        lines.append(f"+incdir+{Path(inc).resolve()}")
+        lines.append(f"+incdir+{path_to_slang(inc)}")
     for name, val in sorted(fl.defines.items()):
         lines.append(f"+define+{name}={val}" if val else f"+define+{name}")
     for ydir in fl.library_dirs:
-        lines.append(f"-y {Path(ydir).resolve()}")
+        lines.append(f"-y {path_to_slang(ydir)}")
     for vfile in fl.library_files:
-        lines.append(f"-v {Path(vfile).resolve()}")
+        lines.append(f"-v {path_to_slang(vfile)}")
     for opt in fl.slang_options:
         if opt:
             lines.append(opt)
     for src in fl.source_files:
-        lines.append(str(Path(src).resolve()))
+        lines.append(path_to_slang(src))
     return lines
 
 

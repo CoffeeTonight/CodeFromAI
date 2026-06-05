@@ -21,7 +21,9 @@ ModulePathIndex = Dict[str, List[str]]
 
 
 def _resolved(path: str | Path) -> str:
-    return str(Path(path).resolve())
+    from hch.platform_paths import path_to_db
+
+    return path_to_db(path)
 
 
 def build_module_path_index(sources: Sequence[str | Path]) -> ModulePathIndex:

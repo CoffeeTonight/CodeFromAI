@@ -21,11 +21,13 @@ def supplemental_library_sources(
     seen: set[str] = set()
     out: List[str] = []
 
+    from hch.platform_paths import path_to_db, path_to_slang
+
     def add(path: Path) -> None:
-        key = str(path.resolve())
+        key = path_to_db(path)
         if key not in seen and path.is_file():
             seen.add(key)
-            out.append(key)
+            out.append(path_to_slang(path))
 
     for lf in library_files:
         add(Path(lf))
@@ -84,9 +86,11 @@ class PyslangCompileContext:
         index_cwd: Optional[Union[str, Path]] = None,
         slang_cache_path: Optional[Union[str, Path]] = None,
     ) -> PyslangCompileContext:
-        primary = [str(p.resolve()) for p in fl.source_files]
-        lib_v = [str(p.resolve()) for p in fl.library_files]
-        lib_y = [str(p.resolve()) for p in fl.library_dirs]
+        from hch.platform_paths import path_to_slang
+
+        primary = [path_to_slang(p) for p in fl.source_files]
+        lib_v = [path_to_slang(p) for p in fl.library_files]
+        lib_y = [path_to_slang(p) for p in fl.library_dirs]
         extra: List[str] = []
         if include_lib_sources:
             extra = supplemental_library_sources(lib_v, lib_y, libexts=fl.libexts)
@@ -96,9 +100,9 @@ class PyslangCompileContext:
             if p not in seen:
                 seen.add(p)
                 sources.append(p)
-        incdirs = [str(p.resolve()) for p in fl.incdirs]
+        incdirs = [path_to_slang(p) for p in fl.incdirs]
         for p in sources:
-            parent = str(Path(p).parent)
+            parent = path_to_slang(Path(p).parent)
             if parent not in incdirs:
                 incdirs.append(parent)
         cwd = fl.index_cwd_used or resolve_index_cwd(fl.top_path, index_cwd)
@@ -130,13 +134,15 @@ class PyslangCompileContext:
         index_cwd: Optional[Union[str, Path]] = None,
         slang_cache_path: Optional[Union[str, Path]] = None,
     ) -> PyslangCompileContext:
+        from hch.platform_paths import path_to_slang
+
         ctx = cls.from_filelist(
             fl,
             include_lib_sources=False,
             index_cwd=index_cwd,
             slang_cache_path=slang_cache_path,
         )
-        ctx.source_files = [str(Path(p).resolve()) for p in pruned_sources]
+        ctx.source_files = [path_to_slang(p) for p in pruned_sources]
         ctx.filelist_path = None
         ctx.mode = "pruned"
         return ctx

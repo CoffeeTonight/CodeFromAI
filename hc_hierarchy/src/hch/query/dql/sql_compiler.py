@@ -170,6 +170,9 @@ def _compile_comparison(c: Comparison) -> Tuple[str, List[Any]]:
             return f"{col} != ?", [val]
 
     if field in ("module_ref", "modref"):
+        from hch.platform_paths import normalize_dql_path_pattern
+
+        val = normalize_dql_path_pattern(val)
         col = "COALESCE(i.module_ref, m.module_ref)"
         if op == "^=":
             return f"{col} LIKE ? ESCAPE '\\'", [_escape_like(val.rstrip("*")) + "%"]
@@ -194,6 +197,9 @@ def _compile_comparison(c: Comparison) -> Tuple[str, List[Any]]:
             return f"{col} != ?", [val]
 
     if field in ("file", "filepath", "filename"):
+        from hch.platform_paths import normalize_dql_path_pattern
+
+        val = normalize_dql_path_pattern(val)
         col = "f.filepath"
         if op == "^=":
             return f"{col} LIKE ? ESCAPE '\\'", [_escape_like(val.rstrip("*")) + "%"]

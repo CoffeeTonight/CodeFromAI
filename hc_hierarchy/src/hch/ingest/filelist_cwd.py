@@ -19,10 +19,12 @@ def resolve_index_cwd(
 
     Priority: explicit ``index_cwd`` → ``HCH_INDEX_CWD`` env → parent of top ``.f``.
     """
+    from hch.platform_paths import resolve_path
+
     if index_cwd is not None and str(index_cwd).strip():
-        return Path(index_cwd).expanduser().resolve()
+        return resolve_path(index_cwd)
     env_map = env if env is not None else os.environ
     raw = str(env_map.get(_ENV_INDEX_CWD, "") or "").strip()
     if raw:
-        return Path(raw).expanduser().resolve()
-    return Path(top_filelist).resolve().parent
+        return resolve_path(raw)
+    return resolve_path(Path(top_filelist).parent)

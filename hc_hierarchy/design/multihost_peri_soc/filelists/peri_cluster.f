@@ -1,0 +1,12 @@
++incdir+../include/common
++incdir+../include/peri
++define+PERI_CLUSTER
+../rtl/peri/apb_periph_cluster.v
+../rtl/leaves/uart16550.v
+../rtl/leaves/spi_master.v
+../rtl/leaves/spi_slave.v
+../rtl/leaves/i2c_controller.v
+../rtl/leaves/i3c_controller.v
+../rtl/leaves/gpio_bank.v
+../rtl/leaves/pwm_block.v
+../rtl/leaves/can_fd_ctrl.v

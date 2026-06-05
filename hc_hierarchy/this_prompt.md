@@ -30,6 +30,7 @@ Key code:
 Stress RTL: design/synthetic_deep_rtl (991 sources, 74 duplicate module names, top deep_soc_top).
 HDLforAST: design/HDLforAST/ (in-repo copy, not external symlink).
 Git: see README.md "Git에 올리기"; junk under logs/ and design caches are gitignored.
+Paths: src/hch/platform_paths.py — all DB/slang paths use forward slashes; Windows case-fold compare.
 Expected: --elaborate --elab-deep hybrid → hierarchy_source=path_elab_hybrid, ~991 instances.
 NOT a goal: 0 errors on full 991-file slang compile.
 

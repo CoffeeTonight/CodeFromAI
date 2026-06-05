@@ -98,13 +98,16 @@ class HierarchyStore:
         return row[0] if row else default
 
     def _upsert_file(self, filepath: str) -> int:
+        from hch.platform_paths import path_to_db
+
+        fp = path_to_db(filepath) if filepath else filepath
         self.conn.execute(
             "INSERT OR IGNORE INTO files (filepath) VALUES (?)",
-            (filepath,),
+            (fp,),
         )
         row = self.conn.execute(
             "SELECT id FROM files WHERE filepath = ?",
-            (filepath,),
+            (fp,),
         ).fetchone()
         return int(row[0])
 

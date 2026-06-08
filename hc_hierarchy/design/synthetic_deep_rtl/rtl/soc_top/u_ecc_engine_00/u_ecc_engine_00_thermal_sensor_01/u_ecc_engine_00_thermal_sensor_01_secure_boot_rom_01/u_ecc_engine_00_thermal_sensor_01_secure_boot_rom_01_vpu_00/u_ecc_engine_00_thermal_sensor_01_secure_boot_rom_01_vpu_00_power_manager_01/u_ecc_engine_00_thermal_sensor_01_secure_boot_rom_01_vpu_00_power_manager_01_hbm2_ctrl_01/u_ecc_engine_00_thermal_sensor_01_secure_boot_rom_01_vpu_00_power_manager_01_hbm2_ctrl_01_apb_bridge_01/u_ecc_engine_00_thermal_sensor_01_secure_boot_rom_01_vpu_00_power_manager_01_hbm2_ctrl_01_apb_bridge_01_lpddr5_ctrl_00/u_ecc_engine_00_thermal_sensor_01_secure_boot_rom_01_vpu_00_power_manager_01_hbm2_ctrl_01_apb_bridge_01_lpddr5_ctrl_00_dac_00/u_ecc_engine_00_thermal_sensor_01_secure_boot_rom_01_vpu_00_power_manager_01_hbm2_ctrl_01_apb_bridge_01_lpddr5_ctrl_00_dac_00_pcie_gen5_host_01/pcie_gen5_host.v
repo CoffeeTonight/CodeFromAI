@@ -1,0 +1,15 @@
+// Auto-generated dummy module for deep hierarchy testing
+// Module: pcie_gen5_host
+// Generated: 2026-06-01T14:21:40.302206
+
+module pcie_gen5_host (
+    input  logic clk,
+    input  logic rst_n,
+    inout logic tx_data,
+    inout logic rx_data,
+    inout logic irq,
+    inout logic link_up
+);
+
+    // Placeholder implementation for filelist + DQL testing
+endmodule

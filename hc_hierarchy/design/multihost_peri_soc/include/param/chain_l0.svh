@@ -1,0 +1,5 @@
+`ifndef ORION_CHAIN_L0_SVH
+`define ORION_CHAIN_L0_SVH
+`define ORION_CHAIN_W 32
+`define ORION_INHERIT_ID 16'hA5A5
+`endif

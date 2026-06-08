@@ -1,0 +1,28 @@
+.deps/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Index / slang artifacts
+*.hch.db
+*.hch.db.slang.f
+.filelist.hch_slang*
+# Generated under design/ during dev
+design/**/.filelist.hch_slang*
+design/**/.*.hch_slang.*.f
+design/**/elab_failure_diag.json
+design/**/elab_bench_report.json
+design/**/bench_*.hch.db
+design/synthetic_deep_rtl/full_batch.tsv
+
+logs/
+*.log
+/tmp/
+
+# Editor
+.idea/
+.vscode/
+*.swp

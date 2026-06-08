@@ -1,0 +1,46 @@
+// dql_grammar.lark
+// Reliable JIRA-JQL style grammar for DQL.
+// Strategy: one general WORD token + explicit keyword literals in rules.
+// This avoids FIELD vs BARE regex conflict completely.
+
+start: expr
+
+expr: or_term
+
+or_term: and_term ( "OR"i and_term )*
+
+and_term: not_term ( "AND"i not_term )*
+
+not_term: "NOT"i atom  -> not_atom
+        | atom
+
+atom: "(" expr ")"
+    | comparison
+    | bare
+
+comparison: WORD ( EQ | NE | TILDE | NOT_TILDE ) value          -> field_op
+          | WORD "IN"i "(" value_list ")"                       -> field_in
+          | WORD "NOT"i "IN"i "(" value_list ")"                -> field_not_in
+
+bare: WORD
+
+value_list: value ( "," value )*
+
+value: STRING | WORD
+
+// --- terminals ---
+TILDE:     "~"
+NOT_TILDE: "!~"
+EQ: "="
+NE: "!="
+
+STRING: /"(\\.|[^"\\])*"|'(\\.|[^'\\])*'/
+
+// WORD matches identifiers, bare patterns (uart*, u_foo.bar*), and will be
+// interpreted as field name when in field position, or as value otherwise.
+WORD: /[a-zA-Z_][a-zA-Z0-9_.*\-?]*/
+
+%import common.WS
+%ignore WS
+COMMENT: /\/\/[^\n]*/
+%ignore COMMENT

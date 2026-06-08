@@ -1,0 +1,1 @@
+`define COMMON 1

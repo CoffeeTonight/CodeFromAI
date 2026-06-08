@@ -1,0 +1,8 @@
+[
+  {"name": "soc.uart0",      "module": "uart_16550", "file": "ip/uart/uart_16550.v",   "ports": ["clk", "rst_n", "irq", "tx", "rx"]},
+  {"name": "soc.uart1",      "module": "uart_16550", "file": "ip/uart/uart_16550.v",   "ports": ["clk", "rst_n", "irq", "tx", "rx", "cts"]},
+  {"name": "soc.spi0",       "module": "spi_master", "file": "ip/spi/spi_master.v",    "ports": ["clk", "rst_n", "irq", "mosi", "miso", "sclk"]},
+  {"name": "soc.cpu.core0",  "module": "riscv32",    "file": "cpu/riscv_core.v",        "ports": ["clk", "rst_n", "irq"]},
+  {"name": "soc.cpu.uart05", "module": "uart",       "file": "legacy/uart.v",           "ports": ["clk", "reset", "irq", "txd", "rxd"]},
+  {"name": "tb.top",         "module": "testbench",  "file": "tb/testbench.sv",         "ports": ["clk", "rst"]}
+]

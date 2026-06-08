@@ -1,0 +1,17 @@
+# step3_nested_param_passing batch verification (C target)
+# Nested generate-for + outer param propagation + computed expressions in overrides
+
+name ~ "u_cluster*"
+
+# Total 4 instances for default params (2*2)
+name ~ "*u_leaf*"
+
+# Specific nested indices (after proper unrolling)
+name ~ "*u_cluster[0].u_core[0]*"
+name ~ "*u_cluster[0].u_core[1]*"
+name ~ "*u_cluster[1].u_core[0]*"
+name ~ "*u_cluster[1].u_core[1]*"
+
+# Negative: no raw generate labels should appear in final names
+name ~ "*u_core*"
+name ~ "*u_cluster*"

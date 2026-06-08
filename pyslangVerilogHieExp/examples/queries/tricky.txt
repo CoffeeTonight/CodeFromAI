@@ -1,0 +1,39 @@
+# ============================================
+# DQL Tricky Cases - 과거에 실제로 많이 깨지고 헤맸던 쿼리들
+# ============================================
+# 목적: module ~ vs inst ~ vs bare, in() 안의 패턴, port 조건과의 조합,
+#       B-mode에서 port가 정확히 하나만 나오는지 등을 스스로 검증하기 위함.
+
+# 1. module 필드 vs bare pattern 차이
+module ~ "uart"
+uart*
+
+# 2. module ~ "uart*5*" (uart05가 module 이름에 5가 없는데도 과거에 잘못 잡혔던 케이스)
+inst ~ "uart*5*"
+
+# 3. module in (패턴 포함) - 이게 제일 중요했던 버그
+#    과거: module in ("uart*5*", "spi") 하면 결과 0개 나옴
+inst in ("uart*5*", "spi") AND port ~ "irq"
+
+# 4. bare pattern + port 조건
+uart*5* AND port ~ "irq"
+
+# 5. name으로 검색할 때와 module로 검색할 때 차이
+inst ~ "*5*" AND port ~ "irq"
+
+# 6. inst ~ vs module ~ (데이터에 따라 inst 필드가 있을 수도 없음)
+inst ~ "uart"
+module ~ "uart"
+
+# 7. file 필드 검색
+file ~ "ip/uart*"
+
+# 8. 괄호 + NOT 조합
+(inst ~ "uart" AND port ~ "irq") AND NOT name ~ "*tb*"
+
+# 9. port 조건들
+port ~ "irq"
+port !~ "irq"
+
+# 10. in 리스트에 정확한 이름 + 패턴 혼합
+module in ("uart_16550", "spi*") AND port ~ "irq"

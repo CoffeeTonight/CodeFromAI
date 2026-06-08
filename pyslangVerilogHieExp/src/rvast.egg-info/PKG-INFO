@@ -1,0 +1,79 @@
+Metadata-Version: 2.4
+Name: rvast
+Version: 0.2.0
+Summary: Regex-based Verilog AST, elaboration, and DQL — Python-only RTL hierarchy tools
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: lark>=1.1.5
+Provides-Extra: gui
+Requires-Dist: PySide6>=6.5; extra == "gui"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+
+# regexVerilogAST_v2
+
+원본: `regexVerilogAST/` (절대 수정 금지)
+
+**Python-only** Verilog hierarchy 도구: regex 파서 → elaboration → **DQL** 검색.  
+Node.js는 웹 데모(`demo/hierarchy_explorer.html`)용 선택 사항이며, 코어는 전부 Python(`rvast` 패키지)입니다.
+
+## 설치
+
+```bash
+cd ~/tools/CodeFromAI/regexVerilogAST_v2
+pip install -e ".[dev]"    # Lark + pytest
+# GUI: pip install -e ".[gui]"   # PySide6
+```
+
+## 패키지 구조 (`src/rvast/`)
+
+| 모듈 | 역할 |
+|------|------|
+| `filelist/` | EDA 스타일 `.f` 파서 |
+| `preprocess/` | `` `include` / `` `define` / `` `ifdef` |
+| `parse/` | Regex Verilog 파서 (v1 이관) |
+| `generate/` | generate-for unroller, 표현식 평가 |
+| `elaborate/` | 파라미터 전파 + hierarchy 통합 |
+| `dql/` | Design Query Language (Lark) |
+| `pipeline.py` | **단일 진입점** — filelist → instances |
+| `apps/` | `rvast-dql`, `rvast-elab` CLI |
+
+`tools/` 아래 기존 파일명은 **호환용 shim** (`rvast` 재export)입니다.
+
+## 사용 예
+
+```bash
+# Elaboration (.f → JSON instances)
+rvast-elab design/HDLforAST/filelist.f -o /tmp/hier.json
+
+# DQL 검색
+rvast-dql -d demo_data/tiny_soc.json -q 'module ~ "uart" AND port ~ "irq"' --port-mode
+
+# DQL 단위 테스트
+python -m rvast.dql.test_dql
+pytest tests/test_rvast_smoke.py -q
+
+# GUI
+./_gui
+```
+
+## 개선 로드맵 (진행 중)
+
+1. 인스턴스 파라미터 `#(...)` — `elaborate/propagator.py`
+2. 인스턴스 포트 연결 — `parse/verilog.py`
+3. 포트 선언 파싱
+4. 프리프로세서 — `preprocess/verilog.py`
+5. Elaboration — `pipeline.py` + `elaborate/hierarchy.py`
+6. 회귀 테스트 — `pytest`, `examples/verify_dql.sh`
+7. HierarchyExplorer — JSON은 Python pipeline 출력 사용
+8. 문서화
+
+## 의존성 (오픈소스)
+
+- **[Lark](https://github.com/lark-parser/lark)** — DQL 파서 (이미 사용 중)
+- **PySide6** — GUI (optional extra)
+
+---
+
+# Original note
+Those are by hands with WRTN AI & Grok2

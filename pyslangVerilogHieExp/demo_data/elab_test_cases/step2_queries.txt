@@ -1,0 +1,25 @@
+# step2_generate_if batch verification queries (B target)
+# Must produce exact counts when unroller + dql_python are correct (no RTL cheats)
+
+# Total instances from the for loop (NUM_UNITS=4)
+name ~ "u_unit*"
+
+# The leader (i==0) branch
+name ~ "*u_first*"
+
+# The else/normal branch (should be 3)
+name ~ "*u_normal*"
+
+# Parameter passing check inside else: INDEX(i) for i=1,2,3
+name ~ "*u_normal*" AND module ~ "normal_unit"
+
+# Explicit index checks (after proper generate unroll)
+name ~ "*u_unit[0]*"
+name ~ "*u_unit[1]*"
+name ~ "*u_unit[2]*"
+name ~ "*u_unit[3]*"
+
+# Negative: no "gen_first" or "gen_normal" labels should leak into final hierarchy names
+# (real EDA tools do not expose the generate block labels as extra hierarchy levels in the instance names for simple cases)
+name ~ "*gen_first*"
+name ~ "*gen_normal*"

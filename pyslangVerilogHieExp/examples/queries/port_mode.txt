@@ -1,0 +1,24 @@
+# ============================================
+# B-mode (port-mode) 전용 검증
+# --port-mode 켰을 때 중요한 규칙:
+#   - port 조건이 있는 쿼리만 name.port 로 확장
+#   - 확장 결과는 해당 포트만 나와야 함 (다른 포트 동시 출력 = 버그)
+# ============================================
+
+# port 조건 명시 → per-port 확장 기대
+module ~ "uart" AND port ~ "irq"
+uart* AND port ~ "irq"
+port ~ "irq"
+
+# port 조건 없는 쿼리 → instance 단위 유지
+module ~ "uart"
+uart*
+
+# NOT port
+port !~ "irq"
+
+# OR port 조건
+(port ~ "irq" OR port ~ "tx")
+
+# 복합
+(module ~ "uart_16550" OR module ~ "spi*") AND port ~ "irq"

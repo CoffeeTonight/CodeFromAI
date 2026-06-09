@@ -9,6 +9,7 @@ Cross-platform path normalization (Linux / Windows / macOS).
 from __future__ import annotations
 
 import os
+import platform
 import sys
 from pathlib import Path
 from typing import Union
@@ -72,3 +73,17 @@ def normalize_filelist_token(raw: str) -> str:
 def normalize_dql_path_pattern(pattern: str) -> str:
     """DQL glob on ``file`` / ``module_ref``: accept ``\\`` or ``/`` in queries."""
     return pattern.replace("\\", "/")
+
+
+def browser_auto_open_default() -> bool:
+    """Whether ``hch-web`` should open a browser tab without an explicit flag."""
+    rel = platform.release().lower()
+    if "proot" in rel:
+        return False
+    try:
+        with open("/proc/version", encoding="utf-8", errors="ignore") as fh:
+            if "proot" in fh.read().lower():
+                return False
+    except OSError:
+        pass
+    return True

@@ -7,6 +7,7 @@ import argparse
 import sys
 
 from hch.apps.api.http_server import serve_forever
+from hch.platform_paths import browser_auto_open_default
 
 
 def main(argv=None) -> int:
@@ -17,17 +18,30 @@ def main(argv=None) -> int:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument(
+        "--browser",
+        action="store_true",
+        help="Open a browser tab automatically (default except PRoot/chroot)",
+    )
+    ap.add_argument(
         "--no-browser",
         action="store_true",
         help="Do not open a browser tab automatically",
     )
     args = ap.parse_args(argv)
+    if args.browser and args.no_browser:
+        ap.error("--browser and --no-browser are mutually exclusive")
+    if args.no_browser:
+        open_browser = False
+    elif args.browser:
+        open_browser = True
+    else:
+        open_browser = browser_auto_open_default()
     try:
         serve_forever(
             args.database,
             host=args.host,
             port=args.port,
-            open_browser=not args.no_browser,
+            open_browser=open_browser,
         )
     except FileNotFoundError as e:
         print(e, file=sys.stderr)

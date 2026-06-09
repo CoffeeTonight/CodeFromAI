@@ -19,6 +19,7 @@ from hch.ingest.package_scope import normalize_scoped_type
 from hch.ingest.instance_array_expand import expand_instance_name
 from hch.ingest.macro_tag import instance_from_macro
 from hch.ingest.parse_tags import instance_edge_key
+from hch.ingest.tree_source import definition_file_path_from_node
 from hch.schema import BindEdge, InstanceEdge, ModuleRecord, PortRecord
 
 
@@ -664,9 +665,18 @@ class PyslangHierarchyExtractor:
         self.package_symbol_count = 0
         self.defparam_count = 0
         self.primitive_count = 0
+        self._current_tree: Any = None
+
+    def _file_for_node(self, node: Any) -> str:
+        if self._current_tree is not None:
+            path = definition_file_path_from_node(self._current_tree, node)
+            if path:
+                return path
+        return self.default_file
 
     def extract_trees(self, trees: List) -> List[ModuleRecord]:
         for tree in trees:
+            self._current_tree = tree
             root = getattr(tree, "root", None)
             if root is None:
                 continue
@@ -687,6 +697,7 @@ class PyslangHierarchyExtractor:
                 if not hasattr(mem, "header"):
                     continue
                 self._visit_module(mem)
+            self._current_tree = None
         return list(self.modules.values())
 
     def _visit_package(self, pdef: Any) -> None:
@@ -743,7 +754,7 @@ class PyslangHierarchyExtractor:
             return
         rec = ModuleRecord(
             module_name=mname,
-            file_path=self.default_file,
+            file_path=self._file_for_node(mdef),
             module_kind=_module_kind_from_node(mdef),
         )
         if rec.module_kind == "interface":
@@ -880,7 +891,7 @@ class PyslangHierarchyExtractor:
                         parent_module=mname,
                         inst_name=iname,
                         child_module=child_mod,
-                        file_path=self.default_file,
+                        file_path=self._file_for_node(item),
                         param_overrides=dict(overrides),
                         in_generate=in_gen,
                         from_macro=from_mac,

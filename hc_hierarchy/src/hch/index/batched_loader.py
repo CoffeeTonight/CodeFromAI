@@ -112,11 +112,25 @@ def build_index_batched(
             )
 
     store.clear_instances()
-    primary = (top_modules[0] if top_modules else top_module) or top_module
+    flatten_tops = list(top_modules) if top_modules else None
+    if top_module or top_modules:
+        primary = (top_modules[0] if top_modules else top_module) or top_module
+        store.set_meta("top_modules_json", json.dumps(top_modules or [top_module]))
+        store.set_meta("top_inference", "cli", commit=False)
+    else:
+        from hch.ingest.top_infer import resolve_index_tops
+
+        inferred = resolve_index_tops(modules_acc, fl, filelist_path)
+        primary = inferred.primary
+        flatten_tops = None
+        store.set_meta("top_modules_json", json.dumps([primary]), commit=False)
+        store.set_meta("top_modules_all_json", json.dumps(inferred.all_tops), commit=False)
+        store.set_meta("top_inference", inferred.method, commit=False)
     flat, hierarchy_source, path_augmented = elaborate_flat_with_sources(
         modules_acc,
         sources=sources,
-        top_module=primary,
+        top_module=primary if flatten_tops else None,
+        top_modules=flatten_tops,
         path_hierarchy_mode=path_hierarchy_mode,
     )
     store.load_instances(flat)

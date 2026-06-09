@@ -43,7 +43,7 @@
 
 ### UI
 
-- **웹**: `hch-web -d design.hch.db` → http://127.0.0.1:8765/
+- **웹**: `hch-web -d design.hch.db --no-browser` → http://127.0.0.1:8765/ (Brave sandbox 오류 시 `--no-browser` 권장)
 - **GUI**: `pip install -e ".[gui]"` 후 `hch-gui -d design.hch.db`
 
 ---
@@ -240,4 +240,5 @@ pytest tests/phase28/ tests/phase27/ -m "not slow" -q
 hch-index design/HDLforAST/filelist.f -o design.hch.db --top top_module
 hch-query -d design.hch.db -q 'path ~ "top_module.u_middle*"'
 hch-web -d design.hch.db
+# PRoot/Termux: 브라우저 자동 실행 안 함 — http://127.0.0.1:8765/ 수동 접속
 ```

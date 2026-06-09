@@ -170,6 +170,31 @@ button:hover {
   filter: brightness(1.08);
 }
 
+.tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.tree-toolbar label {
+  white-space: nowrap;
+}
+
+.tree-toolbar input[type="number"] {
+  width: 3.2rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
 .tree {
   flex: 1;
   overflow: auto;

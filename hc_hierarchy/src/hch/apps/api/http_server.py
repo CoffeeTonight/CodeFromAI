@@ -48,6 +48,18 @@ def make_handler(
         def log_message(self, fmt: str, *args) -> None:
             return
 
+        def handle_one_request(self) -> None:
+            try:
+                super().handle_one_request()
+            except BrokenPipeError:
+                pass
+
+        def send_error(self, code, message=None, explain=None) -> None:
+            try:
+                super().send_error(code, message, explain)
+            except BrokenPipeError:
+                pass
+
         @property
         def svc(self) -> HierarchyDbService:
             if svc_holder["svc"] is None:
@@ -151,6 +163,10 @@ def make_handler(
                 _json_response(self, 500, {"error": str(e)})
 
         def _serve_static(self, path: str) -> None:
+            if path == "/favicon.ico":
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self.end_headers()
+                return
             if path in ("/", ""):
                 path = "/index.html"
             rel = path.lstrip("/")
@@ -172,7 +188,10 @@ def make_handler(
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            self.wfile.write(data)
+            try:
+                self.wfile.write(data)
+            except BrokenPipeError:
+                pass
 
     return Handler
 
@@ -188,6 +207,26 @@ def run_server(
     return server
 
 
+def _open_browser_safe(url: str) -> None:
+    import os
+    import webbrowser
+
+    if os.environ.get("HCH_WEB_NO_BROWSER", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return
+    try:
+        webbrowser.open(url)
+    except Exception as exc:
+        print(
+            f"hch-web: could not open browser ({exc}); visit {url} manually "
+            "or use --no-browser",
+            flush=True,
+        )
+
+
 def serve_forever(
     db_path: str,
     host: str = "127.0.0.1",
@@ -195,13 +234,25 @@ def serve_forever(
     *,
     open_browser: bool = True,
 ) -> None:
-    import webbrowser
+    import os
 
     server = run_server(db_path, host=host, port=port)
     url = f"http://{host}:{port}/"
     print(f"hch-web: {url}  (db={db_path})")
+    if os.environ.get("HCH_WEB_NO_BROWSER", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        open_browser = False
     if open_browser:
-        threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.4, lambda: _open_browser_safe(url)).start()
+    else:
+        print(
+            "hch-web: browser auto-open skipped — open the URL above manually "
+            "(use --browser to force, or --no-browser / HCH_WEB_NO_BROWSER=1)",
+            flush=True,
+        )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

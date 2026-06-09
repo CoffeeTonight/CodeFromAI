@@ -170,6 +170,7 @@ def build_path_elab_hybrid_index(
         mods.values(),
         multi_def_paths_by_name={**mod_index, **_multi_def_paths_from_modules(mods)},
     )
+    store.clear_instances()
     store.load_instances(flat)
 
     dup_stats = closure_duplicate_stats(sources, mod_index)

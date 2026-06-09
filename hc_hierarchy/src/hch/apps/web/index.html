@@ -25,6 +25,20 @@
         <h2>Hierarchy</h2>
         <button type="button" id="btn-reload-tree" class="ghost" title="Reload roots">↻</button>
       </div>
+      <div class="tree-toolbar">
+        <label for="tree-expand-depth">Expand levels</label>
+        <input
+          id="tree-expand-depth"
+          type="number"
+          min="0"
+          max="32"
+          value="1"
+          title="0 = collapse all, 1 = one level, …"
+        />
+        <button type="button" id="btn-expand-tree" class="ghost" title="Expand N levels from roots">
+          ▸ Apply
+        </button>
+      </div>
       <div id="tree" class="tree" role="tree" aria-label="Instance tree"></div>
     </aside>
 

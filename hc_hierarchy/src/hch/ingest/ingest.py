@@ -172,6 +172,14 @@ def ingest_filelist_result(
                 entry["errors"] = max(int(entry.get("errors", 0)), 1)
                 entry["status"] = "error"
 
+    from hch.ingest.text_instance_fallback import supplement_modules_text_fallback
+
+    fb_stats = supplement_modules_text_fallback(
+        merged,
+        defines=fl.defines,
+        parse_errors_by_file=parse_errors_by_file,
+    )
+
     _last_parse_meta = {
         "library_y_count": str(len(fl.library_dirs)),
         "library_v_count": str(len(fl.library_files)),
@@ -215,6 +223,9 @@ def ingest_filelist_result(
         "work_library": fl.work_library or "",
         "filelist_top_modules_json": json.dumps(fl.top_modules),
         "parse_errors_json": json.dumps(parse_errors_by_file),
+        "text_fallback_instance_count": str(fb_stats.get("instances_added", 0)),
+        "text_fallback_files_scanned": str(fb_stats.get("files_scanned", 0)),
+        "text_fallback_modules_touched": str(fb_stats.get("modules_touched", 0)),
     }
     if fl.unsupported_options:
         _last_parse_meta["unsupported_filelist_opts_json"] = json.dumps(

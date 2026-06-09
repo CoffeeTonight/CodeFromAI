@@ -6,6 +6,31 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 
+def definition_file_path_from_node(tree: Any, node: Any) -> str:
+    """Resolve the RTL file that contains *node* (module def or instantiation)."""
+    sm = getattr(tree, "sourceManager", None)
+    if sm is None or node is None:
+        return ""
+    loc = getattr(node, "location", None)
+    if loc is None:
+        hdr = getattr(node, "header", None)
+        if hdr is not None:
+            name_node = getattr(hdr, "name", None)
+            loc = getattr(name_node, "location", None) if name_node is not None else None
+            if loc is None:
+                loc = getattr(hdr, "location", None)
+    buf = getattr(loc, "buffer", None) if loc is not None else None
+    if buf is None:
+        return ""
+    try:
+        return str(Path(sm.getFullPath(buf)).resolve())
+    except (OSError, TypeError, AttributeError):
+        try:
+            return str(sm.getFullPath(buf))
+        except (OSError, TypeError, AttributeError):
+            return ""
+
+
 def source_path_from_syntax_tree(tree: Any) -> str:
     """
     Resolve the primary source file for a slang ``SyntaxTree``.
@@ -59,6 +84,14 @@ def pair_trees_with_sources(
             missing.append(i)
 
     if not missing:
+        nonempty = [p for _, p in pairs if p]
+        if (
+            len(nonempty) == len(trees)
+            and len(set(nonempty)) == 1
+            and len(trees) == len(resolved)
+        ):
+            # ``include`` chains make every tree report the first included file.
+            return [(trees[i], resolved[i]) for i in range(len(trees))]
         return pairs
 
     if len(trees) == 1 and len(resolved) == 1:

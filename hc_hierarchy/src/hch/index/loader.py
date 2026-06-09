@@ -55,9 +55,10 @@ def build_index_from_filelist(
     cwd = resolve_index_cwd(filelist_path, index_cwd, os.environ)
     fl_early = parse_filelist_cached(filelist_path, index_cwd=str(cwd))
     slang_cache_path = Path(db_path)
-    tops = _resolve_tops(top_module, top_modules)
-    if not tops and fl_early.top_modules:
-        tops = list(fl_early.top_modules)
+    user_tops = _resolve_tops(top_module, top_modules)
+    if not user_tops and fl_early.top_modules:
+        user_tops = list(fl_early.top_modules)
+    tops = user_tops
     primary_top = tops[0] if tops else top_module
 
     split_paths: Dict[str, str] = {}
@@ -140,8 +141,6 @@ def build_index_from_filelist(
             "closure mode may fail on duplicate module names; prefer hybrid or shallow"
         )
 
-    if tops:
-        meta["top_modules_json"] = json.dumps(tops)
     if fl.top_modules:
         meta["filelist_top_modules_json"] = json.dumps(fl.top_modules)
     if fl.work_library:
@@ -235,11 +234,27 @@ def build_index_from_filelist(
     slang_fl = get_last_slang_filelist_path()
     if slang_fl:
         meta["slang_filelist_preprocessed"] = slang_fl
+
+    flatten_tops: Optional[List[str]] = list(tops) if tops else None
+    if user_tops:
+        meta["top_modules_json"] = json.dumps(user_tops)
+        meta["top_inference"] = "cli"
+        flatten_primary = user_tops[0]
+    else:
+        from hch.ingest.top_infer import resolve_index_tops
+
+        inferred = resolve_index_tops(modules, fl, filelist_path)
+        meta["top_modules_json"] = json.dumps([inferred.primary])
+        meta["top_modules_all_json"] = json.dumps(inferred.all_tops)
+        meta["top_inference"] = inferred.method
+        flatten_primary = inferred.primary
+        flatten_tops = None
+
     return build_index_from_modules(
         modules,
         db_path,
-        top_module=primary_top,
-        top_modules=tops,
+        top_module=flatten_primary if flatten_tops else None,
+        top_modules=flatten_tops,
         meta_extra=meta,
         sources=sources,
         path_hierarchy_mode=path_hierarchy_mode,
@@ -406,6 +421,7 @@ def _build_elab_index(
         flat = elaborate_flat(mod_map, top_module=primary, top_modules=tops)
         store.set_meta("elab_fallback", "tier_p")
         hierarchy_source = "tier_p_fallback"
+    store.clear_instances()
     store.load_instances(flat)
     store.set_meta("engine", "pyslang")
     store.set_meta("tier", "E" if result.succeeded and flat else "P")
@@ -448,20 +464,20 @@ def build_index_from_modules(
     multi_paths = _multi_def_paths_from_modules(modules)
     store.load_modules(modules.values(), multi_def_paths_by_name=multi_paths)
     tops = _resolve_tops(top_module, top_modules)
-    primary = tops[0] if tops else top_module
     hierarchy_source = "ast"
     path_augmented = "0"
-    multi_top = tops and len(tops) > 1
-    if sources and primary and not multi_top:
+    single_top = tops and len(tops) == 1
+    if sources and single_top:
         flat, hierarchy_source, path_augmented = elaborate_flat_with_sources(
             modules,
             sources=sources,
-            top_module=primary,
+            top_module=tops[0],
             path_hierarchy_mode=path_hierarchy_mode,
         )
     else:
-        flat = elaborate_flat(modules, top_module=primary, top_modules=tops)
+        flat = elaborate_flat(modules, top_module=top_module, top_modules=tops)
     _apply_flatten_meta(store)
+    store.clear_instances()
     store.load_instances(flat)
     store.set_meta("engine", "pyslang")
     store.set_meta("tier", "P")

@@ -56,6 +56,7 @@ def elaborate_flat_with_sources(
     modules: Union[Mapping[str, ModuleRecord], List[ModuleRecord]],
     sources: Optional[Sequence[str]] = None,
     top_module: Optional[str] = None,
+    top_modules: Optional[Sequence[str]] = None,
     *,
     path_depth_threshold: int = 10,
     path_hierarchy_mode: str = "auto",
@@ -82,7 +83,11 @@ def elaborate_flat_with_sources(
 
         return flat_instances_from_paths(sources, mod_map, top_module), "path", "1"
 
-    return elaborate_flat(mod_map, top_module=top_module), "ast", "0"
+    return (
+        elaborate_flat(mod_map, top_module=top_module, top_modules=top_modules),
+        "ast",
+        "0",
+    )
 
 
 def find_top_modules(modules: Dict[str, ModuleRecord]) -> List[str]:

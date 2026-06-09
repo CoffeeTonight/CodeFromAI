@@ -57,6 +57,8 @@ class HierarchyDbService:
             "elab_succeeded",
             "ifdef_variant_diff_json",
             "top_modules_json",
+            "top_modules_all_json",
+            "top_inference",
             "source_status_json",
             "parse_diagnostics_json",
             "unsupported_filelist_opts_json",
@@ -82,20 +84,51 @@ class HierarchyDbService:
         data["parse_tier_badge"] = badge
         return data
 
+    def _index_top_modules(self) -> List[str]:
+        row = self.conn.execute(
+            "SELECT value FROM meta WHERE key = 'top_modules_json' LIMIT 1"
+        ).fetchone()
+        if not row or not row[0]:
+            return []
+        try:
+            loaded = json.loads(row[0])
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(loaded, list):
+            return []
+        return [str(t).strip() for t in loaded if str(t).strip()]
+
     def tree_children(self, parent_path: Optional[str] = None) -> List[Dict[str, Any]]:
         if not parent_path:
-            cur = self.conn.execute(
-                """
-                SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
-                       i.port_json, f.filepath,
-                       (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
-                FROM instances i
-                JOIN modules m ON m.id = i.module_id
-                LEFT JOIN files f ON f.id = i.filepath_id
-                WHERE i.parent_path IS NULL OR i.parent_path = ''
-                ORDER BY i.full_path
-                """
-            )
+            tops = self._index_top_modules()
+            if tops:
+                placeholders = ",".join("?" for _ in tops)
+                cur = self.conn.execute(
+                    f"""
+                    SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
+                           i.port_json, f.filepath,
+                           (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
+                    FROM instances i
+                    JOIN modules m ON m.id = i.module_id
+                    LEFT JOIN files f ON f.id = i.filepath_id
+                    WHERE i.full_path IN ({placeholders})
+                    ORDER BY i.full_path
+                    """,
+                    tops,
+                )
+            else:
+                cur = self.conn.execute(
+                    """
+                    SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
+                           i.port_json, f.filepath,
+                           (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
+                    FROM instances i
+                    JOIN modules m ON m.id = i.module_id
+                    LEFT JOIN files f ON f.id = i.filepath_id
+                    WHERE i.parent_path IS NULL OR i.parent_path = ''
+                    ORDER BY i.full_path
+                    """
+                )
         else:
             cur = self.conn.execute(
                 """

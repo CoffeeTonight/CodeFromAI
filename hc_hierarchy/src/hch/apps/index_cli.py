@@ -8,6 +8,7 @@ import os
 import sys
 
 from hch.apps.help_text import INDEX_HELP_EPILOG
+from hch.apps.index_progress import IndexProgressReporter
 from hch.engine.availability import check_engine
 from hch.index.loader import build_index_from_filelist
 
@@ -138,6 +139,11 @@ def main(argv=None) -> int:
         metavar="PATH",
         help="Write DQL-ready instances JSON after indexing",
     )
+    ap.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress messages on stderr",
+    )
     args = ap.parse_args(argv)
 
     index_cwd = args.index_cwd or os.environ.get("HCH_INDEX_CWD") or None
@@ -164,6 +170,16 @@ def main(argv=None) -> int:
         parts = [p.strip() for p in args.variant_compare.split(",") if p.strip()]
         if len(parts) == 2:
             variant_compare = (parts[0], parts[1])
+
+    reporter: IndexProgressReporter | None = None
+    on_progress = None
+    on_phase = None
+    if not args.quiet:
+        reporter = IndexProgressReporter()
+        on_progress = reporter.files
+        on_phase = reporter.phase
+        reporter.phase(f"Output: {args.output}")
+
     store = build_index_from_filelist(
         args.filelist,
         args.output,
@@ -183,9 +199,16 @@ def main(argv=None) -> int:
         variants=variants,
         variant_compare=variant_compare,
         variant_dir=args.variant_dir,
+        on_progress=on_progress,
+        on_phase=on_phase,
         index_cwd=index_cwd,
     )
     n = store.count_instances()
+    m = store.count_modules()
+    if reporter:
+        for key, val in reporter.meta().items():
+            store.set_meta(key, val)
+        store.conn.commit()
     if args.export_json:
         import json
         from pathlib import Path
@@ -197,7 +220,10 @@ def main(argv=None) -> int:
         )
         print(f"Exported {len(data)} instances -> {args.export_json}")
     store.close()
-    print(f"Indexed {n} instances -> {args.output}")
+    if reporter:
+        print(reporter.summary(instances=n, db_path=args.output, modules=m))
+    else:
+        print(f"Indexed {n} instances -> {args.output}")
     return 0
 
 

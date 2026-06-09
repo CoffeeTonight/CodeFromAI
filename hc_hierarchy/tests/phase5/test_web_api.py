@@ -58,6 +58,17 @@ def test_web_api_over_quick_index(tmp_path):
         q = _post(f"{base}/api/query", {"q": 'path = "deep_soc_top"'})
         assert q["count"] >= 1
 
+        default_path = _get(f"{base}/api/export/default-path")
+        assert default_path["path"].endswith("-query-results.txt")
+
+        out_file = tmp_path / "saved_query.txt"
+        saved = _post(
+            f"{base}/api/export/save",
+            {"path": str(out_file), "text": q.get("text") or "test\n"},
+        )
+        assert saved["path"] == str(out_file.resolve()).replace("\\", "/") or out_file.exists()
+        assert out_file.exists()
+
         help_data = _get(f"{base}/api/help")
         assert help_data.get("version") == "1"
         assert isinstance(help_data.get("sections"), list)

@@ -12,6 +12,7 @@ from typing import Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
 from hch.apps.api.db_service import HierarchyDbService
+from hch.apps.api.export_save import default_export_path, save_export_text
 from hch.apps.help_text import web_help_payload
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -102,6 +103,21 @@ def make_handler(
                     except BrokenPipeError:
                         return
                 return
+            if parsed.path == "/api/export/save":
+                try:
+                    body = _read_json_body(self)
+                    out_path = str(body.get("path", "")).strip()
+                    text = str(body.get("text", ""))
+                    result = save_export_text(out_path, text)
+                    _json_response(self, 200, result)
+                except BrokenPipeError:
+                    return
+                except Exception as e:
+                    try:
+                        _json_response(self, 400, {"error": str(e)})
+                    except BrokenPipeError:
+                        return
+                return
             _json_response(self, 404, {"error": "not found"})
 
         def _handle_api_get(self, path: str, qs: dict) -> None:
@@ -111,6 +127,13 @@ def make_handler(
                     return
                 if path == "/api/meta":
                     _json_response(self, 200, self.svc.meta())
+                    return
+                if path == "/api/export/default-path":
+                    _json_response(
+                        self,
+                        200,
+                        {"path": default_export_path(db_path)},
+                    )
                     return
                 if path == "/api/help":
                     payload = web_help_payload()

@@ -55,7 +55,7 @@
         <button type="button" id="btn-run-dql" class="primary">Run</button>
         <button type="button" id="btn-dql-help" class="ghost" title="DQL 도움말 및 예시 (F1)">?</button>
         <button type="button" id="btn-export-text" class="ghost" title="Copy results as text">Text</button>
-        <button type="button" id="btn-download-text" class="ghost" title="Download .txt">↓</button>
+        <button type="button" id="btn-download-text" class="ghost" title="결과 저장… (경로 선택)">↓</button>
         <span id="query-status" class="query-status"></span>
       </div>
       <div class="results-wrap">
@@ -96,6 +96,36 @@
     <span>Backend: SQLite index · DQL · <button type="button" id="btn-help-footer" class="linkish">도움말</button></span>
     <a href="/api/meta" target="_blank" rel="noopener">/api/meta</a>
   </footer>
+
+  <div id="save-backdrop" class="help-backdrop hidden" aria-hidden="true"></div>
+  <dialog id="save-dialog" class="save-dialog" aria-labelledby="save-dialog-title">
+    <header class="help-dialog-head">
+      <h2 id="save-dialog-title">쿼리 결과 저장</h2>
+      <button type="button" id="btn-save-close" class="ghost help-close" title="닫기 (Esc)">✕</button>
+    </header>
+    <div class="save-dialog-body">
+      <p class="save-dialog-hint">
+        저장 경로를 입력하세요. <strong>hch-web 서버</strong>가 해당 위치에 직접 씁니다
+        (브라우저 다운로드 폴더가 아님).
+      </p>
+      <label for="save-path-input">절대 경로</label>
+      <input
+        id="save-path-input"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="/path/to/results.txt"
+      />
+      <p id="save-dialog-error" class="save-dialog-error hidden" role="alert"></p>
+    </div>
+    <footer class="help-dialog-foot">
+      <span class="help-top-hint">예: DB와 같은 폴더의 .txt</span>
+      <div class="save-dialog-actions">
+        <button type="button" id="btn-save-cancel" class="ghost">취소</button>
+        <button type="button" id="btn-save-confirm" class="primary">저장</button>
+      </div>
+    </footer>
+  </dialog>
 
   <div id="help-backdrop" class="help-backdrop hidden" aria-hidden="true"></div>
   <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-dialog-title">

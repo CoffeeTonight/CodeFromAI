@@ -17,6 +17,17 @@ from hch.index.meta_contract import apply_tier_contract_meta
 from hch.index.store import HierarchyStore
 from hch.schema import FlatInstance, ModuleRecord
 
+AUTO_BATCH_MIN_SOURCES = 48
+
+
+def _maybe_heartbeat(
+    on_phase: Optional[Callable[[str], None]],
+    label: str,
+):
+    from hch.apps.index_progress import ProgressHeartbeat
+
+    return ProgressHeartbeat(on_phase, label)
+
 
 def _resolve_tops(
     top_module: Optional[str],
@@ -50,10 +61,20 @@ def build_index_from_filelist(
     variant_compare: Optional[Tuple[str, str]] = None,
     variant_dir: Optional[str] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_phase: Optional[Callable[[str], None]] = None,
     index_cwd: Optional[str] = None,
 ) -> HierarchyStore:
+    def _phase(msg: str) -> None:
+        if on_phase:
+            on_phase(msg)
+
     cwd = resolve_index_cwd(filelist_path, index_cwd, os.environ)
+    _phase(f"Expanding filelist: {filelist_path}")
     fl_early = parse_filelist_cached(filelist_path, index_cwd=str(cwd))
+    _phase(
+        f"Filelist ready: {len(fl_early.source_files)} sources, "
+        f"{len(fl_early.incdirs)} incdirs, tier={'E' if elaborate else 'P'}"
+    )
     slang_cache_path = Path(db_path)
     user_tops = _resolve_tops(top_module, top_modules)
     if not user_tops and fl_early.top_modules:
@@ -78,6 +99,7 @@ def build_index_from_filelist(
     if variants and not elaborate:
         from hch.index.variant_index import build_index_variants, compare_variant_paths
 
+        _phase(f"Indexing {len(variants)} ifdef variant(s)…")
         fl = fl_early
         meta = {
             "filelist": str(Path(filelist_path).resolve()),
@@ -105,17 +127,33 @@ def build_index_from_filelist(
             store.set_meta("variant_diff_json", json.dumps(diff))
         return store
 
-    if batch_size > 0 and not elaborate:
+    effective_batch = batch_size
+    if effective_batch <= 0 and not elaborate:
+        n_src = len(fl_early.source_files)
+        if n_src >= AUTO_BATCH_MIN_SOURCES:
+            from hch.apps.index_progress import choose_auto_batch_size
+
+            effective_batch = choose_auto_batch_size(n_src)
+            est_batches = (n_src + effective_batch - 1) // effective_batch
+            _phase(
+                f"Auto batch mode: {n_src} sources → batch_size={effective_batch} "
+                f"(~{est_batches} updates)"
+            )
+
+    if effective_batch > 0 and not elaborate:
+        _phase("Parsing sources (batched)…")
         return build_index_batched(
             filelist_path,
             db_path,
             top_module=primary_top,
             top_modules=tops,
-            batch_size=batch_size,
+            batch_size=effective_batch,
             resume=resume,
             force=force,
             path_hierarchy_mode=path_hierarchy_mode,
             on_progress=on_progress,
+            on_phase=on_phase,
+            on_heartbeat=on_phase,
             index_cwd=str(cwd),
             slang_cache_path=slang_cache_path,
         )
@@ -190,6 +228,7 @@ def build_index_from_filelist(
         )
         apply_tier_contract_meta(meta, decision=decision)
         if decision.use_path_elab_hybrid:
+            _phase(f"Tier E hybrid index ({decision.mode})…")
             store = build_path_elab_hybrid_index(
                 filelist_path,
                 db_path,
@@ -200,18 +239,21 @@ def build_index_from_filelist(
                 elab_fast=elab_fast,
                 slang_cache_path=str(slang_cache_path),
                 index_cwd=str(cwd),
+                on_phase=on_phase,
             )
             return store
 
-        modules, elab_result, ingest_meta = tier_e_index_build(
-            fl,
-            top_list,
-            elab_fast=elab_fast,
-            instance_cap=elab_instance_cap,
-            pruned_bundle=pruned_bundle,
-            slang_cache_path=str(slang_cache_path),
-            index_cwd=str(cwd),
-        )
+        _phase(f"Tier E elaboration ({decision.mode})…")
+        with _maybe_heartbeat(on_phase, f"Tier E elaboration ({decision.mode})"):
+            modules, elab_result, ingest_meta = tier_e_index_build(
+                fl,
+                top_list,
+                elab_fast=elab_fast,
+                instance_cap=elab_instance_cap,
+                pruned_bundle=pruned_bundle,
+                slang_cache_path=str(slang_cache_path),
+                index_cwd=str(cwd),
+            )
         meta.update(ingest_meta)
         slang_fl = get_last_slang_filelist_path()
         if slang_fl:
@@ -227,9 +269,12 @@ def build_index_from_filelist(
             elab_result=elab_result,
         )
 
-    modules = ingest_filelist_result(
-        fl, slang_cache_path=slang_cache_path, index_cwd=str(cwd)
-    )
+    _phase(f"Parsing {len(fl.source_files)} sources (pyslang)…")
+    with _maybe_heartbeat(on_phase, f"Parsing {len(fl.source_files)} sources"):
+        modules = ingest_filelist_result(
+            fl, slang_cache_path=slang_cache_path, index_cwd=str(cwd)
+        )
+    _phase(f"Parsed {len(modules)} modules")
     meta.update(get_last_parse_meta())
     slang_fl = get_last_slang_filelist_path()
     if slang_fl:
@@ -250,6 +295,7 @@ def build_index_from_filelist(
         flatten_primary = inferred.primary
         flatten_tops = None
 
+    _phase("Flattening hierarchy and writing SQLite…")
     return build_index_from_modules(
         modules,
         db_path,

@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
 
+from hch.apps.index_progress import ProgressHeartbeat
 from hch.ingest.filelist import FilelistResult, parse_filelist_simple
 from hch.ingest.hierarchy_build import elaborate_flat_with_sources
 from hch.ingest.ingest import ingest_source_files
@@ -43,6 +44,8 @@ def build_index_batched(
     force: bool = False,
     path_hierarchy_mode: str = "auto",
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_phase: Optional[Callable[[str], None]] = None,
+    on_heartbeat: Optional[Callable[[str], None]] = None,
     index_cwd: Optional[str] = None,
     slang_cache_path: Optional[str] = None,
 ) -> HierarchyStore:
@@ -87,16 +90,25 @@ def build_index_batched(
 
     total = len(sources)
     modules_acc: Dict[str, ModuleRecord] = store.load_all_modules() if resume else {}
+    hb = on_heartbeat or on_phase
+    if done and on_phase:
+        on_phase(f"Resuming checkpoint: {len(done)}/{total} sources already parsed")
+    num_batches = (len(pending) + batch_size - 1) // batch_size if pending else 0
+    if on_phase and num_batches > 1:
+        on_phase(f"Parsing {len(pending)} pending sources in {num_batches} batches…")
 
-    for i in range(0, len(pending), batch_size):
+    for batch_idx, i in enumerate(range(0, len(pending), batch_size), start=1):
         chunk = pending[i : i + batch_size]
-        batch_mods = ingest_source_files(
-            chunk,
-            include_dirs=inc,
-            defines=defines,
-            library_files=[str(p) for p in fl.library_files],
-            library_dirs=[str(p) for p in fl.library_dirs],
-        )
+        if on_phase and num_batches >= 20 and batch_idx % max(1, num_batches // 20) == 0:
+            on_phase(f"Parse batch {batch_idx}/{num_batches}…")
+        with ProgressHeartbeat(hb, f"Parsing batch {batch_idx}/{num_batches}"):
+            batch_mods = ingest_source_files(
+                chunk,
+                include_dirs=inc,
+                defines=defines,
+                library_files=[str(p) for p in fl.library_files],
+                library_dirs=[str(p) for p in fl.library_dirs],
+            )
         merge_module_records(modules_acc, batch_mods)
         store.load_modules(batch_mods.values(), commit=True)
         done.update(chunk)
@@ -111,6 +123,10 @@ def build_index_batched(
                 file=sys.stderr,
             )
 
+    if on_phase:
+        on_phase(
+            f"Flattening hierarchy ({len(modules_acc)} modules, {total} sources)…"
+        )
     store.clear_instances()
     flatten_tops = list(top_modules) if top_modules else None
     if top_module or top_modules:
@@ -126,13 +142,14 @@ def build_index_batched(
         store.set_meta("top_modules_json", json.dumps([primary]), commit=False)
         store.set_meta("top_modules_all_json", json.dumps(inferred.all_tops), commit=False)
         store.set_meta("top_inference", inferred.method, commit=False)
-    flat, hierarchy_source, path_augmented = elaborate_flat_with_sources(
-        modules_acc,
-        sources=sources,
-        top_module=primary if flatten_tops else None,
-        top_modules=flatten_tops,
-        path_hierarchy_mode=path_hierarchy_mode,
-    )
+    with ProgressHeartbeat(hb, "Flattening hierarchy"):
+        flat, hierarchy_source, path_augmented = elaborate_flat_with_sources(
+            modules_acc,
+            sources=sources,
+            top_module=primary if flatten_tops else None,
+            top_modules=flatten_tops,
+            path_hierarchy_mode=path_hierarchy_mode,
+        )
     store.load_instances(flat)
     store.set_meta("hierarchy_source", hierarchy_source)
     store.set_meta(

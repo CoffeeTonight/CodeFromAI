@@ -697,19 +697,93 @@ function closeHelpDialog() {
   }
 }
 
-function downloadResultsText() {
+function setSaveDialogError(message) {
+  const el = $("#save-dialog-error");
+  if (!message) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = message;
+  el.classList.remove("hidden");
+}
+
+async function fetchDefaultExportPath() {
+  try {
+    const data = await apiGet("/api/export/default-path");
+    if (data.path) return data.path;
+  } catch (_) {
+    /* fallback below */
+  }
+  const db = lastMeta?.database || "";
+  if (!db) return "";
+  const parts = db.split(/[/\\]/);
+  const file = parts.pop() || "hch.hch.db";
+  const base = file.replace(/\.hch\.db$/i, "") || "hch";
+  const dir = parts.join("/");
+  return dir ? `${dir}/${base}-query-results.txt` : `${base}-query-results.txt`;
+}
+
+function openSaveDialog() {
+  const dlg = $("#save-dialog");
+  const backdrop = $("#save-backdrop");
+  setSaveDialogError("");
+  fetchDefaultExportPath().then((path) => {
+    $("#save-path-input").value = path;
+    backdrop.classList.remove("hidden");
+    backdrop.setAttribute("aria-hidden", "false");
+    if (typeof dlg.showModal === "function") {
+      dlg.showModal();
+    } else {
+      dlg.setAttribute("open", "open");
+      dlg.classList.add("open");
+    }
+    $("#save-path-input").focus();
+    $("#save-path-input").select();
+  });
+}
+
+function closeSaveDialog() {
+  const dlg = $("#save-dialog");
+  const backdrop = $("#save-backdrop");
+  backdrop.classList.add("hidden");
+  backdrop.setAttribute("aria-hidden", "true");
+  setSaveDialogError("");
+  if (typeof dlg.close === "function" && dlg.open) {
+    dlg.close();
+  } else {
+    dlg.removeAttribute("open");
+    dlg.classList.remove("open");
+  }
+}
+
+async function confirmSaveResultsText() {
   const text = lastQueryText;
   if (!text) {
+    setSaveDialogError("먼저 DQL을 실행하세요");
+    return;
+  }
+  const path = $("#save-path-input").value.trim();
+  if (!path) {
+    setSaveDialogError("저장 경로를 입력하세요");
+    return;
+  }
+  setSaveDialogError("");
+  try {
+    const result = await apiPost("/api/export/save", { path, text });
+    closeSaveDialog();
+    setQueryStatus(`저장됨: ${result.path}`, true);
+  } catch (e) {
+    setSaveDialogError(e.message || "저장 실패");
+  }
+}
+
+async function downloadResultsText() {
+  if (!lastQueryText) {
     setQueryStatus("Run a query first");
     return;
   }
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "hch-query-results.txt";
-  a.click();
-  URL.revokeObjectURL(a.href);
-  setQueryStatus("Downloaded .txt", true);
+  openSaveDialog();
 }
 
 function init() {
@@ -751,6 +825,17 @@ function init() {
   });
   $("#btn-export-text").addEventListener("click", copyResultsText);
   $("#btn-download-text").addEventListener("click", downloadResultsText);
+  $("#btn-save-confirm").addEventListener("click", confirmSaveResultsText);
+  $("#btn-save-cancel").addEventListener("click", closeSaveDialog);
+  $("#btn-save-close").addEventListener("click", closeSaveDialog);
+  $("#save-backdrop").addEventListener("click", closeSaveDialog);
+  $("#save-dialog").addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeSaveDialog();
+  });
+  $("#save-path-input").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") confirmSaveResultsText();
+  });
 
   loadMeta().catch((e) => {
     $("#meta-bar").textContent = `Error: ${e.message}`;

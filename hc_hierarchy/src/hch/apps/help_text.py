@@ -123,6 +123,13 @@ INDEX_HELP = dedent(
       --variant-compare base,alt
       --ifdef-compare --ifdef-alt USE_ALT=1
 
+    진행 표시:
+      기본 stderr 에 단계 메시지 + 소스 N/M (48+ sources 시 auto batch)
+      대형: 1만 RTL → batch 8 (~1250회), 50파일마다 마일스톤, 20초 heartbeat
+      장시간 구간(flatten/elab)도 "still running" 주기 출력
+      완료 시 Started/Finished/Elapsed 출력 (DB meta: index_*_at, index_elapsed_sec)
+      --quiet 로 진행 메시지 숨김
+
     기타:
       --batch-size N    배치 인덱싱 + checkpoint (--resume / --force)
       --export-json PATH   인덱스 후 instance JSON 덤프
@@ -217,8 +224,9 @@ GUI_HELP = dedent(
 
     UI:
       - 왼쪽: 계층 트리 (노드 펼치면 lazy load)
-      - 오른쪽 위: DQL 입력 + Run
+      - 오른쪽 위: DQL 입력 + Run + Text(복사) + ↓(저장)
       - 오른쪽 아래: 검색 결과 테이블
+      - 메뉴 [파일]: 쿼리 결과 저장… (경로 선택, Ctrl+S)
       - 메뉴 [도움말]: DQL·인덱싱·배치 쿼리 가이드
 
     DQL 문법은 hch-query / hch-web 과 동일합니다.
@@ -269,7 +277,8 @@ WEB_UI_HELP = dedent(
        - 쿼리 입력 후 Run (또는 Enter)
        - 결과 행 클릭 → 트리·소스 동기화
        - Text: 결과를 클립보드 복사
-       - ↓: .txt 다운로드
+       - ↓: 저장 경로 입력 → hch-web 서버가 해당 절대경로에 직접 저장
+         (브라우저 다운로드 폴더 사용 안 함)
 
     3. 오른쪽 Source
        - 선택 instance의 RTL 파일

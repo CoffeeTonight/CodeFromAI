@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from hch.ingest.filelist import FilelistResult
 from hch.ingest.hierarchy_build import _path_hierarchy_depth_count
@@ -95,6 +95,7 @@ def build_path_elab_hybrid_index(
     elab_fast: bool = True,
     slang_cache_path: Optional[str] = None,
     index_cwd: Optional[str] = None,
+    on_phase: Optional[Callable[[str], None]] = None,
 ) -> HierarchyStore:
     """
     Deep synthetic index: ~991 path instances + shallow Tier E slang (closure).
@@ -117,15 +118,23 @@ def build_path_elab_hybrid_index(
     pruned_bundle = _compute_pruned_sources(fl, tops, max_pruned=256, max_ratio=0.08)
     pruned, prune_meta, _ = pruned_bundle
 
-    mods, elab_result, ingest_meta = tier_e_index_build(
-        fl,
-        tops,
-        elab_fast=elab_fast,
-        instance_cap=elab_instance_cap,
-        pruned_bundle=pruned_bundle,
-        slang_cache_path=slang_cache_path,
-        index_cwd=index_cwd,
-    )
+    from hch.apps.index_progress import ProgressHeartbeat
+
+    if on_phase:
+        on_phase(
+            f"Hybrid: shallow slang on {len(pruned or [])} closure files "
+            f"({len(sources)} sources total)…"
+        )
+    with ProgressHeartbeat(on_phase, "Hybrid shallow elaboration"):
+        mods, elab_result, ingest_meta = tier_e_index_build(
+            fl,
+            tops,
+            elab_fast=elab_fast,
+            instance_cap=elab_instance_cap,
+            pruned_bundle=pruned_bundle,
+            slang_cache_path=slang_cache_path,
+            index_cwd=index_cwd,
+        )
 
     for name, paths in mod_index.items():
         if name not in mods:
@@ -133,15 +142,18 @@ def build_path_elab_hybrid_index(
         elif not mods[name].file_path and paths:
             mods[name].file_path = paths[0]
 
+    if on_phase:
+        on_phase(f"Hybrid: path hierarchy over {len(sources)} sources…")
     path_edges = augment_instance_edges_from_paths(
         mods, sources, top_module=primary
     )
-    flat_path, hierarchy_source, path_augmented = elaborate_flat_with_sources(
-        mods,
-        sources=sources,
-        top_module=primary,
-        path_hierarchy_mode="on",
-    )
+    with ProgressHeartbeat(on_phase, f"Path hierarchy ({len(sources)} sources)"):
+        flat_path, hierarchy_source, path_augmented = elaborate_flat_with_sources(
+            mods,
+            sources=sources,
+            top_module=primary,
+            path_hierarchy_mode="on",
+        )
     flat_elab = flat_instances_from_elab(
         elab_result.instances, mods, top_module=primary
     )

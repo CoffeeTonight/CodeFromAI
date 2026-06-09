@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 
 from hch.apps.help_dialog import show_about_dialog, show_help_dialog
 from hch.query.dql.planner import apply_post_filters, plan_dql
+from hch.query.dql.results import format_rows_text
 
 
 def _query_children(conn: sqlite3.Connection, parent_path: Optional[str]) -> List[Tuple]:
@@ -75,6 +76,9 @@ def run_gui(db_path: str) -> int:
             self.setWindowTitle(f"hc_hierarchy — {db.name}")
             self.conn = sqlite3.connect(str(db))
             self.conn.row_factory = sqlite3.Row
+            self._db_path = db
+            self._last_query = ""
+            self._last_export_text = ""
             self._build_menus()
 
             splitter = QSplitter()
@@ -98,9 +102,18 @@ def run_gui(db_path: str) -> int:
             help_btn.setToolTip("DQL 도움말 (F1)")
             help_btn.setFixedWidth(28)
             help_btn.clicked.connect(lambda: show_help_dialog(self, initial_tab=1))
+            text_btn = QPushButton("Text")
+            text_btn.setToolTip("결과 텍스트 클립보드 복사")
+            text_btn.clicked.connect(self._copy_results_text)
+            save_btn = QPushButton("↓")
+            save_btn.setToolTip("결과 텍스트 파일로 저장… (경로 선택)")
+            save_btn.setFixedWidth(32)
+            save_btn.clicked.connect(self._save_results_text)
             qrow.addWidget(QLabel("DQL"))
             qrow.addWidget(self.qedit, 1)
             qrow.addWidget(qbtn)
+            qrow.addWidget(text_btn)
+            qrow.addWidget(save_btn)
             qrow.addWidget(help_btn)
             rv.addLayout(qrow)
             self.table = QTableWidget(0, 4)
@@ -118,6 +131,16 @@ def run_gui(db_path: str) -> int:
         def _build_menus(self) -> None:
             bar = QMenuBar(self)
             self.setMenuBar(bar)
+
+            file_menu = bar.addMenu("파일")
+            act_save = QAction("쿼리 결과 저장…", self)
+            act_save.setShortcut("Ctrl+S")
+            act_save.triggered.connect(self._save_results_text)
+            file_menu.addAction(act_save)
+            act_copy = QAction("쿼리 결과 복사", self)
+            act_copy.setShortcut("Ctrl+Shift+C")
+            act_copy.triggered.connect(self._copy_results_text)
+            file_menu.addAction(act_copy)
 
             help_menu = bar.addMenu("도움말")
             act_guide = QAction("사용 가이드…", self)
@@ -171,6 +194,32 @@ def run_gui(db_path: str) -> int:
                 mod = _module_name(self.conn, mid)
                 item.addChild(self._make_item(fp, leaf, mod))
 
+        def _copy_results_text(self) -> None:
+            if not self._last_export_text:
+                self.statusBar().showMessage("먼저 DQL을 실행하세요")
+                return
+            QApplication.clipboard().setText(self._last_export_text)
+            self.statusBar().showMessage("텍스트 복사됨")
+
+        def _save_results_text(self) -> None:
+            from PySide6.QtWidgets import QFileDialog
+
+            if not self._last_export_text:
+                self.statusBar().showMessage("먼저 DQL을 실행하세요")
+                return
+            default_name = f"{self._db_path.stem}-query-results.txt"
+            default_path = str(self._db_path.parent / default_name)
+            path, _selected = QFileDialog.getSaveFileName(
+                self,
+                "쿼리 결과 저장",
+                default_path,
+                "Text (*.txt *.tsv);;All files (*)",
+            )
+            if not path:
+                return
+            Path(path).write_text(self._last_export_text, encoding="utf-8")
+            self.statusBar().showMessage(f"저장됨: {path}")
+
         def _run_query(self) -> None:
             q = self.qedit.text().strip()
             if not q:
@@ -181,6 +230,8 @@ def run_gui(db_path: str) -> int:
                 for r in self.conn.execute(plan.sql, plan.params).fetchall()
             ]
             rows = apply_post_filters(rows, plan)
+            self._last_query = q
+            self._last_export_text = format_rows_text(rows, query=q)
             self.statusBar().showMessage(f"DQL: {len(rows)} rows — {q}")
             self.table.setRowCount(len(rows))
             for i, r in enumerate(rows):

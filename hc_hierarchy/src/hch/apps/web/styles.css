@@ -745,6 +745,84 @@ button.linkish {
   color: var(--text-muted);
 }
 
+/* Save dialog */
+.save-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 920;
+  width: min(640px, 92vw);
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.save-dialog:not([open]):not(.open) {
+  display: none;
+}
+
+.save-dialog-body {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.save-dialog-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.save-dialog-body label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+#save-path-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+#save-path-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(91, 159, 212, 0.25);
+}
+
+.save-dialog-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #f07178;
+}
+
+.save-dialog-error.hidden {
+  display: none;
+}
+
+.save-dialog-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
 @media (max-width: 960px) {
   .help-dialog {
     width: 96vw;

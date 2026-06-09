@@ -1,3 +1,0 @@
-[console_scripts]
-rvast-dql = rvast.apps.dql_cli:main
-rvast-elab = rvast.apps.elab_cli:main

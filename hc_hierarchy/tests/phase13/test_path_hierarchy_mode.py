@@ -9,6 +9,7 @@ SYN = ROOT / "design/synthetic_deep_rtl/top_deep_soc.hc.f"
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_path_hierarchy_off(tmp_path):
     from hch.index.loader import build_index_from_filelist
 

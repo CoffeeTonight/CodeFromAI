@@ -6,10 +6,9 @@ import pytest
 
 from hch.engine.availability import check_engine
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir
 
-DESIGN = design_dir("HDLforAST")
-SAMPLE = DESIGN / "top_module.v"
+SAMPLE = hfa_rtl_dir() / "top_module.v"
 
 
 def test_parse_engine_available():
@@ -29,7 +28,7 @@ def test_engine_parse_top_module():
 
     from hch.ingest.ingest import ingest_source_files
 
-    mods = ingest_source_files([SAMPLE], include_dirs=[SAMPLE.parent])
+    mods = ingest_source_files([SAMPLE], include_dirs=[str(hfa_rtl_dir())])
     names = set(mods.keys())
     assert "top_module" in names
     top = mods["top_module"]

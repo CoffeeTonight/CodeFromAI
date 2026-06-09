@@ -4,10 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir
 
-DESIGN = design_dir("HDLforAST")
-TOP = DESIGN / "top_module.v"
+TOP = hfa_rtl_dir() / "top_module.v"
 
 
 @pytest.mark.requires_engine
@@ -17,8 +16,8 @@ def test_define_changes_instance_name():
     if not TOP.exists():
         pytest.skip(f"missing {TOP}")
 
-    base = ingest_source_files([TOP], include_dirs=[str(DESIGN)])
-    m1 = ingest_source_files([TOP], include_dirs=[str(DESIGN)], defines={"USE_M1": "1"})
+    base = ingest_source_files([TOP], include_dirs=[str(hfa_rtl_dir())])
+    m1 = ingest_source_files([TOP], include_dirs=[str(hfa_rtl_dir())], defines={"USE_M1": "1"})
     assert "top_module" in base and "top_module" in m1
     names_base = {e.inst_name for e in base["top_module"].instances}
     names_m1 = {e.inst_name for e in m1["top_module"].instances}

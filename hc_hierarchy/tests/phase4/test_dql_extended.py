@@ -5,9 +5,9 @@ import time
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-FILELIST = design_dir("HDLforAST") / "filelist.f"
+FILELIST = unified_filelist()
 
 
 @pytest.fixture(scope="module")
@@ -17,7 +17,7 @@ def indexed_db(tmp_path_factory):
     if not FILELIST.exists():
         pytest.skip(f"missing {FILELIST}")
     db = tmp_path_factory.mktemp("dql_ext") / "ext.hch.db"
-    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module")
+    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module", index_cwd=str(unified_verify_dir()))
     store.close()
     return db
 
@@ -62,7 +62,7 @@ def test_port_index_clk(indexed_db):
 
 @pytest.mark.requires_engine
 def test_query_latency_under_200ms(indexed_db):
-    """Indexed lookup should stay fast at HDLforAST scale (<<10k rows)."""
+    """Indexed lookup should stay fast at unified_verify hfa scale (<<10k rows)."""
     from hch.query.dql.planner import plan_dql
 
     queries = [

@@ -24,15 +24,47 @@ def _stem_match_bonus(module_name: str, file_path: str) -> int:
     return 1000 if Path(file_path).stem == module_name else 0
 
 
+def _cheap_score(module_name: str, modules: Mapping[str, ModuleRecord]) -> int:
+    """Fast top ranking — avoid full flatten per candidate on large corpora."""
+    rec = modules.get(module_name)
+    if rec is None:
+        return 0
+    score = _stem_match_bonus(module_name, rec.file_path)
+    if module_name.endswith("_top"):
+        score += 2000
+    score += min(len(rec.instances), 128) * 5
+    return score
+
+
 def _score_candidate(
     module_name: str,
     modules: Mapping[str, ModuleRecord],
 ) -> int:
-    rec = modules.get(module_name)
-    if rec is None:
-        return 0
-    flat = elaborate_flat(modules, top_module=module_name)
-    return len(flat) + _stem_match_bonus(module_name, rec.file_path)
+    return _cheap_score(module_name, modules)
+
+
+def _rank_top_candidates(
+    all_tops: Sequence[str],
+    modules: Mapping[str, ModuleRecord],
+) -> List[tuple[str, int]]:
+    pool = list(all_tops)
+    if len(pool) > 32:
+        pool = sorted(pool, key=lambda name: (-_cheap_score(name, modules), name))[:32]
+    cheap = [(name, _cheap_score(name, modules)) for name in pool]
+    cheap.sort(key=lambda item: (-item[1], item[0]))
+    if not cheap:
+        return []
+    best_score = cheap[0][1]
+    tied = [name for name, score in cheap if score == best_score]
+    if len(tied) <= 1:
+        return cheap
+    refined = [
+        (name, len(elaborate_flat(modules, top_module=name)) + _cheap_score(name, modules))
+        for name in tied
+    ]
+    refined.sort(key=lambda item: (-item[1], item[0]))
+    rest = [(name, score) for name, score in cheap if name not in tied]
+    return refined + rest
 
 
 def infer_primary_top(
@@ -55,10 +87,7 @@ def infer_primary_top(
     if len(all_tops) == 1:
         return TopInference(all_tops[0], all_tops, "single_uninstantiated")
 
-    ranked = sorted(
-        ((name, _score_candidate(name, modules)) for name in all_tops),
-        key=lambda item: (-item[1], item[0]),
-    )
+    ranked = _rank_top_candidates(all_tops, modules)
     primary = ranked[0][0]
     return TopInference(primary, all_tops, "stem_and_subtree")
 

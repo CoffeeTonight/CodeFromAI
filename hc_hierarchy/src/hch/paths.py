@@ -22,3 +22,22 @@ def design_dir(name: str) -> Path:
         return primary
     fallback = PROJECT_ROOT.parent / "design" / name
     return fallback if fallback.exists() else primary
+
+
+def unified_verify_dir() -> Path:
+    """design/unified_verify (replaces legacy HDLforAST)."""
+    return design_dir("unified_verify")
+
+
+def hfa_rtl_dir() -> Path:
+    """RTL formerly under design/HDLforAST."""
+    return unified_verify_dir() / "rtl" / "hfa"
+
+
+def unified_filelist() -> Path:
+    return unified_verify_dir() / "filelist.f"
+
+
+def unified_top_module_filelist() -> Path:
+    """hfa-only filelist (legacy HDLforAST behavior)."""
+    return unified_verify_dir() / "filelist_top_module.f"

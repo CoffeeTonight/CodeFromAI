@@ -1,5 +1,6 @@
-# Batch DQL — design/HDLforAST (top_module)
-# Run: hch-query -d hdlforast.hch.db fixtures/dql_batch_hdlforast.txt
+# Batch DQL — design/unified_verify (top_module)
+# hch-index design/unified_verify/filelist.f -o hdl.hch.db --top top_module --index-cwd design/unified_verify
+# hch-query -d hdl.hch.db fixtures/dql_batch_hdlforast.txt
 
 # top exists
 path = "top_module"

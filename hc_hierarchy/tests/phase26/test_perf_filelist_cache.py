@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SYN_FULL = ROOT / "design/synthetic_deep_rtl/top_deep_soc.hc.f"
 
 
+@pytest.mark.requires_synthetic_full
 def test_filelist_cache_second_parse_is_faster():
     from hch.ingest.filelist_cache import clear_filelist_cache, parse_filelist_cached
 

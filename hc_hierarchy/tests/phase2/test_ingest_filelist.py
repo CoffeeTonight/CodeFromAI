@@ -4,10 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-DESIGN = design_dir("HDLforAST")
-FILELIST = DESIGN / "filelist.f"
+FILELIST = unified_filelist()
 
 
 @pytest.mark.requires_engine
@@ -17,7 +16,7 @@ def test_filelist_ingest_modules():
     if not FILELIST.exists():
         pytest.skip(f"missing {FILELIST}")
 
-    mods = ingest_filelist(FILELIST)
+    mods = ingest_filelist(FILELIST, index_cwd=str(unified_verify_dir()))
     assert "top_module" in mods
     assert "middle_module" in mods
     assert len(mods["top_module"].ports) >= 5

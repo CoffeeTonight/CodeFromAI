@@ -14,6 +14,7 @@ from hch.ingest.bind_attach import child_path_for_bind
 from hch.ingest.flatten_tags import apply_edge_tags_to_flat
 from hch.ingest.instance_resolve import resolve_instance_module_ref
 from hch.ingest.multi_def import definition_paths_for_record
+from hch.ingest.port_array_expand import materialized_port_names
 from hch.schema import FlatInstance, InstanceEdge, ModuleRecord
 
 MAX_FLATTEN_VISITS = 50_000
@@ -174,7 +175,7 @@ def elaborate_flat(
             )
             return
 
-        ports = [p.name for p in rec.ports if p.name]
+        ports = materialized_port_names(rec.ports)
         out.append(
             FlatInstance(
                 full_path=path,

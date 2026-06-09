@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Verify batch DQL on hc_hierarchy dummy designs (HDLforAST + synthetic quick).
+# Verify batch DQL on hc_hierarchy dummy designs (unified_verify top_module + synthetic quick).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "=== hc_hierarchy batch DQL verify ==="
 
-HDL_FL="$ROOT/design/HDLforAST/filelist.f"
+HDL_FL="$ROOT/design/unified_verify/filelist.f"
 QUICK_FL="$ROOT/design/synthetic_deep_rtl/quick.hc.f"
 OUT_DIR="${TMPDIR:-/tmp}/hch_batch_verify_$$"
 mkdir -p "$OUT_DIR"
@@ -16,14 +16,15 @@ if ! python3 -c "import pyslang" 2>/dev/null; then
   exit 0
 fi
 
-# --- HDLforAST ---
+# --- unified_verify (top_module) ---
 if [[ -f "$HDL_FL" ]]; then
-  echo "--- Index HDLforAST ---"
-  python3 -m hch.apps.index_cli "$HDL_FL" -o "$OUT_DIR/hdlforast.hch.db" --top top_module
-  echo "--- Batch query HDLforAST ---"
+  echo "--- Index unified_verify (top_module) ---"
+  python3 -m hch.apps.index_cli "$HDL_FL" -o "$OUT_DIR/hdlforast.hch.db" \
+    --top top_module --index-cwd "$ROOT/design/unified_verify"
+  echo "--- Batch query top_module ---"
   python3 -m hch.apps.query_cli "$ROOT/fixtures/dql_batch_hdlforast.txt" \
     -d "$OUT_DIR/hdlforast.hch.db" -o "$OUT_DIR/hdlforast_batch.tsv"
-  echo "HDLforAST batch: OK -> $OUT_DIR/hdlforast_batch.tsv"
+  echo "top_module batch: OK -> $OUT_DIR/hdlforast_batch.tsv"
 else
   echo "WARN: missing $HDL_FL"
 fi

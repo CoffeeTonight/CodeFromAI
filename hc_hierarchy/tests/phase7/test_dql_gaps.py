@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -86,14 +88,13 @@ def test_array_instance_names_extracted():
 def test_hdlforast_ifdef_variant():
     from hch.ingest.ifdef_variant import compare_instance_sets, instance_set_under_top
     from hch.ingest.ingest import ingest_source_files
-    from hch.paths import design_dir
 
-    top = design_dir("HDLforAST") / "top_module.v"
+    top = hfa_rtl_dir() / "top_module.v"
     if not top.exists():
-        pytest.skip("HDLforAST missing")
-    base = ingest_source_files([top], include_dirs=[str(design_dir("HDLforAST"))])
+        pytest.skip("unified_verify hfa missing")
+    base = ingest_source_files([top], include_dirs=[str(hfa_rtl_dir())])
     m1 = ingest_source_files(
-        [top], include_dirs=[str(design_dir("HDLforAST"))], defines={"USE_M1": "1"}
+        [top], include_dirs=[str(hfa_rtl_dir())], defines={"USE_M1": "1"}
     )
     diff = compare_instance_sets(
         instance_set_under_top(base, "top_module"),

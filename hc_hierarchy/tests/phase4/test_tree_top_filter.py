@@ -2,9 +2,9 @@
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import unified_top_module_filelist, unified_verify_dir
 
-FILELIST = design_dir("HDLforAST") / "filelist.f"
+FILELIST = unified_top_module_filelist()
 
 
 @pytest.mark.requires_engine
@@ -24,7 +24,7 @@ def test_tree_children_respect_top_modules(tmp_path):
         str(FILELIST),
         str(db),
         top_module="top_module",
-        index_cwd=str(FILELIST.parent),
+        index_cwd=str(unified_verify_dir()),
     ).close()
 
     svc = HierarchyDbService(str(db))

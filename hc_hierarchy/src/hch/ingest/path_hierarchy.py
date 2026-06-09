@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+from hch.ingest.port_array_expand import materialized_port_names
 from hch.schema import InstanceEdge, ModuleRecord
 
 _MODULE_RE = re.compile(r"^\s*module\s+([A-Za-z_]\w*)", re.MULTILINE)
@@ -127,7 +128,7 @@ def flat_instances_from_paths(
     seen_paths: Set[str] = set()
 
     top_rec = modules.get(top_module)
-    top_ports = [p.name for p in top_rec.ports if p.name] if top_rec else []
+    top_ports = materialized_port_names(top_rec.ports) if top_rec else []
     top_file = top_rec.file_path if top_rec else ""
     rows.append(
         FlatInstance(
@@ -154,7 +155,7 @@ def flat_instances_from_paths(
         if full in seen_paths:
             continue
         rec = modules.get(mod)
-        ports = [x.name for x in rec.ports if x.name] if rec else []
+        ports = materialized_port_names(rec.ports) if rec else []
         parent = top_module if len(segs) == 1 else f"{top_module}.{'.'.join(segs[:-1])}"
         rows.append(
             FlatInstance(

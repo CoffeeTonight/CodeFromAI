@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, List, Optional, Tuple
 
 from hch.query.dql.parser import (
@@ -350,10 +351,24 @@ _BASE_SELECT = """
 """
 
 
+def _extract_port_path_filter(expr: str) -> tuple[Optional[str], Optional[str]]:
+    for field in ("port_path", "path.port"):
+        m = re.search(
+            rf'{field}\s*(=|\^=|~)\s*"([^"]*)"',
+            expr,
+            flags=re.IGNORECASE,
+        )
+        if m:
+            return m.group(2), m.group(1)
+    return None, None
+
+
 def plan_dql(expr: str) -> SqlPlan:
     """Parse DQL with Lark and compile to SQL (preferred entry)."""
     cleaned, qmods = extract_query_modifiers(expr)
     row_limit: int | None = None
+    port_path_filter: Optional[str] = None
+    port_path_filter_op: Optional[str] = None
     if not cleaned:
         where, params = "1=1", []
     else:
@@ -361,6 +376,8 @@ def plan_dql(expr: str) -> SqlPlan:
         where, params = _compile_expr(ast.expr)
         if _count_or_nodes(ast.expr) >= 4:
             row_limit = 8000
+        if qmods.expand_ports:
+            port_path_filter, port_path_filter_op = _extract_port_path_filter(cleaned)
     sql = f"{_BASE_SELECT} WHERE {where} ORDER BY i.full_path"
     if row_limit is not None:
         sql += " LIMIT ?"
@@ -370,5 +387,7 @@ def plan_dql(expr: str) -> SqlPlan:
         params=params,
         post_filter_lastnode=qmods.lastnode,
         post_filter_expand_ports=qmods.expand_ports,
+        port_path_filter=port_path_filter,
+        port_path_filter_op=port_path_filter_op,
         row_limit=row_limit,
     )

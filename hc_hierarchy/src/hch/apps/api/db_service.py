@@ -11,6 +11,34 @@ from hch.query.dql.planner import apply_post_filters, plan_dql
 from hch.query.dql.results import format_rows_plain, format_rows_text
 
 
+def _missing_files_from_meta(raw: Dict[str, str]) -> List[str]:
+    """Paths from filelist / parse meta that were missing at index time."""
+    found: set[str] = set()
+    fl_errs = raw.get("filelist_errors", "")
+    if fl_errs:
+        try:
+            errs = json.loads(fl_errs)
+            if isinstance(errs, list):
+                for entry in errs:
+                    text = str(entry)
+                    for prefix in ("Source not found:", "Filelist not found:"):
+                        if prefix in text:
+                            found.add(text.split(":", 1)[1].strip())
+        except json.JSONDecodeError:
+            pass
+    pe = raw.get("parse_errors_json", "")
+    if pe:
+        try:
+            by_file = json.loads(pe)
+            if isinstance(by_file, dict):
+                for path, entry in by_file.items():
+                    if isinstance(entry, dict) and entry.get("status") == "missing":
+                        found.add(str(path))
+        except json.JSONDecodeError:
+            pass
+    return sorted(found)
+
+
 def _parse_ports(port_json: Optional[str]) -> List[str]:
     if not port_json:
         return []
@@ -82,6 +110,14 @@ class HierarchyDbService:
         if elab == "0":
             badge = f"{badge} · elab failed"
         data["parse_tier_badge"] = badge
+        missing = _missing_files_from_meta(data)
+        data["missing_files"] = missing
+        data["missing_file_count"] = len(missing)
+        if "filelist_errors" in data:
+            try:
+                data["filelist_errors_list"] = json.loads(data["filelist_errors"])
+            except json.JSONDecodeError:
+                data["filelist_errors_list"] = []
         return data
 
     def _index_top_modules(self) -> List[str]:
@@ -242,11 +278,37 @@ class HierarchyDbService:
         from hch.platform_paths import path_to_db, resolve_path
 
         fp = path_to_db(filepath)
+        if not fp and not str(filepath or "").strip():
+            return {
+                "filepath": "",
+                "content": "",
+                "missing": True,
+                "error": "No source file linked to this instance",
+                "truncated": False,
+                "size": 0,
+                "highlights": [],
+            }
         if not self.allowed_source(fp):
-            raise PermissionError("File not in index")
+            return {
+                "filepath": fp or str(filepath),
+                "content": "",
+                "missing": True,
+                "error": f"Source file not in index: {filepath}",
+                "truncated": False,
+                "size": 0,
+                "highlights": [h for h in (highlight or []) if h],
+            }
         path = resolve_path(fp)
         if not path.is_file():
-            raise FileNotFoundError(filepath)
+            return {
+                "filepath": fp,
+                "content": "",
+                "missing": True,
+                "error": f"Source file not found on disk: {fp}",
+                "truncated": False,
+                "size": 0,
+                "highlights": [h for h in (highlight or []) if h],
+            }
         data = path.read_bytes()
         truncated = len(data) > max_bytes
         if truncated:

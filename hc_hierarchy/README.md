@@ -72,6 +72,9 @@ hch-query -d project.hch.db -q 'module_ref ~ "*cpu_cluster*"'
 
 ### 대형 / duplicate module RTL (stress: synthetic_deep_rtl)
 
+Windows `MAX_PATH` 초과 deep RTL은 `design/synthetic_deep_rtl/missings/`에 아카이브됩니다.
+전체 스트레스는 Linux/macOS에서 `python3 scripts/restore_synthetic_deep_rtl.py` 후 실행하세요.
+
 ```bash
 hch-index design/synthetic_deep_rtl/top_deep_soc.hc.f \
   -o /tmp/deep.hch.db \
@@ -179,8 +182,8 @@ PYTHONPATH=src python3 scripts/self_check_tier_e.py
 cd C:\path\to\hc_hierarchy
 pip install -e ".[engine,dev]"
 $env:PYTHONPATH = "src"
-hch-index design\HDLforAST\filelist.f -o design.hch.db --top top_module `
-  --index-cwd design\HDLforAST
+hch-index design\unified_verify\filelist.f -o design.hch.db --top top_module `
+  --index-cwd design\unified_verify
 ```
 
 검증 스크립트(`.sh`)는 Git Bash/WSL에서 실행; Windows만 쓸 때는 `pytest tests/phase29/ tests/phase28/ -q`.
@@ -195,8 +198,8 @@ git status   # *.hch.db / logs / slang cache 는 .gitignore 로 제외됨
 git commit -m "hc_hierarchy v1 indexing tool"
 ```
 
-- `design/HDLforAST` — 저장소에 **실파일** 포함 (외부 symlink 제거됨)
-- `design/synthetic_deep_rtl` — ~23MB 스트레스 RTL (테스트용, 필요 시 LFS 고려)
+- `design/unified_verify` — 통합 검증 SoC (`hc_verify_top` / `top_module`)
+- `design/synthetic_deep_rtl` — 스트레스 RTL (기본: Windows-safe shallow; deep는 `missings/`)
 - 생성물은 커밋하지 않음: `.gitignore` 참고
 
 ## 생성물 정리
@@ -237,7 +240,7 @@ pytest tests/phase28/ tests/phase27/ -m "not slow" -q
 ## 레거시 빠른 시작 (소형 RTL)
 
 ```bash
-hch-index design/HDLforAST/filelist.f -o design.hch.db --top top_module
+hch-index design/unified_verify/filelist.f -o design.hch.db --top top_module --index-cwd design/unified_verify
 hch-query -d design.hch.db -q 'path ~ "top_module.u_middle*"'
 hch-web -d design.hch.db
 # PRoot/Termux: 브라우저 자동 실행 안 함 — http://127.0.0.1:8765/ 수동 접속

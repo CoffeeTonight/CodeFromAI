@@ -1,0 +1,46 @@
+# Batch DQL — design/unified_verify (hc_verify_top)
+# hch-index design/unified_verify/filelist.f -o /tmp/uv.hch.db --top hc_verify_top --index-cwd design/unified_verify
+# hch-query -d /tmp/uv.hch.db fixtures/dql_batch_unified_verify.txt
+
+path = "hc_verify_top"
+
+# generate loop (gen_ifdef_generate)
+path ^= "hc_verify_top.u_gen_soc.gen_blk.gen_loop"
+
+# ifdef branch (USE_ALT=1 → u_alt)
+path = "hc_verify_top.u_gen_soc.u_alt"
+
+# if(ENABLE) generate taken branch
+path = "hc_verify_top.u_gen_if.gen_on.u_on"
+
+# nested instance arrays + port_path
+expand_ports AND port_path = "hc_verify_top.u_arr.b[1].c[0].int[6][1:0]"
+expand_ports AND port_path = "hc_verify_top.u_arr.b[1].c[0].data[2:0]"
+expand_ports AND port_path ^= "hc_verify_top.u_arr.b[1].c[0].int[6]"
+
+# synthetic-style instance + 1D port array
+expand_ports AND port_path = "hc_verify_top.u_ecc_engine_00.idx[3]"
+
+# ifdef instance name (USE_M1 → u_mid_1)
+path = "hc_verify_top.u_ifdef.u_mid_1"
+
+# hierarchical bind
+path ^= "hc_verify_top.u_bind_wrap.u_sub.u_bind_hier"
+
+# top-level bind
+path = "hc_verify_top.u_bind_top"
+
+# macro instances
+from_macro = "1"
+
+# interface kind
+kind = "interface"
+
+# parametric generate
+path ^= "hc_verify_top.u_param_gen.g"
+
+# multi-def dup children
+module = "dup" AND path ^= "hc_verify_top"
+
+# unresolved child (ghost_child — RTL missing)
+child_kind = "unresolved" AND path = "hc_verify_top.u_ghost"

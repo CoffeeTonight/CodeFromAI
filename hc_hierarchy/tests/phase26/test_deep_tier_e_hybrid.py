@@ -10,6 +10,7 @@ SYN_FULL = ROOT / "design/synthetic_deep_rtl/top_deep_soc.hc.f"
 
 @pytest.mark.requires_engine
 @pytest.mark.slow
+@pytest.mark.requires_synthetic_full
 def test_deep_elab_hybrid_index(tmp_path):
     from hch.index.loader import build_index_from_filelist
 
@@ -32,6 +33,7 @@ def test_deep_elab_hybrid_index(tmp_path):
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_shallow_elab_still_eight_instances(tmp_path):
     from hch.index.loader import build_index_from_filelist
 

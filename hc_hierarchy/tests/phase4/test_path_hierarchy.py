@@ -4,10 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_path_flatten_full_synthetic_count():
     from hch.ingest.filelist import parse_filelist_simple
     from hch.ingest.hierarchy_build import elaborate_flat, elaborate_flat_with_sources
@@ -32,15 +35,17 @@ def test_path_flatten_full_synthetic_count():
 
 @pytest.mark.requires_engine
 def test_path_flatten_does_not_break_hdlforast(tmp_path):
-    from hch.paths import design_dir
     from hch.index.loader import build_index_from_filelist
+    from hch.paths import unified_filelist, unified_verify_dir
 
-    fl = design_dir("HDLforAST") / "filelist.f"
+    fl = unified_filelist()
     if not fl.exists():
         pytest.skip(f"missing {fl}")
 
     db = tmp_path / "hdl.hch.db"
-    store = build_index_from_filelist(str(fl), str(db), top_module="top_module")
+    store = build_index_from_filelist(
+        str(fl), str(db), top_module="top_module", index_cwd=str(unified_verify_dir())
+    )
     n = store.count_instances()
     store.close()
     assert n >= 3

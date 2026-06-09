@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import unified_top_module_filelist, unified_verify_dir
 
-FILELIST = design_dir("HDLforAST") / "filelist.f"
+FILELIST = unified_top_module_filelist()
 
 
 @pytest.mark.requires_engine
@@ -21,7 +21,7 @@ def test_reindex_with_top_clears_old_roots(tmp_path):
         pytest.skip(f"missing {FILELIST}")
 
     db = tmp_path / "mix.hch.db"
-    store = build_index_from_filelist(str(FILELIST), str(db), index_cwd=str(FILELIST.parent))
+    store = build_index_from_filelist(str(FILELIST), str(db), index_cwd=str(unified_verify_dir()))
     all_paths = {
         r[0]
         for r in store.conn.execute("SELECT full_path FROM instances").fetchall()
@@ -34,7 +34,7 @@ def test_reindex_with_top_clears_old_roots(tmp_path):
         str(FILELIST),
         str(db),
         top_module="top_module",
-        index_cwd=str(FILELIST.parent),
+        index_cwd=str(unified_verify_dir()),
     )
     paths = {
         r[0]

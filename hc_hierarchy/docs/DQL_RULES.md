@@ -175,7 +175,7 @@ NOT module ~ "*tb*"
 | `sql_compiler.py` | AST → SQL |
 | `modifiers.py` | `lastnode` 키워드 추출 |
 | `planner.py` | `plan_dql()`, `apply_post_filters()` |
-| `fixtures/dql_batch_hdlforast.txt` | HDLforAST 배치 |
+| `fixtures/dql_batch_hdlforast.txt` | unified_verify `top_module` 배치 |
 | `fixtures/dql_batch_synthetic_quick.txt` | synthetic quick |
 | `fixtures/dql_batch_synthetic_full.txt` | synthetic full (~991 sources) |
 

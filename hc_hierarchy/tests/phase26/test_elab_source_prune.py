@@ -11,6 +11,7 @@ GEN_FL = ROOT / "design/extras/gen_ifdef_generate/filelist.f"
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_ingest_instance_edge_file_paths():
     from hch.ingest.filelist import parse_filelist_simple
     from hch.ingest.ingest import ingest_filelist_result
@@ -24,6 +25,7 @@ def test_ingest_instance_edge_file_paths():
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_prune_never_returns_full_filelist_on_seed():
     from hch.engine.elab_source_prune import (
         build_module_path_index,
@@ -46,6 +48,7 @@ def test_prune_never_returns_full_filelist_on_seed():
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_prune_sources_synthetic_deep():
     from hch.engine.elab_source_prune import prune_sources_for_elab
     from hch.ingest.filelist import parse_filelist_simple
@@ -62,6 +65,7 @@ def test_prune_sources_synthetic_deep():
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_elab_fast_ingest_meta(tmp_path):
     from hch.index.loader import build_index_from_filelist
 
@@ -82,6 +86,7 @@ def test_elab_fast_ingest_meta(tmp_path):
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_elab_synthetic_deep_top_succeeds(tmp_path):
     from hch.index.loader import build_index_from_filelist
 
@@ -101,6 +106,7 @@ def test_elab_synthetic_deep_top_succeeds(tmp_path):
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_elab_pruned_mode_when_closure_over_gate(tmp_path):
     """Large closure must still compile pruned sources, not all 991 RTL."""
     from hch.ingest.elab_fast_ingest import tier_e_index_build

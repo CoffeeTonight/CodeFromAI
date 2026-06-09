@@ -369,6 +369,54 @@ button:hover {
   max-width: 100%;
 }
 
+.source-path.source-missing {
+  color: #f07178;
+  font-weight: 600;
+}
+
+.source-view .source-missing-msg {
+  color: #f07178;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.missing-files-box {
+  border-top: 1px solid rgba(240, 113, 120, 0.35);
+  background: rgba(240, 113, 120, 0.08);
+  padding: 0.55rem 0.75rem 0.7rem;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.missing-files-box.hidden {
+  display: none;
+}
+
+.missing-files-box h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #f07178;
+  font-weight: 600;
+}
+
+#missing-files-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missing-file-item {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #f07178;
+  padding: 0.15rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .source-view {
   flex: 1;
   margin: 0;

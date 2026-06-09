@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-DESIGN = design_dir("HDLforAST")
-FILELIST = DESIGN / "filelist.f"
+FILELIST = unified_filelist()
 
 
 @pytest.mark.requires_engine
@@ -20,7 +19,7 @@ def test_dql_module_glob(tmp_path):
         pytest.skip(f"missing {FILELIST}")
 
     db = tmp_path / "q.hch.db"
-    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module")
+    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module", index_cwd=str(unified_verify_dir()))
     store.close()
 
     plan = plan_dql('module ~ "middle*"')

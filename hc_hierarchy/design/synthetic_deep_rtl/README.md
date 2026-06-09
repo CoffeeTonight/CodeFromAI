@@ -7,14 +7,22 @@
 
 | File | 용도 |
 |------|------|
-| `quick.hc.f` | 빠른 ingest (~subset) |
-| `top_deep_soc.hc.f` | 전체 소스 (~991), hybrid/진단 기본 |
+| `quick.hc.f` | 빠른 CI shallow (~25 sources, `-top deep_soc_top` 내장) |
+| `quick_deep.hc.f` | 부분 복원 deep RTL (~579 sources, 느림) |
+| `quick_full.hc.f` | 원본 경로 전체 quick (**원본 경로 복원 후**) |
+| `top_deep_soc.hc.f` | 전체 소스 (~991), hybrid/진단 (**복원 후**) |
 | `top_deep_soc.f` | 레거시 경로 (가능하면 `.hc.f` 사용) |
+
+## Windows / deep RTL
+
+깊은 `rtl/soc_top/u_*` 경로는 Windows `MAX_PATH`를 초과하므로 기본 체크아웃에서는 `missings/`에 아카이브됩니다.
+복원: `python3 scripts/restore_synthetic_deep_rtl.py` (Linux/macOS 권장). 자세한 내용은 `missings/README.md`.
 
 ## Layout
 
 - `rtl/deep_soc_top.v` — shallow hierarchy smoke top
-- `rtl/soc_top/...` — deep `u_*` path 트리
+- `rtl/soc_top/...` — deep `u_*` path 트리 (복원 전에는 shallow 파일만)
+- `missings/` — 아카이브된 deep `.v` + `MANIFEST.tsv`
 - `nested_deep/` — nested `-f` / `-F` include
 - `libs/tech_lib/` — `-v` library stubs
 - `single_lib.v` — 공통 `-v` stub (`top_deep_soc.hc.f`에서 참조)

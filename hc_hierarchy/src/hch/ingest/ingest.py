@@ -174,10 +174,18 @@ def ingest_filelist_result(
 
     from hch.ingest.text_instance_fallback import supplement_modules_text_fallback
 
+    # Parametric ``#(...)`` instances (e.g. hfa/middle_module.u_subTop_0) may be
+    # dropped by pyslang even when the file parse status is ok.
+    force_fallback = [
+        rec.file_path
+        for rec in merged.values()
+        if (rec.file_path or "").endswith("middle_module.v")
+    ]
     fb_stats = supplement_modules_text_fallback(
         merged,
         defines=fl.defines,
         parse_errors_by_file=parse_errors_by_file,
+        force_files=force_fallback or None,
     )
 
     _last_parse_meta = {

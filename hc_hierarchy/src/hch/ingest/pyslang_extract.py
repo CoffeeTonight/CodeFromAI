@@ -19,6 +19,7 @@ from hch.ingest.package_scope import normalize_scoped_type
 from hch.ingest.instance_array_expand import expand_instance_name
 from hch.ingest.macro_tag import instance_from_macro
 from hch.ingest.parse_tags import instance_edge_key
+from hch.ingest.port_array_expand import extract_width_from_port_text
 from hch.ingest.tree_source import definition_file_path_from_node
 from hch.schema import BindEdge, InstanceEdge, ModuleRecord, PortRecord
 
@@ -548,6 +549,34 @@ def _walk_nested_items(
             )
 
 
+def _port_name_from_port_source(port: Any, tree: Any) -> str:
+    """Recover port names dropped from declarators (e.g. SV keyword ``int``)."""
+    sm = getattr(tree, "sourceManager", None)
+    sr = getattr(port, "sourceRange", None)
+    if sm is None or sr is None:
+        return ""
+    start = getattr(sr, "start", None)
+    end = getattr(sr, "end", None)
+    if start is None or end is None:
+        return ""
+    buf = getattr(start, "buffer", None)
+    if buf is None:
+        return ""
+    try:
+        text = sm.getSourceText(buf)
+    except (AttributeError, TypeError):
+        return ""
+    i = int(getattr(start, "offset", 0))
+    j = int(getattr(end, "offset", 0))
+    while j < len(text) and text[j] not in ",)":
+        j += 1
+    chunk = text[i:j].strip()
+    match = re.search(r"(?:\[[^\]]+\])*\s*(\w+)\s*$", chunk)
+    if match:
+        return match.group(1)
+    return ""
+
+
 def _port_name_from_node(node: Any) -> str:
     if node is None:
         return ""
@@ -582,7 +611,7 @@ def _extract_header_parameters(mdef: Any) -> Dict[str, str]:
     return out
 
 
-def _extract_header_ports(mdef: Any) -> List[PortRecord]:
+def _extract_header_ports(mdef: Any, *, tree: Any = None) -> List[PortRecord]:
     ports: List[PortRecord] = []
     header = getattr(mdef, "header", None)
     if header is None or not hasattr(header, "ports"):
@@ -595,7 +624,15 @@ def _extract_header_ports(mdef: Any) -> List[PortRecord]:
         if "ImplicitNonAnsiPort" in kind:
             pname = _port_name_from_node(port)
             if pname:
-                ports.append(PortRecord(name=pname, direction="port", type_str=""))
+                width = extract_width_from_port_text(str(port), pname)
+                ports.append(
+                    PortRecord(
+                        name=pname,
+                        direction="port",
+                        type_str="",
+                        width=width,
+                    )
+                )
             continue
         if "Port" not in kind and "port" not in kind.lower():
             continue
@@ -604,11 +641,23 @@ def _extract_header_ports(mdef: Any) -> List[PortRecord]:
         type_str = ""
         if hasattr(port, "declarator") and port.declarator is not None:
             pname = _port_name_from_node(port.declarator)
+        if not pname and tree is not None:
+            pname = _port_name_from_port_source(port, tree)
         if hasattr(port, "header") and port.header is not None:
             direction = syntax_text(getattr(port.header, "direction", None))
             type_str = syntax_text(getattr(port.header, "dataType", None))
         if pname:
-            ports.append(PortRecord(name=pname, direction=direction, type_str=type_str))
+            width = extract_width_from_port_text(str(port), pname)
+            if not width and type_str:
+                width = extract_width_from_port_text(type_str, "")
+            ports.append(
+                PortRecord(
+                    name=pname,
+                    direction=direction,
+                    type_str=type_str,
+                    width=width,
+                )
+            )
     return ports
 
 
@@ -763,7 +812,7 @@ class PyslangHierarchyExtractor:
                     mname_mp = syntax_text(getattr(item, "name", None))
                     if mname_mp:
                         rec.parameters.setdefault("_modport_" + mname_mp, "1")
-        rec.ports.extend(_extract_header_ports(mdef))
+        rec.ports.extend(_extract_header_ports(mdef, tree=self._current_tree))
         rec.parameters.update(_extract_header_parameters(mdef))
         dps = _extract_defparams(mdef)
         if dps:

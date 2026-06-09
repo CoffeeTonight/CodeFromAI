@@ -1,13 +1,13 @@
-"""Batch DQL verification on dummy designs (HDLforAST + synthetic quick)."""
+"""Batch DQL verification on dummy designs (unified_verify hfa + synthetic quick)."""
 
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-HDL_FL = design_dir("HDLforAST") / "filelist.f"
+ROOT = Path(__file__).resolve().parents[2]
+HDL_FL = unified_filelist()
 QUICK_FL = ROOT / "design" / "synthetic_deep_rtl" / "quick.hc.f"
 BATCH_HDL = ROOT / "fixtures" / "dql_batch_hdlforast.txt"
 BATCH_QUICK = ROOT / "fixtures" / "dql_batch_synthetic_quick.txt"
@@ -47,7 +47,7 @@ def test_batch_hdlforast_golden(tmp_path):
         pytest.skip("batch fixture missing")
 
     db = tmp_path / "hdl.hch.db"
-    store = build_index_from_filelist(str(HDL_FL), str(db), top_module="top_module")
+    store = build_index_from_filelist(str(HDL_FL), str(db), top_module="top_module", index_cwd=str(unified_verify_dir()))
     store.close()
 
     c = _run_batch(db, BATCH_HDL)
@@ -88,6 +88,7 @@ def test_batch_synthetic_quick_golden(tmp_path):
 
 @pytest.mark.requires_engine
 @pytest.mark.slow
+@pytest.mark.requires_synthetic_full
 def test_batch_synthetic_full_golden(tmp_path):
     from hch.index.batched_loader import build_index_batched
 

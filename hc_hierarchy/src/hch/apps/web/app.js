@@ -66,6 +66,9 @@ function formatMetaPanel(m) {
   if (Array.isArray(m.top_modules_all) && m.top_modules_all.length > 1) {
     lines.push(`all_tops: ${m.top_modules_all.join(", ")}`);
   }
+  if (m.missing_file_count > 0) {
+    lines.push(`missing_rtl_files: ${m.missing_file_count}`);
+  }
   if (m.path_hierarchy_used !== undefined) {
     lines.push(`path_hierarchy_used: ${m.path_hierarchy_used}`);
   }
@@ -105,9 +108,13 @@ async function loadMeta() {
   if (Array.isArray(warns) && warns.length) {
     extra += ` · ${warns.length} warnings`;
   }
+  if (m.missing_file_count > 0) {
+    extra += ` · ${m.missing_file_count} missing RTL`;
+  }
   $("#meta-bar").textContent =
     `${db} · ${ic} instances · ${mc} modules · tier ${tier} · ${eng}${hs}${extra}`;
   $("#meta-panel").textContent = formatMetaPanel(m);
+  renderMissingFilesList(m.missing_files || []);
 }
 
 function findTreeRow(fullPath) {
@@ -329,17 +336,16 @@ async function selectInstance(fullPath, filepath, ports, opts = {}) {
   } else {
     highlightSelection();
   }
-  if (filepath) {
-    await loadSource(filepath, terms);
-  }
   showPorts(ports || []);
+  let srcPath = filepath || "";
   try {
     const detail = await apiGet(`/api/instance?path=${encodeURIComponent(fullPath)}`);
     const allPorts = detail.ports?.length ? detail.ports : ports || [];
-    if (detail.filepath) await loadSource(detail.filepath, [...terms, ...allPorts]);
+    if (detail.filepath) srcPath = detail.filepath;
     if (allPorts.length) showPorts(allPorts);
+    await loadSource(srcPath, [...terms, ...allPorts]);
   } catch (_) {
-    /* ignore */
+    await loadSource(srcPath, terms);
   }
 }
 
@@ -359,16 +365,56 @@ function showPorts(ports) {
   }
 }
 
+function setSourcePathDisplay(filepath, missing) {
+  const pathEl = $("#source-path");
+  pathEl.textContent = filepath || "(no source file)";
+  pathEl.classList.toggle("source-missing", Boolean(missing));
+}
+
+function showMissingSource(filepath, message) {
+  const view = $("#source-view");
+  setSourcePathDisplay(filepath, true);
+  view.innerHTML = `<code class="source-missing-msg">${escapeHtml(message)}</code>`;
+}
+
+function renderMissingFilesList(files) {
+  const box = $("#missing-files-box");
+  const list = $("#missing-files-list");
+  list.innerHTML = "";
+  if (!files?.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  for (const fp of files) {
+    const li = document.createElement("li");
+    li.className = "missing-file-item";
+    li.textContent = fp;
+    li.title = fp;
+    list.appendChild(li);
+  }
+}
+
 async function loadSource(filepath, terms = []) {
   const view = $("#source-view");
-  $("#source-path").textContent = filepath;
+  const fp = (filepath || "").trim();
+  if (!fp) {
+    showMissingSource("", "No source file linked to this instance");
+    return;
+  }
+  setSourcePathDisplay(fp, false);
   view.innerHTML = '<code class="muted">Loading…</code>';
   const hl = [...new Set(terms.filter(Boolean))].join(",");
   const url =
-    `/api/source?file=${encodeURIComponent(filepath)}` +
+    `/api/source?file=${encodeURIComponent(fp)}` +
     (hl ? `&highlight=${encodeURIComponent(hl)}` : "");
   try {
     const data = await apiGet(url);
+    if (data.missing) {
+      showMissingSource(data.filepath || fp, data.error || "Source file not found");
+      return;
+    }
+    setSourcePathDisplay(data.filepath || fp, false);
     const useTerms = data.highlights?.length ? data.highlights : terms;
     renderSourceContent(data.content, useTerms);
     if (data.truncated) {
@@ -380,7 +426,7 @@ async function loadSource(filepath, terms = []) {
       );
     }
   } catch (e) {
-    view.innerHTML = `<code class="muted">${escapeHtml(e.message)}</code>`;
+    showMissingSource(fp, e.message || "Failed to load source");
   }
 }
 

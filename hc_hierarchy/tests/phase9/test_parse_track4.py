@@ -4,10 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_path_hierarchy_meta_on_synthetic():
     from hch.index.loader import build_index_from_filelist
 
@@ -53,14 +56,16 @@ def test_elab_fallback_no_path_heuristic(tmp_path):
 
 @pytest.mark.requires_engine
 def test_hdlforast_uses_ast_not_path(tmp_path):
-    from hch.paths import design_dir
     from hch.index.loader import build_index_from_filelist
+    from hch.paths import unified_filelist, unified_verify_dir
 
-    fl = design_dir("HDLforAST") / "filelist.f"
+    fl = unified_filelist()
     if not fl.exists():
         pytest.skip(f"missing {fl}")
     db = tmp_path / "hdl.hch.db"
-    store = build_index_from_filelist(str(fl), str(db), top_module="top_module")
+    store = build_index_from_filelist(
+        str(fl), str(db), top_module="top_module", index_cwd=str(unified_verify_dir())
+    )
     assert store.get_meta("hierarchy_source") == "ast"
     assert store.get_meta("path_hierarchy_used") == "0"
     store.close()

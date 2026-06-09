@@ -158,7 +158,15 @@ class HierarchyStore:
 
             ref = make_module_ref(m.file_path, m.module_name)
             port_json = json.dumps(
-                [{"name": p.name, "dir": p.direction, "type": p.type_str} for p in m.ports]
+                [
+                    {
+                        "name": p.name,
+                        "dir": p.direction,
+                        "type": p.type_str,
+                        "width": p.width,
+                    }
+                    for p in m.ports
+                ]
             )
             self.conn.execute(
                 """
@@ -197,6 +205,7 @@ class HierarchyStore:
                             name=p.get("name", ""),
                             direction=p.get("dir", ""),
                             type_str=p.get("type", ""),
+                            width=p.get("width", ""),
                         )
                     )
             params = json.loads(param_json) if param_json else {}

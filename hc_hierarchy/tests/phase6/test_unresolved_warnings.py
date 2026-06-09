@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
+
 ROOT = Path(__file__).resolve().parents[2]
-HDL_FL = ROOT / "design" / "HDLforAST" / "filelist.f"
+HDL_FL = unified_filelist()
 
 
 @pytest.mark.requires_engine

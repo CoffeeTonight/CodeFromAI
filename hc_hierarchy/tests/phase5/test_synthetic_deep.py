@@ -4,9 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import require_synthetic_deep_full, synthetic_deep_rtl_archived
+
 ROOT = Path(__file__).resolve().parents[2]
 SYN = ROOT / "design" / "synthetic_deep_rtl"
 QUICK = SYN / "quick.hc.f"
+QUICK_FULL = SYN / "quick_full.hc.f"
 GEN = ROOT / "design" / "extras" / "gen_ifdef_generate" / "filelist.f"
 
 
@@ -17,12 +20,14 @@ def test_synthetic_quick_ingest_module_count():
     if not QUICK.exists():
         pytest.skip(f"missing {QUICK}")
     mods = ingest_filelist(QUICK)
-    assert len(mods) >= 50, f"expected many modules from u_ecc subtree, got {len(mods)}"
+    min_mods = 50 if not synthetic_deep_rtl_archived() else 15
+    assert len(mods) >= min_mods, f"expected >={min_mods} modules, got {len(mods)}"
 
 
 @pytest.mark.requires_engine
 @pytest.mark.slow
 def test_synthetic_full_filelist_sources_and_index(tmp_path):
+    require_synthetic_deep_full()
     from hch.ingest.filelist import parse_filelist_simple
     from hch.index.batched_loader import build_index_batched
 

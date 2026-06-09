@@ -1,14 +1,10 @@
-"""Recover instances dropped by partial pyslang parse (HDLforAST)."""
-
-from pathlib import Path
+"""Recover instances dropped by partial pyslang parse (unified_verify hfa)."""
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-DESIGN = design_dir("HDLforAST")
-FILELIST = DESIGN / "filelist.f"
-MIDDLE = DESIGN / "middle_module.v"
+MIDDLE = hfa_rtl_dir() / "middle_module.v"
 
 
 def test_scan_finds_parametric_instance():
@@ -36,10 +32,10 @@ def test_ingest_recovers_u_subtop_0():
     status = check_engine()
     if not status.available:
         pytest.skip(status.message)
-    if not FILELIST.exists():
-        pytest.skip(f"missing {FILELIST}")
+    if not unified_filelist().exists():
+        pytest.skip(f"missing {unified_filelist()}")
 
-    mods = ingest_filelist(FILELIST, index_cwd=str(DESIGN))
+    mods = ingest_filelist(unified_filelist(), index_cwd=str(unified_verify_dir()))
     meta = get_last_parse_meta()
     assert int(meta.get("text_fallback_instance_count", "0")) >= 1
 
@@ -63,15 +59,15 @@ def test_index_meta_records_text_fallback(tmp_path):
     status = check_engine()
     if not status.available:
         pytest.skip(status.message)
-    if not FILELIST.exists():
-        pytest.skip(f"missing {FILELIST}")
+    if not unified_filelist().exists():
+        pytest.skip(f"missing {unified_filelist()}")
 
     db = tmp_path / "fb.hch.db"
     store = build_index_from_filelist(
-        str(FILELIST),
+        str(unified_filelist()),
         str(db),
         top_module="top_module",
-        index_cwd=str(DESIGN),
+        index_cwd=str(unified_verify_dir()),
     )
     assert int(store.get_meta("text_fallback_instance_count") or "0") >= 1
     rows = store.export_instance_dicts()

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-FILELIST = design_dir("HDLforAST") / "filelist.f"
+FILELIST = unified_filelist()
 
 
 @pytest.mark.requires_engine
@@ -21,9 +21,7 @@ def test_index_has_hierarchy_ports_and_file(tmp_path):
         pytest.skip(f"missing {FILELIST}")
 
     db = tmp_path / "hdl.hch.db"
-    store = build_index_from_filelist(
-        str(FILELIST), str(db), top_module="top_module"
-    )
+    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module", index_cwd=str(unified_verify_dir()))
     rows = store.export_instance_dicts()
     store.close()
 

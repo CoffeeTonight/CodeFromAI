@@ -26,6 +26,7 @@ def test_minus_F_resolves_from_cwd(tmp_path, monkeypatch):
     assert not fl.errors
 
 
+@pytest.mark.requires_synthetic_full
 def test_minus_F_nested_relative_to_containing_filelist(monkeypatch):
     """-f nested paths use filelist dir; index_cwd defaults to top .f parent."""
     from hch.ingest.filelist import parse_filelist_simple

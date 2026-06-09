@@ -4,9 +4,9 @@ import sqlite3
 
 import pytest
 
-from hch.paths import design_dir
+from hch.paths import hfa_rtl_dir, unified_filelist, unified_verify_dir
 
-FILELIST = design_dir("HDLforAST") / "filelist.f"
+FILELIST = unified_filelist()
 
 
 @pytest.fixture(scope="module")
@@ -16,7 +16,7 @@ def indexed_db(tmp_path_factory):
     if not FILELIST.exists():
         pytest.skip(f"missing {FILELIST}")
     db = tmp_path_factory.mktemp("dql_inst") / "inst.hch.db"
-    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module")
+    store = build_index_from_filelist(str(FILELIST), str(db), top_module="top_module", index_cwd=str(unified_verify_dir()))
     store.close()
     return db
 

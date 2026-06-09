@@ -13,6 +13,8 @@ class SqlPlan:
     params: List[Any]
     post_filter_lastnode: bool = False
     post_filter_expand_ports: bool = False
+    port_path_filter: Optional[str] = None
+    port_path_filter_op: Optional[str] = None
     row_limit: Optional[int] = None
 
 
@@ -132,6 +134,8 @@ def apply_post_filters(rows: List[Dict[str, Any]], plan: SqlPlan) -> List[Dict[s
         rows,
         lastnode=plan.post_filter_lastnode,
         expand_ports=plan.post_filter_expand_ports,
+        port_path_filter=plan.port_path_filter,
+        port_path_filter_op=plan.port_path_filter_op,
     )
 
 

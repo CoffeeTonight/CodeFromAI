@@ -9,6 +9,7 @@ SYN_FL = ROOT / "design/synthetic_deep_rtl/top_deep_soc.hc.f"
 
 
 @pytest.mark.requires_engine
+@pytest.mark.requires_synthetic_full
 def test_compilation_diagnostics_are_strings_not_objects():
     import pyslang
 

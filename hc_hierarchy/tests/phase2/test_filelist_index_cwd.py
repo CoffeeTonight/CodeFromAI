@@ -61,6 +61,7 @@ def test_slang_filelist_cache_reuse(tmp_path):
 
 
 @pytest.mark.skipif(not (SYNTH / "top_deep_soc.hc.f").exists(), reason="no synthetic RTL")
+@pytest.mark.requires_synthetic_full
 def test_synthetic_filelist_from_repo_root():
     from hch.ingest.filelist import parse_filelist_simple
 

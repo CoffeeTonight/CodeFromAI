@@ -23,6 +23,7 @@ def test_compile_context_pruned_clears_filelist_path():
     assert len(ctx.source_files) == 1
 
 
+@pytest.mark.requires_synthetic_full
 def test_choose_hierarchy_mode_auto_large():
     from hch.index.hierarchy_mode import choose_hierarchy_mode
     from hch.ingest.filelist import parse_filelist_simple

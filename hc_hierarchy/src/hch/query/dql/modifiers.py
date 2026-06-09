@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -60,7 +60,24 @@ def _port_names(row: Dict[str, Any]) -> List[str]:
     return []
 
 
-def apply_expand_ports(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _port_path_matches(actual: str, pattern: str, op: str) -> bool:
+    if op == "=":
+        return actual == pattern
+    if op == "^=":
+        return actual.startswith(pattern)
+    if op == "~":
+        import fnmatch
+
+        return fnmatch.fnmatchcase(actual, pattern)
+    return True
+
+
+def apply_expand_ports(
+    rows: List[Dict[str, Any]],
+    *,
+    port_path_filter: Optional[str] = None,
+    port_path_filter_op: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """B-mode: one row per (instance, port) with ``port_path`` = ``full_path.port``."""
     out: List[Dict[str, Any]] = []
     for r in rows:
@@ -70,11 +87,20 @@ def apply_expand_ports(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             row = dict(r)
             row["port_path"] = fp
             row["port_name"] = ""
+            if port_path_filter and not _port_path_matches(
+                row["port_path"], port_path_filter, port_path_filter_op or "="
+            ):
+                continue
             out.append(row)
             continue
         for pname in ports:
+            port_path = f"{fp}.{pname}" if fp else pname
+            if port_path_filter and not _port_path_matches(
+                port_path, port_path_filter, port_path_filter_op or "="
+            ):
+                continue
             row = dict(r)
-            row["port_path"] = f"{fp}.{pname}" if fp else pname
+            row["port_path"] = port_path
             row["port_name"] = pname
             out.append(row)
     return out
@@ -85,9 +111,15 @@ def apply_post_filters(
     *,
     lastnode: bool = False,
     expand_ports: bool = False,
+    port_path_filter: Optional[str] = None,
+    port_path_filter_op: Optional[str] = None,
 ) -> list:
     if lastnode:
         rows = apply_lastnode(rows)
     if expand_ports:
-        rows = apply_expand_ports(rows)
+        rows = apply_expand_ports(
+            rows,
+            port_path_filter=port_path_filter,
+            port_path_filter_op=port_path_filter_op,
+        )
     return rows

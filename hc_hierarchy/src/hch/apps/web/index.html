@@ -14,6 +14,7 @@
     </div>
     <div class="meta-wrap">
       <div id="meta-bar" class="meta-bar">Loading index…</div>
+      <button type="button" id="btn-help" class="ghost meta-toggle" title="도움말 (F1)">?</button>
       <button type="button" id="btn-meta-toggle" class="ghost meta-toggle" title="Index details">ⓘ</button>
     </div>
   </header>
@@ -49,9 +50,10 @@
           id="dql-input"
           type="text"
           spellcheck="false"
-          placeholder='port_path ^= "top.clk"  ·  inst ~ "u_*"  ·  expand_ports'
+          placeholder='path ~ "*t*.*"  ·  inst ~ "u_*"  ·  ? 또는 F1=도움말'
         />
         <button type="button" id="btn-run-dql" class="primary">Run</button>
+        <button type="button" id="btn-dql-help" class="ghost" title="DQL 도움말 및 예시 (F1)">?</button>
         <button type="button" id="btn-export-text" class="ghost" title="Copy results as text">Text</button>
         <button type="button" id="btn-download-text" class="ghost" title="Download .txt">↓</button>
         <span id="query-status" class="query-status"></span>
@@ -91,9 +93,25 @@
   </main>
 
   <footer class="footer">
-    <span>Backend: SQLite index · DQL</span>
+    <span>Backend: SQLite index · DQL · <button type="button" id="btn-help-footer" class="linkish">도움말</button></span>
     <a href="/api/meta" target="_blank" rel="noopener">/api/meta</a>
   </footer>
+
+  <div id="help-backdrop" class="help-backdrop hidden" aria-hidden="true"></div>
+  <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-dialog-title">
+    <header class="help-dialog-head">
+      <h2 id="help-dialog-title">hc_hierarchy 도움말</h2>
+      <button type="button" id="btn-help-close" class="ghost help-close" title="닫기 (Esc)">✕</button>
+    </header>
+    <div class="help-dialog-body">
+      <nav id="help-tabs" class="help-tabs" role="tablist" aria-label="도움말 섹션"></nav>
+      <div id="help-panels" class="help-panels"></div>
+    </div>
+    <footer class="help-dialog-foot">
+      <span id="help-top-hint" class="help-top-hint"></span>
+      <button type="button" id="btn-help-close2" class="ghost">닫기</button>
+    </footer>
+  </dialog>
 
   <script src="/app.js" type="module"></script>
 </body>

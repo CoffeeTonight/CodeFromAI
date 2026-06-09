@@ -7,12 +7,15 @@ import argparse
 import sys
 
 from hch.apps.api.http_server import serve_forever
+from hch.apps.help_text import WEB_HELP_EPILOG
 from hch.platform_paths import browser_auto_open_default
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
-        description="hc_hierarchy web UI (read-only SQLite index + DQL)"
+        description="hc_hierarchy web UI (read-only SQLite index + DQL)",
+        epilog=WEB_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("-d", "--database", required=True, help="SQLite .hch.db path")
     ap.add_argument("--host", default="127.0.0.1")

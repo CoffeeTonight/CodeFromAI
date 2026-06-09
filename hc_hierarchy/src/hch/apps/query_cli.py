@@ -8,16 +8,33 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from hch.apps.help_text import QUERY_HELP_EPILOG
 from hch.query.dql.planner import apply_post_filters, plan_dql
 from hch.query.dql.results import format_rows_plain, format_rows_text
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Query hierarchy SQLite DB (DQL subset)")
-    ap.add_argument("queries", nargs="?", help="Query string or path to .txt batch file")
+    ap = argparse.ArgumentParser(
+        description="Run DQL queries against a hierarchy SQLite DB (.hch.db)",
+        epilog=QUERY_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument(
+        "queries",
+        nargs="?",
+        help="DQL query string, or path to batch .txt (one query per line, # comments)",
+    )
     ap.add_argument("-d", "--database", required=True, help="SQLite .hch.db path")
-    ap.add_argument("-o", "--output", help="Output file (TSV or text per --format)")
-    ap.add_argument("-q", "--query", help="Single query (alternative to positional)")
+    ap.add_argument(
+        "-o",
+        "--output",
+        help="Write results to file (TSV/text/plain per --format)",
+    )
+    ap.add_argument(
+        "-q",
+        "--query",
+        help="Single DQL query (alternative to positional queries argument)",
+    )
     ap.add_argument(
         "--format",
         choices=("tsv", "text", "plain"),

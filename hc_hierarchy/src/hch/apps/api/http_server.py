@@ -12,6 +12,7 @@ from typing import Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
 from hch.apps.api.db_service import HierarchyDbService
+from hch.apps.help_text import web_help_payload
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -110,6 +111,20 @@ def make_handler(
                     return
                 if path == "/api/meta":
                     _json_response(self, 200, self.svc.meta())
+                    return
+                if path == "/api/help":
+                    payload = web_help_payload()
+                    meta = self.svc.meta()
+                    top = meta.get("top_module") or ""
+                    if not top and isinstance(meta.get("top_modules_all"), list):
+                        tops = meta.get("top_modules_all") or []
+                        top = tops[0] if tops else ""
+                    if not top:
+                        kids = self.svc.tree_children(None)
+                        if kids:
+                            top = kids[0].get("full_path") or kids[0].get("leaf") or ""
+                    payload["top_module"] = top
+                    _json_response(self, 200, payload)
                     return
                 if path == "/api/tree/children":
                     parent = qs.get("parent", [None])[0]

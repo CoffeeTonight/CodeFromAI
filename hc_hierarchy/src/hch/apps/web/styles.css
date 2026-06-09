@@ -515,7 +515,248 @@ button:hover {
   text-decoration: none;
 }
 
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Help dialog */
+.help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 900;
+}
+
+.help-backdrop.hidden {
+  display: none;
+}
+
+.help-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 910;
+  /* 고정 크기 — 탭 전환 시 박스가 줄었다 늘었다 하지 않음 */
+  width: min(920px, 94vw);
+  height: min(720px, 86vh);
+  min-height: min(720px, 86vh);
+  max-height: min(720px, 86vh);
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: none;
+}
+
+.help-dialog:not([open]):not(.open) {
+  display: none;
+}
+
+.help-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.help-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.help-dialog-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.help-close {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.help-dialog-body {
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.help-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.55rem;
+  border-right: 1px solid var(--border);
+  background: #12161e;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.help-tab {
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.help-tab.active {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.help-panels {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+.help-panel {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.85rem 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.help-panel.hidden {
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.help-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.help-pre.help-warn {
+  color: #f0c674;
+  background: rgba(240, 198, 116, 0.08);
+  border: 1px solid rgba(240, 198, 116, 0.25);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.help-note,
+.help-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.help-example-group {
+  margin-bottom: 1.1rem;
+}
+
+.help-example-group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.help-example-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.help-example-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.help-example-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.help-example-btn.cli-only {
+  border-style: dashed;
+}
+
+.help-example-btn .ex-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.help-example-btn .ex-query {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.help-example-btn .ex-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.help-dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  flex: 0 0 auto;
+}
+
+.help-top-hint {
+  font-family: var(--mono);
+  color: var(--text-muted);
+}
+
 @media (max-width: 960px) {
+  .help-dialog {
+    width: 96vw;
+    height: 88vh;
+    min-height: 88vh;
+    max-height: 88vh;
+  }
+
+  .help-dialog-body {
+    grid-template-columns: 120px 1fr;
+  }
+
   .layout {
     grid-template-columns: 1fr;
     grid-template-rows: 200px 1fr 240px;

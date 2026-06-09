@@ -58,8 +58,18 @@ def test_web_api_over_quick_index(tmp_path):
         q = _post(f"{base}/api/query", {"q": 'path = "deep_soc_top"'})
         assert q["count"] >= 1
 
+        help_data = _get(f"{base}/api/help")
+        assert help_data.get("version") == "1"
+        assert isinstance(help_data.get("sections"), list)
+        assert len(help_data.get("sections")) >= 5
+        groups = help_data.get("example_groups") or []
+        assert any(g.get("id") == "path" for g in groups)
+        assert help_data.get("top_module")
+
         html = urllib.request.urlopen(f"{base}/", timeout=10).read()
         assert b"Hierarchy Explorer" in html
+        assert b"help-dialog" in html
+        assert b"btn-help" in html
     finally:
         server.shutdown()
         server.server_close()

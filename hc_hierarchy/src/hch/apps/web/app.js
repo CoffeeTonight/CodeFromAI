@@ -22,6 +22,8 @@ let selectedPath = null;
 let lastQueryText = "";
 let lastMeta = null;
 let highlightTerms = [];
+let helpPayload = null;
+let helpActiveTab = "examples";
 
 function setQueryStatus(text, ok = false) {
   const el = $("#query-status");
@@ -512,6 +514,189 @@ async function copyResultsText() {
   }
 }
 
+function substituteTop(query, topModule) {
+  const top = (topModule || "").trim();
+  return String(query || "").replaceAll("{{TOP}}", top || "top_module");
+}
+
+function renderHelpTextBody(text) {
+  const pre = document.createElement("pre");
+  pre.className = "help-pre";
+  pre.textContent = text || "";
+  return pre;
+}
+
+function renderExampleGroups(groups, topModule) {
+  const wrap = document.createElement("div");
+  wrap.className = "help-examples";
+
+  const note = document.createElement("p");
+  note.className = "help-note";
+  note.textContent =
+    "예시를 클릭하면 DQL 입력창에 채워집니다. Run(Enter)으로 실행하세요. " +
+    (topModule
+      ? `이 DB top: ${topModule}`
+      : "top module 미확인 — {{TOP}} 자리에 실제 top 이름을 넣으세요.");
+  wrap.appendChild(note);
+
+  const instNote = document.createElement("pre");
+  instNote.className = "help-pre help-warn";
+  instNote.textContent =
+    "⚠ inst = leaf 이름만 (점 없음).  inst ~ \"*t*.*\" → 0건\n" +
+    "   path ~ \"*t*.*\" → 경로 패턴 검색";
+  wrap.appendChild(instNote);
+
+  for (const group of groups || []) {
+    const section = document.createElement("section");
+    section.className = "help-example-group";
+
+    const h3 = document.createElement("h3");
+    h3.textContent = group.title || "";
+    section.appendChild(h3);
+
+    if (group.hint) {
+      const hint = document.createElement("p");
+      hint.className = "help-hint";
+      hint.textContent = group.hint;
+      section.appendChild(hint);
+    }
+
+    const list = document.createElement("div");
+    list.className = "help-example-list";
+
+    for (const ex of group.examples || []) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "help-example-btn" + (ex.cli_only ? " cli-only" : "");
+      const q = substituteTop(ex.query, topModule);
+      btn.dataset.query = q;
+      btn.dataset.cliOnly = ex.cli_only ? "1" : "0";
+
+      const label = document.createElement("span");
+      label.className = "ex-label";
+      label.textContent = ex.label || q;
+
+      const code = document.createElement("code");
+      code.className = "ex-query";
+      code.textContent = q;
+
+      btn.append(label, code);
+      if (ex.note) {
+        const n = document.createElement("span");
+        n.className = "ex-note";
+        n.textContent = ex.note;
+        btn.appendChild(n);
+      }
+
+      btn.addEventListener("click", () => {
+        if (ex.cli_only) {
+          navigator.clipboard.writeText(q).then(
+            () => setQueryStatus("CLI 명령 복사됨", true),
+            () => setQueryStatus("복사 실패")
+          );
+          return;
+        }
+        $("#dql-input").value = q;
+        closeHelpDialog();
+        $("#dql-input").focus();
+        setQueryStatus(`예시 적용: ${ex.label || q}`, true);
+      });
+      list.appendChild(btn);
+    }
+    section.appendChild(list);
+    wrap.appendChild(section);
+  }
+  return wrap;
+}
+
+function renderHelpPanels(payload) {
+  const tabs = $("#help-tabs");
+  const panels = $("#help-panels");
+  tabs.innerHTML = "";
+  panels.innerHTML = "";
+
+  const topModule = payload.top_module || "";
+  $("#help-top-hint").textContent = topModule
+    ? `top module: ${topModule}`
+    : "";
+
+  for (const sec of payload.sections || []) {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "help-tab";
+    tab.dataset.tab = sec.id;
+    tab.textContent = sec.title;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", sec.id === helpActiveTab ? "true" : "false");
+    if (sec.id === helpActiveTab) tab.classList.add("active");
+    tab.addEventListener("click", () => selectHelpTab(sec.id));
+    tabs.appendChild(tab);
+
+    const panel = document.createElement("div");
+    panel.className = "help-panel";
+    panel.dataset.tab = sec.id;
+    panel.setAttribute("role", "tabpanel");
+    if (sec.id !== helpActiveTab) panel.classList.add("hidden");
+
+    if (sec.id === "examples") {
+      panel.appendChild(renderExampleGroups(payload.example_groups, topModule));
+    } else {
+      panel.appendChild(renderHelpTextBody(sec.body));
+    }
+    panels.appendChild(panel);
+  }
+}
+
+function selectHelpTab(tabId) {
+  helpActiveTab = tabId;
+  document.querySelectorAll(".help-tab").forEach((el) => {
+    const on = el.dataset.tab === tabId;
+    el.classList.toggle("active", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll(".help-panel").forEach((el) => {
+    el.classList.toggle("hidden", el.dataset.tab !== tabId);
+  });
+}
+
+async function loadHelpPayload() {
+  if (helpPayload) return helpPayload;
+  helpPayload = await apiGet("/api/help");
+  return helpPayload;
+}
+
+function openHelpDialog(tabId = "examples") {
+  helpActiveTab = tabId;
+  const dlg = $("#help-dialog");
+  const backdrop = $("#help-backdrop");
+  loadHelpPayload()
+    .then((payload) => {
+      renderHelpPanels(payload);
+      backdrop.classList.remove("hidden");
+      backdrop.setAttribute("aria-hidden", "false");
+      if (typeof dlg.showModal === "function") {
+        dlg.showModal();
+      } else {
+        dlg.setAttribute("open", "open");
+        dlg.classList.add("open");
+      }
+    })
+    .catch((e) => setQueryStatus(`도움말 로드 실패: ${e.message}`));
+}
+
+function closeHelpDialog() {
+  const dlg = $("#help-dialog");
+  const backdrop = $("#help-backdrop");
+  backdrop.classList.add("hidden");
+  backdrop.setAttribute("aria-hidden", "true");
+  if (typeof dlg.close === "function" && dlg.open) {
+    dlg.close();
+  } else {
+    dlg.removeAttribute("open");
+    dlg.classList.remove("open");
+  }
+}
+
 function downloadResultsText() {
   const text = lastQueryText;
   if (!text) {
@@ -530,6 +715,26 @@ function downloadResultsText() {
 function init() {
   $("#btn-meta-toggle").addEventListener("click", () => {
     $("#meta-panel").classList.toggle("hidden");
+  });
+  for (const id of ["btn-help", "btn-dql-help", "btn-help-footer"]) {
+    $(`#${id}`)?.addEventListener("click", () => openHelpDialog("examples"));
+  }
+  $("#btn-help-close")?.addEventListener("click", closeHelpDialog);
+  $("#btn-help-close2")?.addEventListener("click", closeHelpDialog);
+  $("#help-backdrop")?.addEventListener("click", closeHelpDialog);
+  $("#help-dialog")?.addEventListener("cancel", (ev) => {
+    ev.preventDefault();
+    closeHelpDialog();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "F1") {
+      ev.preventDefault();
+      const dlg = $("#help-dialog");
+      const open =
+        dlg?.open || dlg?.classList?.contains("open") || dlg?.hasAttribute("open");
+      if (open) closeHelpDialog();
+      else openHelpDialog("examples");
+    }
   });
   $("#btn-run-dql").addEventListener("click", runDql);
   $("#dql-input").addEventListener("keydown", (ev) => {

@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from hch.apps.help_dialog import show_about_dialog, show_help_dialog
 from hch.query.dql.planner import apply_post_filters, plan_dql
 
 
@@ -42,12 +43,14 @@ def _module_name(conn: sqlite3.Connection, module_id: int) -> str:
 def run_gui(db_path: str) -> int:
     try:
         from PySide6.QtCore import Qt
+        from PySide6.QtGui import QAction, QKeySequence
         from PySide6.QtWidgets import (
             QApplication,
             QHBoxLayout,
             QLabel,
             QLineEdit,
             QMainWindow,
+            QMenuBar,
             QPushButton,
             QSplitter,
             QTableWidget,
@@ -72,6 +75,7 @@ def run_gui(db_path: str) -> int:
             self.setWindowTitle(f"hc_hierarchy — {db.name}")
             self.conn = sqlite3.connect(str(db))
             self.conn.row_factory = sqlite3.Row
+            self._build_menus()
 
             splitter = QSplitter()
             self.tree = QTreeWidget()
@@ -83,12 +87,21 @@ def run_gui(db_path: str) -> int:
             rv = QVBoxLayout(right)
             qrow = QHBoxLayout()
             self.qedit = QLineEdit()
-            self.qedit.setPlaceholderText('DQL e.g. module ~ "uart*"')
+            self.qedit.setPlaceholderText(
+                'path ~ "top.u_*"  ·  inst ~ "u_*"  ·  module ~ "uart*"  ·  F1=도움말'
+            )
+            self.qedit.returnPressed.connect(self._run_query)
             qbtn = QPushButton("Run")
+            qbtn.setToolTip("Run DQL query (Enter)")
             qbtn.clicked.connect(self._run_query)
+            help_btn = QPushButton("?")
+            help_btn.setToolTip("DQL 도움말 (F1)")
+            help_btn.setFixedWidth(28)
+            help_btn.clicked.connect(lambda: show_help_dialog(self, initial_tab=1))
             qrow.addWidget(QLabel("DQL"))
             qrow.addWidget(self.qedit, 1)
             qrow.addWidget(qbtn)
+            qrow.addWidget(help_btn)
             rv.addLayout(qrow)
             self.table = QTableWidget(0, 4)
             self.table.setHorizontalHeaderLabels(["full_path", "module", "file", "depth"])
@@ -97,7 +110,41 @@ def run_gui(db_path: str) -> int:
             splitter.setStretchFactor(0, 1)
             splitter.setStretchFactor(1, 2)
             self.setCentralWidget(splitter)
+            self.statusBar().showMessage(
+                "도움말: 메뉴 [도움말] 또는 F1 — inst=leaf이름, path=전체경로"
+            )
             self._load_roots()
+
+        def _build_menus(self) -> None:
+            bar = QMenuBar(self)
+            self.setMenuBar(bar)
+
+            help_menu = bar.addMenu("도움말")
+            act_guide = QAction("사용 가이드…", self)
+            act_guide.setShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents))
+            act_guide.triggered.connect(lambda: show_help_dialog(self))
+            help_menu.addAction(act_guide)
+
+            act_dql = QAction("DQL 검색 문법…", self)
+            act_dql.setShortcut("F1")
+            act_dql.triggered.connect(lambda: show_help_dialog(self, initial_tab=1))
+            help_menu.addAction(act_dql)
+
+            help_menu.addSeparator()
+
+            act_index = QAction("인덱싱 (hch-index)…", self)
+            act_index.triggered.connect(lambda: show_help_dialog(self, initial_tab=2))
+            help_menu.addAction(act_index)
+
+            act_query = QAction("배치 쿼리 (hch-query)…", self)
+            act_query.triggered.connect(lambda: show_help_dialog(self, initial_tab=3))
+            help_menu.addAction(act_query)
+
+            help_menu.addSeparator()
+
+            act_about = QAction("정보…", self)
+            act_about.triggered.connect(lambda: show_about_dialog(self))
+            help_menu.addAction(act_about)
 
         def _make_item(self, full_path: str, leaf: str, mod: str) -> QTreeWidgetItem:
             item = QTreeWidgetItem([leaf, mod])
@@ -134,6 +181,7 @@ def run_gui(db_path: str) -> int:
                 for r in self.conn.execute(plan.sql, plan.params).fetchall()
             ]
             rows = apply_post_filters(rows, plan)
+            self.statusBar().showMessage(f"DQL: {len(rows)} rows — {q}")
             self.table.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 self.table.setItem(i, 0, QTableWidgetItem(r.get("full_path", "")))
@@ -155,7 +203,19 @@ def run_gui(db_path: str) -> int:
 def main(argv=None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="hc_hierarchy GUI")
-    ap.add_argument("-d", "--database", required=True, help="SQLite .hch.db")
+    from hch.apps.help_text import GUI_HELP_EPILOG
+
+    ap = argparse.ArgumentParser(
+        description="hc_hierarchy desktop GUI (read-only hierarchy explorer)",
+        epilog=GUI_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument("-d", "--database", required=True, help="SQLite .hch.db path")
     args = ap.parse_args(argv)
     return run_gui(args.database)
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

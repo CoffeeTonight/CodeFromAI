@@ -7,6 +7,7 @@ import argparse
 import os
 import sys
 
+from hch.apps.help_text import INDEX_HELP_EPILOG
 from hch.engine.availability import check_engine
 from hch.index.loader import build_index_from_filelist
 
@@ -21,10 +22,23 @@ def _parse_tops(args):
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Index Verilog hierarchy to SQLite (pyslang)")
-    ap.add_argument("filelist", help="Top .f filelist")
-    ap.add_argument("-o", "--output", default="design.hch.db", help="Output SQLite path")
-    ap.add_argument("--top", default=None, help="Top module for hierarchy flatten")
+    ap = argparse.ArgumentParser(
+        description="Index Verilog/SystemVerilog hierarchy from a .f filelist into SQLite",
+        epilog=INDEX_HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument("filelist", help="Top .f filelist path")
+    ap.add_argument(
+        "-o",
+        "--output",
+        default="design.hch.db",
+        help="Output SQLite path (default: design.hch.db)",
+    )
+    ap.add_argument(
+        "--top",
+        default=None,
+        help="Top module name for hierarchy flatten (root instance path)",
+    )
     ap.add_argument(
         "--tops",
         default=None,
@@ -79,7 +93,11 @@ def main(argv=None) -> int:
         "--index-cwd",
         default=None,
         metavar="DIR",
-        help="Run directory for -F filelists (default: parent of top .f, or HCH_INDEX_CWD)",
+        help=(
+            "EDA run directory for -F filelists and relative paths "
+            "(default: parent of top .f, or env HCH_INDEX_CWD). "
+            "Filelist tokens like $REPO/a.v expand from the shell environment."
+        ),
     )
     ap.add_argument(
         "--ifdef-compare",

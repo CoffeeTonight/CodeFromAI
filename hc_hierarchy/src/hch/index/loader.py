@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from hch.ingest.filelist import FilelistResult, resolve_index_cwd
 from hch.ingest.filelist_cache import parse_filelist_cached
@@ -63,10 +63,20 @@ def build_index_from_filelist(
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     on_phase: Optional[Callable[[str], None]] = None,
     index_cwd: Optional[str] = None,
+    jobs: int = 0,
+    blackbox_paths: Optional[Sequence[str]] = None,
+    max_depth: Optional[int] = None,
+    depth_anchor_patterns: Optional[Sequence[str]] = None,
+    depth_shallow: int = 2,
+    skim_parse: bool = True,
 ) -> HierarchyStore:
     def _phase(msg: str) -> None:
         if on_phase:
             on_phase(msg)
+
+    from hch.ingest.kit_blackbox import resolve_blackbox_path_patterns
+
+    bb_patterns = resolve_blackbox_path_patterns(blackbox_paths or ())
 
     cwd = resolve_index_cwd(filelist_path, index_cwd, os.environ)
     _phase(f"Expanding filelist: {filelist_path}")
@@ -127,18 +137,35 @@ def build_index_from_filelist(
             store.set_meta("variant_diff_json", json.dumps(diff))
         return store
 
+    from hch.index.parallel_parse import resolve_index_jobs
+
+    worker_count = resolve_index_jobs(jobs) if not elaborate else 1
     effective_batch = batch_size
     if effective_batch <= 0 and not elaborate:
         n_src = len(fl_early.source_files)
         if n_src >= AUTO_BATCH_MIN_SOURCES:
             from hch.apps.index_progress import choose_auto_batch_size
 
-            effective_batch = choose_auto_batch_size(n_src)
+            effective_batch = choose_auto_batch_size(n_src, jobs=worker_count)
             est_batches = (n_src + effective_batch - 1) // effective_batch
+            jobs_note = f", {worker_count} workers" if worker_count > 1 else ""
             _phase(
                 f"Auto batch mode: {n_src} sources → batch_size={effective_batch} "
-                f"(~{est_batches} updates)"
+                f"(~{est_batches} updates{jobs_note})"
             )
+
+    from hch.ingest.parse_depth import ConditionalDepthPolicy
+
+    depth_anchors = [p.strip() for p in (depth_anchor_patterns or []) if p and str(p).strip()]
+    depth_policy: Optional[ConditionalDepthPolicy] = None
+    if depth_anchors and primary_top:
+        depth_policy = ConditionalDepthPolicy.from_sequences(
+            depth_anchors,
+            shallow_depth=depth_shallow,
+            global_max_depth=max_depth,
+        )
+    if (max_depth is not None or depth_anchors) and not primary_top:
+        _phase("WARNING: depth limits ignored without --top (cannot trim parse scope)")
 
     if effective_batch > 0 and not elaborate:
         _phase("Parsing sources (batched)…")
@@ -156,6 +183,11 @@ def build_index_from_filelist(
             on_heartbeat=on_phase,
             index_cwd=str(cwd),
             slang_cache_path=slang_cache_path,
+            jobs=jobs,
+            blackbox_path_patterns=bb_patterns,
+            max_depth=max_depth,
+            depth_policy=depth_policy,
+            skim_parse=skim_parse,
         )
 
     fl = fl_early
@@ -269,10 +301,40 @@ def build_index_from_filelist(
             elab_result=elab_result,
         )
 
-    _phase(f"Parsing {len(fl.source_files)} sources (pyslang)…")
-    with _maybe_heartbeat(on_phase, f"Parsing {len(fl.source_files)} sources"):
+    parse_sources = [str(p) for p in fl.source_files]
+    if depth_policy is not None:
+        from hch.ingest.parse_depth import select_parse_sources_conditional
+
+        allowed = select_parse_sources_conditional(
+            primary_top, parse_sources, depth_policy, fl.defines
+        )
+        skipped = len(parse_sources) - len(allowed)
+        parse_sources = [s for s in parse_sources if s in allowed]
+        _phase(
+            f"Conditional depth (shallow={depth_shallow}): {len(parse_sources)} sources "
+            f"(skipping {skipped})…"
+        )
+    elif max_depth is not None and primary_top:
+        from hch.ingest.parse_depth import select_parse_sources_by_depth
+
+        allowed = select_parse_sources_by_depth(
+            primary_top, parse_sources, max_depth, fl.defines
+        )
+        skipped = len(parse_sources) - len(allowed)
+        parse_sources = [s for s in parse_sources if s in allowed]
+        _phase(
+            f"Parse depth {max_depth}: {len(parse_sources)} sources "
+            f"(skipping {skipped} below depth limit)…"
+        )
+    else:
+        _phase(f"Parsing {len(fl.source_files)} sources (pyslang)…")
+    with _maybe_heartbeat(on_phase, f"Parsing {len(parse_sources)} sources"):
         modules = ingest_filelist_result(
-            fl, slang_cache_path=slang_cache_path, index_cwd=str(cwd)
+            fl,
+            slang_cache_path=slang_cache_path,
+            index_cwd=str(cwd),
+            blackbox_path_patterns=bb_patterns,
+            parse_source_paths=parse_sources if max_depth is not None else None,
         )
     _phase(f"Parsed {len(modules)} modules")
     meta.update(get_last_parse_meta())
@@ -295,15 +357,34 @@ def build_index_from_filelist(
         flatten_primary = inferred.primary
         flatten_tops = None
 
+    from hch.ingest.kit_blackbox import flatten_roots_with_blackbox
+
+    base_tops = flatten_tops if flatten_tops else (
+        [flatten_primary] if flatten_primary else None
+    )
+    bb_flatten_tops, bb_boundary = flatten_roots_with_blackbox(
+        modules,
+        flatten_primary,
+        base_tops,
+        bb_patterns,
+    )
+    if bb_flatten_tops and len(bb_flatten_tops) > 1:
+        meta["top_modules_json"] = json.dumps(bb_flatten_tops)
+        meta["blackbox_orphan_roots_json"] = json.dumps(bb_flatten_tops[1:])
+    use_single_top = len(bb_flatten_tops) == 1
+
     _phase("Flattening hierarchy and writing SQLite…")
     return build_index_from_modules(
         modules,
         db_path,
-        top_module=flatten_primary if flatten_tops else None,
-        top_modules=flatten_tops,
+        top_module=bb_flatten_tops[0] if use_single_top else None,
+        top_modules=None if use_single_top else bb_flatten_tops,
         meta_extra=meta,
         sources=sources,
         path_hierarchy_mode=path_hierarchy_mode,
+        max_depth=max_depth,
+        conditional_depth=depth_policy,
+        blackbox_boundary_roots=bb_boundary,
     )
 
 
@@ -502,6 +583,9 @@ def build_index_from_modules(
     meta_extra: Optional[dict] = None,
     sources: Optional[List[str]] = None,
     path_hierarchy_mode: str = "auto",
+    max_depth: Optional[int] = None,
+    conditional_depth: Optional["ConditionalDepthPolicy"] = None,
+    blackbox_boundary_roots: Optional[Set[str]] = None,
 ) -> HierarchyStore:
     from hch.ingest.unresolved import ensure_unresolved_module_stubs
 
@@ -519,9 +603,19 @@ def build_index_from_modules(
             sources=sources,
             top_module=tops[0],
             path_hierarchy_mode=path_hierarchy_mode,
+            max_depth=max_depth,
+            conditional_depth=conditional_depth,
+            blackbox_boundary_roots=blackbox_boundary_roots,
         )
     else:
-        flat = elaborate_flat(modules, top_module=top_module, top_modules=tops)
+        flat = elaborate_flat(
+            modules,
+            top_module=top_module,
+            top_modules=tops,
+            max_depth=max_depth,
+            conditional_depth=conditional_depth,
+            blackbox_boundary_roots=blackbox_boundary_roots,
+        )
     _apply_flatten_meta(store)
     store.clear_instances()
     store.load_instances(flat)
@@ -532,6 +626,14 @@ def build_index_from_modules(
         "path_hierarchy_used", "1" if hierarchy_source == "path" else "0"
     )
     store.set_meta("path_augmented", path_augmented)
+    if max_depth is not None:
+        store.set_meta("index_max_depth", str(max_depth))
+    if conditional_depth is not None:
+        store.set_meta(
+            "depth_anchor_patterns_json",
+            json.dumps(list(conditional_depth.anchor_patterns)),
+        )
+        store.set_meta("depth_shallow_limit", str(conditional_depth.shallow_depth))
     _apply_parse_meta(store, modules)
     param_rows = sum(
         1

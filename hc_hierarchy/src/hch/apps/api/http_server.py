@@ -103,6 +103,35 @@ def make_handler(
                     except BrokenPipeError:
                         return
                 return
+            if parsed.path == "/api/deepen":
+                try:
+                    body = _read_json_body(self)
+                    path = str(body.get("path", "")).strip()
+                    if not path:
+                        _json_response(self, 400, {"error": "path required"})
+                        return
+                    depth_raw = body.get("depth")
+                    extra_depth = None
+                    full_subtree = bool(body.get("full", True))
+                    if depth_raw is not None and str(depth_raw).strip() != "":
+                        extra_depth = int(depth_raw)
+                        full_subtree = False
+                    jobs = int(body.get("jobs", 0))
+                    result = self.svc.deepen(
+                        path,
+                        extra_depth=extra_depth,
+                        full_subtree=full_subtree,
+                        jobs=jobs,
+                    )
+                    _json_response(self, 200, result)
+                except BrokenPipeError:
+                    return
+                except Exception as e:
+                    try:
+                        _json_response(self, 400, {"error": str(e)})
+                    except BrokenPipeError:
+                        return
+                return
             if parsed.path == "/api/export/save":
                 try:
                     body = _read_json_body(self)

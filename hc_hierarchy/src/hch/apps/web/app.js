@@ -68,6 +68,9 @@ function formatMetaPanel(m) {
   if (Array.isArray(m.top_modules_all) && m.top_modules_all.length > 1) {
     lines.push(`all_tops: ${m.top_modules_all.join(", ")}`);
   }
+  if (m.blackbox_file_count > 0) {
+    lines.push(`blackbox_rtl_files: ${m.blackbox_file_count}`);
+  }
   if (m.missing_file_count > 0) {
     lines.push(`missing_rtl_files: ${m.missing_file_count}`);
   }
@@ -110,12 +113,16 @@ async function loadMeta() {
   if (Array.isArray(warns) && warns.length) {
     extra += ` · ${warns.length} warnings`;
   }
+  if (m.blackbox_file_count > 0) {
+    extra += ` · ${m.blackbox_file_count} blackbox RTL`;
+  }
   if (m.missing_file_count > 0) {
     extra += ` · ${m.missing_file_count} missing RTL`;
   }
   $("#meta-bar").textContent =
     `${db} · ${ic} instances · ${mc} modules · tier ${tier} · ${eng}${hs}${extra}`;
   $("#meta-panel").textContent = formatMetaPanel(m);
+  renderBlackboxFilesList(m.blackbox_files || []);
   renderMissingFilesList(m.missing_files || []);
 }
 
@@ -126,10 +133,19 @@ function findTreeRow(fullPath) {
   );
 }
 
+function parseTierClass(tier) {
+  if (tier === "skim") return "tree-row--skim";
+  if (tier === "shallow_cap") return "tree-row--shallow-cap";
+  if (tier === "blackbox") return "tree-row--blackbox";
+  return "";
+}
+
 function makeTreeRow(node) {
   const row = document.createElement("div");
-  row.className = "tree-row";
+  const tierCls = parseTierClass(node.parse_tier);
+  row.className = "tree-row" + (tierCls ? ` ${tierCls}` : "");
   row.dataset.path = node.full_path;
+  if (node.parse_tier) row.dataset.parseTier = node.parse_tier;
 
   const toggle = document.createElement("span");
   toggle.className = "tree-toggle" + (node.has_children ? "" : " empty");
@@ -146,7 +162,50 @@ function makeTreeRow(node) {
   mod.textContent = node.module;
 
   row.append(toggle, label, mod);
+  if (node.parse_tier === "skim" || node.parse_tier === "shallow_cap") {
+    const deepen = document.createElement("button");
+    deepen.type = "button";
+    deepen.className = "tree-deepen ghost";
+    deepen.textContent = "＋";
+    deepen.title = "Deepen branch (pyslang parse)";
+    deepen.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      deepenBranch(node.full_path, deepen);
+    });
+    row.appendChild(deepen);
+  }
   return row;
+}
+
+async function deepenBranch(fullPath, btn) {
+  if (!fullPath) return;
+  const label = btn || null;
+  if (label) {
+    label.disabled = true;
+    label.textContent = "…";
+  }
+  try {
+    const res = await fetch("/api/deepen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: fullPath, full: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    await loadTreeRoots();
+    if (data.instances_after > data.instances_before) {
+      await revealTreePath(fullPath);
+    }
+    $("#meta-bar").textContent =
+      `Deepened ${fullPath}: ${data.instances_before} → ${data.instances_after} instances`;
+  } catch (e) {
+    $("#meta-bar").textContent = `Deepen failed: ${e.message || e}`;
+  } finally {
+    if (label) {
+      label.disabled = false;
+      label.textContent = "＋";
+    }
+  }
 }
 
 function collapseTreeRow(row) {
@@ -379,6 +438,24 @@ function showMissingSource(filepath, message) {
   view.innerHTML = `<code class="source-missing-msg">${escapeHtml(message)}</code>`;
 }
 
+function renderBlackboxFilesList(files) {
+  const box = $("#blackbox-files-box");
+  const list = $("#blackbox-files-list");
+  list.innerHTML = "";
+  if (!files?.length) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+  for (const fp of files) {
+    const li = document.createElement("li");
+    li.className = "blackbox-file-item";
+    li.textContent = fp;
+    li.title = fp;
+    list.appendChild(li);
+  }
+}
+
 function renderMissingFilesList(files) {
   const box = $("#missing-files-box");
   const list = $("#missing-files-list");
@@ -438,6 +515,9 @@ function renderResults(rows) {
   for (const r of rows) {
     const tr = document.createElement("tr");
     tr.dataset.path = r.full_path;
+    if (r.parse_tier === "skim") tr.classList.add("result-row--skim");
+    if (r.parse_tier === "shallow_cap") tr.classList.add("result-row--shallow-cap");
+    if (r.parse_tier === "blackbox") tr.classList.add("result-row--blackbox");
     const inst = r.inst || (r.full_path ? r.full_path.split(".").pop() : "");
     tr.innerHTML = `
       <td class="col-path" title="${escapeHtml(r.full_path)}">${escapeHtml(r.full_path)}</td>
@@ -533,17 +613,17 @@ function renderExampleGroups(groups, topModule) {
   const note = document.createElement("p");
   note.className = "help-note";
   note.textContent =
-    "예시를 클릭하면 DQL 입력창에 채워집니다. Run(Enter)으로 실행하세요. " +
+    "Click an example to fill the DQL box. Press Run or Enter to execute. " +
     (topModule
-      ? `이 DB top: ${topModule}`
-      : "top module 미확인 — {{TOP}} 자리에 실제 top 이름을 넣으세요.");
+      ? `Top module: ${topModule}`
+      : "Top unknown — replace {{TOP}} with your top module name.");
   wrap.appendChild(note);
 
   const instNote = document.createElement("pre");
   instNote.className = "help-pre help-warn";
   instNote.textContent =
-    "⚠ inst = leaf 이름만 (점 없음).  inst ~ \"*t*.*\" → 0건\n" +
-    "   path ~ \"*t*.*\" → 경로 패턴 검색";
+    "inst = leaf name only (no dots).  inst ~ \"*t*.*\" → usually 0 hits\n" +
+    "path ~ \"*t*.*\" → hierarchy path pattern";
   wrap.appendChild(instNote);
 
   for (const group of groups || []) {
@@ -591,15 +671,15 @@ function renderExampleGroups(groups, topModule) {
       btn.addEventListener("click", () => {
         if (ex.cli_only) {
           navigator.clipboard.writeText(q).then(
-            () => setQueryStatus("CLI 명령 복사됨", true),
-            () => setQueryStatus("복사 실패")
+            () => setQueryStatus("CLI command copied", true),
+            () => setQueryStatus("Copy failed")
           );
           return;
         }
         $("#dql-input").value = q;
         closeHelpDialog();
         $("#dql-input").focus();
-        setQueryStatus(`예시 적용: ${ex.label || q}`, true);
+        setQueryStatus(`Example applied: ${ex.label || q}`, true);
       });
       list.appendChild(btn);
     }
@@ -681,7 +761,7 @@ function openHelpDialog(tabId = "examples") {
         dlg.classList.add("open");
       }
     })
-    .catch((e) => setQueryStatus(`도움말 로드 실패: ${e.message}`));
+    .catch((e) => setQueryStatus(`Help load failed: ${e.message}`));
 }
 
 function closeHelpDialog() {
@@ -760,21 +840,21 @@ function closeSaveDialog() {
 async function confirmSaveResultsText() {
   const text = lastQueryText;
   if (!text) {
-    setSaveDialogError("먼저 DQL을 실행하세요");
+    setSaveDialogError("Run a DQL query first");
     return;
   }
   const path = $("#save-path-input").value.trim();
   if (!path) {
-    setSaveDialogError("저장 경로를 입력하세요");
+    setSaveDialogError("Enter a save path");
     return;
   }
   setSaveDialogError("");
   try {
     const result = await apiPost("/api/export/save", { path, text });
     closeSaveDialog();
-    setQueryStatus(`저장됨: ${result.path}`, true);
+    setQueryStatus(`Saved: ${result.path}`, true);
   } catch (e) {
-    setSaveDialogError(e.message || "저장 실패");
+    setSaveDialogError(e.message || "Save failed");
   }
 }
 

@@ -223,6 +223,71 @@ button:hover {
   border-left-color: var(--accent);
 }
 
+.tree-row--skim {
+  border-left-color: #c9a227;
+  color: #e8d48a;
+}
+
+.tree-row--skim .tree-mod {
+  color: #a89050;
+}
+
+.tree-row--shallow-cap {
+  border-left-color: #c97850;
+  color: #e8b89a;
+}
+
+.tree-row--shallow-cap .tree-mod {
+  color: #a87858;
+}
+
+.tree-row--blackbox {
+  border-left-color: #7a6eb8;
+}
+
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.35rem 0.6rem 0.5rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.legend-item::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+}
+
+.legend-full::before {
+  background: var(--accent);
+}
+
+.legend-skim::before {
+  background: #c9a227;
+}
+
+.legend-cap::before {
+  background: #c97850;
+}
+
+#results-body tr.result-row--skim td {
+  color: #e8d48a;
+}
+
+#results-body tr.result-row--shallow-cap td {
+  color: #e8b89a;
+}
+
 .tree-toggle {
   width: 1rem;
   text-align: center;
@@ -243,6 +308,25 @@ button:hover {
   white-space: nowrap;
   font-family: var(--mono);
   font-size: 0.78rem;
+}
+
+.tree-deepen {
+  flex-shrink: 0;
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.tree-deepen:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-dim);
+}
+
+.tree-deepen:disabled {
+  opacity: 0.5;
 }
 
 .tree-mod {
@@ -378,6 +462,59 @@ button:hover {
   color: #f07178;
   font-weight: 600;
   white-space: pre-wrap;
+}
+
+.blackbox-files-box {
+  border-top: 1px solid rgba(155, 143, 224, 0.35);
+  background: rgba(155, 143, 224, 0.08);
+  padding: 0.55rem 0.75rem 0.7rem;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.blackbox-files-box.hidden {
+  display: none;
+}
+
+.blackbox-files-box h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9b8fe0;
+  font-weight: 600;
+}
+
+#blackbox-files-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blackbox-file-item {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #9b8fe0;
+  padding: 0.15rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-row--blackbox {
+  color: #9b8fe0;
+}
+
+.tree-row--blackbox .tree-mod {
+  color: #7a6eb8;
+}
+
+#results-body tr.result-row--blackbox td {
+  color: #9b8fe0;
+}
+
+.legend-blackbox::before {
+  background: #9b8fe0;
 }
 
 .missing-files-box {
@@ -543,7 +680,7 @@ button.linkish {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 910;
-  /* 고정 크기 — 탭 전환 시 박스가 줄었다 늘었다 하지 않음 */
+  /* fixed size — dialog does not resize when switching tabs */
   width: min(920px, 94vw);
   height: min(720px, 86vh);
   min-height: min(720px, 86vh);

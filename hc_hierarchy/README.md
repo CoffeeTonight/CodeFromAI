@@ -13,6 +13,7 @@
 | 항목 | 상태 |
 |------|------|
 | Tier P 구조 파싱 + filelist (`-f`/`-F`, `--index-cwd`) | ✅ |
+| Conditional depth + text-skim + on-demand deepen | ✅ — `hch-deepen`, web/GUI |
 | Tier E hybrid (path ~N + shallow slang 메타) | ✅ — duplicate-heavy SoC 기본 |
 | multi-def `module_ref` (모듈·인스턴스 행) | ✅ |
 | generate `ifdef` / `+define+`, pruned closure 0 dup error | ✅ |
@@ -32,6 +33,9 @@
 - **Filelist**: `+define+`, `+incdir+`, `-y`/`-v`, nested `-f`/`-F` (EDA cwd → `--index-cwd`)
 - **캐시**: DB 옆 `*.hch.db.slang.f`, defines 해시별 variant 캐시
 - **배치**: `--batch-size N`, checkpoint/resume
+- **Conditional depth**: `--depth-anchor GLOB`, `--depth-shallow N` — anchor 경로는 full, 나머지는 얕게
+- **Text-skim**: shallow 구간은 pyslang 없이 regex ingest (기본; `--no-skim-parse`로 끔)
+- **On-demand deepen**: `hch-deepen` / web `+` / GUI **Deepen Branch** — 선택 브랜치만 pyslang 재파싱
 - **ifdef variant**: `--variant base=USE_ALT=0 --variant alt=USE_ALT=1` (한 DB, `instances.variant`)
 - **메타**: `hierarchy_source`, `parse_errors_json`, `multi_def_modules_json`, `tier_contract_version=1` 등 — [docs/INDEXING.md](docs/INDEXING.md)
 
@@ -44,7 +48,9 @@
 ### UI
 
 - **웹**: `hch-web -d design.hch.db --no-browser` → http://127.0.0.1:8765/ (Brave sandbox 오류 시 `--no-browser` 권장)
+  - 트리 색: **금색**=text-skim, **주황**=depth cap — 행 옆 **+** 로 deepen
 - **GUI**: `pip install -e ".[gui]"` 후 `hch-gui -d design.hch.db`
+  - 동일 색 구분; gold/orange 행 선택 후 **Tree → Deepen Branch** (Ctrl+D) 또는 우클릭
 
 ---
 
@@ -92,6 +98,24 @@ hch-index design/synthetic_deep_rtl/top_deep_soc.hc.f \
 ```bash
 hch-index ... --elaborate --elab-deep shallow
 ```
+
+### 빠른 인덱싱 + on-demand deepen
+
+대형 SoC에서 anchor 블록만 깊게, 나머지는 얕게 인덱싱한 뒤 필요한 브랜치만 확장합니다.
+
+```bash
+hch-index design.f -o chip.hch.db --top SOC_TOP \
+  --depth-anchor '*_grp*' --depth-shallow 2 \
+  --blackbox-path vendor_ip \
+  -j 32 --batch-size 128
+
+# CLI deepen (in-place DB update)
+hch-deepen -d chip.hch.db --under soc_top.u_periph --full
+
+# 추가 N 레벨만: hch-deepen -d chip.hch.db --under soc_top.u_periph --depth 3
+```
+
+DQL로 skim/cap 구간 찾기: `parse_tier = skim` 또는 `parse_tier = shallow_cap`
 
 ### ifdef 두 variant 한 DB
 
@@ -163,7 +187,7 @@ PYTHONPATH=src python3 scripts/self_check_tier_e.py
 |----|------|
 | B6 deep | 매크로 풀 AST 전개 |
 | DQL | OR + heavy AND 플래너 성능 |
-| GUI | define/macro-aware 소스 하이라이트 |
+| GUI | define/macro-aware 소스 하이라이트 (deepen ✅) |
 | A2/A7 | exotic filelist, work library |
 | CI | slow synthetic index 상시 |
 

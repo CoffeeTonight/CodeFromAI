@@ -17,9 +17,15 @@ REPO = Path(__file__).resolve().parents[2]
     [
         ("hch.apps.index_cli", "hch-index"),
         ("hch.apps.index_cli", "$REPO"),
+        ("hch.apps.index_cli", "IP / kit blackbox"),
+        ("hch.apps.index_cli", "HCH_BLACKBOX_PATH"),
+        ("hch.apps.index_cli", "--blackbox-path"),
         ("hch.apps.query_cli", "inst vs path"),
-        ("hch.apps.query_cli", "배치"),
+        ("hch.apps.query_cli", "parse_tier"),
+        ("hch.apps.query_cli", "Batch"),
         ("hch.apps.web_cli", "hch-web"),
+        ("hch.apps.deepen_cli", "hch-deepen"),
+        ("hch.apps.deepen_cli", "deepened_paths_json"),
         ("hch.apps.gui.main_window", "hch-gui"),
     ],
 )

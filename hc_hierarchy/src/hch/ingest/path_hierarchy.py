@@ -119,6 +119,10 @@ def flat_instances_from_paths(
     sources: Sequence[str | Path],
     modules: Mapping[str, ModuleRecord],
     top_module: str,
+    *,
+    max_depth: Optional[int] = None,
+    conditional_depth: Optional["ConditionalDepthPolicy"] = None,
+    deepened_prefixes: Optional[Sequence[str]] = None,
 ) -> List:
     """Materialize one FlatInstance per RTL path node (fallback / supplement)."""
     from hch.schema import FlatInstance
@@ -157,6 +161,33 @@ def flat_instances_from_paths(
         rec = modules.get(mod)
         ports = materialized_port_names(rec.ports) if rec else []
         parent = top_module if len(segs) == 1 else f"{top_module}.{'.'.join(segs[:-1])}"
+        inst_depth = len(segs)
+        if max_depth is not None and inst_depth > max_depth:
+            continue
+        if conditional_depth is not None:
+            from hch.ingest.parse_depth import (
+                descendant_hops_for_node,
+                path_has_deepened_prefix,
+                path_matches_anchor,
+            )
+
+            full = f"{top_module}.{'.'.join(segs)}"
+            file_path = str(p)
+            if deepened_prefixes and path_has_deepened_prefix(full, deepened_prefixes):
+                pass
+            elif not path_matches_anchor(
+                full, file_path, conditional_depth.anchor_patterns
+            ):
+                # shallow zone: keep only shallow_depth path segments below last anchor
+                anchor_depth = 0
+                for i in range(len(segs)):
+                    prefix = f"{top_module}.{'.'.join(segs[: i + 1])}"
+                    if path_matches_anchor(
+                        prefix, file_path, conditional_depth.anchor_patterns
+                    ):
+                        anchor_depth = i + 1
+                if len(segs) - anchor_depth > conditional_depth.shallow_depth:
+                    continue
         rows.append(
             FlatInstance(
                 full_path=full,
@@ -164,7 +195,7 @@ def flat_instances_from_paths(
                 module=mod,
                 file=str(p),
                 ports=ports,
-                depth=len(segs),
+                depth=inst_depth,
                 parent_path=parent,
             )
         )

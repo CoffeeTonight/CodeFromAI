@@ -5,9 +5,11 @@ from __future__ import annotations
 import sys
 import threading
 import time
+import warnings
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional, TextIO
+from typing import Callable, Iterator, Optional, TextIO
 
 
 def format_duration(seconds: float) -> str:
@@ -23,14 +25,15 @@ def format_duration(seconds: float) -> str:
     return f"{hours}h {minutes}m {secs}s"
 
 
-def choose_auto_batch_size(source_count: int) -> int:
-    """Smaller batches for very large filelists → more frequent progress."""
+def choose_auto_batch_size(source_count: int, *, jobs: int = 1) -> int:
+    """Batch size for checkpointed parse; parallel jobs use larger batches."""
+    parallel = jobs > 1
     if source_count >= 5000:
-        return 8
+        return 64 if parallel else 8
     if source_count >= 2000:
-        return 16
+        return 64 if parallel else 16
     if source_count >= 500:
-        return 32
+        return 64 if parallel else 32
     if source_count >= 48:
         return 64
     return 0
@@ -71,49 +74,114 @@ class ProgressHeartbeat:
             self._thread.join(timeout=1.0)
 
 
+class _ProgressSafeStderr:
+    """End the active progress line before unrelated stderr writes."""
+
+    def __init__(self, reporter: "IndexProgressReporter", underlying: TextIO) -> None:
+        self._reporter = reporter
+        self._underlying = underlying
+        self._in_write = False
+
+    def write(self, s: str) -> int:
+        if not self._in_write and s:
+            needs_prefix = (
+                s not in ("\n", "\r")
+                and not s.startswith("\n")
+                and self._reporter.needs_newline
+            )
+            self._reporter.end_line()
+            if needs_prefix:
+                s = "\n" + s
+        self._in_write = True
+        try:
+            return self._underlying.write(s)
+        finally:
+            self._in_write = False
+
+    def flush(self) -> None:
+        self._underlying.flush()
+
+    def isatty(self) -> bool:
+        fn = getattr(self._underlying, "isatty", None)
+        return bool(fn and fn())
+
+    def fileno(self) -> int:
+        return self._underlying.fileno()
+
+    def __getattr__(self, name: str):
+        return getattr(self._underlying, name)
+
+
+@contextmanager
+def progress_stderr_guard(
+    reporter: Optional["IndexProgressReporter"],
+) -> Iterator[None]:
+    """Wrap sys.stderr so warnings/logs do not append to a progress line."""
+    if reporter is None:
+        yield
+        return
+    old_stderr = sys.stderr
+    old_showwarning = warnings.showwarning
+
+    def _showwarning(message, category, filename, lineno, file=None, line=None):
+        reporter.end_line()
+        target = file if file is not None else sys.__stderr__
+        old_showwarning(
+            message, category, filename, lineno, file=target, line=line
+        )
+
+    sys.stderr = _ProgressSafeStderr(reporter, sys.__stderr__)
+    warnings.showwarning = _showwarning
+    try:
+        yield
+    finally:
+        reporter.end_line()
+        sys.stderr = old_stderr
+        warnings.showwarning = old_showwarning
+
+
 class IndexProgressReporter:
     """Phase + per-file progress on stderr; summary for stdout."""
 
     def __init__(self, *, stream: Optional[TextIO] = None) -> None:
-        self._stream = stream or sys.stderr
-        self._tty = hasattr(self._stream, "isatty") and self._stream.isatty()
+        self._stream_override = stream
+        self._needs_nl = False
         self._t0 = time.perf_counter()
         self.started_at = datetime.now()
-        self._last_len = 0
-        self._milestone = 50
+
+    @property
+    def _stream(self) -> TextIO:
+        return self._stream_override or sys.__stderr__
+
+    @property
+    def needs_newline(self) -> bool:
+        return self._needs_nl
 
     def phase(self, message: str) -> None:
-        self._end_line()
+        self.end_line()
         print(f"[hch-index] {message}", file=self._stream, flush=True)
+        self._needs_nl = False
 
     def files(self, current: int, total: int, path: str = "") -> None:
         if total <= 0:
             return
+        self.end_line()
         pct = 100.0 * current / total
         name = Path(path).name if path else ""
         tail = f" {name}" if name else ""
         line = f"[hch-index] sources: {current}/{total} ({pct:.0f}%){tail}"
-        milestone = total >= 1000 and current > 0 and current % self._milestone == 0
-        force_line = milestone or current >= total or not self._tty
-        if self._tty and not force_line:
-            pad = max(0, self._last_len - len(line))
-            self._stream.write("\r" + line + " " * pad)
-            self._stream.flush()
-            self._last_len = len(line)
-        else:
-            self._end_line()
-            print(line, file=self._stream, flush=True)
-        if current >= total:
-            self._last_len = 0
+        print(line, file=self._stream, flush=True)
+        self._needs_nl = False
 
     def heartbeat(self, label: str, *, interval_sec: float = 20.0) -> ProgressHeartbeat:
         return ProgressHeartbeat(self.phase, label, interval_sec=interval_sec)
 
-    def _end_line(self) -> None:
-        if self._tty and self._last_len:
-            self._stream.write("\n")
-            self._stream.flush()
-            self._last_len = 0
+    def end_line(self) -> None:
+        """Finish an in-progress stderr line before unrelated output."""
+        if not self._needs_nl:
+            return
+        print(file=self._stream, flush=True)
+        self._needs_nl = False
 
     def elapsed(self) -> float:
         return time.perf_counter() - self._t0
@@ -125,7 +193,7 @@ class IndexProgressReporter:
         db_path: str,
         modules: Optional[int] = None,
     ) -> str:
-        self._end_line()
+        self.end_line()
         finished_at = datetime.now()
         elapsed = self.elapsed()
         lines = [

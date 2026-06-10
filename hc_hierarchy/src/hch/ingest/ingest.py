@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
 
@@ -96,17 +97,43 @@ def ingest_filelist_result(
     *,
     index_cwd: Optional[Union[str, Path]] = None,
     slang_cache_path: Optional[Union[str, Path]] = None,
+    blackbox_path_patterns: Optional[Sequence[str]] = None,
+    parse_source_paths: Optional[Sequence[str]] = None,
 ) -> Dict[str, ModuleRecord]:
     global _last_parse_meta
     _require_pyslang()
+    from hch.ingest.kit_blackbox import (
+        filter_filelist_for_parse,
+        kit_blackbox_meta,
+        reapply_kit_blackbox_overlay,
+        scan_kit_blackbox_modules,
+    )
+
+    patterns = list(blackbox_path_patterns or [])
+    fl_parse, kit_sources = (
+        filter_filelist_for_parse(fl, patterns) if patterns else (fl, [])
+    )
+    kit_mods: Dict[str, ModuleRecord] = {}
+    if kit_sources:
+        kit_mods = scan_kit_blackbox_modules(kit_sources, defines=fl.defines)
+    if parse_source_paths is not None:
+        allowed = {str(__import__("pathlib").Path(p).resolve()) for p in parse_source_paths}
+        fl_parse = replace(
+            fl_parse,
+            source_files=[
+                sp for sp in fl_parse.source_files if str(sp.resolve()) in allowed
+            ],
+        )
     cfg = config_from_filelist(
-        fl,
+        fl_parse,
         index_cwd=index_cwd,
         slang_cache_path=slang_cache_path,
     )
     trees, perr, pwarn, pmsgs, parse_by_file = parse_config_with_diagnostics(cfg)
     sources = list(cfg.source_files)
     merged = _ingest_trees_with_sources(trees, sources, preprocessor_defines=fl.defines)
+    if kit_mods:
+        merge_module_records(merged, kit_mods)
 
     unresolved_before = set(collect_unresolved_modules(merged))
     stubs = scan_library_modules(
@@ -188,7 +215,11 @@ def ingest_filelist_result(
         force_files=force_fallback or None,
     )
 
+    if kit_mods and patterns:
+        reapply_kit_blackbox_overlay(merged, kit_mods, kit_sources, patterns)
+
     _last_parse_meta = {
+        **kit_blackbox_meta(patterns, kit_sources, kit_mods),
         "library_y_count": str(len(fl.library_dirs)),
         "library_v_count": str(len(fl.library_files)),
         "parse_error_count": str(perr),

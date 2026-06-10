@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -14,7 +14,7 @@
     </div>
     <div class="meta-wrap">
       <div id="meta-bar" class="meta-bar">Loading index…</div>
-      <button type="button" id="btn-help" class="ghost meta-toggle" title="도움말 (F1)">?</button>
+      <button type="button" id="btn-help" class="ghost meta-toggle" title="Help (F1)">?</button>
       <button type="button" id="btn-meta-toggle" class="ghost meta-toggle" title="Index details">ⓘ</button>
     </div>
   </header>
@@ -40,6 +40,12 @@
           ▸ Apply
         </button>
       </div>
+      <div class="tree-legend" aria-label="Parse tier legend">
+        <span class="legend-item legend-full">full</span>
+        <span class="legend-item legend-skim">text-skim</span>
+        <span class="legend-item legend-cap">depth cap</span>
+        <span class="legend-item legend-blackbox">blackbox</span>
+      </div>
       <div id="tree" class="tree" role="tree" aria-label="Instance tree"></div>
     </aside>
 
@@ -50,12 +56,12 @@
           id="dql-input"
           type="text"
           spellcheck="false"
-          placeholder='path ~ "*t*.*"  ·  inst ~ "u_*"  ·  ? 또는 F1=도움말'
+          placeholder='path ~ "*t*.*"  ·  inst ~ "u_*"  ·  ? or F1=Help'
         />
         <button type="button" id="btn-run-dql" class="primary">Run</button>
-        <button type="button" id="btn-dql-help" class="ghost" title="DQL 도움말 및 예시 (F1)">?</button>
+        <button type="button" id="btn-dql-help" class="ghost" title="DQL help and examples (F1)">?</button>
         <button type="button" id="btn-export-text" class="ghost" title="Copy results as text">Text</button>
-        <button type="button" id="btn-download-text" class="ghost" title="결과 저장… (경로 선택)">↓</button>
+        <button type="button" id="btn-download-text" class="ghost" title="Save results…">↓</button>
         <span id="query-status" class="query-status"></span>
       </div>
       <div class="results-wrap">
@@ -80,6 +86,10 @@
         <span id="source-path" class="source-path"></span>
       </div>
       <pre id="source-view" class="source-view"><code class="muted">Select a tree node or query row</code></pre>
+      <div id="blackbox-files-box" class="blackbox-files-box hidden" aria-label="Blackbox RTL files">
+        <h3>Blackbox RTL (header / text-skim only)</h3>
+        <ul id="blackbox-files-list"></ul>
+      </div>
       <div id="missing-files-box" class="missing-files-box hidden" aria-label="Missing RTL files">
         <h3>Missing RTL files</h3>
         <ul id="missing-files-list"></ul>
@@ -93,22 +103,19 @@
   </main>
 
   <footer class="footer">
-    <span>Backend: SQLite index · DQL · <button type="button" id="btn-help-footer" class="linkish">도움말</button></span>
+    <span>Backend: SQLite index · DQL · <button type="button" id="btn-help-footer" class="linkish">Help</button></span>
     <a href="/api/meta" target="_blank" rel="noopener">/api/meta</a>
   </footer>
 
   <div id="save-backdrop" class="help-backdrop hidden" aria-hidden="true"></div>
   <dialog id="save-dialog" class="save-dialog" aria-labelledby="save-dialog-title">
     <header class="help-dialog-head">
-      <h2 id="save-dialog-title">쿼리 결과 저장</h2>
-      <button type="button" id="btn-save-close" class="ghost help-close" title="닫기 (Esc)">✕</button>
+      <h2 id="save-dialog-title">Save Query Results</h2>
+      <button type="button" id="btn-save-close" class="ghost help-close" title="Close (Esc)">✕</button>
     </header>
     <div class="save-dialog-body">
-      <p class="save-dialog-hint">
-        저장 경로를 입력하세요. <strong>hch-web 서버</strong>가 해당 위치에 직접 씁니다
-        (브라우저 다운로드 폴더가 아님).
-      </p>
-      <label for="save-path-input">절대 경로</label>
+      <p class="save-dialog-hint">Enter the absolute path where results should be written.</p>
+      <label for="save-path-input">Path</label>
       <input
         id="save-path-input"
         type="text"
@@ -119,10 +126,10 @@
       <p id="save-dialog-error" class="save-dialog-error hidden" role="alert"></p>
     </div>
     <footer class="help-dialog-foot">
-      <span class="help-top-hint">예: DB와 같은 폴더의 .txt</span>
+      <span class="help-top-hint">e.g. /path/to/results.txt</span>
       <div class="save-dialog-actions">
-        <button type="button" id="btn-save-cancel" class="ghost">취소</button>
-        <button type="button" id="btn-save-confirm" class="primary">저장</button>
+        <button type="button" id="btn-save-cancel" class="ghost">Cancel</button>
+        <button type="button" id="btn-save-confirm" class="primary">Save</button>
       </div>
     </footer>
   </dialog>
@@ -130,16 +137,16 @@
   <div id="help-backdrop" class="help-backdrop hidden" aria-hidden="true"></div>
   <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-dialog-title">
     <header class="help-dialog-head">
-      <h2 id="help-dialog-title">hc_hierarchy 도움말</h2>
-      <button type="button" id="btn-help-close" class="ghost help-close" title="닫기 (Esc)">✕</button>
+      <h2 id="help-dialog-title">hc_hierarchy Help</h2>
+      <button type="button" id="btn-help-close" class="ghost help-close" title="Close (Esc)">✕</button>
     </header>
     <div class="help-dialog-body">
-      <nav id="help-tabs" class="help-tabs" role="tablist" aria-label="도움말 섹션"></nav>
+      <nav id="help-tabs" class="help-tabs" role="tablist" aria-label="Help sections"></nav>
       <div id="help-panels" class="help-panels"></div>
     </div>
     <footer class="help-dialog-foot">
       <span id="help-top-hint" class="help-top-hint"></span>
-      <button type="button" id="btn-help-close2" class="ghost">닫기</button>
+      <button type="button" id="btn-help-close2" class="ghost">Close</button>
     </footer>
   </dialog>
 

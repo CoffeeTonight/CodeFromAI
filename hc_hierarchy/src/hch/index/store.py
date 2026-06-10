@@ -16,6 +16,8 @@ class HierarchyStore:
     def __init__(self, db_path: str):
         self.db_path = Path(db_path)
         self.conn = sqlite3.connect(str(self.db_path))
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         create_database(self.conn)
         self._migrate()
 
@@ -157,6 +159,12 @@ class HierarchyStore:
             from hch.ingest.multi_def import module_ref as make_module_ref
 
             ref = make_module_ref(m.file_path, m.module_name)
+            params = dict(m.parameters)
+            tier = getattr(m, "parse_tier", "full") or "full"
+            if tier != "full":
+                params["_parse_tier"] = tier
+            if getattr(m, "is_blackbox", False):
+                params["_is_blackbox"] = "1"
             port_json = json.dumps(
                 [
                     {
@@ -179,7 +187,7 @@ class HierarchyStore:
                     ref,
                     fid,
                     port_json,
-                    json.dumps(m.parameters),
+                    json.dumps(params),
                     self._module_inst_json(m),
                     m.module_kind or "module",
                 ),
@@ -209,6 +217,8 @@ class HierarchyStore:
                         )
                     )
             params = json.loads(param_json) if param_json else {}
+            parse_tier = str(params.pop("_parse_tier", "full") or "full")
+            is_blackbox = str(params.pop("_is_blackbox", "0") or "0") == "1"
             instances = []
             if inst_json:
                 for e in json.loads(inst_json):
@@ -238,6 +248,8 @@ class HierarchyStore:
                 parameters=params,
                 instances=instances,
                 module_kind=mkind or "module",
+                parse_tier=parse_tier,
+                is_blackbox=is_blackbox,
             )
         return out
 

@@ -40,6 +40,12 @@ def merge_module_records(
         if prev.is_blackbox and not rec.is_blackbox:
             acc[name] = rec
             prev = acc[name]
+        rec_tier = getattr(rec, "parse_tier", "full") or "full"
+        prev_tier = getattr(prev, "parse_tier", "full") or "full"
+        if rec_tier == "skim" and prev_tier != "skim":
+            continue
+        if rec_tier != "skim" and prev_tier == "skim":
+            prev.parse_tier = rec_tier
         if rec.file_path and rec.file_path != prev.file_path:
             paths = getattr(prev, "_definition_paths", None)
             if paths is None:

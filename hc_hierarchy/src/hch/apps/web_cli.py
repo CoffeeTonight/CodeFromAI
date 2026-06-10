@@ -18,8 +18,17 @@ def main(argv=None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("-d", "--database", required=True, help="SQLite .hch.db path")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="HTTP bind address (default: 127.0.0.1)",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="HTTP port (default: 8765)",
+    )
     ap.add_argument(
         "--browser",
         action="store_true",

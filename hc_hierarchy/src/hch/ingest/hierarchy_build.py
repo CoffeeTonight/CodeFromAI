@@ -61,6 +61,10 @@ def elaborate_flat_with_sources(
     *,
     path_depth_threshold: int = 10,
     path_hierarchy_mode: str = "auto",
+    max_depth: Optional[int] = None,
+    conditional_depth: Optional["ConditionalDepthPolicy"] = None,
+    deepened_prefixes: Optional[Sequence[str]] = None,
+    blackbox_boundary_roots: Optional[Set[str]] = None,
 ) -> tuple[List[FlatInstance], str, str]:
     """
     Flatten module graph. When RTL uses soc_top/u_* directory layout (synthetic
@@ -82,10 +86,26 @@ def elaborate_flat_with_sources(
     if use_path and sources and top_module:
         from hch.ingest.path_hierarchy import flat_instances_from_paths
 
-        return flat_instances_from_paths(sources, mod_map, top_module), "path", "1"
+        flat = flat_instances_from_paths(
+            sources,
+            mod_map,
+            top_module,
+            max_depth=max_depth,
+            conditional_depth=conditional_depth,
+            deepened_prefixes=deepened_prefixes,
+        )
+        return flat, "path", "1"
 
     return (
-        elaborate_flat(mod_map, top_module=top_module, top_modules=top_modules),
+        elaborate_flat(
+            mod_map,
+            top_module=top_module,
+            top_modules=top_modules,
+            max_depth=max_depth,
+            conditional_depth=conditional_depth,
+            deepened_prefixes=deepened_prefixes,
+            blackbox_boundary_roots=blackbox_boundary_roots,
+        ),
         "ast",
         "0",
     )
@@ -101,13 +121,26 @@ def find_top_modules(modules: Dict[str, ModuleRecord]) -> List[str]:
     return tops if tops else sorted(all_mods)
 
 
+def _is_blackbox_module(rec: Optional[ModuleRecord]) -> bool:
+    if not rec:
+        return False
+    return bool(rec.is_blackbox) or getattr(rec, "parse_tier", "") == "blackbox"
+
+
 def elaborate_flat(
     modules: Union[Mapping[str, ModuleRecord], List[ModuleRecord]],
     top_module: Optional[str] = None,
     top_modules: Optional[Sequence[str]] = None,
     *,
+    max_depth: Optional[int] = None,
+    conditional_depth: Optional["ConditionalDepthPolicy"] = None,
+    deepened_prefixes: Optional[Sequence[str]] = None,
+    blackbox_boundary_roots: Optional[Set[str]] = None,
     _visited: Optional[Set[str]] = None,
 ) -> List[FlatInstance]:
+    from hch.ingest.parse_depth import ConditionalDepthPolicy, descendant_hops_for_node
+
+    _UNLIMITED = -1
     if isinstance(modules, dict):
         mod_map = dict(modules)
     else:
@@ -136,6 +169,9 @@ def elaborate_flat(
         mod_name: str,
         depth: int,
         parent: Optional[str],
+        desc_hops: Optional[int] = None,
+        *,
+        flatten_root: Optional[str] = None,
     ) -> None:
         global _flatten_cycle_detected
         nonlocal visit_count
@@ -176,6 +212,31 @@ def elaborate_flat(
             return
 
         ports = materialized_port_names(rec.ports)
+        next_hops = desc_hops
+        if conditional_depth is not None:
+            from hch.ingest.parse_depth import path_has_deepened_prefix
+
+            if deepened_prefixes and path_has_deepened_prefix(path, deepened_prefixes):
+                next_hops = descendant_hops_for_node(
+                    path,
+                    rec.file_path or "",
+                    conditional_depth,
+                    depth_from_top=depth,
+                    deepened_prefixes=deepened_prefixes,
+                )
+            elif next_hops is None:
+                next_hops = descendant_hops_for_node(
+                    path,
+                    rec.file_path or "",
+                    conditional_depth,
+                    depth_from_top=depth,
+                    deepened_prefixes=deepened_prefixes,
+                )
+        parse_tier = getattr(rec, "parse_tier", "full") or "full"
+        if _is_blackbox_module(rec):
+            parse_tier = "blackbox"
+        if conditional_depth is not None and next_hops == 0 and rec.instances:
+            parse_tier = "shallow_cap"
         out.append(
             FlatInstance(
                 full_path=path,
@@ -191,10 +252,17 @@ def elaborate_flat(
                     parent_path=parent,
                     mod_paths_by_name=mod_paths,
                 ),
+                parse_tier=parse_tier,
             )
         )
 
         try:
+            if conditional_depth is not None:
+                if next_hops == 0:
+                    return
+                desc_hops = next_hops
+            elif max_depth is not None and depth >= max_depth:
+                return
             for edge in rec.instances:
                 if getattr(edge, "unreachable", False):
                     continue
@@ -252,8 +320,80 @@ def elaborate_flat(
                         )
                     )
                     continue
+                stop_at_blackbox = (
+                    blackbox_boundary_roots
+                    and flatten_root in blackbox_boundary_roots
+                    and _is_blackbox_module(child_rec)
+                    and not _is_blackbox_module(rec)
+                )
+                if stop_at_blackbox:
+                    child_ports = materialized_port_names(child_rec.ports)
+                    stub = FlatInstance(
+                        full_path=child_path,
+                        name=edge.inst_name,
+                        module=edge.child_module,
+                        file=child_rec.file_path,
+                        ports=child_ports,
+                        depth=depth + 1,
+                        parent_path=path,
+                        param_overrides=dict(edge.param_overrides),
+                        child_kind=child_kind,
+                        in_generate=edge.in_generate,
+                        via_bind=edge.via_bind,
+                        generate_path=edge.generate_path or "",
+                        generate_branch=edge.generate_branch or "",
+                        module_ref=child_mref,
+                        parse_tier="blackbox",
+                    )
+                    apply_edge_tags_to_flat(stub, edge)
+                    out.append(stub)
+                    continue
+                child_hops: Optional[int] = None
+                if conditional_depth is not None and desc_hops is not None:
+                    from hch.ingest.parse_depth import (
+                        path_has_deepened_prefix,
+                        path_matches_anchor,
+                    )
+
+                    child_file = child_rec.file_path if child_rec else ""
+                    if deepened_prefixes and path_has_deepened_prefix(
+                        child_path, deepened_prefixes
+                    ):
+                        child_hops = descendant_hops_for_node(
+                            child_path,
+                            child_file,
+                            conditional_depth,
+                            depth_from_top=depth + 1,
+                            deepened_prefixes=deepened_prefixes,
+                        )
+                    elif path_matches_anchor(
+                        child_path,
+                        child_file,
+                        conditional_depth.anchor_patterns,
+                        module_name=edge.child_module,
+                    ):
+                        if conditional_depth.global_max_depth is None:
+                            child_hops = _UNLIMITED
+                        else:
+                            child_hops = max(
+                                0,
+                                conditional_depth.global_max_depth - (depth + 1),
+                            )
+                    elif desc_hops == _UNLIMITED:
+                        child_hops = conditional_depth.shallow_depth
+                    elif desc_hops > 0:
+                        child_hops = desc_hops - 1
+                    else:
+                        continue
                 mark = len(out)
-                walk(child_path, edge.child_module, depth + 1, path)
+                walk(
+                    child_path,
+                    edge.child_module,
+                    depth + 1,
+                    path,
+                    child_hops,
+                    flatten_root=flatten_root,
+                )
                 for row in out[mark:]:
                     if row.full_path == child_path:
                         row.param_overrides = dict(edge.param_overrides)
@@ -267,6 +407,8 @@ def elaborate_flat(
             mod_stack.discard(mod_name)
 
     for top in tops:
-        walk(top, top, 0, None)
+        top_rec = mod_map.get(top)
+        start_hops = _UNLIMITED if conditional_depth is not None else None
+        walk(top, top, 0, None, start_hops, flatten_root=top)
 
     return out

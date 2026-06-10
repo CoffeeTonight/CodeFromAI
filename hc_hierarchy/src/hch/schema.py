@@ -23,6 +23,7 @@ class ModuleRecord:
     instances: List["InstanceEdge"] = field(default_factory=list)
     module_kind: str = "module"  # module | interface | program | primitive | unresolved
     is_blackbox: bool = False
+    parse_tier: str = "full"  # full | skim | blackbox
     binds: List[BindEdge] = field(default_factory=list)
 
 
@@ -80,6 +81,7 @@ class FlatInstance:
     is_unresolved: bool = False
     module_ref: str = ""
     from_macro: bool = False
+    parse_tier: str = "full"  # full | skim | shallow_cap | blackbox
 
     def to_query_dict(self) -> Dict[str, Any]:
         return {
@@ -97,5 +99,6 @@ class FlatInstance:
             "generate_branch": self.generate_branch,
             "is_unresolved": self.is_unresolved,
             "module_ref": self.module_ref,
+            "parse_tier": self.parse_tier,
             "from_macro": self.from_macro,
         }

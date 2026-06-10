@@ -39,6 +39,7 @@ def flat_inst_tags_dict(row: FlatInstance) -> Dict[str, Any]:
         "is_unresolved": row.is_unresolved,
         "child_kind": row.child_kind,
         "from_macro": row.from_macro,
+        "parse_tier": getattr(row, "parse_tier", "full") or "full",
     }
 
 
@@ -52,3 +53,6 @@ def apply_tags_dict_to_flat(row: FlatInstance, tags: Dict[str, Any]) -> None:
     if ck:
         row.child_kind = str(ck)
     row.from_macro = bool(tags.get("from_macro"))
+    pt = tags.get("parse_tier")
+    if pt:
+        row.parse_tier = str(pt)

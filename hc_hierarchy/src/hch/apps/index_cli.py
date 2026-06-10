@@ -8,7 +8,7 @@ import os
 import sys
 
 from hch.apps.help_text import INDEX_HELP_EPILOG
-from hch.apps.index_progress import IndexProgressReporter
+from hch.apps.index_progress import IndexProgressReporter, progress_stderr_guard
 from hch.engine.availability import check_engine
 from hch.index.loader import build_index_from_filelist
 
@@ -28,69 +28,15 @@ def main(argv=None) -> int:
         epilog=INDEX_HELP_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("filelist", help="Top .f filelist path")
-    ap.add_argument(
+    io = ap.add_argument_group("filelist & output")
+    io.add_argument("filelist", help="Top .f filelist path")
+    io.add_argument(
         "-o",
         "--output",
         default="design.hch.db",
         help="Output SQLite path (default: design.hch.db)",
     )
-    ap.add_argument(
-        "--top",
-        default=None,
-        help="Top module name for hierarchy flatten (root instance path)",
-    )
-    ap.add_argument(
-        "--tops",
-        default=None,
-        help="Comma-separated top modules (overrides single --top flatten roots)",
-    )
-    ap.add_argument(
-        "--elaborate",
-        action="store_true",
-        help="Tier E: use pyslang elaboration (generate/ifdef resolved)",
-    )
-    ap.add_argument(
-        "--batch-size",
-        type=int,
-        default=0,
-        help="Sources per pyslang batch (0=all at once). Enables checkpoint when >0",
-    )
-    ap.add_argument(
-        "--resume",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Resume from checkpoint_files in existing DB",
-    )
-    ap.add_argument(
-        "--force",
-        action="store_true",
-        help="Ignore checkpoint and rebuild module/instance tables",
-    )
-    ap.add_argument(
-        "--path-hierarchy",
-        choices=("auto", "on", "off"),
-        default="auto",
-        help="Synthetic u_* path layout: auto (detect), on, or off",
-    )
-    ap.add_argument(
-        "--elab-instance-cap",
-        type=int,
-        default=50_000,
-        help="Max elaborated instances (Tier E); meta when truncated",
-    )
-    ap.add_argument(
-        "--no-elab-fast",
-        action="store_true",
-        help="Tier E: parse full filelist for ingest (disable closure-fast path)",
-    )
-    ap.add_argument(
-        "--elab-deep",
-        choices=("auto", "hybrid", "shallow", "closure"),
-        default="auto",
-        help="Deep synthetic: auto=path+shallow slang hybrid, shallow=8-file only, closure=pruned slang only",
-    )
-    ap.add_argument(
+    io.add_argument(
         "--index-cwd",
         default=None,
         metavar="DIR",
@@ -100,49 +46,170 @@ def main(argv=None) -> int:
             "Filelist tokens like $REPO/a.v expand from the shell environment."
         ),
     )
-    ap.add_argument(
+    io.add_argument(
+        "--export-json",
+        metavar="PATH",
+        help="Write DQL-ready instances JSON after indexing",
+    )
+    io.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress messages on stderr",
+    )
+
+    roots = ap.add_argument_group("hierarchy roots & depth")
+    roots.add_argument(
+        "--top",
+        default=None,
+        help="Top module name for hierarchy flatten (root instance path)",
+    )
+    roots.add_argument(
+        "--tops",
+        default=None,
+        help="Comma-separated top modules (overrides single --top flatten roots)",
+    )
+    roots.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Limit parse + hierarchy to N instance levels below --top "
+            "(0=top only, 1=top+children; requires --top)"
+        ),
+    )
+    roots.add_argument(
+        "--depth-anchor",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help=(
+            "Instance/file path glob for full-depth branches (repeatable), "
+            "e.g. '*_top*', '*_grp*', '*_log*'"
+        ),
+    )
+    roots.add_argument(
+        "--depth-shallow",
+        type=int,
+        default=2,
+        metavar="N",
+        help="Descendant levels to parse when path matches no --depth-anchor (default: 2)",
+    )
+    roots.add_argument(
+        "--no-skim-parse",
+        action="store_true",
+        help=(
+            "With --depth-anchor: parse shallow-zone files with pyslang too "
+            "(default: text-skim for shallow, pyslang only on anchor branches)"
+        ),
+    )
+    roots.add_argument(
+        "--path-hierarchy",
+        choices=("auto", "on", "off"),
+        default="auto",
+        help="Synthetic u_* path layout: auto (detect), on, or off",
+    )
+
+    bb = ap.add_argument_group(
+        "IP / kit blackbox",
+        "Skip full pyslang parse on vendor IP paths (module header scan → blackbox stub). "
+        "Parent instances still indexed. Also env HCH_BLACKBOX_PATH=comma,separated",
+    )
+    bb.add_argument(
+        "--blackbox-path",
+        action="append",
+        default=[],
+        metavar="SUBSTR",
+        help=(
+            "RTL path substring to blackbox (repeatable; matched on resolved file paths). "
+            "Merged with HCH_BLACKBOX_PATH"
+        ),
+    )
+
+    perf = ap.add_argument_group("performance & checkpoint")
+    perf.add_argument(
+        "--batch-size",
+        type=int,
+        default=0,
+        help="Sources per pyslang batch (0=all at once). Enables checkpoint when >0",
+    )
+    perf.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=0,
+        help="Parallel parse workers for batched Tier P (0=auto CPU count, 1=sequential)",
+    )
+    perf.add_argument(
+        "--resume",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Resume from checkpoint_files in existing DB",
+    )
+    perf.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore checkpoint and rebuild module/instance tables",
+    )
+
+    tier_e = ap.add_argument_group("Tier E elaboration")
+    tier_e.add_argument(
+        "--elaborate",
+        action="store_true",
+        help="Tier E: use pyslang elaboration (generate/ifdef resolved)",
+    )
+    tier_e.add_argument(
+        "--elab-instance-cap",
+        type=int,
+        default=50_000,
+        help="Max elaborated instances (Tier E); meta when truncated",
+    )
+    tier_e.add_argument(
+        "--no-elab-fast",
+        action="store_true",
+        help="Tier E: parse full filelist for ingest (disable closure-fast path)",
+    )
+    tier_e.add_argument(
+        "--elab-deep",
+        choices=("auto", "hybrid", "shallow", "closure"),
+        default="auto",
+        help="Deep synthetic: auto=path+shallow slang hybrid, shallow=8-file only, closure=pruned slang only",
+    )
+
+    diag = ap.add_argument_group("variants & diagnostics")
+    diag.add_argument(
         "--ifdef-compare",
         action="store_true",
         help="Compare instance sets: filelist defines vs --ifdef-alt",
     )
-    ap.add_argument(
+    diag.add_argument(
         "--ifdef-alt",
         default="",
         help="Extra defines for ifdef compare, e.g. USE_ALT=1,FOO=2",
     )
-    ap.add_argument(
+    diag.add_argument(
         "--filelist-diff",
         metavar="OTHER.f",
         default=None,
         help="Compare primary filelist with another; store filelist_diff_json meta",
     )
-    ap.add_argument(
+    diag.add_argument(
         "--variant",
         action="append",
         default=[],
         help="Preprocessor variant NAME=DEFINE,... (repeatable); indexes into one DB",
     )
-    ap.add_argument(
+    diag.add_argument(
         "--variant-compare",
         metavar="A,B",
         default=None,
         help="After --variant indexing, diff instance paths between variants A and B",
     )
-    ap.add_argument(
+    diag.add_argument(
         "--variant-dir",
         metavar="DIR",
         default=None,
         help="With --variant: also write one .hch.db per variant under DIR (ifdef multi-DB)",
-    )
-    ap.add_argument(
-        "--export-json",
-        metavar="PATH",
-        help="Write DQL-ready instances JSON after indexing",
-    )
-    ap.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Suppress progress messages on stderr",
     )
     args = ap.parse_args(argv)
 
@@ -180,29 +247,36 @@ def main(argv=None) -> int:
         on_phase = reporter.phase
         reporter.phase(f"Output: {args.output}")
 
-    store = build_index_from_filelist(
-        args.filelist,
-        args.output,
-        top_module=top,
-        top_modules=tops,
-        elaborate=args.elaborate,
-        batch_size=args.batch_size,
-        resume=args.resume,
-        force=args.force,
-        path_hierarchy_mode=args.path_hierarchy,
-        elab_instance_cap=args.elab_instance_cap,
-        elab_fast=not args.no_elab_fast,
-        elab_deep=args.elab_deep,
-        ifdef_compare=args.ifdef_compare,
-        ifdef_alt=args.ifdef_alt or None,
-        filelist_diff=args.filelist_diff,
-        variants=variants,
-        variant_compare=variant_compare,
-        variant_dir=args.variant_dir,
-        on_progress=on_progress,
-        on_phase=on_phase,
-        index_cwd=index_cwd,
-    )
+    with progress_stderr_guard(reporter):
+        store = build_index_from_filelist(
+            args.filelist,
+            args.output,
+            top_module=top,
+            top_modules=tops,
+            elaborate=args.elaborate,
+            batch_size=args.batch_size,
+            resume=args.resume,
+            force=args.force,
+            path_hierarchy_mode=args.path_hierarchy,
+            elab_instance_cap=args.elab_instance_cap,
+            elab_fast=not args.no_elab_fast,
+            elab_deep=args.elab_deep,
+            ifdef_compare=args.ifdef_compare,
+            ifdef_alt=args.ifdef_alt or None,
+            filelist_diff=args.filelist_diff,
+            variants=variants,
+            variant_compare=variant_compare,
+            variant_dir=args.variant_dir,
+            on_progress=on_progress,
+            on_phase=on_phase,
+            index_cwd=index_cwd,
+            jobs=args.jobs,
+            blackbox_paths=args.blackbox_path,
+            max_depth=args.max_depth,
+            depth_anchor_patterns=args.depth_anchor,
+            depth_shallow=args.depth_shallow,
+            skim_parse=not args.no_skim_parse,
+        )
     n = store.count_instances()
     m = store.count_modules()
     if reporter:

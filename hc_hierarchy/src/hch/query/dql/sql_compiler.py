@@ -132,13 +132,22 @@ def _compile_comparison(c: Comparison) -> Tuple[str, List[Any]]:
 
     if field in ("inst", "instance"):
         col = "i.inst_leaf_name"
+        mod_col = "m.module_name"
         if op == "^=":
             prefix = _escape_like(val.rstrip("*"))
             return f"{col} LIKE ? ESCAPE '\\'", [prefix + "%"]
         if op == "~":
-            return f"{col} LIKE ? ESCAPE '\\'", [_glob_to_like(val)]
+            like = _glob_to_like(val)
+            return (
+                f"({col} LIKE ? ESCAPE '\\' OR {mod_col} LIKE ? ESCAPE '\\')",
+                [like, like],
+            )
         if op == "!~":
-            return f"{col} NOT LIKE ? ESCAPE '\\'", [_glob_to_like(val)]
+            like = _glob_to_like(val)
+            return (
+                f"({col} NOT LIKE ? ESCAPE '\\' AND {mod_col} NOT LIKE ? ESCAPE '\\')",
+                [like, like],
+            )
         if op == "=":
             return f"{col} = ?", [val]
         if op == "!=":
@@ -245,6 +254,15 @@ def _compile_comparison(c: Comparison) -> Tuple[str, List[Any]]:
             return f"({tag} IS NULL OR {tag} = 0 OR {tag} = false)", []
         if op == "!=":
             return f"NOT ({tag} = 1 OR {tag} = true)", []
+
+    if field in ("parse_tier", "tier"):
+        tag = "json_extract(i.inst_tags_json, '$.parse_tier')"
+        if op == "=":
+            return f"COALESCE({tag}, 'full') = ?", [val]
+        if op == "!=":
+            return f"COALESCE({tag}, 'full') != ?", [val]
+        if op == "~":
+            return f"COALESCE({tag}, 'full') LIKE ? ESCAPE '\\'", [_glob_to_like(val)]
 
     if field in ("in_generate", "via_bind"):
         tag = f"json_extract(i.inst_tags_json, '$.{field}')"

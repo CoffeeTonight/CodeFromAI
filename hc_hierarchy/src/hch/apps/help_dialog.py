@@ -19,7 +19,7 @@ def show_help_dialog(parent=None, *, initial_tab: int = 0) -> None:
         raise SystemExit("PySide6 required: pip install -e '.[gui]'") from e
 
     dlg = QDialog(parent)
-    dlg.setWindowTitle("hc_hierarchy 도움말")
+    dlg.setWindowTitle("hc_hierarchy Help")
     dlg.setFixedSize(780, 620)
 
     tabs = QTabWidget()
@@ -52,4 +52,4 @@ def show_about_dialog(parent=None) -> None:
     except ImportError as e:
         raise SystemExit("PySide6 required: pip install -e '.[gui]'") from e
 
-    QMessageBox.about(parent, "hc_hierarchy 정보", ABOUT_TEXT)
+    QMessageBox.about(parent, "About hc_hierarchy", ABOUT_TEXT)

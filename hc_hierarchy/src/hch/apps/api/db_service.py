@@ -5,15 +5,26 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from hch.query.dql.planner import apply_post_filters, plan_dql
 from hch.query.dql.results import format_rows_plain, format_rows_text
 
 
-def _missing_files_from_meta(raw: Dict[str, str]) -> List[str]:
+def _blackbox_files_from_meta(raw: Dict[str, str]) -> List[str]:
+    from hch.ingest.kit_blackbox import kit_blackbox_source_paths
+
+    return sorted(kit_blackbox_source_paths(raw))
+
+
+def _missing_files_from_meta(
+    raw: Dict[str, str],
+    *,
+    exclude_paths: Optional[Set[str]] = None,
+) -> List[str]:
     """Paths from filelist / parse meta that were missing at index time."""
     found: set[str] = set()
+    skip = {str(p).replace("\\", "/") for p in (exclude_paths or set())}
     fl_errs = raw.get("filelist_errors", "")
     if fl_errs:
         try:
@@ -23,7 +34,10 @@ def _missing_files_from_meta(raw: Dict[str, str]) -> List[str]:
                     text = str(entry)
                     for prefix in ("Source not found:", "Filelist not found:"):
                         if prefix in text:
-                            found.add(text.split(":", 1)[1].strip())
+                            path = text.split(":", 1)[1].strip()
+                            norm = path.replace("\\", "/")
+                            if norm not in skip:
+                                found.add(path)
         except json.JSONDecodeError:
             pass
     pe = raw.get("parse_errors_json", "")
@@ -33,10 +47,24 @@ def _missing_files_from_meta(raw: Dict[str, str]) -> List[str]:
             if isinstance(by_file, dict):
                 for path, entry in by_file.items():
                     if isinstance(entry, dict) and entry.get("status") == "missing":
-                        found.add(str(path))
+                        norm = str(path).replace("\\", "/")
+                        if norm not in skip:
+                            found.add(str(path))
         except json.JSONDecodeError:
             pass
     return sorted(found)
+
+
+def _parse_tier(inst_tags_json: Optional[str]) -> str:
+    if not inst_tags_json:
+        return "full"
+    try:
+        tags = json.loads(inst_tags_json)
+    except json.JSONDecodeError:
+        return "full"
+    if isinstance(tags, dict):
+        return str(tags.get("parse_tier") or "full")
+    return "full"
 
 
 def _parse_ports(port_json: Optional[str]) -> List[str]:
@@ -110,7 +138,11 @@ class HierarchyDbService:
         if elab == "0":
             badge = f"{badge} · elab failed"
         data["parse_tier_badge"] = badge
-        missing = _missing_files_from_meta(data)
+        blackbox_files = _blackbox_files_from_meta(data)
+        data["blackbox_files"] = blackbox_files
+        data["blackbox_file_count"] = len(blackbox_files)
+        bb_skip = {p.replace("\\", "/") for p in blackbox_files}
+        missing = _missing_files_from_meta(data, exclude_paths=bb_skip)
         data["missing_files"] = missing
         data["missing_file_count"] = len(missing)
         if "filelist_errors" in data:
@@ -142,7 +174,7 @@ class HierarchyDbService:
                 cur = self.conn.execute(
                     f"""
                     SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
-                           i.port_json, f.filepath,
+                           i.port_json, f.filepath, i.inst_tags_json,
                            (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
                     FROM instances i
                     JOIN modules m ON m.id = i.module_id
@@ -156,7 +188,7 @@ class HierarchyDbService:
                 cur = self.conn.execute(
                     """
                     SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
-                           i.port_json, f.filepath,
+                           i.port_json, f.filepath, i.inst_tags_json,
                            (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
                     FROM instances i
                     JOIN modules m ON m.id = i.module_id
@@ -169,7 +201,7 @@ class HierarchyDbService:
             cur = self.conn.execute(
                 """
                 SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
-                       i.port_json, f.filepath,
+                       i.port_json, f.filepath, i.inst_tags_json,
                        (SELECT COUNT(*) FROM instances c WHERE c.parent_path = i.full_path) AS child_count
                 FROM instances i
                 JOIN modules m ON m.id = i.module_id
@@ -188,15 +220,46 @@ class HierarchyDbService:
                 "filepath": r["filepath"] or "",
                 "ports": _parse_ports(r["port_json"]),
                 "has_children": r["child_count"] > 0,
+                "parse_tier": _parse_tier(r["inst_tags_json"]),
             }
             for r in cur.fetchall()
         ]
+
+    def deepen(
+        self,
+        under_path: str,
+        *,
+        extra_depth: Optional[int] = None,
+        full_subtree: bool = True,
+        jobs: int = 0,
+    ) -> Dict[str, Any]:
+        from hch.index.deepen import deepen_branch
+
+        result = deepen_branch(
+            str(self.db_path),
+            under_path,
+            extra_depth=extra_depth,
+            full_subtree=full_subtree,
+            jobs=jobs,
+        )
+        return {
+            "under_path": result.under_path,
+            "files_parsed": result.files_parsed,
+            "modules_upgraded": result.modules_upgraded,
+            "instances_before": result.instances_before,
+            "instances_after": result.instances_after,
+            "deepened_paths": list(result.deepened_paths),
+            "instance_count": self.conn.execute(
+                "SELECT COUNT(*) FROM instances"
+            ).fetchone()[0],
+        }
 
     def instance_detail(self, full_path: str) -> Optional[Dict[str, Any]]:
         row = self.conn.execute(
             """
             SELECT i.full_path, i.inst_leaf_name, m.module_name, i.depth,
-                   i.parent_path, i.port_json, f.filepath, m.port_json AS mod_ports
+                   i.parent_path, i.port_json, f.filepath, m.port_json AS mod_ports,
+                   i.inst_tags_json
             FROM instances i
             JOIN modules m ON m.id = i.module_id
             LEFT JOIN files f ON f.id = i.filepath_id
@@ -217,6 +280,7 @@ class HierarchyDbService:
             "parent_path": row["parent_path"],
             "filepath": row["filepath"] or "",
             "ports": ports,
+            "parse_tier": _parse_tier(row["inst_tags_json"]),
         }
 
     def run_dql(
@@ -244,6 +308,7 @@ class HierarchyDbService:
                     "depth": r.get("depth", 0),
                     "ports": _parse_ports(r.get("port_json")),
                     "parent_path": r.get("parent_path"),
+                    "parse_tier": _parse_tier(r.get("inst_tags_json")),
                 }
             )
         payload: Dict[str, Any] = {

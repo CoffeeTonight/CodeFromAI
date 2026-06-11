@@ -144,9 +144,10 @@ def main(argv=None) -> int:
         "--blackbox-path",
         action="append",
         default=[],
-        metavar="SUBSTR",
+        metavar="PAT",
         help=(
-            "RTL path substring to blackbox (repeatable; matched on resolved file paths). "
+            "RTL path pattern to blackbox (repeatable; comma-separated per flag). "
+            "Substring by default; glob if * ? [ present (e.g. pcie*, */vendor/*). "
             "Merged with HCH_BLACKBOX_PATH"
         ),
     )

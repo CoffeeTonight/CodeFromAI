@@ -105,15 +105,19 @@ INDEX_HELP = dedent(
       unset variables stay literal → Source not found
 
     IP / kit blackbox (vendor IP, design-kit RTL — skip full parse):
-      --blackbox-path SUBSTR   Repeatable path substring match on resolved RTL paths
-      HCH_BLACKBOX_PATH        Comma-separated substrings (merged with --blackbox-path)
+      --blackbox-path PAT      Repeatable path match on resolved RTL paths
+      HCH_BLACKBOX_PATH        Comma-separated patterns (merged with --blackbox-path)
+      Substring (no wildcards): vendor_ip, third_party/dk_rtl
+      Glob (* ? [): pcie*, */pcie/*, *vendor_ip*
+      Multiple patterns (any form; OR match):
+        --blackbox-path vendor_ip --blackbox-path 'pcie*'
+        --blackbox-path 'pcie*,ddr*,hfa'
+        export HCH_BLACKBOX_PATH=vendor_ip,encrypted_ip
       Example:
         hch-index chip.f -o chip.hch.db --top soc_top \\
-          --blackbox-path vendor_ip \\
-          --blackbox-path third_party/dk_rtl \\
+          --blackbox-path 'pcie*,ddr_ctrl' \\
+          --blackbox-path '*/third_party/*' \\
           -j 32
-        export HCH_BLACKBOX_PATH=vendor_ip,encrypted_ip
-        hch-index chip.f -o chip.hch.db --top soc_top
       Behavior:
         Matched .v/.sv files: module header scan only → blackbox stub (ports from header)
         pyslang full parse skipped on those files (faster index, no vendor body needed)

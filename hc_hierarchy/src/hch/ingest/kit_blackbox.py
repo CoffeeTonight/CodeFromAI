@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 from dataclasses import replace
@@ -14,26 +15,57 @@ from hch.ingest.text_skim import ingest_sources_text_skim
 from hch.schema import ModuleRecord
 
 
+def _split_pattern_tokens(raw: str) -> List[str]:
+    return [p.strip() for p in str(raw).split(",") if p.strip()]
+
+
 def resolve_blackbox_path_patterns(
     blackbox_paths: Sequence[str] = (),
 ) -> List[str]:
-    """CLI ``--blackbox-path`` plus optional env ``HCH_BLACKBOX_PATH`` (comma-separated)."""
+    """
+    CLI ``--blackbox-path`` (repeatable; comma-separated per value) plus env
+    ``HCH_BLACKBOX_PATH`` (comma-separated).
+    """
     patterns: List[str] = []
     env = os.environ.get("HCH_BLACKBOX_PATH", "").strip()
     if env:
-        patterns.extend(p.strip() for p in env.split(",") if p.strip())
+        for token in _split_pattern_tokens(env):
+            if token not in patterns:
+                patterns.append(token)
     for p in blackbox_paths:
-        s = str(p).strip()
-        if s and s not in patterns:
-            patterns.append(s)
+        for token in _split_pattern_tokens(p):
+            if token not in patterns:
+                patterns.append(token)
     return patterns
+
+
+def _is_glob_pattern(pattern: str) -> bool:
+    return any(ch in pattern for ch in ("*", "?", "["))
+
+
+def _glob_matches_path(norm: str, pattern: str) -> bool:
+    """Match *pattern* against full path, basename, or any path segment."""
+    if fnmatch.fnmatchcase(norm, pattern):
+        return True
+    base = norm.rsplit("/", 1)[-1]
+    if base and fnmatch.fnmatchcase(base, pattern):
+        return True
+    return any(fnmatch.fnmatchcase(seg, pattern) for seg in norm.split("/") if seg)
 
 
 def source_path_matches(path: str, patterns: Sequence[str]) -> bool:
     if not patterns:
         return False
     norm = str(path).replace("\\", "/")
-    return any(pat in norm for pat in patterns)
+    for pat in patterns:
+        if not pat:
+            continue
+        if _is_glob_pattern(pat):
+            if _glob_matches_path(norm, pat):
+                return True
+        elif pat in norm:
+            return True
+    return False
 
 
 def partition_sources(

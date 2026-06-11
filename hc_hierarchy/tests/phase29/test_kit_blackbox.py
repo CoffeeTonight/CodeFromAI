@@ -10,12 +10,14 @@ from hch.ingest.kit_blackbox import (
     partition_sources,
     resolve_blackbox_path_patterns,
     scan_kit_blackbox_modules,
+    source_path_matches,
 )
 
 
 def test_resolve_blackbox_path_patterns():
     assert resolve_blackbox_path_patterns(["vendor_ip"]) == ["vendor_ip"]
     assert resolve_blackbox_path_patterns(["a", "b"]) == ["a", "b"]
+    assert resolve_blackbox_path_patterns(["pcie*, ddr*"]) == ["pcie*", "ddr*"]
     assert resolve_blackbox_path_patterns([]) == []
 
 
@@ -33,6 +35,30 @@ def test_partition_sources_by_substring():
     parse, kit = partition_sources(sources, ["vendor_ip"])
     assert parse == ["/soc/rtl/top.v", "/soc/rtl/cpu.v"]
     assert kit == ["/soc/vendor_ip/ip/sub.v"]
+
+
+def test_source_path_matches_glob():
+    path = "/soc/rtl/pcie_ctrl/bridge.v"
+    assert source_path_matches(path, ["pcie*"])
+    assert source_path_matches(path, ["*/pcie_ctrl/*"])
+    assert source_path_matches(path, ["*pcie*"])
+    assert not source_path_matches(path, ["ddr*"])
+
+
+def test_partition_sources_multiple_globs():
+    sources = [
+        "/soc/rtl/top.v",
+        "/soc/rtl/pcie_ctrl/bridge.v",
+        "/soc/rtl/ddr/ctrl.v",
+        "/soc/vendor/hfa/wrap.v",
+    ]
+    parse, kit = partition_sources(sources, ["pcie*", "ddr*", "hfa"])
+    assert parse == ["/soc/rtl/top.v"]
+    assert kit == [
+        "/soc/rtl/pcie_ctrl/bridge.v",
+        "/soc/rtl/ddr/ctrl.v",
+        "/soc/vendor/hfa/wrap.v",
+    ]
 
 
 def test_scan_kit_blackbox_modules(tmp_path: Path):

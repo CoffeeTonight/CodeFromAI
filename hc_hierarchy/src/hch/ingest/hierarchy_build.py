@@ -369,16 +369,16 @@ def elaborate_flat(
                     elif path_matches_anchor(
                         child_path,
                         child_file,
-                        conditional_depth.anchor_patterns,
+                        conditional_depth,
                         module_name=edge.child_module,
                     ):
-                        if conditional_depth.global_max_depth is None:
-                            child_hops = _UNLIMITED
-                        else:
-                            child_hops = max(
-                                0,
-                                conditional_depth.global_max_depth - (depth + 1),
-                            )
+                        child_hops = descendant_hops_for_node(
+                            child_path,
+                            child_file,
+                            conditional_depth,
+                            depth_from_top=depth + 1,
+                            deepened_prefixes=deepened_prefixes,
+                        )
                     elif desc_hops == _UNLIMITED:
                         child_hops = conditional_depth.shallow_depth
                     elif desc_hops > 0:

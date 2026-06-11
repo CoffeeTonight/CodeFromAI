@@ -170,9 +170,21 @@ button:hover {
   filter: brightness(1.08);
 }
 
+.depth-bar {
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-family: var(--mono);
+  color: var(--text-muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  background: #12161e;
+}
+
 .tree-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
   padding: 0.45rem 0.65rem;
   border-bottom: 1px solid var(--border);
@@ -196,9 +208,38 @@ button:hover {
 }
 
 .tree {
-  flex: 1;
+  flex: 1.4;
+  min-height: 120px;
   overflow: auto;
   padding: 0.35rem 0;
+}
+
+.hierarchy-head {
+  padding: 0.4rem 0.65rem 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.hierarchy-view {
+  flex: 1;
+  min-height: 100px;
+  margin: 0;
+  padding: 0.45rem 0.65rem 0.65rem;
+  overflow: auto;
+  border: none;
+  background: #12161e;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.hierarchy-view.muted {
+  color: var(--text-muted);
 }
 
 .tree-node {

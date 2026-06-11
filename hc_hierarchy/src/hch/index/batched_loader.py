@@ -175,7 +175,17 @@ def build_index_batched(
 
         store.set_meta(
             "depth_anchor_patterns_json",
-            _json.dumps(list(depth_policy.anchor_patterns)),
+            _json.dumps(list(depth_policy.anchor_legacy_patterns)),
+            commit=False,
+        )
+        store.set_meta(
+            "depth_anchor_inst_json",
+            _json.dumps(list(depth_policy.anchor_inst_patterns)),
+            commit=False,
+        )
+        store.set_meta(
+            "depth_anchor_module_json",
+            _json.dumps(list(depth_policy.anchor_module_patterns)),
             commit=False,
         )
         store.set_meta(
@@ -183,6 +193,12 @@ def build_index_batched(
             str(depth_policy.shallow_depth),
             commit=False,
         )
+        if depth_policy.anchor_extra_depth is not None:
+            store.set_meta(
+                "depth_anchor_extra",
+                str(depth_policy.anchor_extra_depth),
+                commit=False,
+            )
         store.set_meta(
             "index_skim_parse",
             "1" if skim_parse else "0",

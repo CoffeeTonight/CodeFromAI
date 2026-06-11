@@ -20,29 +20,55 @@ _MODULE_BODY_RE = re.compile(
 _UNLIMITED = -1
 
 
+def _norm_patterns(patterns: Sequence[str]) -> Tuple[str, ...]:
+    return tuple(p.strip() for p in patterns if p and str(p).strip())
+
+
 @dataclass(frozen=True)
 class ConditionalDepthPolicy:
-    """Full depth on anchor path globs; shallow limit elsewhere."""
+    """Anchor globs select branches; shallow limit elsewhere."""
 
-    anchor_patterns: Tuple[str, ...]
+    anchor_inst_patterns: Tuple[str, ...] = ()
+    anchor_module_patterns: Tuple[str, ...] = ()
+    anchor_legacy_patterns: Tuple[str, ...] = ()
     shallow_depth: int = 2
     global_max_depth: Optional[int] = None
+    anchor_extra_depth: Optional[int] = None
+
+    @property
+    def has_anchors(self) -> bool:
+        return bool(
+            self.anchor_inst_patterns
+            or self.anchor_module_patterns
+            or self.anchor_legacy_patterns
+        )
 
     @classmethod
     def from_sequences(
         cls,
-        anchor_patterns: Sequence[str],
+        anchor_patterns: Sequence[str] = (),
         *,
+        anchor_inst_patterns: Sequence[str] = (),
+        anchor_module_patterns: Sequence[str] = (),
+        anchor_legacy_patterns: Sequence[str] = (),
         shallow_depth: int = 2,
         global_max_depth: Optional[int] = None,
+        anchor_extra_depth: Optional[int] = None,
     ) -> "ConditionalDepthPolicy":
-        pats = tuple(p.strip() for p in anchor_patterns if p and str(p).strip())
+        legacy = _norm_patterns(anchor_legacy_patterns) or _norm_patterns(anchor_patterns)
+        inst = _norm_patterns(anchor_inst_patterns)
+        module = _norm_patterns(anchor_module_patterns)
         if shallow_depth < 0:
             raise ValueError("shallow_depth must be >= 0")
+        if anchor_extra_depth is not None and anchor_extra_depth < 0:
+            raise ValueError("anchor_extra_depth must be >= 0")
         return cls(
-            anchor_patterns=pats,
+            anchor_inst_patterns=inst,
+            anchor_module_patterns=module,
+            anchor_legacy_patterns=legacy,
             shallow_depth=shallow_depth,
             global_max_depth=global_max_depth,
+            anchor_extra_depth=anchor_extra_depth,
         )
 
 
@@ -97,23 +123,43 @@ def build_module_primary_file_map(
 def path_matches_anchor(
     inst_path: str,
     file_path: str,
-    anchor_patterns: Sequence[str],
+    policy: ConditionalDepthPolicy,
     *,
     module_name: str = "",
 ) -> bool:
-    """Match anchor globs on instance name, child module name, or RTL file stem."""
-    if not anchor_patterns:
+    """
+    Match anchor globs per policy.
+
+    * ``anchor_inst_patterns`` — instance leaf name only (e.g. ``u_ct``)
+    * ``anchor_module_patterns`` — module type only (e.g. ``cpu_top``)
+    * ``anchor_legacy_patterns`` — inst, module, or RTL file stem (``--depth-anchor``)
+    """
+    if not policy.has_anchors:
         return False
     leaf = inst_path.rsplit(".", 1)[-1] if inst_path else ""
     file_stem = Path(file_path).stem if file_path else ""
-    for pat in anchor_patterns:
-        if leaf and fnmatch.fnmatch(leaf, pat):
-            return True
-        if module_name and fnmatch.fnmatch(module_name, pat):
-            return True
-        if file_stem and fnmatch.fnmatch(file_stem, pat):
-            return True
-    return False
+    checks: List[bool] = []
+    if policy.anchor_inst_patterns:
+        checks.append(
+            any(leaf and fnmatch.fnmatch(leaf, pat) for pat in policy.anchor_inst_patterns)
+        )
+    if policy.anchor_module_patterns:
+        checks.append(
+            any(
+                module_name and fnmatch.fnmatch(module_name, pat)
+                for pat in policy.anchor_module_patterns
+            )
+        )
+    if policy.anchor_legacy_patterns:
+        checks.append(
+            any(
+                (leaf and fnmatch.fnmatch(leaf, pat))
+                or (module_name and fnmatch.fnmatch(module_name, pat))
+                or (file_stem and fnmatch.fnmatch(file_stem, pat))
+                for pat in policy.anchor_legacy_patterns
+            )
+        )
+    return any(checks)
 
 
 def path_has_deepened_prefix(inst_path: str, prefixes: Sequence[str]) -> bool:
@@ -157,7 +203,9 @@ def descendant_hops_for_node(
         if policy.global_max_depth is None:
             return _UNLIMITED
         return max(0, policy.global_max_depth - depth_from_top)
-    if path_matches_anchor(inst_path, file_path, policy.anchor_patterns):
+    if path_matches_anchor(inst_path, file_path, policy):
+        if policy.anchor_extra_depth is not None:
+            return policy.anchor_extra_depth
         if policy.global_max_depth is None:
             return _UNLIMITED
         return max(0, policy.global_max_depth - depth_from_top)
@@ -275,7 +323,7 @@ def classify_parse_sources_conditional(
         on_anchor = path_matches_anchor(
             inst_path,
             fp or "",
-            policy.anchor_patterns,
+            policy,
             module_name=mod,
         )
         effective_full = full_branch or on_anchor
@@ -293,28 +341,33 @@ def classify_parse_sources_conditional(
             child_on_anchor = path_matches_anchor(
                 child_path,
                 child_file,
-                policy.anchor_patterns,
+                policy,
                 module_name=child_mod,
             )
-            child_full = effective_full or child_on_anchor
             if child_on_anchor:
-                if policy.global_max_depth is None:
+                if policy.anchor_extra_depth is not None:
+                    child_hops = policy.anchor_extra_depth
+                    child_full = True
+                elif policy.global_max_depth is None:
                     child_hops = _UNLIMITED
+                    child_full = True
                 else:
                     child_hops = max(
                         0, policy.global_max_depth - child_path.count(".")
                     )
-            elif child_full:
-                if policy.global_max_depth is None:
-                    child_hops = _UNLIMITED
-                else:
-                    child_hops = max(
-                        0, policy.global_max_depth - child_path.count(".")
-                    )
+                    child_full = True
+            elif full_branch and hops == _UNLIMITED:
+                child_hops = _UNLIMITED
+                child_full = True
+            elif full_branch and hops > 0:
+                child_hops = hops - 1
+                child_full = True
             elif hops == _UNLIMITED:
                 child_hops = policy.shallow_depth
+                child_full = False
             else:
                 child_hops = hops - 1
+                child_full = full_branch
             queue.append((child_mod, child_path, child_hops, child_full))
 
     return full_files, skim_files
@@ -329,8 +382,8 @@ def select_parse_sources_conditional(
     """
     BFS from *top_module* with anchor-aware depth.
 
-    Paths matching ``policy.anchor_patterns`` use ``global_max_depth`` (or unlimited).
-    Other paths parse only ``policy.shallow_depth`` descendant levels.
+    Paths matching anchor rules use ``anchor_extra_depth`` when set,
+    else ``global_max_depth`` (or unlimited). Other paths use ``shallow_depth``.
     """
     full_files, skim_files = classify_parse_sources_conditional(
         top_module, sources, policy, defines

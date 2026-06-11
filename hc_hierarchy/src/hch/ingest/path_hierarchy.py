@@ -175,18 +175,17 @@ def flat_instances_from_paths(
             file_path = str(p)
             if deepened_prefixes and path_has_deepened_prefix(full, deepened_prefixes):
                 pass
-            elif not path_matches_anchor(
-                full, file_path, conditional_depth.anchor_patterns
-            ):
+            elif not path_matches_anchor(full, file_path, conditional_depth):
                 # shallow zone: keep only shallow_depth path segments below last anchor
                 anchor_depth = 0
                 for i in range(len(segs)):
                     prefix = f"{top_module}.{'.'.join(segs[: i + 1])}"
-                    if path_matches_anchor(
-                        prefix, file_path, conditional_depth.anchor_patterns
-                    ):
+                    if path_matches_anchor(prefix, file_path, conditional_depth):
                         anchor_depth = i + 1
-                if len(segs) - anchor_depth > conditional_depth.shallow_depth:
+                below_anchor = len(segs) - anchor_depth
+                extra = conditional_depth.anchor_extra_depth
+                limit = extra if extra is not None else conditional_depth.shallow_depth
+                if below_anchor > limit:
                     continue
         rows.append(
             FlatInstance(

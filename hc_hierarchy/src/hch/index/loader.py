@@ -67,7 +67,10 @@ def build_index_from_filelist(
     blackbox_paths: Optional[Sequence[str]] = None,
     max_depth: Optional[int] = None,
     depth_anchor_patterns: Optional[Sequence[str]] = None,
+    depth_anchor_inst_patterns: Optional[Sequence[str]] = None,
+    depth_anchor_module_patterns: Optional[Sequence[str]] = None,
     depth_shallow: int = 2,
+    depth_anchor_extra: Optional[int] = None,
     skim_parse: bool = True,
 ) -> HierarchyStore:
     def _phase(msg: str) -> None:
@@ -156,15 +159,25 @@ def build_index_from_filelist(
 
     from hch.ingest.parse_depth import ConditionalDepthPolicy
 
-    depth_anchors = [p.strip() for p in (depth_anchor_patterns or []) if p and str(p).strip()]
+    depth_legacy = [p.strip() for p in (depth_anchor_patterns or []) if p and str(p).strip()]
+    depth_inst = [
+        p.strip() for p in (depth_anchor_inst_patterns or []) if p and str(p).strip()
+    ]
+    depth_module = [
+        p.strip() for p in (depth_anchor_module_patterns or []) if p and str(p).strip()
+    ]
+    has_depth_anchors = bool(depth_legacy or depth_inst or depth_module)
     depth_policy: Optional[ConditionalDepthPolicy] = None
-    if depth_anchors and primary_top:
+    if has_depth_anchors and primary_top:
         depth_policy = ConditionalDepthPolicy.from_sequences(
-            depth_anchors,
+            depth_legacy,
+            anchor_inst_patterns=depth_inst,
+            anchor_module_patterns=depth_module,
             shallow_depth=depth_shallow,
             global_max_depth=max_depth,
+            anchor_extra_depth=depth_anchor_extra,
         )
-    if (max_depth is not None or depth_anchors) and not primary_top:
+    if (max_depth is not None or has_depth_anchors) and not primary_top:
         _phase("WARNING: depth limits ignored without --top (cannot trim parse scope)")
 
     if effective_batch > 0 and not elaborate:
@@ -631,9 +644,22 @@ def build_index_from_modules(
     if conditional_depth is not None:
         store.set_meta(
             "depth_anchor_patterns_json",
-            json.dumps(list(conditional_depth.anchor_patterns)),
+            json.dumps(list(conditional_depth.anchor_legacy_patterns)),
+        )
+        store.set_meta(
+            "depth_anchor_inst_json",
+            json.dumps(list(conditional_depth.anchor_inst_patterns)),
+        )
+        store.set_meta(
+            "depth_anchor_module_json",
+            json.dumps(list(conditional_depth.anchor_module_patterns)),
         )
         store.set_meta("depth_shallow_limit", str(conditional_depth.shallow_depth))
+        if conditional_depth.anchor_extra_depth is not None:
+            store.set_meta(
+                "depth_anchor_extra",
+                str(conditional_depth.anchor_extra_depth),
+            )
     _apply_parse_meta(store, modules)
     param_rows = sum(
         1

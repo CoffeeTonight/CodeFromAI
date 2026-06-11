@@ -29,6 +29,10 @@ module hc_verify_top (
     sub_bind u_bind_wrap ();
     ecc_engine u_ecc_engine_00 (.clk(clk), .rst_n(rst_n), .idx(idx));
 
+    // depth-anchor: flat 4-level chain + nested outer_top.inner_top (reset at inner_top)
+    flat_top u_anchor_flat ();
+    outer_top u_anchor_nested ();
+
     // ghost_leaf.v / ghost_soc.v are missing — child stays unresolved
     ghost_child u_ghost ();
 

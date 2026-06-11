@@ -7,8 +7,18 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from hch.apps.help_dialog import show_about_dialog, show_help_dialog
+from hch.apps.hierarchy_view import (
+    fetch_db_depth_stats,
+    fetch_subtree_depth_stats,
+    format_index_depth_summary,
+    format_selection_depth_line,
+    format_subtree_text,
+)
 from hch.query.dql.planner import apply_post_filters, plan_dql
 from hch.query.dql.results import format_rows_text
+
+# Re-export for tests that import from main_window.
+format_subtree_clipboard = format_subtree_text
 
 
 _TIER_USER_ROLE = 1  # Qt.ItemDataRole.UserRole + 1
@@ -65,7 +75,7 @@ def _module_name(conn: sqlite3.Connection, module_id: int) -> str:
 def run_gui(db_path: str) -> int:
     try:
         from PySide6.QtCore import Qt
-        from PySide6.QtGui import QAction, QKeySequence
+        from PySide6.QtGui import QAction, QFont, QKeySequence
         from PySide6.QtWidgets import (
             QApplication,
             QHBoxLayout,
@@ -73,6 +83,7 @@ def run_gui(db_path: str) -> int:
             QLineEdit,
             QMainWindow,
             QMenuBar,
+            QPlainTextEdit,
             QPushButton,
             QSplitter,
             QTableWidget,
@@ -103,13 +114,56 @@ def run_gui(db_path: str) -> int:
             self._build_menus()
 
             splitter = QSplitter()
+            left = QWidget()
+            lv = QVBoxLayout(left)
+            lv.setContentsMargins(0, 0, 0, 0)
+
+            self.depth_label = QLabel()
+            self.depth_label.setWordWrap(True)
+            self.depth_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            lv.addWidget(self.depth_label)
+
+            tree_toolbar = QHBoxLayout()
+            self.btn_copy_hier = QPushButton("Copy hierarchy")
+            self.btn_copy_hier.setToolTip(
+                "Copy selected branch to clipboard (Ctrl+Shift+H)"
+            )
+            self.btn_copy_hier.clicked.connect(self._copy_selected_hierarchy)
+            self.btn_copy_hier.setEnabled(False)
+            tree_toolbar.addWidget(self.btn_copy_hier)
+            self.btn_deepen = QPushButton("Deepen")
+            self.btn_deepen.setToolTip(
+                "Re-parse shallow/text-skim branch (Ctrl+D)"
+            )
+            self.btn_deepen.clicked.connect(self._deepen_selected)
+            self.btn_deepen.setEnabled(False)
+            tree_toolbar.addWidget(self.btn_deepen)
+            tree_toolbar.addStretch(1)
+            lv.addLayout(tree_toolbar)
+
             self.tree = QTreeWidget()
             self.tree.setHeaderLabels(["Instance", "Module"])
             self.tree.itemExpanded.connect(self._on_expand)
             self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.tree.customContextMenuRequested.connect(self._tree_context_menu)
-            self.tree.itemSelectionChanged.connect(self._sync_deepen_action)
-            splitter.addWidget(self.tree)
+            self.tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
+            lv.addWidget(self.tree, 2)
+
+            hier_label = QLabel("Hierarchy under selection")
+            lv.addWidget(hier_label)
+            self.hierarchy_view = QPlainTextEdit()
+            self.hierarchy_view.setReadOnly(True)
+            self.hierarchy_view.setPlaceholderText(
+                "Select a tree row to show full instance paths below it"
+            )
+            mono = QFont("monospace")
+            mono.setStyleHint(QFont.StyleHint.Monospace)
+            self.hierarchy_view.setFont(mono)
+            lv.addWidget(self.hierarchy_view, 1)
+
+            splitter.addWidget(left)
 
             right = QWidget()
             rv = QVBoxLayout(right)
@@ -147,8 +201,10 @@ def run_gui(db_path: str) -> int:
             splitter.setStretchFactor(0, 1)
             splitter.setStretchFactor(1, 2)
             self.setCentralWidget(splitter)
+            self._refresh_depth_summary()
             self.statusBar().showMessage(
-                "Gold=skim, orange=depth cap, purple=blackbox — Deepen on skim/cap (Ctrl+D)"
+                "Gold=skim, orange=depth cap, purple=blackbox — "
+                "select row → hierarchy panel; Copy hierarchy button or Ctrl+Shift+H"
             )
             self._load_roots()
 
@@ -188,6 +244,13 @@ def run_gui(db_path: str) -> int:
             help_menu.addAction(act_query)
 
             tree_menu = bar.addMenu("Tree")
+            self.act_copy_hier = QAction("Copy This Hierarchy", self)
+            self.act_copy_hier.setShortcut("Ctrl+Shift+H")
+            self.act_copy_hier.setToolTip(
+                "Copy selected branch (all descendant paths) to clipboard"
+            )
+            self.act_copy_hier.triggered.connect(self._copy_selected_hierarchy)
+            tree_menu.addAction(self.act_copy_hier)
             self.act_deepen = QAction("Deepen Branch…", self)
             self.act_deepen.setShortcut("Ctrl+D")
             self.act_deepen.setToolTip(
@@ -240,32 +303,100 @@ def run_gui(db_path: str) -> int:
             items = self.tree.selectedItems()
             return items[0] if items else None
 
-        def _tier_for_item(self, item: Optional[QTreeWidgetItem]) -> str:
+        def _resolve_instance_item(
+            self, item: Optional[QTreeWidgetItem]
+        ) -> Optional[QTreeWidgetItem]:
+            """Map lazy placeholder rows (…) to their parent instance."""
             if not item:
+                return None
+            full_path = item.data(0, Qt.ItemDataRole.UserRole)
+            if full_path:
+                return item
+            if item.text(0) == "…":
+                parent = item.parent()
+                if parent and parent.data(0, Qt.ItemDataRole.UserRole):
+                    return parent
+            return None
+
+        def _instance_path_for_item(
+            self, item: Optional[QTreeWidgetItem]
+        ) -> Optional[str]:
+            resolved = self._resolve_instance_item(item)
+            if not resolved:
+                return None
+            path = resolved.data(0, Qt.ItemDataRole.UserRole)
+            return str(path) if path else None
+
+        def _tier_for_item(self, item: Optional[QTreeWidgetItem]) -> str:
+            resolved = self._resolve_instance_item(item)
+            if not resolved:
                 return "full"
-            tier = item.data(0, Qt.ItemDataRole.UserRole + _TIER_USER_ROLE)
+            tier = resolved.data(0, Qt.ItemDataRole.UserRole + _TIER_USER_ROLE)
             return str(tier or "full")
 
-        def _sync_deepen_action(self) -> None:
+        def _refresh_depth_summary(self, selection_path: Optional[str] = None) -> None:
+            summary = format_index_depth_summary(self.conn)
+            if selection_path:
+                sel = format_selection_depth_line(self.conn, selection_path)
+                if sel:
+                    summary = f"{summary}\n{sel}"
+            self.depth_label.setText(summary)
+
+        def _update_hierarchy_panel(self, full_path: Optional[str]) -> None:
+            if not full_path:
+                self.hierarchy_view.clear()
+                return
+            text = format_subtree_text(self.conn, full_path)
+            self.hierarchy_view.setPlainText(text)
+
+        def _sync_tree_actions(self, item: Optional[QTreeWidgetItem]) -> None:
+            resolved = self._resolve_instance_item(item)
+            has_path = resolved is not None
+            can_deepen = has_path and tier_can_deepen(self._tier_for_item(resolved))
+            self.act_copy_hier.setEnabled(has_path)
+            self.btn_copy_hier.setEnabled(has_path)
+            self.act_deepen.setEnabled(can_deepen)
+            self.btn_deepen.setEnabled(can_deepen)
+
+        def _on_tree_selection_changed(self) -> None:
             item = self._selected_tree_item()
-            self.act_deepen.setEnabled(tier_can_deepen(self._tier_for_item(item)))
+            full_path = self._instance_path_for_item(item)
+            self._sync_tree_actions(item)
+            self._update_hierarchy_panel(full_path)
+            self._refresh_depth_summary(full_path)
 
         def _tree_context_menu(self, pos) -> None:
             from PySide6.QtWidgets import QMenu
 
-            item = self.tree.itemAt(pos)
+            item = self._resolve_instance_item(self.tree.itemAt(pos))
+            if not item:
+                item = self._resolve_instance_item(self._selected_tree_item())
             if not item:
                 return
             self.tree.setCurrentItem(item)
-            if not tier_can_deepen(self._tier_for_item(item)):
-                return
             menu = QMenu(self)
-            act = menu.addAction("Deepen branch (pyslang, full subtree)")
-            act.triggered.connect(self._deepen_selected)
+            act_copy = menu.addAction("Copy this hierarchy")
+            act_copy.triggered.connect(self._copy_selected_hierarchy)
+            if tier_can_deepen(self._tier_for_item(item)):
+                menu.addSeparator()
+                act_deepen = menu.addAction("Deepen branch (pyslang, full subtree)")
+                act_deepen.triggered.connect(self._deepen_selected)
             menu.exec(self.tree.viewport().mapToGlobal(pos))
 
+        def _copy_selected_hierarchy(self) -> None:
+            full_path = self._instance_path_for_item(self._selected_tree_item())
+            if not full_path:
+                self.statusBar().showMessage("Select a tree row first")
+                return
+            text = format_subtree_text(self.conn, full_path)
+            QApplication.clipboard().setText(text)
+            line_count = text.count("\n") + 1 if text else 0
+            self.statusBar().showMessage(
+                f"Copied hierarchy ({line_count} lines): {full_path}"
+            )
+
         def _deepen_selected(self) -> None:
-            item = self._selected_tree_item()
+            item = self._resolve_instance_item(self._selected_tree_item())
             if not item:
                 return
             full_path = item.data(0, Qt.ItemDataRole.UserRole)
@@ -294,15 +425,16 @@ def run_gui(db_path: str) -> int:
                 )
             except (ValueError, OSError, RuntimeError) as exc:
                 self.statusBar().showMessage(f"Deepen failed: {exc}")
-                self._sync_deepen_action()
+                self._on_tree_selection_changed()
                 return
 
+            self._refresh_depth_summary()
             self._reload_tree_expand(full_path)
             self.statusBar().showMessage(
                 f"Deepened {full_path}: "
                 f"{result.instances_before} → {result.instances_after} instances"
             )
-            self._sync_deepen_action()
+            self._on_tree_selection_changed()
 
         def _load_children(self, item: QTreeWidgetItem) -> None:
             if item.childCount() != 1 or item.child(0).text(0) != "…":

@@ -32,6 +32,7 @@
 | `u_child_n8/n16` | `extras/parse_track3` | `#(.W(...))` 파라미터 오버라이드 |
 | `g_and` | `extras/parse_p2` | primitive gate |
 | `pkg_verify` | phase11 package | package 파싱 |
+| `u_anchor_flat`, `u_anchor_nested` | `mid_anchor_depth` (신규) | `*_top` module anchor + `anchor_extra` (4단 체인, nested `outer_top→inner_top` 리셋) |
 | `u_inc` | `multihost_peri_soc` | include-only 모듈 (`include/inc_only.v`) |
 | `-f fl/cells.f` | `multihost` / phase2 | 중첩 filelist |
 | `rtl/ghost_*.v`, `fl/ghost.f`, `mid_module.v`, `test_top.v`, `uvm.f` | missing RTL | filelist missing source (`missing_files` 메타) |
@@ -66,6 +67,28 @@ hch-query -d /tmp/top_module.hch.db fixtures/dql_batch_hdlforast.txt
 
 - `synthetic_deep_rtl` 전체 ~991 소스·duplicate module 폭
 - `multihost_peri_soc` 대형 SoC·장시간 elab
+
+## depth-anchor (`*_top` + extra 2)
+
+`rtl/mid_anchor_depth.v` — **4단 체인** + **nested `outer_top→inner_top`** (1 hop 안에 `_top` 두 번).
+
+```text
+u_anchor_flat (flat_top)     u_anchor_nested (outer_top)
+  u_chain (anchor_d1)          u_inner (inner_top)   ← anchor_extra 리셋
+    u_d2 (+1)                    u_chain
+      u_d3 (+2, cap)               u_d2 (+1 from inner_top)
+        u_l (+3, 없음)               u_d3 (+2 cap, 없음)
+```
+
+`hc_verify_top` 자체는 `*_top` suffix glob에 안 걸리도록 `*_top` (not `*_top*`) 권장.
+
+```bash
+# Termux: 긴 명령 붙여넣기 대신 스크립트
+cd design/unified_verify && ./verify_anchor_depth.sh
+# 또는 repo 루트에서: ./scripts/verify_anchor_depth.sh
+
+# 단계만: ./verify_anchor_depth.sh index | query | test
+```
 
 ## 인덱스
 

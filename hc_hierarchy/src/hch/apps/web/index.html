@@ -26,6 +26,9 @@
         <h2>Hierarchy</h2>
         <button type="button" id="btn-reload-tree" class="ghost" title="Reload roots">↻</button>
       </div>
+      <div id="depth-bar" class="depth-bar" aria-label="Depth summary">
+        Loading depth…
+      </div>
       <div class="tree-toolbar">
         <label for="tree-expand-depth">Expand levels</label>
         <input
@@ -39,6 +42,15 @@
         <button type="button" id="btn-expand-tree" class="ghost" title="Expand N levels from roots">
           ▸ Apply
         </button>
+        <button
+          type="button"
+          id="btn-copy-hierarchy"
+          class="ghost"
+          title="Copy selected branch hierarchy to clipboard"
+          disabled
+        >
+          Copy hierarchy
+        </button>
       </div>
       <div class="tree-legend" aria-label="Parse tier legend">
         <span class="legend-item legend-full">full</span>
@@ -47,6 +59,9 @@
         <span class="legend-item legend-blackbox">blackbox</span>
       </div>
       <div id="tree" class="tree" role="tree" aria-label="Instance tree"></div>
+      <div class="hierarchy-head">Hierarchy under selection</div>
+      <pre id="hierarchy-view" class="hierarchy-view" aria-label="Subtree hierarchy">
+Select a tree row to show full instance paths below it</pre>
     </aside>
 
     <section class="panel main-panel">

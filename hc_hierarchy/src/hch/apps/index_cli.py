@@ -84,9 +84,23 @@ def main(argv=None) -> int:
         default=[],
         metavar="GLOB",
         help=(
-            "Instance/file path glob for full-depth branches (repeatable), "
-            "e.g. '*_top*', '*_grp*', '*_log*'"
+            "Legacy anchor glob: instance name, module type, or RTL file stem "
+            "(repeatable). Prefer --depth-anchor-inst / --depth-anchor-module."
         ),
+    )
+    roots.add_argument(
+        "--depth-anchor-inst",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Anchor on instance leaf name only (repeatable), e.g. 'u_*_top'",
+    )
+    roots.add_argument(
+        "--depth-anchor-module",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Anchor on module type name only (repeatable), e.g. '*_top*'",
     )
     roots.add_argument(
         "--depth-shallow",
@@ -94,6 +108,17 @@ def main(argv=None) -> int:
         default=2,
         metavar="N",
         help="Descendant levels to parse when path matches no --depth-anchor (default: 2)",
+    )
+    roots.add_argument(
+        "--depth-anchor-extra",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "With --depth-anchor: parse only N instance levels below each anchor match "
+            "(e.g. '*_top*' + 2 → two levels under every *_top* node). "
+            "Default: full depth below anchors (capped by --max-depth if set)"
+        ),
     )
     roots.add_argument(
         "--no-skim-parse",
@@ -274,7 +299,10 @@ def main(argv=None) -> int:
             blackbox_paths=args.blackbox_path,
             max_depth=args.max_depth,
             depth_anchor_patterns=args.depth_anchor,
+            depth_anchor_inst_patterns=args.depth_anchor_inst,
+            depth_anchor_module_patterns=args.depth_anchor_module,
             depth_shallow=args.depth_shallow,
+            depth_anchor_extra=args.depth_anchor_extra,
             skim_parse=not args.no_skim_parse,
         )
     n = store.count_instances()

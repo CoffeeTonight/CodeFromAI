@@ -192,6 +192,14 @@ def make_handler(
                         return
                     _json_response(self, 200, detail)
                     return
+                if path == "/api/subtree":
+                    fp = qs.get("path", [""])[0]
+                    view = self.svc.subtree_view(fp)
+                    if not view:
+                        _json_response(self, 404, {"error": "instance not found"})
+                        return
+                    _json_response(self, 200, view)
+                    return
                 if path == "/api/query/text":
                     q = qs.get("q", [""])[0]
                     fmt = qs.get("format", ["text"])[0]

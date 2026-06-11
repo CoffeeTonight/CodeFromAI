@@ -18,6 +18,7 @@ rtl/dup_a.v
 rtl/dup_b.v
 rtl/param_child.v
 rtl/defparam_top.v
+rtl/mid_anchor_depth.v
 rtl/mid_arr.v
 rtl/mid_ifdef.v
 rtl/mid_gen_soc.v

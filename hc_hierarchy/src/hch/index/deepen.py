@@ -46,23 +46,37 @@ def _module_name_at_path(store: HierarchyStore, full_path: str) -> Optional[str]
     return row[0] if row else None
 
 
-def _depth_policy_from_meta(meta: Mapping[str, str]) -> Optional[ConditionalDepthPolicy]:
-    raw = meta.get("depth_anchor_patterns_json", "").strip()
+def _load_anchor_list(meta: Mapping[str, str], key: str) -> List[str]:
+    raw = meta.get(key, "").strip()
     if not raw:
-        return None
+        return []
     try:
-        anchors = json.loads(raw)
+        loaded = json.loads(raw)
     except json.JSONDecodeError:
-        return None
-    if not anchors:
+        return []
+    if isinstance(loaded, list):
+        return [str(p).strip() for p in loaded if str(p).strip()]
+    return []
+
+
+def _depth_policy_from_meta(meta: Mapping[str, str]) -> Optional[ConditionalDepthPolicy]:
+    legacy = _load_anchor_list(meta, "depth_anchor_patterns_json")
+    inst = _load_anchor_list(meta, "depth_anchor_inst_json")
+    module = _load_anchor_list(meta, "depth_anchor_module_json")
+    if not (legacy or inst or module):
         return None
     shallow = int(meta.get("depth_shallow_limit") or "2")
     max_raw = meta.get("index_max_depth")
     global_max = int(max_raw) if max_raw not in (None, "") else None
+    extra_raw = meta.get("depth_anchor_extra")
+    anchor_extra = int(extra_raw) if extra_raw not in (None, "") else None
     return ConditionalDepthPolicy.from_sequences(
-        anchors,
+        legacy,
+        anchor_inst_patterns=inst,
+        anchor_module_patterns=module,
         shallow_depth=shallow,
         global_max_depth=global_max,
+        anchor_extra_depth=anchor_extra,
     )
 
 

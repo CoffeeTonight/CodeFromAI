@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -51,6 +52,8 @@ def test_web_api_over_quick_index(tmp_path):
     try:
         meta = _get(f"{base}/api/meta")
         assert int(meta["instance_count"]) >= 5
+        assert "depth_summary" in meta
+        assert "DB depth:" in meta["depth_summary"]
 
         roots = _get(f"{base}/api/tree/children")
         assert len(roots["children"]) >= 1
@@ -77,10 +80,19 @@ def test_web_api_over_quick_index(tmp_path):
         assert any(g.get("id") == "path" for g in groups)
         assert help_data.get("top_module")
 
+        top_path = roots["children"][0]["full_path"]
+        subtree = _get(f"{base}/api/subtree?path={urllib.parse.quote(top_path)}")
+        assert subtree["root_path"] == top_path
+        assert top_path in subtree["text"]
+        assert subtree["line_count"] >= 1
+        assert "selected: depth" in subtree["selection_summary"]
+
         html = urllib.request.urlopen(f"{base}/", timeout=10).read()
         assert b"Hierarchy Explorer" in html
         assert b"help-dialog" in html
         assert b"btn-help" in html
+        assert b"hierarchy-view" in html
+        assert b"btn-copy-hierarchy" in html
     finally:
         server.shutdown()
         server.server_close()

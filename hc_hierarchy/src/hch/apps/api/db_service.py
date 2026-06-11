@@ -7,6 +7,14 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+from hch.apps.hierarchy_view import (
+    fetch_db_depth_stats,
+    fetch_subtree_depth_stats,
+    format_index_depth_summary,
+    format_selection_depth_line,
+    format_subtree_text,
+    meta_map,
+)
 from hch.query.dql.planner import apply_post_filters, plan_dql
 from hch.query.dql.results import format_rows_plain, format_rows_text
 
@@ -150,7 +158,31 @@ class HierarchyDbService:
                 data["filelist_errors_list"] = json.loads(data["filelist_errors"])
             except json.JSONDecodeError:
                 data["filelist_errors_list"] = []
+        depth_stats = fetch_db_depth_stats(self.conn)
+        data["db_min_depth"] = depth_stats["min_depth"]
+        data["db_max_depth"] = depth_stats["max_depth"]
+        data["depth_summary"] = format_index_depth_summary(self.conn)
+        meta = meta_map(self.conn)
+        data["index_max_depth"] = meta.get("index_max_depth")
+        data["depth_shallow_limit"] = meta.get("depth_shallow_limit")
+        data["depth_anchor_extra"] = meta.get("depth_anchor_extra")
         return data
+
+    def subtree_view(self, root_path: str) -> Optional[Dict[str, Any]]:
+        root_path = (root_path or "").strip()
+        if not root_path:
+            return None
+        stats = fetch_subtree_depth_stats(self.conn, root_path)
+        if not stats:
+            return None
+        text = format_subtree_text(self.conn, root_path)
+        return {
+            "root_path": root_path,
+            "text": text,
+            "line_count": text.count("\n") + 1 if text else 0,
+            "selection_summary": format_selection_depth_line(self.conn, root_path),
+            "stats": stats,
+        }
 
     def _index_top_modules(self) -> List[str]:
         row = self.conn.execute(

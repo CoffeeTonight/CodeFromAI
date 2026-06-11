@@ -19,6 +19,7 @@ async function apiPost(path, body) {
 }
 
 let selectedPath = null;
+let lastHierarchyText = "";
 let lastQueryText = "";
 let lastMeta = null;
 let highlightTerms = [];
@@ -95,9 +96,18 @@ function formatMetaPanel(m) {
   return lines.join("\n") || "No extra metadata.";
 }
 
+function renderDepthBar(baseSummary, selectionSummary = "") {
+  const el = $("#depth-bar");
+  if (!el) return;
+  const lines = [baseSummary || ""];
+  if (selectionSummary) lines.push(selectionSummary);
+  el.textContent = lines.filter(Boolean).join("\n");
+}
+
 async function loadMeta() {
   const m = await apiGet("/api/meta");
   lastMeta = m;
+  renderDepthBar(m.depth_summary || "");
   const tier = m.tier || "?";
   const eng = m.engine || "?";
   const ic = m.instance_count ?? "?";
@@ -192,9 +202,13 @@ async function deepenBranch(fullPath, btn) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || res.statusText);
+    await loadMeta();
     await loadTreeRoots();
     if (data.instances_after > data.instances_before) {
       await revealTreePath(fullPath);
+    }
+    if (selectedPath === fullPath) {
+      await loadSubtreeView(fullPath);
     }
     $("#meta-bar").textContent =
       `Deepened ${fullPath}: ${data.instances_before} → ${data.instances_after} instances`;
@@ -385,6 +399,58 @@ async function revealTreePath(fullPath) {
   if (target) target.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
+async function loadSubtreeView(fullPath) {
+  const view = $("#hierarchy-view");
+  const copyBtn = $("#btn-copy-hierarchy");
+  if (!fullPath) {
+    lastHierarchyText = "";
+    if (view) {
+      view.textContent = "Select a tree row to show full instance paths below it";
+      view.classList.add("muted");
+    }
+    if (copyBtn) copyBtn.disabled = true;
+    renderDepthBar(lastMeta?.depth_summary || "");
+    return;
+  }
+  try {
+    const data = await apiGet(
+      `/api/subtree?path=${encodeURIComponent(fullPath)}`
+    );
+    lastHierarchyText = data.text || "";
+    if (view) {
+      view.textContent = lastHierarchyText || fullPath;
+      view.classList.remove("muted");
+    }
+    if (copyBtn) copyBtn.disabled = !lastHierarchyText;
+    renderDepthBar(lastMeta?.depth_summary || "", data.selection_summary || "");
+  } catch (e) {
+    lastHierarchyText = "";
+    if (view) {
+      view.textContent = e.message || "Failed to load subtree";
+      view.classList.add("muted");
+    }
+    if (copyBtn) copyBtn.disabled = true;
+    renderDepthBar(lastMeta?.depth_summary || "");
+  }
+}
+
+async function copySelectedHierarchy() {
+  if (!lastHierarchyText) {
+    setQueryStatus("Select a tree row first");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(lastHierarchyText);
+    const lines = lastHierarchyText ? lastHierarchyText.split("\n").length : 0;
+    setQueryStatus(
+      `Copied hierarchy (${lines} lines): ${selectedPath || ""}`,
+      true
+    );
+  } catch (e) {
+    setQueryStatus(e.message || "Copy failed");
+  }
+}
+
 async function selectInstance(fullPath, filepath, ports, opts = {}) {
   selectedPath = fullPath;
   const terms = [
@@ -408,6 +474,7 @@ async function selectInstance(fullPath, filepath, ports, opts = {}) {
   } catch (_) {
     await loadSource(srcPath, terms);
   }
+  await loadSubtreeView(fullPath);
 }
 
 function showPorts(ports) {
@@ -917,8 +984,11 @@ function init() {
     if (ev.key === "Enter") confirmSaveResultsText();
   });
 
+  $("#btn-copy-hierarchy")?.addEventListener("click", copySelectedHierarchy);
+
   loadMeta().catch((e) => {
     $("#meta-bar").textContent = `Error: ${e.message}`;
+    renderDepthBar(`Error: ${e.message}`);
   });
   loadTreeRoots().catch((e) => {
     $("#tree").innerHTML = `<div class="muted" style="padding:1rem">${escapeHtml(e.message)}</div>`;

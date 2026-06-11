@@ -143,9 +143,12 @@ INDEX_HELP = dedent(
 
     Parse / hierarchy depth (requires --top):
       --max-depth N            Uniform cap: 0=top only, 1=children, 2=grandchildren, …
-      --depth-anchor GLOB      Full-depth path glob (repeatable): '*_top*', '*_grp*', '*_log*'
-      --depth-shallow N        Below non-anchor paths, parse only N descendant levels (default 2)
-      Combine: anchors get full depth (--max-depth caps anchors if set); others get --depth-shallow
+      --depth-anchor-inst GLOB   Anchor on instance name only (repeatable): 'u_*_top'
+      --depth-anchor-module GLOB Anchor on module type only (repeatable): '*_top*'
+      --depth-anchor GLOB        Legacy: inst OR module OR file stem (use inst/module above)
+      --depth-shallow N          Non-anchor branches: N levels from top (default 2)
+      --depth-anchor-extra N     N instance levels below each anchor match only
+      Without --depth-anchor-extra: anchors get full depth (--max-depth caps if set)
       Shallow-zone files use fast text-skim (no pyslang) unless --no-skim-parse
       --tops A,B,C             Multiple flatten roots (comma-separated; overrides single --top)
       Web/GUI tree: gold=text-skim, orange=depth cap (more RTL below, not indexed yet)
@@ -154,7 +157,7 @@ INDEX_HELP = dedent(
       hch-deepen -d chip.hch.db --under soc_top.u_periph --full
       hch-deepen -d chip.hch.db --under soc_top.u_periph --depth 3
       Web tree: + button on gold/orange rows
-      GUI: Tree → Deepen Branch (Ctrl+D) or right-click on gold/orange row
+      GUI: right-click → Copy this hierarchy (Ctrl+Shift+H); Deepen on gold/orange (Ctrl+D)
 
     Variants & diagnostics:
       --variant NAME=DEFINE,...       Repeatable; multiple ifdef variants in one DB
@@ -240,7 +243,9 @@ WEB_HELP = dedent(
       hch-web -d design.hch.db --host 127.0.0.1 --port 8765
       hch-web -d design.hch.db --no-browser
 
-    Layout: hierarchy tree | DQL + results | source viewer
+    Layout: tree + hierarchy panel | DQL + results | source viewer
+    Depth bar: DB max depth, index cap, shallow/anchor policy; selection subtree stats
+    Select any row → full subtree paths in hierarchy panel; Copy hierarchy button
     Tree colors: gold=text-skim, orange=depth cap — click + to deepen branch
     Meta panel (ⓘ): tier, hierarchy_source, defines, blackbox counts, warnings
     DQL syntax matches hch-query.
@@ -257,10 +262,12 @@ GUI_HELP = dedent(
       pip install -e ".[gui]"
       hch-gui -d design.hch.db
 
-    Layout: tree | DQL + results table
-    Tree colors: gold=text-skim, orange=depth cap (more RTL below, not indexed yet)
-    Deepen shallow branch: select gold/orange row → Tree → Deepen Branch (Ctrl+D)
-      or right-click → Deepen branch (pyslang, full subtree)
+    Layout: tree + hierarchy panel | DQL + results table
+    Depth bar: DB max depth, index cap, shallow/anchor policy from meta
+    Select any row → full subtree paths shown in hierarchy panel below tree
+    Copy branch: Copy hierarchy button, Tree menu, or Ctrl+Shift+H
+    Deepen shallow branch: Deepen button, Tree → Deepen Branch (Ctrl+D)
+      or right-click (desktop); gold/orange rows only
     CLI equivalent: hch-deepen -d design.hch.db --under PATH --full
     File menu: Save query results (Ctrl+S), Copy (Ctrl+Shift+C)
     Help menu: DQL, indexing, batch query guides
@@ -296,7 +303,9 @@ WEB_UI_HELP = dedent(
     Web UI
 
     1. Hierarchy (left)
-       Click nodes to view source and ports; expand/collapse lazy tree
+       Depth bar shows DB depth range and index policy; updates on selection
+       Click nodes to view source, ports, and full subtree in hierarchy panel
+       Copy hierarchy: copies selected branch text to clipboard
        Expand levels + Apply: expand N levels from roots
        Gold/orange rows: text-skim or depth cap — click + to deepen (pyslang)
 

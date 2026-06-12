@@ -42,7 +42,7 @@ from probe_icodes import (  # noqa: E402
 
 def run_gen_sources() -> None:
     gen = CAMPAIGN_ROOT / "gen_icodes_c.py"
-    print("[1/4] Generating icode C sources (catalog-50)...")
+    print("[1/4] Generating icode C sources (manifest targets via gen_icodes_c.py)...")
     subprocess.run([sys.executable, str(gen)], check=True)
 
 
@@ -57,7 +57,8 @@ def load_images() -> list[IcodeImage]:
 
     pairs = discover_bins(BIN_DIR)
     if not pairs:
-        raise FileNotFoundError(f"no .bin files in {BIN_DIR}")
+        print(f"[3/4] No icode bins in {BIN_DIR} — empty pool")
+        return []
 
     names = [n for n, _ in pairs]
     ptrs = assign_pool_ptrs(names)
@@ -87,7 +88,7 @@ def main() -> int:
     print(f"       pool size = {len(pool)} bytes ({len(images)} slots)")
 
     print("[4/4] Probing icodes + emitting mapping header...")
-    entries = probe_images(images)
+    entries = probe_images(images) if images else []
     emit_icode_map_h(HDR_OUT, entries, len(pool))
     emit_icode_map_json(JSON_OUT, entries, len(pool))
     emit_icode_map_vh(VH_MAP, entries, len(pool))

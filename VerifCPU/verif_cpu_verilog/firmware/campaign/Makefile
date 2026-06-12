@@ -20,15 +20,26 @@ COMMON    := common/phase_a.c common/phase_b.c
 REPO_RTL  := $(abspath ../../rtl)
 REPO_INC  := $(abspath ../../include)
 
-.PHONY: all clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml
+.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml
 
-all: config soc_init icodes manifest NOOP $(CPU_ACTIVE) merge
+# Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
+all: config
+	+$(MAKE) all-inner
+
+all-inner: soc_init icodes manifest NOOP $(CPU_ACTIVE) merge
 	@echo ""
 	@echo "=== Campaign firmware ready ==="
 	@ls -la $(BUILD_DIR)/*.bin 2>/dev/null | head -20
 
+# Only pass non-empty overrides — empty NUM_SCPU="" must not mask .bus_layout_stamp
 config:
-	NUM_SCPU="$(NUM_SCPU)" BUS_LAYOUT="$(BUS_LAYOUT)" python3 gen_campaign_config.py
+	@set -e; \
+	env_args=""; \
+	[ -n "$(NUM_SCPU)" ] && env_args="$$env_args NUM_SCPU=$(NUM_SCPU)"; \
+	[ -n "$(BUS_LAYOUT)" ] && env_args="$$env_args BUS_LAYOUT=$(BUS_LAYOUT)"; \
+	[ -n "$(MASTER_BUS_LAYOUT)" ] && env_args="$$env_args MASTER_BUS_LAYOUT=$(MASTER_BUS_LAYOUT)"; \
+	[ -n "$(MASTER_ENABLED)" ] && env_args="$$env_args MASTER_ENABLED=$(MASTER_ENABLED)"; \
+	eval "env$$env_args python3 gen_campaign_config.py"
 
 -include cpus.mk
 -include cpu_rules.mk
@@ -40,7 +51,7 @@ soc_init: config
 manifest: config
 	python3 gen_campaign_manifest.py
 
-icodes: config
+icodes: config manifest
 	python3 build_icode_pool.py
 
 merge: config $(BUILD_DIR)/icode_pool.bin NOOP $(CPU_ACTIVE)
@@ -68,5 +79,4 @@ verify: all
 	$(MAKE) -C ../.. full_campaign
 
 clean:
-	rm -rf $(BUILD_DIR)
-	rm -f cpus.mk cpu_rules.mk .bus_layout_stamp
+	$(MAKE) -C $(abspath ../..) clean-artifacts

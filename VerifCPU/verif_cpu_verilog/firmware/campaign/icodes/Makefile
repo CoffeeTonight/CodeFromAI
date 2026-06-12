@@ -16,7 +16,13 @@ CFLAGS  := -march=rv32i -mabi=ilp32 -Os -Wall -Wextra -ffreestanding -nostdlib \
            -I$(CAMPAIGN_ROOT)/include -Iinclude -fno-builtin -fno-pic
 LDFLAGS := -nostdlib -T icode.ld
 
-SOURCES := $(shell find . -name '*.c' ! -path './include/*' | sort)
+# SOURCES from gen_icodes_c.py (manifest targets only); fallback only if icodes.mk missing
+-include icodes.mk
+ifneq ($(wildcard icodes.mk),)
+SOURCES := $(ICODE_SOURCES)
+else
+SOURCES := $(shell find . -name '*.c' ! -path './include/*' ! -path './probe/*' | sort)
+endif
 NAMES   := $(foreach s,$(SOURCES),$(basename $(notdir $(s))))
 BINS    := $(addprefix $(BUILD_DIR)/,$(addsuffix .bin,$(NAMES)))
 

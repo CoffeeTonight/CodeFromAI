@@ -80,8 +80,7 @@ def write_hex(path: str, mem: bytes) -> None:
 def main() -> int:
     cpus = parse_cpus_mk()
     if not cpus:
-        print("[merge] no CPUs in cpus.mk", file=sys.stderr)
-        return 1
+        print("[merge] no VCPU firmware in cpus.mk — orchestrator-only image")
 
     if not os.path.isfile(ICODE_POOL_BIN):
         print(f"[merge] missing {ICODE_POOL_BIN} — run build_icode_pool.py first", file=sys.stderr)

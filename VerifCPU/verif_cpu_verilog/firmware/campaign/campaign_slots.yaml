@@ -6,6 +6,20 @@
 #
 # Fields per active slot:
 #   name, cpu_id (1..max_slots), tap_port, role, phase_c, targets[]
+#
+# master: SCPU0 superset (always generated). enabled defaults to 1 when NUM_SCPU=0
+# (solo / MVCPU-only), else 0 (orchestrator-only). Set enabled: 1 to also run FW/icode.
+
+master:
+  mode: superset
+  name: MSTR
+  tap_port: 0
+  bus_type: axi4lite
+  role: solo
+  phase_c: cpu_sfr/phase_c.c
+  targets:
+    - { sym: SFR_CTRL,     expect: 0x00000001, icode: check_sfr_ctrl }
+    - { sym: SFR_CFG,      expect: 0x000000FF, icode: check_sfr_mask }
 
 max_slots: 60
 

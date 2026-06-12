@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Post-sim VCD checks for full campaign (authoritative verification gate)."""
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -8,6 +10,50 @@ import sys
 DEAD_HEX = 0xDEADDEAD
 DEAD_BIN = format(DEAD_HEX, "032b")
 DEAD_HEX_MARKERS = ("deaddead",)
+
+REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+INCLUDE = os.path.join(REPO_ROOT, "include")
+LOG_FULL = os.environ.get("LOG_FULL", os.path.join(REPO_ROOT, "logs", "full_campaign"))
+
+
+def _read_include(name: str) -> str:
+    path = os.path.join(INCLUDE, name)
+    if not os.path.isfile(path):
+        return ""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _define_int(body: str, macro: str, default: int) -> int:
+    m = re.search(rf"`define\s+{re.escape(macro)}\s+(\d+)", body)
+    return int(m.group(1)) if m else default
+
+
+def campaign_expectations() -> tuple[int, int, list[str]]:
+    """Return (min_agent_pass_signals, min_verify_pass_sum, per_cpu_vcd_paths)."""
+    params = _read_include("campaign_params.vh")
+    master = _read_include("campaign_master.vh")
+    tb_gen = _read_include("tb_full_campaign_gen.vh")
+
+    num_scpu = _define_int(params, "CAMPAIGN_NUM_SCPU", 3)
+    master_vcpu = _define_int(master, "CAMPAIGN_MASTER_VCPU_ENABLED", 0)
+    total_pass = _define_int(tb_gen, "CAMPAIGN_TOTAL_ICODE_PASS", 6)
+    max_icode_slots = _define_int(tb_gen, "CAMPAIGN_MAX_ICODE_SLOTS", 2)
+
+    min_agents = num_scpu + (1 if master_vcpu else 0)
+    if min_agents == 0:
+        min_orch_resets = 2
+    else:
+        min_agents = max(min_agents, 1)
+        min_orch_resets = 3 + max(0, max_icode_slots - 1)
+
+    cpu_vcds: list[str] = []
+    if master_vcpu:
+        cpu_vcds.append(os.path.join(LOG_FULL, "SCPU0.vcd"))
+    for cid in range(1, num_scpu + 1):
+        cpu_vcds.append(os.path.join(LOG_FULL, f"SCPU{cid}.vcd"))
+
+    return min_agents, total_pass, min_orch_resets, cpu_vcds
 
 
 def _is_valid_vcd_header(body: str) -> bool:
@@ -23,7 +69,13 @@ def _final_signal_value(body: str, sig_id: str) -> str | None:
     return last
 
 
-def verify_main_vcd(path: str) -> tuple[bool, list[str]]:
+def verify_main_vcd(
+    path: str,
+    *,
+    min_agents: int = 3,
+    min_pass_sum: int = 6,
+    min_orch_resets: int = 4,
+) -> tuple[bool, list[str]]:
     errors: list[str] = []
     if not os.path.isfile(path):
         return False, [f"missing VCD: {path}"]
@@ -67,23 +119,34 @@ def verify_main_vcd(path: str) -> tuple[bool, list[str]]:
     m = re.search(r"\$var (?:wire|reg) 32 (\S+) orch_reset_count", body)
     if m:
         rst_val = _final_signal_value(body, m.group(1))
-        if rst_val is None or int(rst_val.replace("x", "0").replace("z", "0"), 2) < 4:
-            errors.append("orch_reset_count < 4 (missing icode inter-reset / phase resets)")
+        rst_n = int(rst_val.replace("x", "0").replace("z", "0"), 2) if rst_val else 0
+        if rst_val is None or rst_n < min_orch_resets:
+            errors.append(
+                f"orch_reset_count < {min_orch_resets} "
+                f"(missing icode inter-reset / phase resets)"
+            )
     else:
         errors.append("VCD missing orch_reset_count")
 
-    # Agent verify_pass sum (3 agents × 2 icode slots = 6)
     pass_ids = re.findall(r"\$var reg 32 (\S+) verify_pass", body)
-    if len(pass_ids) >= 3:
+    if min_agents == 0:
+        pass
+    elif len(pass_ids) >= min_agents:
         total_pass = 0
-        for sid in pass_ids[:3]:
+        for sid in pass_ids[:min_agents]:
             v = _final_signal_value(body, sid)
             if v:
                 total_pass += int(v.replace("x", "0").replace("z", "0"), 2)
-        if total_pass < 6:
-            errors.append(f"agent verify_pass sum={total_pass} (expected 6 multi-icode)")
+        if total_pass < min_pass_sum:
+            errors.append(
+                f"agent verify_pass sum={total_pass} "
+                f"(expected >={min_pass_sum} multi-icode)"
+            )
     else:
-        errors.append("VCD missing agent verify_pass signals")
+        errors.append(
+            f"VCD missing agent verify_pass signals "
+            f"(found {len(pass_ids)}, need >={min_agents})"
+        )
 
     return len(errors) == 0, errors
 
@@ -120,7 +183,14 @@ def main(argv: list[str]) -> int:
 
     ok_all = True
     main_vcd = argv[1]
-    ok, errs = verify_main_vcd(main_vcd)
+    min_agents, min_pass_sum, min_orch_resets, auto_cpu_vcds = campaign_expectations()
+    extra = argv[2:] if len(argv) > 2 else auto_cpu_vcds
+    ok, errs = verify_main_vcd(
+        main_vcd,
+        min_agents=min_agents,
+        min_pass_sum=min_pass_sum,
+        min_orch_resets=min_orch_resets,
+    )
     if ok:
         print(f"[PASS] Main VCD OK: {main_vcd} ({os.path.getsize(main_vcd)} bytes)")
         print(f"       vcd_marker=0xDEADDEAD confirmed")
@@ -130,7 +200,7 @@ def main(argv: list[str]) -> int:
         for e in errs:
             print(f"       - {e}")
 
-    for p in argv[2:]:
+    for p in extra:
         if not os.path.isfile(p):
             print(f"[SKIP] Optional per-CPU VCD not found: {p}")
             continue

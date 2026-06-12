@@ -27,7 +27,7 @@ def resolve_addr(token: str) -> int:
     return int(token, 0)
 
 
-def parse_manifest(path: str) -> list[dict]:
+def parse_manifest(path: str) -> tuple[list[dict], dict | None]:
     with open(path, encoding="utf-8") as f:
         body = f.read()
 
@@ -46,6 +46,22 @@ def parse_manifest(path: str) -> list[dict]:
             "bus_type": m.group(6) or "task",
             "bus_port": m.group(7) or "",
         })
+
+    master = None
+    m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
+    if m_present and int(m_present.group(1)):
+        mm = re.search(
+            r"static const manifest_master_t MANIFEST_MASTER = \{\s*"
+            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,',
+            body,
+        )
+        if mm:
+            master = {
+                "name": mm.group(1),
+                "cpu_id": 0,
+                "tap": int(mm.group(2)),
+                "enabled": 1,
+            }
 
     target_blocks = re.findall(
         r"static const manifest_target_t (MANIFEST_\w+_TARGETS)\[\] = \{(.*?)\};",
@@ -71,24 +87,23 @@ def parse_manifest(path: str) -> list[dict]:
         s["targets"] = targets_by_key.get(key, [])
         if len(s["targets"]) != s["target_count"]:
             print(f"[manifest] WARN {s['name']}: count mismatch", file=sys.stderr)
-    return slaves
+
+    if master:
+        key = f"MANIFEST_{master['name']}_TARGETS"
+        master["targets"] = targets_by_key.get(key, [])
+        master["target_count"] = len(master["targets"])
+
+    return slaves, master
 
 
-def emit_vh(slaves: list[dict], path: str) -> None:
-    lines = [
-        "// Auto-generated from firmware/campaign/include/campaign_manifest.h",
-        "`ifndef CAMPAIGN_MANIFEST_VH",
-        "`define CAMPAIGN_MANIFEST_VH",
-        "",
-        f"`define MANIFEST_SLAVE_COUNT {len(slaves)}",
-        "",
-        "// Master Phase B: inject bus_read per slave target (TB calls decode_read)",
-        "`define CAMPAIGN_MANIFEST_MASTER_LOG \\",
-    ]
+def _emit_hint_lines(slaves: list[dict], master: dict | None) -> tuple[list[str], int]:
+    lines: list[str] = []
     idx = 0
-    for s in slaves:
-        if not s.get("enabled"):
-            continue
+    agents = []
+    if master and master.get("targets"):
+        agents.append(master)
+    agents.extend(s for s in slaves if s.get("enabled"))
+    for s in agents:
         for t in s["targets"]:
             lines.append(
                 f"  $display(\"SCPU0 (MSTR) > hint slave={s['name']} tap={s['tap']} "
@@ -96,11 +111,29 @@ def emit_vh(slaves: list[dict], path: str) -> None:
                 f"32'h{t['addr']:08X}, 32'h{t['expect']:08X}, \"{t['icode']}\"); \\"
             )
             idx += 1
+    return lines, idx
+
+
+def emit_vh(slaves: list[dict], master: dict | None, path: str) -> None:
+    hint_lines, idx = _emit_hint_lines(slaves, master)
+    lines = [
+        "// Auto-generated from firmware/campaign/include/campaign_manifest.h",
+        "`ifndef CAMPAIGN_MANIFEST_VH",
+        "`define CAMPAIGN_MANIFEST_VH",
+        "",
+        f"`define MANIFEST_SLAVE_COUNT {len(slaves)}",
+        "",
+        "// Master Phase B: inject bus_read per target (TB calls decode_read)",
+        "`define CAMPAIGN_MANIFEST_MASTER_LOG \\",
+    ]
+    lines.extend(hint_lines)
     lines.append("")
     lines.append("`define CAMPAIGN_MANIFEST_BUS_READS \\")
-    for s in slaves:
-        if not s.get("enabled"):
-            continue
+    agents = []
+    if master and master.get("targets"):
+        agents.append(master)
+    agents.extend(s for s in slaves if s.get("enabled"))
+    for s in agents:
         for t in s["targets"]:
             lines.append(
                 f"  u_soc.decode_read(32'h{t['addr']:08X}, 3'd4, rdata, rresp, rport); \\"
@@ -109,7 +142,7 @@ def emit_vh(slaves: list[dict], path: str) -> None:
     lines.append("// Agent expected_for_addr case arms")
     lines.append("`define CAMPAIGN_MANIFEST_EXPECT_CASES \\")
     seen = set()
-    for s in slaves:
+    for s in agents:
         for t in s["targets"]:
             if t["addr"] in seen:
                 continue
@@ -124,61 +157,12 @@ def emit_vh(slaves: list[dict], path: str) -> None:
     print(f"[manifest] Wrote {path} ({idx} master hints)")
 
 
-def emit_py(slaves: list[dict], path: str) -> None:
-    lines = [
-        '"""Auto-generated from firmware/campaign/include/campaign_manifest.h."""',
-        "",
-        "VERIFY_MANIFEST = [",
-    ]
-    for s in slaves:
-        lines.append("    {")
-        lines.append(f'        "name": "{s["name"]}",')
-        lines.append(f'        "cpu_id": {s["cpu_id"]},')
-        lines.append(f'        "tap_port": {s["tap"]},')
-        lines.append('        "targets": [')
-        for t in s["targets"]:
-            lines.append("            {")
-            lines.append(f'                "addr": 0x{t["addr"]:08X},')
-            lines.append(f'                "expect": 0x{t["expect"]:08X},')
-            lines.append(f'                "icode": "{t["icode"]}",')
-            lines.append("            },")
-        lines.append("        ],")
-        lines.append("    },")
-    lines.append("]")
-    lines.append("")
-    lines.append("")
-    lines.append("def hints_for_slave(name: str) -> list[int]:")
-    lines.append('    """Addresses Master must inject for this slave."""')
-    lines.append("    for s in VERIFY_MANIFEST:")
-    lines.append('        if s["name"] == name:')
-    lines.append('            return [t["addr"] for t in s["targets"]]')
-    lines.append("    return []")
-    lines.append("")
-    lines.append("")
-    lines.append("def all_master_hints() -> list[tuple[str, int, int, str]]:")
-    lines.append('    """(slave_name, addr, expect, icode) in Master injection order."""')
-    lines.append("    out = []")
-    lines.append("    for s in VERIFY_MANIFEST:")
-    lines.append('        for t in s["targets"]:')
-    lines.append('            out.append((s["name"], t["addr"], t["expect"], t["icode"]))')
-    lines.append("    return out")
-    lines.append("")
-    lines.append("")
-    lines.append("def icode_bind_by_tap() -> dict[int, list[str]]:")
-    lines.append("    return {s['tap_port']: [t['icode'] for t in s['targets']] for s in VERIFY_MANIFEST}")
-    lines.append("")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    print(f"[manifest] Wrote {path}")
-
-
 def main() -> int:
-    slaves = parse_manifest(HDR)
-    if not slaves:
-        print("[manifest] parse failed", file=sys.stderr)
-        return 1
-    emit_vh(slaves, OUT_VH)
+    slaves, master = parse_manifest(HDR)
+    if not slaves and not (master and master.get("targets")):
+        print("[manifest] no slave/master targets — emitting empty manifest VH")
+        master = None
+    emit_vh(slaves, master, OUT_VH)
     return 0
 
 

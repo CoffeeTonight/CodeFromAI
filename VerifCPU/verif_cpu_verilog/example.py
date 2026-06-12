@@ -87,8 +87,8 @@ def parse_num_scpu(arg: str | None) -> None:
     if not arg.isdigit():
         die(f"invalid slave SCPU count: '{arg}' (use: ./example.py gen 64)")
     n = int(arg)
-    if n < 1 or n > 256:
-        die(f"NUM_SCPU out of range: {arg} (allowed 1..256)")
+    if n < 0 or n > 256:
+        die(f"NUM_SCPU out of range: {arg} (allowed 0..256; 0 = solo MVCPU)")
     os.environ["NUM_SCPU"] = str(n)
     print(f"[example.py] CAMPAIGN_NUM_SCPU={n}")
 
@@ -102,12 +102,27 @@ def parse_gen_args(argv: list[str]) -> None:
         a = argv[i]
         if a in CLI_FLAG_TO_BUS:
             if i + 1 >= len(argv) or not argv[i + 1].isdigit():
-                die(f"expected count after {a} (e.g. {a} 62)")
+                die(f"expected count after {a} (e.g. {a} 62; use 0 for none)")
             count = int(argv[i + 1])
             kind = CLI_FLAG_TO_BUS[a]
             layout_parts.append(f"{kind}:{count}")
             layout_total += count
             i += 2
+            continue
+        if a == "--master-enabled":
+            if i + 1 >= len(argv):
+                die("expected 0 or 1 after --master-enabled")
+            os.environ["MASTER_ENABLED"] = argv[i + 1]
+            i += 2
+            continue
+        if a == "--master-bus":
+            if i + 2 >= len(argv) or not argv[i + 2].isdigit():
+                die("expected --master-bus <bus-flag> <count> (e.g. --master-bus --axi 1)")
+            bus_flag = argv[i + 1]
+            if bus_flag not in CLI_FLAG_TO_BUS:
+                die(f"unknown master bus flag: {bus_flag}")
+            os.environ["MASTER_BUS_LAYOUT"] = f"{CLI_FLAG_TO_BUS[bus_flag]}:{argv[i + 2]}"
+            i += 3
             continue
         if a.startswith("--"):
             die(f"unknown gen flag: {a} (see amba_bus_registry.py / ./example.py help)")
@@ -121,14 +136,18 @@ def parse_gen_args(argv: list[str]) -> None:
         i += 1
 
     if layout_parts:
-        if layout_total < 1 or layout_total > 256:
-            die(f"bus layout total out of range: {layout_total} (allowed 1..256)")
+        if layout_total < 0 or layout_total > 256:
+            die(f"bus layout total out of range: {layout_total} (allowed 0..256)")
         os.environ["BUS_LAYOUT"] = ",".join(layout_parts)
         os.environ["NUM_SCPU"] = str(layout_total)
         print(
             f"[example.py] BUS_LAYOUT={os.environ['BUS_LAYOUT']} "
             f"→ CAMPAIGN_NUM_SCPU={layout_total}"
         )
+        if layout_total == 0:
+            print("[example.py] solo mode — master.enabled defaults to 1")
+            if not os.environ.get("MASTER_ENABLED"):
+                os.environ["MASTER_ENABLED"] = "1"
         if positional is not None and int(positional) != layout_total:
             die(f"positional count {positional} disagrees with bus layout total {layout_total}")
         return
@@ -142,14 +161,16 @@ def parse_gen_args(argv: list[str]) -> None:
 
 def _make_env() -> dict[str, str]:
     env: dict[str, str] = {}
-    if os.environ.get("NUM_SCPU"):
-        env["NUM_SCPU"] = os.environ["NUM_SCPU"]
-    if os.environ.get("BUS_LAYOUT"):
-        env["BUS_LAYOUT"] = os.environ["BUS_LAYOUT"]
+    for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED"):
+        if os.environ.get(key):
+            env[key] = os.environ[key]
     return env
 
 
 def run_gen() -> None:
+    if not os.environ.get("NUM_SCPU") and not os.environ.get("BUS_LAYOUT"):
+        os.environ["NUM_SCPU"] = "3"
+        print("[example.py] default CAMPAIGN_NUM_SCPU=3 (yaml active slaves)")
     slots = os.environ.get("NUM_SCPU") or read_default_num_scpu()
     step(f"[1/2] Generate campaign firmware + Verilog headers (NUM_SCPU={slots})")
     if not FW.is_dir():
@@ -158,29 +179,35 @@ def run_gen() -> None:
 
     mk_env = _make_env()
     print(f"[gen] config    → CAMPAIGN_NUM_SCPU={slots} → manifest, cpus.mk, campaign_scale.vh")
-    if mk_env.get("BUS_LAYOUT"):
-        run(["make", "config", f"NUM_SCPU={mk_env['NUM_SCPU']}", f"BUS_LAYOUT={mk_env['BUS_LAYOUT']}"],
-            cwd=FW, env=mk_env)
-    elif mk_env.get("NUM_SCPU"):
-        run(["make", "config", f"NUM_SCPU={mk_env['NUM_SCPU']}"], cwd=FW, env=mk_env)
+    if mk_env:
+        args = ["make", "config"]
+        for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED"):
+            if mk_env.get(key):
+                args.append(f"{key}={mk_env[key]}")
+        run(args, cwd=FW, env=mk_env)
     else:
         run(["make", "config"], cwd=FW)
 
+    gen_env = {**os.environ, **mk_env}
+
     print("[gen] soc_init  → soc_init_seq.vh, campaign_soc_platform.vh")
-    run(["make", "soc_init"], cwd=FW, env=mk_env)
+    run(["make", "soc_init"], cwd=FW, env=gen_env)
 
     print("[gen] manifest  → campaign_manifest.vh")
-    run(["make", "manifest"], cwd=FW, env=mk_env)
+    run(["make", "manifest"], cwd=FW, env=gen_env)
 
     print("[gen] icodes    → icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh")
-    run(["make", "icodes"], cwd=FW, env=mk_env)
+    run(["make", "icodes"], cwd=FW, env=gen_env)
 
-    if mk_env.get("BUS_LAYOUT"):
+    if mk_env.get("BUS_LAYOUT") or mk_env.get("MASTER_BUS_LAYOUT"):
         print("[gen] bus_connect → verif_soc_bus_connect.vh (manifest bus ports)")
-        run(["make", "bus_connect"], cwd=FW, env=mk_env)
+        run(["make", "bus_connect"], cwd=FW, env=gen_env)
 
     print("[gen] VCPU bins + merge → full_campaign_unified.hex")
-    run(["make", "all"], cwd=FW, env=mk_env)
+    run(["make", "all"], cwd=FW, env=gen_env)
+
+    print("[gen] filelists + sim scripts → eda/*/*.list, scripts/{iverilog,verilator,vcs,xcelium,verdi}/")
+    run(["make", "filelists"])
 
     print()
     print("[gen] Artifacts:")
@@ -193,6 +220,14 @@ def run_gen() -> None:
     for name in ("tb_full_campaign_gen.vh", "icode_map.vh", "campaign_manifest.vh"):
         p = ROOT / "include" / name
         if p.is_file():
+            print(f"  {p}")
+    flist = ROOT / "filelists"
+    if flist.is_dir():
+        for p in sorted(flist.glob("*.f"))[:16]:
+            print(f"  {p}")
+    verdi = ROOT / "scripts" / "verdi"
+    if verdi.is_dir():
+        for p in sorted(verdi.glob("*.sh"))[:8]:
             print(f"  {p}")
 
 
@@ -241,6 +276,15 @@ def run_vcd_only() -> None:
     ])
 
 
+def run_verdi(view: str = "full_campaign", *wave_args: str) -> None:
+    step(f"Verdi — view={view} (source + VCD if sim already ran)")
+    script = ROOT / "scripts" / "verdi" / f"{view}.sh"
+    if not script.is_file():
+        die(f"missing {script} — run: ./example.py gen")
+    cmd = [str(script), *wave_args]
+    os.execv(str(script), cmd)
+
+
 def run_clean() -> None:
     step("Clean verification artifacts (sim_build, logs, campaign build)")
     run(["make", "clean-artifacts"])
@@ -261,7 +305,8 @@ Commands:
   manifest         Integration TB (make soc-manifest — Phase A/B/C, 23 checks)
   chip-top         Chip top smoke (make chip-top-example — yaml hierarchy)
   vcd              Re-run verify_vcd.py on existing VCD files
-  clean            Remove sim_build, logs, campaign build, merged hex
+  verdi [view]     Open Synopsys Verdi (default: full_campaign; needs gen + optional sim)
+  clean            Remove gen/sim artifacts (fw build/hex/hdr, generated .vh, filelists, scripts)
   help             Show this message
 
 Environment:
@@ -276,6 +321,8 @@ Examples:
   ./example.py gen --apb 1 --axi 62 --ahb 1
   ./example.py all 64
   ./example.py gen && ./example.py sim
+  ./example.py verdi
+  ./example.py verdi soc_manifest_scale
   NUM_SCPU=40 ./example.py gen
   LOG_FULL=/tmp/vcd ./example.py sim
 """
@@ -291,7 +338,7 @@ def build_parser() -> argparse.ArgumentParser:
         "command",
         nargs="?",
         default="all",
-        help="all|gen|sim|manifest|chip-top|vcd|clean|help",
+        help="all|gen|sim|manifest|chip-top|vcd|verdi|clean|help",
     )
     p.add_argument("rest", nargs=argparse.REMAINDER, help="gen args: N or --axi N …")
     p.add_argument("-h", "--help", action="store_true", help="show help and exit")
@@ -329,6 +376,9 @@ def main(argv: list[str] | None = None) -> int:
         "chip-top-example": run_chip_top,
         "vcd": run_vcd_only,
         "check-vcd": run_vcd_only,
+        "verdi": lambda: run_verdi(*(rest or ["full_campaign"])),
+        "verdi-gui": lambda: run_verdi(*(rest or ["full_campaign"])),
+        "gui": lambda: run_verdi(*(rest or ["full_campaign"])),
         "clean": run_clean,
         "help": lambda: print(HELP_TEXT),
         "-h": lambda: print(HELP_TEXT),

@@ -187,7 +187,7 @@ make soc-manifest       # CONNECT_SLV* integration TB — active 3셀 (23 checks
 make soc-manifest-scale # flat N셀 BUS_LAYOUT compile + active 3 campaign (26 checks)
 make chip-top-example   # chip_top: orchestrator + agent + bus R/W (16 checks)
 make clean           # sim_build/ 삭제
-make clean-artifacts # logs, hex, campaign build, .bus_layout_stamp 삭제
+make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, filelists, scripts)
 ```
 
 ### 검증 게이트 요약

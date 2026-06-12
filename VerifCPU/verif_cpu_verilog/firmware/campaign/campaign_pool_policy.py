@@ -14,6 +14,7 @@ INCLUDE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "include")
 )
 SCALE_VH = os.path.join(INCLUDE_DIR, "campaign_scale.vh")
+MASTER_VH = os.path.join(INCLUDE_DIR, "campaign_master.vh")
 LAYOUT_H = os.path.join(os.path.dirname(os.path.abspath(__file__)), "include", "campaign_layout.h")
 
 
@@ -38,19 +39,28 @@ def max_slots() -> int:
     return _read_define(SCALE_VH, "CAMPAIGN_MAX_SLOTS", DEFAULT_MAX_SLOTS)
 
 
+def pool_vcpu_regions() -> int:
+    v = _read_define(SCALE_VH, "CAMPAIGN_POOL_VCPU_REGIONS", 0)
+    if v:
+        return v
+    ms = max_slots()
+    master_vcpu = _read_define(MASTER_VH, "CAMPAIGN_MASTER_VCPU_ENABLED", 0)
+    return max(ms, 1 if master_vcpu else 0)
+
+
 def pool_word_stride() -> int:
     return _read_define(LAYOUT_H, "POOL_WORD_STRIDE", DEFAULT_STRIDE_WORDS)
 
 
 def pool_word_icode() -> int:
-    return _read_define(LAYOUT_H, "POOL_WORD_ICODE", max_slots() * pool_word_stride())
+    return _read_define(LAYOUT_H, "POOL_WORD_ICODE", pool_vcpu_regions() * pool_word_stride())
 
 
 POOL_WORD_ICODE = pool_word_icode()
 
 
 def vcpu_image_bytes() -> int:
-    return max_slots() * REGION_BYTES
+    return pool_vcpu_regions() * REGION_BYTES
 
 
 VCPU_IMAGE_BYTES = vcpu_image_bytes()

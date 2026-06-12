@@ -56,7 +56,7 @@ SOC_MANIFEST_SCALE_DEFS = include/tb_soc_manifest_scale_defs.vh
 SOC_MANIFEST_SCALE_GEN = include/tb_soc_manifest_scale_gen.vh
 MANIFEST_SCALE_BUS_BIND = include/verif_manifest_scale_soc_bus_read.vh include/verif_manifest_scale_soc_bus_write.vh
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists clean clean-artifacts
 
 # Authoritative gate: iverilog sim + VCD post-check
 verify: full_campaign
@@ -97,10 +97,13 @@ sim_build/tb_soc_bus_all.vvp: $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v
 fw:
 	$(CAMPAIGN_FW)
 
+filelists:
+	python3 tools/gen_filelist.py
+
 full_campaign: fw sim_build/tb_full_campaign.vvp
 	mkdir -p $(LOG_FULL)
 	$(VVP) sim_build/tb_full_campaign.vvp
-	$(VCD_CHK) $(VCD_MAIN) $(LOG_FULL)/SCPU1.vcd
+	$(VCD_CHK) $(VCD_MAIN)
 
 sim_build/tb_basic.vvp: $(RTL) tb/tb_basic.v
 	@mkdir -p sim_build
@@ -186,9 +189,6 @@ sim_build/chip_top_example.vvp: $(CHIP_TOP_RTL) $(BUS_RTL) $(STUB_BUS_RTL) $(SOC
 clean:
 	rm -rf sim_build
 
-# Remove all verification byproducts (logs, sim, campaign build, merged hex)
-clean-artifacts: clean
-	rm -rf $(LOG_FULL) logs
-	rm -f firmware/full_campaign_unified.hex firmware/full_campaign_vcpu.hex
-	$(MAKE) -C firmware/campaign clean
-	rm -f firmware/campaign/.bus_layout_stamp
+# Remove gen/sim artifacts (fw build/hex/headers, generated .vh, filelists, scripts)
+clean-artifacts:
+	python3 tools/clean_generated.py

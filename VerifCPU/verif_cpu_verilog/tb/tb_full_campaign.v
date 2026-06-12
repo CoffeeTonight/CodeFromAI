@@ -21,6 +21,7 @@ module tb_full_campaign;
   localparam OFF_UART_RECOVER = 32'hD00;
   localparam FW_SIZE          = 32'h2000;
   localparam NUM_AGENTS       = `CAMPAIGN_MAX_SLOTS;
+  localparam SL_AGENT_BANK    = (`CAMPAIGN_MAX_SLOTS == 0) ? 1 : `CAMPAIGN_MAX_SLOTS;
   localparam POOL_ICODE_WORD  = `ICODE_POOL_WORD_BASE;
   localparam ICODE_POOL_SZ    = `ICODE_POOL_BYTES;
 
@@ -29,10 +30,15 @@ module tb_full_campaign;
   wire        orch_reset;
   wire [31:0] orch_reset_count;
 
-  wire [31:0] sl_slot_count [0:NUM_AGENTS-1];
-  wire [31:0] sl_pass       [0:NUM_AGENTS-1];
-  wire [31:0] sl_fail       [0:NUM_AGENTS-1];
-  wire [31:0] sl_txns       [0:NUM_AGENTS-1];
+  wire [31:0] mstr_slot_count;
+  wire [31:0] mstr_pass;
+  wire [31:0] mstr_fail;
+  wire [31:0] mstr_txns;
+
+  wire [31:0] sl_slot_count [0:SL_AGENT_BANK-1];
+  wire [31:0] sl_pass       [0:SL_AGENT_BANK-1];
+  wire [31:0] sl_fail       [0:SL_AGENT_BANK-1];
+  wire [31:0] sl_txns       [0:SL_AGENT_BANK-1];
 
   verif_orchestrator u_orch (
     .phase(orch_phase),

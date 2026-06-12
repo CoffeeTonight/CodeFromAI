@@ -164,6 +164,51 @@ def tap_port_for_addr(addr: int) -> int:
     return 3
 
 
+def catalog_by_name() -> dict[str, IcodeSpec]:
+    return {s.name: s for s in build_catalog_50()}
+
+
+def manifest_icode_names_hdr(manifest_hdr: Path) -> list[str]:
+    """Unique icode names from generated campaign_manifest.h (respects NUM_SCPU)."""
+    if not manifest_hdr.is_file():
+        raise FileNotFoundError(
+            f"missing {manifest_hdr} — run make config && make manifest first"
+        )
+    body = manifest_hdr.read_text(encoding="utf-8")
+    seen: set[str] = set()
+    names: list[str] = []
+    for m in re.finditer(
+        r'\{\s*[A-Z0-9_]+\s*,\s*0x[0-9a-fA-F]+u?\s*,\s*"([^"]+)"\s*\}',
+        body,
+    ):
+        icode = m.group(1)
+        if icode in seen:
+            continue
+        seen.add(icode)
+        names.append(icode)
+    return names
+
+
+def manifest_icode_names(slots_yaml: Path) -> list[str]:
+    """Legacy: yaml active targets only (ignores NUM_SCPU). Prefer manifest_icode_names_hdr."""
+    try:
+        import yaml
+    except ImportError as exc:
+        raise RuntimeError("PyYAML required to read campaign_slots.yaml") from exc
+
+    data = yaml.safe_load(slots_yaml.read_text(encoding="utf-8"))
+    seen: set[str] = set()
+    names: list[str] = []
+    for ent in data.get("active") or []:
+        for t in ent.get("targets") or []:
+            icode = t.get("icode")
+            if not icode or icode in seen:
+                continue
+            seen.add(icode)
+            names.append(icode)
+    return names
+
+
 def build_catalog_50() -> list[IcodeSpec]:
     """50 icodes spanning manifest targets + extended SoC map."""
     specs: list[IcodeSpec] = []

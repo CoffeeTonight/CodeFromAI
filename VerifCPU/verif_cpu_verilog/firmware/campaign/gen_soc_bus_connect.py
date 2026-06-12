@@ -39,6 +39,23 @@ def parse_manifest_h(path: Path) -> list[dict]:
             "bus_type": (m.group(6) or "task").lower(),
             "bus_port": m.group(7) or "",
         })
+    m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
+    if m_present and int(m_present.group(1)):
+        mm = re.search(
+            r'static const manifest_master_t MANIFEST_MASTER = \{\s*'
+            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,\s*POOL_WORD_MASTER\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'
+            r'"([^"]*)"\s*,\s*"([^"]*)"\s*,',
+            body,
+        )
+        if mm and int(mm.group(4)):
+            slaves.append({
+                "name": mm.group(1),
+                "cpu_id": 0,
+                "tap_port": int(mm.group(2)),
+                "enabled": 1,
+                "bus_type": (mm.group(5) or "task").lower(),
+                "bus_port": mm.group(6) or "",
+            })
     return slaves
 
 
@@ -82,7 +99,7 @@ def emit_connect_vh(slaves: list[dict], source: str) -> str:
             lines.append(f"// SKIP {s['name']}: bus_type {bt} has no connect macro")
             continue
         cid = s["cpu_id"]
-        mst = f"g_slv{cid - 1}.u_bus"
+        mst = "g_mstr.u_bus" if cid == 0 else f"g_slv{cid - 1}.u_bus"
         macro = f"CONNECT_SLV{cid:02d}_{tag}"
         conn = f"`{macro_fn}({port}, {mst})"
         lines.append(f"`define {macro} {conn}")

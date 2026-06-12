@@ -1,0 +1,408 @@
+{
+  "slot_size": 4096,
+  "pool_base": 4096,
+  "pool_bytes": 208896,
+  "count": 50,
+  "entries": [
+    {
+      "name": "check_sfr_ctrl",
+      "pool_ptr": 4096,
+      "bus_addr": 1073741824,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "check_sfr_mask",
+      "pool_ptr": 8192,
+      "bus_addr": 1073741828,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "check_sram_aux",
+      "pool_ptr": 12288,
+      "bus_addr": 2147483652,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "check_sram_marker",
+      "pool_ptr": 16384,
+      "bus_addr": 2147483648,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "check_uart_baud",
+      "pool_ptr": 20480,
+      "bus_addr": 3221225472,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "check_uart_irq",
+      "pool_ptr": 24576,
+      "bus_addr": 3221225488,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_008",
+      "pool_ptr": 28672,
+      "bus_addr": 1073741832,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_00c",
+      "pool_ptr": 32768,
+      "bus_addr": 1073741836,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_010",
+      "pool_ptr": 36864,
+      "bus_addr": 1073741840,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_014",
+      "pool_ptr": 40960,
+      "bus_addr": 1073741844,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_018",
+      "pool_ptr": 45056,
+      "bus_addr": 1073741848,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_01c",
+      "pool_ptr": 49152,
+      "bus_addr": 1073741852,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_020",
+      "pool_ptr": 53248,
+      "bus_addr": 1073741856,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_024",
+      "pool_ptr": 57344,
+      "bus_addr": 1073741860,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_028",
+      "pool_ptr": 61440,
+      "bus_addr": 1073741864,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_02c",
+      "pool_ptr": 65536,
+      "bus_addr": 1073741868,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sfr_r_0fc",
+      "pool_ptr": 69632,
+      "bus_addr": 1073742076,
+      "bus_op": "R",
+      "tap_port": 0,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_008",
+      "pool_ptr": 73728,
+      "bus_addr": 2147483656,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_00c",
+      "pool_ptr": 77824,
+      "bus_addr": 2147483660,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_010",
+      "pool_ptr": 81920,
+      "bus_addr": 2147483664,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_014",
+      "pool_ptr": 86016,
+      "bus_addr": 2147483668,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_018",
+      "pool_ptr": 90112,
+      "bus_addr": 2147483672,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_01c",
+      "pool_ptr": 94208,
+      "bus_addr": 2147483676,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_020",
+      "pool_ptr": 98304,
+      "bus_addr": 2147483680,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_024",
+      "pool_ptr": 102400,
+      "bus_addr": 2147483684,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_028",
+      "pool_ptr": 106496,
+      "bus_addr": 2147483688,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_r_02c",
+      "pool_ptr": 110592,
+      "bus_addr": 2147483692,
+      "bus_op": "R",
+      "tap_port": 1,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_sram_w_000",
+      "pool_ptr": 114688,
+      "bus_addr": 2147483648,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_004",
+      "pool_ptr": 118784,
+      "bus_addr": 2147483652,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_008",
+      "pool_ptr": 122880,
+      "bus_addr": 2147483656,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_00c",
+      "pool_ptr": 126976,
+      "bus_addr": 2147483660,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_010",
+      "pool_ptr": 131072,
+      "bus_addr": 2147483664,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_014",
+      "pool_ptr": 135168,
+      "bus_addr": 2147483668,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_018",
+      "pool_ptr": 139264,
+      "bus_addr": 2147483672,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_sram_w_01c",
+      "pool_ptr": 143360,
+      "bus_addr": 2147483676,
+      "bus_op": "W",
+      "tap_port": 1,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_r_004",
+      "pool_ptr": 147456,
+      "bus_addr": 3221225476,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_008",
+      "pool_ptr": 151552,
+      "bus_addr": 3221225480,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_00c",
+      "pool_ptr": 155648,
+      "bus_addr": 3221225484,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_014",
+      "pool_ptr": 159744,
+      "bus_addr": 3221225492,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_018",
+      "pool_ptr": 163840,
+      "bus_addr": 3221225496,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_01c",
+      "pool_ptr": 167936,
+      "bus_addr": 3221225500,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_r_020",
+      "pool_ptr": 172032,
+      "bus_addr": 3221225504,
+      "bus_op": "R",
+      "tap_port": 2,
+      "bin_bytes": 20
+    },
+    {
+      "name": "probe_uart_w_000",
+      "pool_ptr": 176128,
+      "bus_addr": 3221225472,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_004",
+      "pool_ptr": 180224,
+      "bus_addr": 3221225476,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_008",
+      "pool_ptr": 184320,
+      "bus_addr": 3221225480,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_00c",
+      "pool_ptr": 188416,
+      "bus_addr": 3221225484,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_010",
+      "pool_ptr": 192512,
+      "bus_addr": 3221225488,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_014",
+      "pool_ptr": 196608,
+      "bus_addr": 3221225492,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_018",
+      "pool_ptr": 200704,
+      "bus_addr": 3221225496,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    },
+    {
+      "name": "probe_uart_w_01c",
+      "pool_ptr": 204800,
+      "bus_addr": 3221225500,
+      "bus_op": "W",
+      "tap_port": 2,
+      "bin_bytes": 28
+    }
+  ]
+}

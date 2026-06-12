@@ -3,7 +3,10 @@
 #
 # Usage:
 #   ./example.sh              # gen + full_campaign (default)
-#   ./example.sh gen          # generation only (no iverilog)
+#   ./example.sh gen 64
+#   ./example.sh gen --axi 62 --ahb 1 --apb 1   # bus layout: order = slot order from SCPU1
+#   ./example.sh gen --apb 1 --axi 62 --ahb 1   # APB at SCPU1, then AXI, then AHB
+#   ./example.sh all 64       # gen 64 + full_campaign
 #   ./example.sh sim          # simulate only (assumes fw already built)
 #   ./example.sh vcd          # verify existing VCD artifacts
 #   ./example.sh clean        # remove all verification artifacts
@@ -22,6 +25,14 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
 
+ensure_py_deps() {
+  local req="${ROOT}/requirements.txt"
+  [[ -f "$req" ]] || die "missing $req"
+  need_cmd python3
+  echo "[deps] python3 -m pip install -r requirements.txt (tinyrv, PyYAML)"
+  python3 -m pip install -r "$req"
+}
+
 step() {
   echo ""
   echo "========================================================================"
@@ -29,12 +40,104 @@ step() {
   echo "========================================================================"
 }
 
+parse_num_scpu() {
+  local arg="${1:-}"
+  [[ -z "$arg" ]] && return 0
+  if [[ ! "$arg" =~ ^[0-9]+$ ]]; then
+    die "invalid slave SCPU count: '$arg' (use: ./example.sh gen 64)"
+  fi
+  if (( arg < 1 || arg > 256 )); then
+    die "NUM_SCPU out of range: $arg (allowed 1..256)"
+  fi
+  export NUM_SCPU="$arg"
+  echo "[example.sh] CAMPAIGN_NUM_SCPU=${NUM_SCPU}"
+}
+
+# Ordered bus layout: flag order = ascending cpu_id (SCPU1 first).
+# Canonical bus keys: amba_bus_registry.py (apb3, ahb_lite, axi4lite, niu, …)
+is_bus_layout_flag() {
+  (cd "$FW" && python3 -c "from amba_bus_registry import CLI_FLAG_TO_BUS; import sys; raise SystemExit(0 if sys.argv[1] in CLI_FLAG_TO_BUS else 1)" "$1")
+}
+
+bus_kind_from_flag() {
+  (cd "$FW" && python3 -c "from amba_bus_registry import CLI_FLAG_TO_BUS; import sys; print(CLI_FLAG_TO_BUS[sys.argv[1]])" "$1")
+}
+
+parse_gen_args() {
+  local layout=""
+  local layout_total=0
+  local positional=""
+  local a count kind
+
+  while (( $# > 0 )); do
+    a="$1"
+    if is_bus_layout_flag "$a"; then
+      count="${2:-}"
+      [[ -n "$count" && "$count" =~ ^[0-9]+$ ]] || die "expected count after $a (e.g. $a 62)"
+      kind="$(bus_kind_from_flag "$a")"
+      if [[ -n "$layout" ]]; then
+        layout+=","
+      fi
+      layout+="${kind}:${count}"
+      layout_total=$((layout_total + count))
+      shift 2
+      continue
+    fi
+    case "$a" in
+      --*)
+        die "unknown gen flag: $a (see amba_bus_registry.py / ./example.sh help)"
+        ;;
+      *)
+        if [[ "$a" =~ ^[0-9]+$ ]]; then
+          if [[ -n "$positional" ]]; then
+            die "ambiguous gen args: multiple positional counts ($positional, $a)"
+          fi
+          positional="$a"
+        else
+          die "unexpected gen argument: $a"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -n "$layout" ]]; then
+    if (( layout_total < 1 || layout_total > 256 )); then
+      die "bus layout total out of range: $layout_total (allowed 1..256)"
+    fi
+    export BUS_LAYOUT="$layout"
+    export NUM_SCPU="$layout_total"
+    echo "[example.sh] BUS_LAYOUT=${BUS_LAYOUT} → CAMPAIGN_NUM_SCPU=${NUM_SCPU}"
+    if [[ -n "$positional" && "$positional" != "$layout_total" ]]; then
+      die "positional count $positional disagrees with bus layout total $layout_total"
+    fi
+    return 0
+  fi
+
+  unset BUS_LAYOUT || true
+  if [[ -n "$positional" ]]; then
+    parse_num_scpu "$positional"
+  elif [[ -n "${NUM_SCPU:-}" ]]; then
+    parse_num_scpu "${NUM_SCPU}"
+  fi
+}
+
 run_gen() {
-  step "[1/2] Generate campaign firmware + Verilog headers"
+  local slots="${NUM_SCPU:-$(grep -E '^[[:space:]]*`define[[:space:]]+CAMPAIGN_NUM_SCPU[[:space:]]+' "${ROOT}/include/campaign_params.vh" 2>/dev/null | awk '{print $3}' || echo default)}"
+  step "[1/2] Generate campaign firmware + Verilog headers (NUM_SCPU=${slots})"
   [[ -d "$FW" ]] || die "firmware dir not found: $FW"
-  need_cmd python3
+  ensure_py_deps
 
   cd "$FW"
+  echo "[gen] config    → CAMPAIGN_NUM_SCPU=${slots} → manifest, cpus.mk, campaign_scale.vh"
+  if [[ -n "${BUS_LAYOUT:-}" ]]; then
+    make config NUM_SCPU="${NUM_SCPU}" BUS_LAYOUT="${BUS_LAYOUT}"
+  elif [[ -n "${NUM_SCPU:-}" ]]; then
+    make config NUM_SCPU="${NUM_SCPU}"
+  else
+    make config
+  fi
+
   echo "[gen] soc_init  → soc_init_seq.vh, campaign_soc_platform.vh"
   make soc_init
 
@@ -43,6 +146,11 @@ run_gen() {
 
   echo "[gen] icodes    → icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh"
   make icodes
+
+  if [[ -n "${BUS_LAYOUT:-}" ]]; then
+    echo "[gen] bus_connect → verif_soc_bus_connect.vh (manifest bus ports)"
+    make bus_connect
+  fi
 
   echo "[gen] VCPU bins + merge → full_campaign_unified.hex"
   make all
@@ -54,6 +162,24 @@ run_gen() {
   ls -la "${ROOT}/include/tb_full_campaign_gen.vh" \
          "${ROOT}/include/icode_map.vh" \
          "${ROOT}/include/campaign_manifest.vh" 2>/dev/null || true
+}
+
+run_soc_manifest() {
+  step "iverilog soc-manifest (integration TB — real AMBA bridges)"
+  need_cmd iverilog
+  need_cmd vvp
+
+  cd "$ROOT"
+  make soc-manifest
+}
+
+run_chip_top() {
+  step "iverilog chip-top-example (soc_hierarchy yaml compile smoke)"
+  need_cmd iverilog
+  need_cmd vvp
+
+  cd "$ROOT"
+  make chip-top-example
 }
 
 run_sim() {
@@ -101,25 +227,46 @@ show_help() {
 VerifCPU Verilog example runner
 
 Commands:
-  (none)|all   Generate firmware + run full_campaign + VCD gate
-  gen          Generation only (firmware/campaign make pipeline)
-  sim          Simulation only (make full_campaign; rebuilds fw via Makefile)
-  vcd          Re-run verify_vcd.py on existing VCD files
-  clean        Remove sim_build, logs, campaign build, merged hex
-  help         Show this message
+  (none)|all [N]   Generate firmware + run full_campaign (+ optional N slave SCPU)
+  gen [N]          Generation only; N = slave SCPU count (SCPU1..N), e.g. gen 64
+  gen --axi A ...  Bus layout: flag order = slot order from SCPU1 (low cpu_id first)
+                   Legacy: --axi/--ahb/--apb → axi4lite/ahb_lite/apb3
+                   All AMBA flags: --apb2..5 --axi3/4/5 --axistream --ace --chi --niu …
+                   List: python3 -c "from amba_bus_registry import BUS_TYPES; print(sorted(BUS_TYPES))"
+  sim              Simulation only (make full_campaign; rebuilds fw via Makefile)
+  manifest         Integration TB (make soc-manifest — Phase A/B/C, 23 checks)
+  chip-top         Chip top smoke (make chip-top-example — yaml hierarchy)
+  vcd              Re-run verify_vcd.py on existing VCD files
+  clean            Remove sim_build, logs, campaign build, merged hex
+  help             Show this message
 
 Environment:
+  NUM_SCPU     Same as gen N (alternative to positional argument)
+  BUS_LAYOUT   Ordered bus segments (axi:62,ahb:1,apb:1) — set by gen --axi/--ahb/--apb/--task
   LOG_FULL     Per-CPU VCD log directory (default: .../VerifCPU/logs/full_campaign)
 
 Examples:
   ./example.sh
+  ./example.sh gen 64
+  ./example.sh gen --axi 62 --ahb 1 --apb 1
+  ./example.sh gen --apb 1 --axi 62 --ahb 1   # APB at SCPU1, then AXI, then AHB
+  ./example.sh all 64
   ./example.sh gen && ./example.sh sim
+  NUM_SCPU=40 ./example.sh gen
   LOG_FULL=/tmp/vcd ./example.sh sim
 EOF
 }
 
 main() {
   local cmd="${1:-all}"
+  shift || true
+
+  case "$cmd" in
+    all|full|verify|gen|generate)
+      parse_gen_args "$@"
+      ;;
+  esac
+
   case "$cmd" in
     all|full|verify)
       run_gen
@@ -130,6 +277,12 @@ main() {
       ;;
     sim|run|simulate)
       run_sim
+      ;;
+    manifest|soc-manifest)
+      run_soc_manifest
+      ;;
+    chip-top|chip-top-example)
+      run_chip_top
       ;;
     vcd|check-vcd)
       run_vcd_only

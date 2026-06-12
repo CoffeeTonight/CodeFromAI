@@ -1,0 +1,3 @@
+# Python deps for firmware/campaign generation (pip install -r requirements.txt)
+tinyrv>=0.1.0
+PyYAML>=6.0

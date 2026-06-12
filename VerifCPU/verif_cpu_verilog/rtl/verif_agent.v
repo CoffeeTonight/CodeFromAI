@@ -7,7 +7,7 @@
 module verif_agent_slave #(
   parameter [3:0]  CPU_ID = 1,
   parameter [8*8:1] CPU_NAME = "SLAVE",
-  parameter [1:0]  TAP_PORT = 0
+  parameter [7:0]  TAP_PORT = 0
 )(
   input  [1:0]      phase,
   input  [31:0]     boot_fw_offset,

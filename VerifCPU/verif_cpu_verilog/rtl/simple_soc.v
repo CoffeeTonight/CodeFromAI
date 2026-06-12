@@ -1,6 +1,8 @@
 // Simple SoC — 1:3 address decoder (SFR / SRAM / UART) behavior model
+// Snoop tap array sized for CAMPAIGN_MAX_TAPS (reserved slots stay idle until wired).
 
 `timescale 1ns/1ps
+`include "campaign_scale.vh"
 `include "soc_init_seq.vh"
 
 module simple_soc_slave #(
@@ -67,15 +69,15 @@ module simple_soc;
   simple_soc_slave #(.BASE(32'h8000_0000), .SIZE(32'h10000)) u_sram ();
   simple_soc_slave #(.BASE(32'hC000_0000), .SIZE(32'h1000))  u_uart ();
 
-  reg        stxn_valid [0:2];
-  reg        stxn_wr    [0:2];
-  reg [31:0] stxn_addr  [0:2];
-  reg [31:0] stxn_data  [0:2];
+  reg        stxn_valid [0:`CAMPAIGN_MAX_TAPS-1];
+  reg        stxn_wr    [0:`CAMPAIGN_MAX_TAPS-1];
+  reg [31:0] stxn_addr  [0:`CAMPAIGN_MAX_TAPS-1];
+  reg [31:0] stxn_data  [0:`CAMPAIGN_MAX_TAPS-1];
 
   integer p;
 
   initial begin
-    for (p = 0; p < 3; p = p + 1) begin
+    for (p = 0; p < `CAMPAIGN_MAX_TAPS; p = p + 1) begin
       stxn_valid[p] = 1'b0;
       stxn_wr[p]    = 1'b0;
       stxn_addr[p]  = 32'h0;
@@ -84,7 +86,7 @@ module simple_soc;
   end
 
   task pulse_snoop;
-    input [1:0]  port;
+    input [7:0]  port;
     input        wr;
     input [31:0] a;
     input [31:0] d;

@@ -1,8 +1,8 @@
 # =============================================================================
 # VerifCPU Full Campaign Firmware — C build + unified pool image
 # =============================================================================
-#   make all          # build SFR/SRAM/UART bins + merge hex + gen SoC init
-#   make verify       # build + iverilog full_campaign
+#   make config       # campaign_slots.yaml → manifest, cpus.mk, scale.vh
+#   make all          # build + merge hex
 # =============================================================================
 
 CROSS_COMPILE ?= riscv64-unknown-elf-
@@ -17,86 +17,56 @@ LDFLAGS := -nostdlib -T campaign.ld
 
 BUILD_DIR := build
 COMMON    := common/phase_a.c common/phase_b.c
+REPO_RTL  := $(abspath ../../rtl)
+REPO_INC  := $(abspath ../../include)
 
-include cpus.mk
+.PHONY: all clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml
 
-.PHONY: all clean soc_init icodes manifest merge hex verify dis SFR SRAM UART
-
-all: soc_init icodes manifest SFR SRAM UART merge
+all: config soc_init icodes manifest NOOP $(CPU_ACTIVE) merge
 	@echo ""
 	@echo "=== Campaign firmware ready ==="
-	@ls -la $(BUILD_DIR)/*.bin
+	@ls -la $(BUILD_DIR)/*.bin 2>/dev/null | head -20
 
-soc_init:
+config:
+	NUM_SCPU="$(NUM_SCPU)" BUS_LAYOUT="$(BUS_LAYOUT)" python3 gen_campaign_config.py
+
+-include cpus.mk
+-include cpu_rules.mk
+CPU_ACTIVE ?=
+
+soc_init: config
 	python3 gen_soc_init.py
 
-manifest:
+manifest: config
 	python3 gen_campaign_manifest.py
 
-icodes:
+icodes: config
 	python3 build_icode_pool.py
 
-merge: icodes SFR SRAM UART
+merge: config $(BUILD_DIR)/icode_pool.bin NOOP $(CPU_ACTIVE)
 	python3 merge_campaign.py
 
+$(REPO_RTL)/verif_vcpu_soc_cell.v: gen_soc_cell_rtl.py amba_bus_registry.py verilog_paths.py
+	python3 gen_soc_cell_rtl.py
+
+soc_cell: $(REPO_RTL)/verif_vcpu_soc_cell.v
+
+$(REPO_INC)/verif_soc_bus_connect.vh: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
+	python3 gen_soc_bus_connect.py
+
+bus_connect bus_connect_yaml: $(REPO_INC)/verif_soc_bus_connect.vh
+
 hex: merge
-
-# --- SFR CPU (phase A/B/C) ---
-SFR: $(BUILD_DIR)/SFR.bin
-
-$(BUILD_DIR)/SFR.elf: $(COMMON) cpu_sfr/phase_c.c campaign.ld | $(BUILD_DIR)
-	@echo "Building SFR campaign firmware..."
-	$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/SFR_phase_a.o
-	$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/SFR_phase_b.o
-	$(CC) $(CFLAGS) -c cpu_sfr/phase_c.c -o $(BUILD_DIR)/SFR_phase_c.o
-	$(LD) $(LDFLAGS) -o $@ \
-		$(BUILD_DIR)/SFR_phase_a.o $(BUILD_DIR)/SFR_phase_b.o $(BUILD_DIR)/SFR_phase_c.o
-	$(OBJDUMP) -d $@ > $(BUILD_DIR)/SFR.dis
-
-$(BUILD_DIR)/SFR.bin: $(BUILD_DIR)/SFR.elf
-	$(OBJCOPY) -O binary $< $@
-	@echo "  -> $@ ($$(wc -c < $@) bytes)"
-
-# --- SRAM CPU ---
-SRAM: $(BUILD_DIR)/SRAM.bin
-
-$(BUILD_DIR)/SRAM.elf: $(COMMON) cpu_sram/phase_c.c campaign.ld | $(BUILD_DIR)
-	@echo "Building SRAM campaign firmware..."
-	$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/SRAM_phase_a.o
-	$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/SRAM_phase_b.o
-	$(CC) $(CFLAGS) -c cpu_sram/phase_c.c -o $(BUILD_DIR)/SRAM_phase_c.o
-	$(LD) $(LDFLAGS) -o $@ \
-		$(BUILD_DIR)/SRAM_phase_a.o $(BUILD_DIR)/SRAM_phase_b.o $(BUILD_DIR)/SRAM_phase_c.o
-	$(OBJDUMP) -d $@ > $(BUILD_DIR)/SRAM.dis
-
-$(BUILD_DIR)/SRAM.bin: $(BUILD_DIR)/SRAM.elf
-	$(OBJCOPY) -O binary $< $@
-	@echo "  -> $@ ($$(wc -c < $@) bytes)"
-
-# --- UART CPU ---
-UART: $(BUILD_DIR)/UART.bin
-
-$(BUILD_DIR)/UART.elf: $(COMMON) cpu_uart/uart_fw.c campaign.ld | $(BUILD_DIR)
-	@echo "Building UART campaign firmware..."
-	$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/UART_phase_a.o
-	$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/UART_phase_b.o
-	$(CC) $(CFLAGS) -c cpu_uart/uart_fw.c -o $(BUILD_DIR)/UART_uart.o
-	$(LD) $(LDFLAGS) -o $@ \
-		$(BUILD_DIR)/UART_phase_a.o $(BUILD_DIR)/UART_phase_b.o $(BUILD_DIR)/UART_uart.o
-	$(OBJDUMP) -d $@ > $(BUILD_DIR)/UART.dis
-
-$(BUILD_DIR)/UART.bin: $(BUILD_DIR)/UART.elf
-	$(OBJCOPY) -O binary $< $@
-	@echo "  -> $@ ($$(wc -c < $@) bytes)"
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 dis: all
-	@ls -1 $(BUILD_DIR)/*.dis
+	@ls -1 $(BUILD_DIR)/*.dis 2>/dev/null | head -20
 
 verify: all
 	$(MAKE) -C ../.. full_campaign
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -f cpus.mk cpu_rules.mk .bus_layout_stamp

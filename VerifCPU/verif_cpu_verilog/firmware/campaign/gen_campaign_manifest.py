@@ -33,7 +33,8 @@ def parse_manifest(path: str) -> list[dict]:
 
     slaves = []
     for m in re.finditer(
-        r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*\}',
+        r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*,\s*(\d+)'
+        r'(?:\s*,\s*"([^"]*)"\s*,\s*"([^"]*)")?\s*\}',
         body,
     ):
         slaves.append({
@@ -41,6 +42,9 @@ def parse_manifest(path: str) -> list[dict]:
             "cpu_id": int(m.group(2)),
             "tap": int(m.group(3)),
             "target_count": int(m.group(4)),
+            "enabled": int(m.group(5)),
+            "bus_type": m.group(6) or "task",
+            "bus_port": m.group(7) or "",
         })
 
     target_blocks = re.findall(
@@ -62,9 +66,9 @@ def parse_manifest(path: str) -> list[dict]:
             })
         targets_by_key[key] = entries
 
-    name_to_key = {"SFR": "MANIFEST_SFR_TARGETS", "SRAM": "MANIFEST_SRAM_TARGETS", "UART": "MANIFEST_UART_TARGETS"}
     for s in slaves:
-        s["targets"] = targets_by_key.get(name_to_key[s["name"]], [])
+        key = f"MANIFEST_{s['name']}_TARGETS"
+        s["targets"] = targets_by_key.get(key, [])
         if len(s["targets"]) != s["target_count"]:
             print(f"[manifest] WARN {s['name']}: count mismatch", file=sys.stderr)
     return slaves
@@ -83,6 +87,8 @@ def emit_vh(slaves: list[dict], path: str) -> None:
     ]
     idx = 0
     for s in slaves:
+        if not s.get("enabled"):
+            continue
         for t in s["targets"]:
             lines.append(
                 f"  $display(\"SCPU0 (MSTR) > hint slave={s['name']} tap={s['tap']} "
@@ -93,6 +99,8 @@ def emit_vh(slaves: list[dict], path: str) -> None:
     lines.append("")
     lines.append("`define CAMPAIGN_MANIFEST_BUS_READS \\")
     for s in slaves:
+        if not s.get("enabled"):
+            continue
         for t in s["targets"]:
             lines.append(
                 f"  u_soc.decode_read(32'h{t['addr']:08X}, 3'd4, rdata, rresp, rport); \\"

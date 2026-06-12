@@ -5,6 +5,8 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_platform_defs.vh"
+`include "campaign_params.vh"
+`include "campaign_scale.vh"
 `include "campaign_soc_platform.vh"
 `include "campaign_manifest.vh"
 `include "icode_map.vh"
@@ -18,7 +20,7 @@ module tb_full_campaign;
   localparam OFF_UART_HANG    = 32'hC00;
   localparam OFF_UART_RECOVER = 32'hD00;
   localparam FW_SIZE          = 32'h2000;
-  localparam NUM_AGENTS       = `MANIFEST_SLAVE_COUNT;
+  localparam NUM_AGENTS       = `CAMPAIGN_MAX_SLOTS;
   localparam POOL_ICODE_WORD  = `ICODE_POOL_WORD_BASE;
   localparam ICODE_POOL_SZ    = `ICODE_POOL_BYTES;
 

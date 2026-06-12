@@ -1,0 +1,2 @@
+NUM_SCPU=60
+BUS_LAYOUT=axi4lite:58,ahb_lite:1,apb3:1

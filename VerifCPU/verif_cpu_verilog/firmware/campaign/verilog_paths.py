@@ -6,6 +6,7 @@ import os
 
 CAMPAIGN_ROOT = os.path.dirname(os.path.abspath(__file__))
 VERILOG_ROOT = os.path.normpath(os.path.join(CAMPAIGN_ROOT, "..", ".."))
+REPO_ROOT = VERILOG_ROOT
 INCLUDE_DIR = os.path.join(VERILOG_ROOT, "include")
 FIRMWARE_DIR = os.path.join(VERILOG_ROOT, "firmware")
 TOOLS_DIR = os.path.join(VERILOG_ROOT, "tools")

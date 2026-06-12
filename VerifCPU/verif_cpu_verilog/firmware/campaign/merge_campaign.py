@@ -29,6 +29,9 @@ from campaign_pool_policy import (  # noqa: E402
 REGION_SIZE = 0x2000
 
 
+NOOP_BIN = os.path.join(BUILD, "NOOP.bin")
+
+
 def parse_cpus_mk():
     cpus = []
     with open(CPUS_MK, encoding="utf-8") as f:
@@ -36,15 +39,25 @@ def parse_cpus_mk():
             line = line.strip()
             if not line or line.startswith("#") or not line.startswith("CPU_"):
                 continue
+            if line.startswith(("CPU_NAMES", "CPU_ACTIVE")) or ":=" not in line:
+                continue
             name = re.search(r"name=([^\s]+)", line)
             cid = re.search(r"id=(\d+)", line)
             pool = re.search(r"pool_word=(0x[0-9a-fA-F]+)", line)
-            if name and pool:
+            enabled = re.search(r"enabled=([01])", line)
+            if name and cid and pool:
+                is_on = enabled.group(1) == "1" if enabled else True
+                bin_path = (
+                    os.path.join(BUILD, f"{name.group(1)}.bin")
+                    if is_on
+                    else NOOP_BIN
+                )
                 cpus.append({
                     "name": name.group(1),
                     "id": int(cid.group(1)) if cid else 0,
                     "pool_word": int(pool.group(1), 16),
-                    "bin": os.path.join(BUILD, f"{name.group(1)}.bin"),
+                    "enabled": is_on,
+                    "bin": bin_path,
                 })
     return cpus
 

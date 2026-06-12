@@ -2,15 +2,17 @@
 
 `include "verif_cpu_defs.vh"
 
+
 module verif_cpu_core #(
   parameter CPU_ID          = 0,
   parameter BIT_WIDTH       = 32,
   parameter FW_WORDS        = 4096,
   parameter BUS_SIZE        = 32'h100000,
   parameter WDT_DEFAULT     = 32'd10000,
-  parameter USE_SHARED_BUS  = 0,
-  parameter USE_SHARED_POOL = 0,
-  parameter USE_SOC_BUS     = 0
+  parameter USE_SHARED_BUS      = 0,
+  parameter USE_SHARED_POOL     = 0,
+  parameter USE_SOC_BUS         = 0,
+  parameter USE_MANIFEST_SOC_BUS = 0
 )(
   output reg [31:0] final_pc,
   output reg [31:0] total_steps,
@@ -115,7 +117,11 @@ module verif_cpu_core #(
   reg [15:0] wave_chg_count;
 
   // --- Submodules ---
-  verif_cpu_bus #(.BUS_SIZE(BUS_SIZE)) u_bus ();
+  generate
+    if (!USE_MANIFEST_SOC_BUS && !USE_SOC_BUS && !USE_SHARED_BUS) begin : g_local_bus
+      verif_cpu_bus #(.BUS_SIZE(BUS_SIZE)) u_bus ();
+    end
+  endgenerate
   verif_cpu_txn_recorder #(.CPU_ID(CPU_ID)) u_rec (.txn_count(bus_txn_count));
 
   `include "verif_cpu_log.vh"
@@ -241,8 +247,20 @@ module verif_cpu_core #(
         tb_full_campaign.u_soc_bus.bus_read(addr, size, data, resp);
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_read(addr, size, data, resp);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_read.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_read.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_read.vh"
+`else
+        data = 32'h0;
+        resp = 2'd2;
+`endif
+      end
       else
-        u_bus.bus_read(addr, size, data, resp);
+        g_local_bus.u_bus.bus_read(addr, size, data, resp);
     end
   endtask
 
@@ -256,8 +274,19 @@ module verif_cpu_core #(
         tb_full_campaign.u_soc_bus.bus_write(addr, data, size, resp);
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_write(addr, data, size, resp);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_write.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_write.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_write.vh"
+`else
+        resp = 2'd2;
+`endif
+      end
       else
-        u_bus.bus_write(addr, data, size, resp);
+        g_local_bus.u_bus.bus_write(addr, data, size, resp);
     end
   endtask
 
@@ -356,7 +385,8 @@ module verif_cpu_core #(
       for (i = 0; i < 32; i = i + 1) begin
         regs[i] = 0; forced_valid[i] = 0; forced_val[i] = 0;
       end
-      if (!USE_SHARED_BUS) u_bus.bus_reset();
+      if (!USE_SHARED_BUS && !USE_MANIFEST_SOC_BUS && !USE_SOC_BUS)
+        g_local_bus.u_bus.bus_reset();
       u_rec.recorder_reset();
       cov_reset();
       fn_tracer_reset();
@@ -618,6 +648,16 @@ module verif_cpu_core #(
         $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
       end else if (USE_SOC_BUS) begin
         tb_full_campaign.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
+      end else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+        tb_soc_manifest_scale.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
+`elsif VERIF_MANIFEST_SOC_TB
+        tb_soc_manifest.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
+`elsif VERIF_CHIP_SOC_TB
+        chip_top_example.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
+`else
+        err = 1'b1;
+`endif
       end else if (USE_SHARED_POOL) begin
         tb_verification_harness.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
         if (err) state = `CPU_STATE_STALLED;

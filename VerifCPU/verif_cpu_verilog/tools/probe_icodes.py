@@ -90,9 +90,12 @@ if HAS_GOLDEN:
     from verif_cpu.memory.unified_pool import UnifiedFirmwarePool  # noqa: E402
 
 try:
-    import tinyrv
+    import tinyrv as _tinyrv_mod
 except ImportError:
-    tinyrv = None  # type: ignore
+    _tinyrv_mod = None  # type: ignore
+
+HAS_TINYRV = _tinyrv_mod is not None
+tinyrv = _tinyrv_mod
 
 SOC_MIN = 0x4000_0000
 SOC_MAX = 0xD000_0000

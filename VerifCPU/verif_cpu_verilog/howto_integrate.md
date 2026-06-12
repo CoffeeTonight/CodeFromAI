@@ -87,7 +87,8 @@ targets[]      : { bus_addr, expect, icode_name }
 ┌─────────────────────────────────────────────────────────────────┐
 │ 5. generate                                                     │
 │    campaign_manifest.vh, tb_full_campaign_gen.vh                │
-│    verif_soc_axi_connect.vh  ← 과제 포트명에 맞춘 AXI 배선       │
+│    verif_soc_bus_connect.vh  ← 과제 포트명 + bus_type 배선      │
+│    verif_vcpu_soc_cell.v, tb_soc_manifest_gen.vh (integration)  │
 └────────────────────────────┬────────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -106,7 +107,7 @@ targets[]      : { bus_addr, expect, icode_name }
 
 | 신호 그룹 | slave 1개당 | top에서 손으로? | 방법 |
 |-----------|------------|-----------------|------|
-| **AXI master** `m_axi_*` | 1세트 (AR/AW/W/R/B) | ✗ 자동 생성 | `verif_soc_axi_connect.vh` |
+| **AMBA master** (APB/AHB/AXI) | bus_type당 1세트 | ✗ 자동 생성 | `verif_soc_bus_connect.vh` |
 | **Agent snoop** 4개 | `valid, wr, addr, data` | △ 배열 인덱스 1줄 | `tap_valid[tap_id]` |
 | **Orchestrator** | 공통 | ✗ broadcast | `orch_reset`, `phase`, `boot_fw` |
 | **hierarchy_id** | 값만 다름 | ✗ 외부 wire 없음 | `initial cpu_set_hierarchy(id)` |
@@ -189,11 +190,11 @@ make icodes      # icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh
 `bus_addr` / `tap_port`가 manifest와 다르면 probe 단계에서 실패합니다.  
 **SoC hierarchy 오타를 시뮬 전에 잡는 관문**입니다.
 
-### 5.3 AXI connect VH 생성 (과제 포트명)
+### 5.3 Bus connect VH 생성 (과제 포트명 + bus_type)
 
-`gen_soc_axi_connect.py` (추가 권장)가 manifest의 `axi_mst_port`를 읽어 아래를 생성합니다.
+`gen_soc_bus_connect.py`가 manifest / `soc_hierarchy_example.yaml`의 `bus_port`·`bus_type`을 읽어 아래를 생성합니다.
 
-파일: `verif_cpu_verilog/include/verif_soc_axi_connect.vh`
+파일: `verif_cpu_verilog/include/verif_soc_bus_connect.vh`
 
 ```verilog
 // Auto-generated — do not edit
@@ -219,18 +220,30 @@ make icodes      # icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh
   assign SOC``_bready  = MST``_bready; \
   assign SOC``_bresp   = MST``_bresp
 
-// slave 37 — manifest: axi_mst_port = "S37_AXI"
-`define CONNECT_SLV37_AXI \
-  `CONNECT_AXI_LITE(u_soc_ic.S37_AXI, g_slv[37].u_vcpu.m_axi)
+// slave 37 — manifest: bus_port = "S37_AXI", bus_type = axi4lite
+`define CONNECT_SLV37_AXI4LITE `CONNECT_AXI_LITE(S37_AXI, g_slv36.u_bus)
 ```
 
-과제 top에서:
+과제 top에서 (iverilog XMR 호환 — **flat** `g_slv{cpu_id-1}`):
 
 ```verilog
-`include "verif_soc_axi_connect.vh"
-// ... generate 로 g_slv[37] 인스턴스 후
-`CONNECT_SLV37_AXI
+`include "verif_soc_bus_connect.vh"
+generate
+  begin : g_slv36
+    verif_vcpu_soc_cell_axi4lite #(.CPU_ID(37)) u_bus ( ... );
+  end
+endgenerate
+`CONNECT_SLV37_AXI4LITE
 ```
+
+**Integration TB** (`make soc-manifest`): `tb/tb_soc_manifest.v`가 위 패턴을 3-slave로 재현합니다 (Phase A/B/C, **23 checks**).  
+생성 RTL: `tb_soc_manifest_defs.vh`, `tb_soc_manifest_gen.vh`, `tb_soc_manifest_decode.vh` (주소 decode), `verif_manifest_soc_bus_*.vh`.
+
+**Scale integration TB** (`make soc-manifest-scale`): `tb/tb_soc_manifest_scale.v` — manifest `BUS_LAYOUT`로 wired된 **N개 flat `g_slv*`** 컴파일 + active 3 campaign (**26 checks**).  
+생성 RTL: `tb_soc_manifest_scale_defs.vh`, `tb_soc_manifest_scale_gen.vh`, `verif_manifest_scale_soc_bus_*.vh`.  
+layout은 `make config-scale` 또는 `./example.sh gen --axi 58 --ahb 1 --apb 1` 후 `.bus_layout_stamp`로 유지됩니다.
+
+**Chip top 예시** (`make chip-top-example`): `chip_top_example.v` + 생성 VH — yaml 4-slave, orchestrator/agent, bus wr/rd **16 checks**.
 
 ### 5.4 RTL 블록 — slave 1개 최소 예 (CPU 37)
 
@@ -248,15 +261,18 @@ axi_interconnect u_soc_ic (
 );
 ```
 
-#### VerifCPU wrapper (추가할 RTL)
+#### VerifCPU SoC cell (repo 제공)
 
-`verif_cpu_axi_wrapper` = `verif_cpu_core` + `verif_axi_lite_master`.
+`rtl/verif_vcpu_soc_cell.v` (생성: `make -C firmware/campaign soc_cell`) — bus_type별 모듈:
 
-코어 내부 bus 분기 (`USE_SOC_BUS=1`):
+- `verif_vcpu_soc_cell_apb3`, `_ahb_lite`, `_axi4lite`, … (11종)
+- 각 cell = `u_bridge` (AMBA master) + `u_cpu` (`USE_MANIFEST_SOC_BUS=1`)
+
+코어 bus 분기:
 
 ```verilog
-// verif_cpu_core.v — 실칩에서는 bridge task 호출로 교체
-u_axi_bridge.axi_read(addr, size, data, resp);
+// Campaign TB: USE_SOC_BUS=1 → simple_soc task bus
+// Integration / chip: USE_MANIFEST_SOC_BUS=1 → g_slvN.u_bus.u_bridge.bus_read/write
 ```
 
 #### Agent + snoop
@@ -278,60 +294,29 @@ wire [1:0]  orch_phase;
 wire [31:0] orch_boot_fw;
 ```
 
-#### 인스턴스 (slave 37 한 덩어리)
+#### 인스턴스 (slave 37 — flat `g_slv36`)
 
 ```verilog
-verif_cpu_axi_wrapper #(
-  .CPU_ID (37),
-  .TAP_ID (37)
-) g_slv[37].u_vcpu (
-  .aclk    (soc_aclk),
-  .aresetn (soc_aresetn),
-  .m_axi_arvalid (s37_axi_arvalid),
-  .m_axi_arready (s37_axi_arready),
-  .m_axi_araddr  (s37_axi_araddr),
-  .m_axi_arsize  (s37_axi_arsize),
-  .m_axi_rvalid  (s37_axi_rvalid),
-  .m_axi_rready  (s37_axi_rready),
-  .m_axi_rdata   (s37_axi_rdata),
-  .m_axi_rresp   (s37_axi_rresp),
-  .m_axi_awvalid (s37_axi_awvalid),
-  .m_axi_awready (s37_axi_awready),
-  .m_axi_awaddr  (s37_axi_awaddr),
-  .m_axi_awsize  (s37_axi_awsize),
-  .m_axi_wvalid  (s37_axi_wvalid),
-  .m_axi_wready  (s37_axi_wready),
-  .m_axi_wdata   (s37_axi_wdata),
-  .m_axi_wstrb   (s37_axi_wstrb),
-  .m_axi_bvalid  (s37_axi_bvalid),
-  .m_axi_bready  (s37_axi_bready),
-  .m_axi_bresp   (s37_axi_bresp)
-);
+generate
+  begin : g_slv36
+    verif_vcpu_soc_cell_axi4lite #(.CPU_ID(37)) u_bus (
+      .ACLK(soc_aclk), .ARESETn(soc_aresetn),
+      .ARVALID(), .ARADDR(), .ARSIZE(), .RREADY(),
+      .AWVALID(), .AWADDR(), .AWSIZE(), .WVALID(), .WDATA(), .WSTRB(), .BREADY(),
+      .ARREADY(), .RVALID(), .RDATA(), .RRESP(),
+      .AWREADY(), .WREADY(), .BVALID(), .BRESP(),
+      .snoop_valid(g_slv_snoop_v[36]), .snoop_wr(g_slv_snoop_wr[36]),
+      .snoop_addr(g_slv_snoop_addr[36]), .snoop_data(g_slv_snoop_data[36])
+    );
+  end
+endgenerate
 
-verif_agent_slave #(
-  .CPU_ID   (37),
-  .CPU_NAME ("DMA_CH3"),
-  .TAP_PORT (37)
-) g_slv[37].u_ag (
-  .phase          (orch_phase),
-  .boot_fw_offset (orch_boot_fw),
-  .reset_pulse    (orch_reset),
-  .txn_valid      (tap37_valid),
-  .txn_is_write   (tap37_wr),
-  .txn_addr       (tap37_addr),
-  .txn_data       (tap37_data),
-  .icode_ptr      (`ICODE_PTR_CHECK_DMA_CTRL),
-  .slot_count     (sl_slot_count[37]),
-  .verify_pass    (sl_pass[37]),
-  .verify_fail    (sl_fail[37])
-);
-
-initial begin
-  g_slv[37].u_vcpu.u_cpu.cpu_set_hierarchy(37);
-end
-
-`CONNECT_SLV37_AXI   // 또는 include VH 매크로
+`ifdef CONNECT_SLV37_AXI4LITE
+  `CONNECT_SLV37_AXI4LITE;   // from verif_soc_bus_connect.vh
+`endif
 ```
+
+`chip_top_example_gen.vh` / `gen_tb_campaign.py`가 `soc_hierarchy_example.yaml`에서 위 패턴을 자동 생성합니다.
 
 #### 데이터 흐름 (CPU 37만)
 
@@ -377,53 +362,78 @@ Monitor tap37
 
 ---
 
-## 6. 100 slave로 확장
+## 6. N slave로 확장 (flat `g_slvN` 패턴)
 
-### 6.1 배열 bus (얇은 신호)
+iverilog XMR 제약 때문에 **배열 인덱스 `g_slv[i]` 대신 flat 블록명 `g_slv{cpu_id-1}`** 을 씁니다.  
+`gen_tb_campaign.py` / `gen_soc_bus_connect.py`가 manifest·yaml에서 자동 생성합니다.
+
+### 6.1 snoop / agent 배열 (최대 `CAMPAIGN_MAX_SLOTS`)
 
 ```verilog
-localparam N_SLV = 100;
+localparam MAX_GI = `CAMPAIGN_MAX_SLOTS;  // e.g. 64 or 100
 
-wire [N_SLV:0]       tap_valid;   // [0] = master unused
-wire [N_SLV:0]       tap_wr;
-wire [N_SLV:0][31:0] tap_addr;
-wire [N_SLV:0][31:0] tap_data;
+wire [MAX_GI-1:0]        g_slv_snoop_v;
+wire [MAX_GI-1:0]        g_slv_snoop_wr;
+wire [31:0] g_slv_snoop_addr [0:MAX_GI-1];
+wire [31:0] g_slv_snoop_data [0:MAX_GI-1];
 
-wire [N_SLV:0]       sl_pass;
-wire [N_SLV:0]       sl_fail;
+wire [31:0] sl_slot_count [0:MAX_GI-1];
+wire [31:0] sl_pass       [0:MAX_GI-1];
+wire [31:0] sl_fail       [0:MAX_GI-1];
+wire [31:0] sl_txns       [0:MAX_GI-1];
 ```
 
-### 6.2 generate
+`cpu_id=37` → 블록 `g_slv36`, snoop/agent 배열 인덱스 `[36]`.
+
+### 6.2 셀 + agent (생성물: `chip_top_example_gen.vh` / `tb_soc_manifest_gen.vh`)
 
 ```verilog
-genvar gi;
 generate
-  for (gi = 1; gi <= N_SLV; gi = gi + 1) begin : g_slv
-    verif_cpu_axi_wrapper #(.CPU_ID(gi), .TAP_ID(gi)) u_vcpu (
-      .aclk(soc_aclk), .aresetn(soc_aresetn),
-      .m_axi ( /* bundle — connect VH가 S{gi}_AXI에 매핑 */ )
+  begin : g_slv0    // cpu_id=1, SFR
+    verif_vcpu_soc_cell_apb3 #(.CPU_ID(1)) u_bus (
+      .PCLK(soc_clk), .PRESETn(soc_rstn),
+      .PADDR(), .PSEL(), /* … APB … */
+      .snoop_valid(g_slv_snoop_v[0]), .snoop_wr(g_slv_snoop_wr[0]),
+      .snoop_addr(g_slv_snoop_addr[0]), .snoop_data(g_slv_snoop_data[0])
     );
-    verif_agent_slave #(.CPU_ID(gi), .TAP_PORT(gi)) u_ag (
-      .phase(orch_phase), .boot_fw_offset(orch_boot_fw), .reset_pulse(orch_reset),
-      .txn_valid(tap_valid[gi]), .txn_is_write(tap_wr[gi]),
-      .txn_addr(tap_addr[gi]), .txn_data(tap_data[gi]),
-      ...
-    );
-    initial u_vcpu.u_cpu.cpu_set_hierarchy(gi);
+  end
+  begin : g_slv36   // cpu_id=37, DMA — 비연속 gi OK
+    verif_vcpu_soc_cell_axi4lite #(.CPU_ID(37)) u_bus ( /* … */ );
   end
 endgenerate
+
+verif_agent_slave #(.CPU_ID(1), .CPU_NAME("SFR"), .TAP_PORT(0)) u_ag_1 (
+  .phase(orch_phase), .boot_fw_offset(orch_boot_fw), .reset_pulse(orch_reset),
+  .txn_valid(g_slv_snoop_v[0]), .txn_is_write(g_slv_snoop_wr[0]),
+  .txn_addr(g_slv_snoop_addr[0]), .txn_data(g_slv_snoop_data[0]),
+  .slot_count(sl_slot_count[0]), .verify_pass(sl_pass[0]), ...
+);
 ```
 
-### 6.3 AXI 100세트
+셀 내부 계약: **`u_bus.u_bridge`** = AMBA master, **`u_bus.u_cpu`** = VCPU (`USE_MANIFEST_SOC_BUS=1`).
+
+### 6.3 CONNECT 매크로 (생성물: `verif_soc_bus_connect.vh`)
 
 ```verilog
-`include "verif_soc_axi_connect.vh"
-`APPLY_ALL_SLV_AXI_CONNECTS(u_soc_ic, g_slv)   // manifest 100행 → 100매크로
+`include "verif_soc_bus_connect.vh"
+
+`ifdef CONNECT_SLV01_APB3
+  `CONNECT_SLV01_APB3;   // S01_APB ↔ g_slv0.u_bus
+`endif
+`ifdef CONNECT_SLV37_AXI4LITE
+  `CONNECT_SLV37_AXI4LITE;  // S37_AXI ↔ g_slv36.u_bus
+`endif
+// 또는
+`APPLY_ALL_SOC_BUS_CONNECTS
 ```
 
-**generate는 인스턴스를 자동화할 뿐, 과제 SoC `Sxx_AXI` 배선은 manifest 기반 VH가 담당합니다.**
+**generate는 인스턴스만 자동화합니다. 과제 SoC `Sxx_AXI` / `Mxx_AHB` 배선은 manifest·yaml 기반 VH가 담당합니다.**
 
-### 6.4 외부 포트 수를 줄이고 싶다면 (선택)
+### 6.4 주소 decode (선택, 생성물: `chip_top_decode.vh` / `tb_soc_manifest_decode.vh`)
+
+Master/agent가 peripheral에 접근할 때 yaml `addr_base`/`addr_size`로 `g_slvN.u_bus.u_bridge`에 라우팅합니다.
+
+### 6.5 외부 포트 수를 줄이고 싶다면 (선택)
 
 CPU 100 × SoC 포트 100이 부담이면 **검증 블록 내부 arbiter** 뒤 SoC에는 **slave port 1개**만 노출하는 아키텍처도 가능합니다.  
 이 경우 동시 bus master는 arbitration 순서를 따릅니다. 문법이 아니라 **시스템 설계 선택**입니다.
@@ -466,7 +476,10 @@ CPU 100 × SoC 포트 100이 부담이면 **검증 블록 내부 arbiter** 뒤 S
 | `verif_soc_bus` task | `verif_axi_lite_master` + connect VH |
 | `stxn_valid[TAP]` | `tap_valid[tap_id]` |
 | `campaign_manifest.h` | `soc_hierarchy` manifest (확장) |
-| `gen_tb_campaign.py` | + `gen_soc_axi_connect.py` |
+| `gen_tb_campaign.py` | + `gen_soc_bus_connect.py`, `tb_soc_manifest_gen.vh` |
+| `make soc-manifest` | CONNECT_SLV* + real bridges (Phase A/B/C, 23 checks) |
+| `make soc-manifest-scale` | flat N-slave BUS_LAYOUT compile + active 3 (26 checks) |
+| `make chip-top-example` | orchestrator + agent + bridge bus R/W (16 checks) |
 
 Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다는 뜻이지, 과제 배선을 대신해 주지는 않습니다.  
 **manifest → generate → include** 절차로 과제 top에 이식합니다.
@@ -482,7 +495,14 @@ Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다
 | `include/campaign_manifest.vh` | 생성 — master hint macro |
 | `include/icode_map.vh` | 생성 — icode ptr / bus check |
 | `include/tb_full_campaign_gen.vh` | 생성 — CPU/agent generate |
-| `include/verif_soc_axi_connect.vh` | 생성 (권장) — 과제 AXI 배선 |
+| `include/verif_soc_bus_connect.vh` | 생성 — 과제 AMBA 배선 (`CONNECT_SLVxx`) |
+| `rtl/verif_vcpu_soc_cell.v` | 생성 — VCPU + bridge per bus_type |
+| `include/tb_soc_manifest_defs.vh` | 생성 — manifest pool/슬롯 매크로 |
+| `include/tb_soc_manifest_gen.vh` | 생성 — `g_slv0..N` cells + agents |
+| `include/tb_soc_manifest_scale_*.vh` | 생성 — 60-slot flat fabric + CONNECT |
+| `tb/tb_soc_manifest.v` | Integration TB (`make soc-manifest`) |
+| `tb/tb_soc_manifest_scale.v` | Scale integration TB (`make soc-manifest-scale`) |
+| `firmware/campaign/.bus_layout_stamp` | BUS_LAYOUT / NUM_SCPU 영속 (생성됨) |
 | `rtl/verif_cpu_core.v` | VCPU 코어 |
 | `rtl/verif_agent.v` | master / slave agent |
 | `README.md` | campaign TB 빌드·시뮬 |
@@ -490,14 +510,87 @@ Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다
 
 ---
 
-## 11. 다음 구현 항목 (Verilog 모델)
+## 11. Bus bridge RTL (repo 포함)
 
-실칩 통합을 repo 안에 넣으려면 아래 RTL/스크립트 추가를 권장합니다.
+| bus_type | Bridge module | Agent snoop |
+|----------|---------------|-------------|
+| `task` | `simple_soc` / `verif_soc_bus` (campaign TB) | `u_soc.stxn_*[tap]` |
+| `apb` | `rtl/verif_apb_master.v` | `snoop_valid/wr/addr/data` |
+| `ahb` | `rtl/verif_ahb_lite_master.v` | 동일 |
+| `axi` | `rtl/verif_axi_lite_master.v` | 동일 |
 
-1. `rtl/verif_axi_lite_master.v` — single-beat AXI4-Lite FSM
-2. `rtl/verif_cpu_axi_wrapper.v` — core + bridge
-3. `rtl/axi_snoop_tap.v` — passive tap → `txn_valid/addr/data/wr`
-4. `firmware/campaign/gen_soc_axi_connect.py` — manifest → connect VH
-5. `include/soc_hierarchy.h` — 100-slave manifest 스키마
+Bridge는 **`bus_read` / `bus_write` task** API를 제공합니다 (`verif_soc_bus`와 동일 시맨틱).  
+VCPU core 앞단에서 `verif_soc_bus` 대신 bridge task를 호출하도록 top을 구성합니다.
 
-Campaign TB(`simple_soc`)는 그대로 두고, 과제 top만 위 블록으로 구성하면 됩니다.
+스모크 테스트:
+
+```bash
+make soc-bus    # tb_soc_bus_bridge — APB + AHB read
+```
+
+---
+
+## 12. AHB / APB 통합 절차
+
+### 12.1 Manifest에 bus_type 추가
+
+`campaign_slots.yaml` (campaign) 또는 `soc_hierarchy_example.yaml` (실칩 예시):
+
+```yaml
+- name: SFR
+  cpu_id: 1
+  tap_port: 0
+  bus_type: apb          # axi | ahb | apb
+  bus_port: S01_APB      # 과제 interconnect 포트 prefix
+```
+
+- **Campaign TB** (`./example.sh gen`): `bus_type` 생략 시 `task` → `simple_soc` (변경 없음)
+- **실칩**: `bus_type` + `bus_port` 채움
+
+### 12.2 Connect VH 생성
+
+```bash
+cd firmware/campaign
+make config                              # manifest 갱신
+make bus_connect                         # include/verif_soc_bus_connect.vh
+make bus_connect_yaml                    # soc_hierarchy_example.yaml 기준 예시
+```
+
+생성물: `include/verif_soc_bus_connect.vh`
+
+```verilog
+`include "verif_soc_bus_connect.vh"
+`define CONNECT_SLV01_APB3  // S01_APB ↔ g_slv0.u_bus
+`CONNECT_SLV01_APB;
+// 또는
+`APPLY_ALL_SOC_BUS_CONNECTS
+```
+
+### 12.3 Slave 1개 인스턴스 패턴 (권장: soc cell)
+
+```verilog
+generate
+  begin : g_slv0   // cpu_id=1
+    verif_vcpu_soc_cell_apb3 #(.CPU_ID(1)) u_bus (
+      .PCLK(soc_pclk), .PRESETn(soc_presetn),
+      // PADDR/PSEL/... ↔ 과제 S01_APB_* via `CONNECT_SLV01_APB3`
+      .snoop_valid(tap_valid[0]), .snoop_wr(tap_wr[0]),
+      .snoop_addr(tap_addr[0]), .snoop_data(tap_data[0])
+    );
+  end
+endgenerate
+`CONNECT_SLV01_APB3
+```
+
+`u_bus` 이름은 connect VH 계약 — 변경 금지. AHB/AXI는 `verif_vcpu_soc_cell_ahb_lite` / `_axi4lite` 등으로 교체.
+
+### 12.4 정리
+
+| 질문 | 답 |
+|------|-----|
+| Campaign `simple_soc` 영향? | 없음 (`bus_type: task`) |
+| AHB/APB 가능? | ✅ bridge + `gen_soc_bus_connect.py` |
+| Agent 변경? | 없음 — snoop 4신호만 연결 |
+| tap_id vs bus_port? | 별개 — manifest에 각각 기록 |
+
+Campaign TB(`simple_soc`)는 그대로 두고, 과제 top에서 bridge + connect VH로 구성합니다.

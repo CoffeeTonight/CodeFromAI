@@ -3,7 +3,7 @@
 Build icode pool end-to-end:
   1) make -C icodes        (compile all icodes/*.c → build/icodes/*.bin)
   2) merge                 → build/icode_pool.bin
-  3) probe (tinyrv+golden) → include/icode_map.h + include/icode_map.json
+  3) probe (tinyrv via requirements.txt; static decode fallback) → icode_map headers
 """
 
 from __future__ import annotations

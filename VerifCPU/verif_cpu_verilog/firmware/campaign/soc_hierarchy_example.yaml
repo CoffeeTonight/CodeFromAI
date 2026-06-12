@@ -1,0 +1,40 @@
+# External SoC hierarchy example — copy and edit for your chip integration.
+# Generate connect VH:  python3 gen_soc_bus_connect.py
+#
+# bus_type: axi | ahb | apb  (campaign TB uses task/simple_soc — not this file)
+# bus_port: must match your interconnect RTL port prefix (e.g. S37_APB → S37_APB_PADDR)
+
+soc_name: example_chip
+
+slaves:
+  - name: SFR
+    cpu_id: 1
+    tap_port: 0
+    bus_type: apb
+    bus_port: S01_APB
+    addr_base: 0x40000000
+    addr_size: 0x1000
+
+  - name: SRAM
+    cpu_id: 2
+    tap_port: 1
+    bus_type: ahb
+    bus_port: M02_AHB
+    addr_base: 0x80000000
+    addr_size: 0x10000
+
+  - name: UART
+    cpu_id: 3
+    tap_port: 2
+    bus_type: axi
+    bus_port: S03_AXI
+    addr_base: 0xC0000000
+    addr_size: 0x1000
+
+  - name: DMA_CH3
+    cpu_id: 37
+    tap_port: 37
+    bus_type: axi
+    bus_port: S37_AXI
+    addr_base: 0x4A000000
+    addr_size: 0x1000

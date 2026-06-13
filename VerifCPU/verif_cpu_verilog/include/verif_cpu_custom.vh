@@ -55,18 +55,18 @@ task exec_custom;
       end
 
       `VSEL_SYNC: begin
-        $display("SCPU%0d > [Sync] VSYNC point reached (id=%0d)", CPU_ID, (rd != 0) ? {27'b0, rd} : imm);
+        cpu_vsync((rd != 5'd0) ? {3'b0, rd} : imm[7:0]);
       end
 
       `VSEL_ASSERT: begin
         condition = (rs1 != 0) ? val_rs1 : imm;
         if (condition != 0) begin
           assert_pass = assert_pass + 1;
-          cov_record_assert((rd != 0) ? rd[7:0] : imm[7:0], 1'b1);
+          cov_record_assert((rd != 5'd0) ? {3'b0, rd} : imm[7:0], 1'b1);
           $display("SCPU%0d > [Assert] PASS (id=%0d)", CPU_ID, (rd != 0) ? {27'b0, rd} : imm);
         end else begin
           assert_fail = assert_fail + 1;
-          cov_record_assert((rd != 0) ? rd[7:0] : imm[7:0], 1'b0);
+          cov_record_assert((rd != 5'd0) ? {3'b0, rd} : imm[7:0], 1'b0);
           $display("SCPU%0d > [Assert] ASSERTION FAILED (id=%0d)", CPU_ID, (rd != 0) ? {27'b0, rd} : imm);
         end
       end
@@ -82,6 +82,14 @@ task exec_custom;
         target = (rs1 != 0) ? val_rs1 : imm;
         if (target < 32) release_reg(target[4:0]);
         else             release_mem_addr(target);
+      end
+
+      `VSEL_HW_FORCE: begin
+        hw_force_set_impl(read_reg_fn(rs1), read_reg_fn(rd), read_reg_fn(rs2));
+      end
+
+      `VSEL_HW_RELEASE: begin
+        hw_force_clear_impl(read_reg_fn(rs1), read_reg_fn(rd));
       end
 
       `VSEL_WAVE: begin

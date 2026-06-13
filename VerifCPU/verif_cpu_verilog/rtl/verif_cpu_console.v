@@ -1,8 +1,8 @@
-// Console Debug Interface - mirrors debug/console_interface.py
+// Console Debug Interface — mirrors python_model/verif_cpu/debug/console_interface.py
+// Implementation lives in verif_cpu_core (cpu_console_dispatch / cpu_console_custom).
+// TB modules expose console_cmd() for EDA UCLI: call tb_full_campaign.console_cmd(...)
 
 module verif_cpu_console;
-
-  // cpu_id 0 = all CPUs (set by harness before dispatch)
 
   task console_dispatch;
     input [3:0]    target_id;
@@ -11,8 +11,8 @@ module verif_cpu_console;
     input [31:0]   arg1;
     input [31:0]   arg2;
     begin
-      // Implemented in harness via case on target_id calling per-cpu tasks
-      $display("[Console] dispatch id=%0d cmd=%0s", target_id, command);
+      $display("[Console] use TB console_cmd — e.g. call tb_full_campaign.console_cmd(%0d, %0s, ...)",
+               target_id, command);
     end
   endtask
 

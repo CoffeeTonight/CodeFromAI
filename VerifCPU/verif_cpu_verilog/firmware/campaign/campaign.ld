@@ -24,6 +24,11 @@ SECTIONS {
         KEEP(*(.phase_c.entry.*))
     } > REGION
 
+    .sync_barrier 0x380 : {
+        KEEP(*(.sync_barrier.entry))
+        KEEP(*(.sync_barrier.entry.*))
+    } > REGION
+
     .uart_hang 0xC00 : {
         KEEP(*(.uart_hang.entry))
         KEEP(*(.uart_hang.entry.*))

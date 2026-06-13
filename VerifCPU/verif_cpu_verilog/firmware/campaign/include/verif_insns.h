@@ -22,6 +22,9 @@
 #define vforce(rd, rs2)      EMIT32(_ENC_CUSTOM(0x15, rd, 0, rs2))
 #define vrelease(rd)           EMIT32(_ENC_CUSTOM(0x16, rd, 0, 0))
 #define vwave(cmd, arg)        EMIT32(_ENC_CUSTOM(0x17, cmd, arg, 0))
+/* rd=bus_addr reg, rs1=hier_id reg, rs2=value reg */
+#define vhw_force(addr_r, hier_r, val_r) EMIT32(_ENC_CUSTOM(0x18, addr_r, hier_r, val_r))
+#define vhw_release(addr_r, hier_r)      EMIT32(_ENC_CUSTOM(0x19, addr_r, hier_r, 0))
 
 #define rv_addi(rd, rs1, imm) EMIT32( (uint32_t)(((imm) & 0xFFF) << 20) | ((rs1) << 15) | ((rd) << 7) | 0x13u )
 #define rv_lui(rd, imm20)     EMIT32( (uint32_t)(((imm20) & 0xFFFFFu) << 12) | ((rd) << 7) | 0x37u )

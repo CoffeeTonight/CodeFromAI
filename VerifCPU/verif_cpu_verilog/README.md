@@ -16,7 +16,7 @@ Python 모델은 동일 TB 흐름을 따르는 cross-check reference이며, PASS
 make full_campaign    # = verify (권장)
 ```
 
-성공 시 체크리스트 **25/25 PASS**, `vcd_marker = 0xDEADDEAD`.
+성공 시 체크리스트 **43/43 PASS**, `vcd_marker = 0xDEADDEAD`.
 
 ## 사전 요구사항
 
@@ -66,6 +66,271 @@ verif_cpu_verilog/
 | **`simple_soc`** | 17-step `soc_init_seq`, SFR/SRAM/UART peripheral |
 
 블록 다이어그램·최근 검증 스냅샷: [architecture_example.md](architecture_example.md)
+
+## VCPU 특수 명령어 (custom-0)
+
+VCPU는 일반 RV32I 외에 **검증 전용 custom 명령**을 실행합니다. 펌웨어 작성자는 C 매크로만 쓰면 되고, RTL은 `opcode 0x0B` (custom-0) + `funct7` selector로 디코드합니다.
+
+| 참고 파일 | 내용 |
+|-----------|------|
+| `firmware/campaign/include/verif_insns.h` | 펌웨어 매크로 **SSOT** (`vstop`, `vsync`, …) |
+| `include/verif_cpu_defs.vh` | selector 상수, wave/sync 상태 정의 |
+| `firmware/campaign/cpu_*/phase_*.c` | 캠페인 실사용 예제 |
+
+### 인코딩 규칙
+
+모든 매크로는 `_ENC_CUSTOM(sel, rd, rs1, rs2)`로 한 워드를 만듭니다. 관례는 다음과 같습니다.
+
+- **selector** → `funct7` (7비트)
+- **레지스터 번호** → `rd` / `rs1` / `rs2` (각 5비트)
+- 즉시값이 필요한 경우 selector별로 `rd` 또는 `imm` 필드를 재활용합니다 (`vsync(10)` → `rd=10`)
+
+펌웨어에 삽입:
+
+```c
+#include "verif_insns.h"   // campaign 펌웨어
+#include "soc_regs.h"      // SFR_CTRL 등 주소 상수
+```
+
+### 명령 요약표
+
+| 매크로 | sel | 설명 |
+|--------|-----|------|
+| `vstop()` | `0x00` | 이 VCPU의 시뮬 스텝 종료 요청 |
+| `vwdt_set_rs1(r)` | `0x01` | WDT 한도 = `x[r]` (step 수) |
+| `vdummy_on/off()` | `0x02`/`0x03` | 버스 read를 `0xDEADDEAD`로 대체 |
+| `vwdt_pet()` | `0x04` | WDT 카운터·fired 플래그 클리어 |
+| `vtrace_enter/exit/log` | `0x10`–`0x12` | `SCPUx_FN >` 콜스택 트레이스 |
+| `vsync(id)` | `0x13` | 멀티-CPU sync barrier |
+| `vassert_id(id)` | `0x14` | 검증 assert (pass/fail 카운트) |
+| `vforce` / `vrelease` | `0x15`/`0x16` | CPU **로컬** 레지스터 force |
+| `vwave(cmd, arg)` | `0x17` | per-CPU wave 샘플 기록 |
+| `vhw_force` / `vhw_release` | `0x18`/`0x19` | **hierarchy + 버스주소** HW read force |
+
+---
+
+### 1. 실행 제어 — `vstop`, Phase 진입
+
+각 Phase 펌웨어는 고정 오프셋(`.phase_a` `@0x000`, `.phase_b` `@0x100`, …)에 배치됩니다. Phase 끝에서 **`vstop()`** 을 호출해 TB가 다음 단계로 넘어갈 수 있게 합니다.
+
+```c
+// common/phase_a.c — SoC init 후 종료
+vtrace_enter(0xA0);
+load_soc_addr(10, SFR_CTRL);
+rv_sw(11, 10, 0);          // peripheral write
+vtrace_exit(0xA0);
+vstop();                     // TB: request_sim_stop → Phase A 완료
+```
+
+`vstop` 없이 루프만 돌면 TB `run_cpu_core`가 max_steps까지 기다립니다.
+
+---
+
+### 2. WDT — `vwdt_set_rs1`, `vwdt_pet`
+
+WDT는 **step마다** 카운트합니다. 한도에 도달하면 recovery(리셋 + txn replay + dummy 진입)가 트리거됩니다.
+
+```c
+rv_addi(1, 0, 8);            // 8 step 한도
+vwdt_set_rs1(1);             // wdt_timeout = x1
+// ... 버스 접근 없이 루프만 돌면 hang ...
+vwdt_pet();                  // 정상 경로에서 watchdog 해제
+```
+
+UART 캠페인(`cpu_uart/uart_fw.c`)은 hang 구간에서 recovery를, recover 구간에서 `vwdt_pet` + `vassert`로 복구를 검증합니다.
+
+---
+
+### 3. 더미 모드 — `vdummy_on` / `vdummy_off`
+
+의심 주소·recovery 이후 **버스 read 결과를 `0xDEADDEAD`로 통일**할 때 씁니다. write는 recorder에 남고, read만 더미 값을 받습니다.
+
+```c
+vdummy_on();
+load_soc_addr(10, SFR_XZ_PORT);
+rv_lw(11, 10, 0);           // → 0xDEADDEAD (실제 SoC 값 아님)
+vdummy_off();                // 정상 read 복귀
+```
+
+Phase C SFR는 DEADDEAD/X/Z 검증과 함께 사용합니다.
+
+---
+
+### 4. 함수 트레이스 — `vtrace_*`
+
+펌웨어가 직접 `SCPU1_FN > func_16 enter` 형태 로그를 냅니다. id는 5비트(`0x00`–`0x1F`)만 인코딩됩니다.
+
+```c
+vtrace_enter(0xA0);
+vtrace_log(0xA1);            // 임의 메시지 id
+vtrace_exit(0xA0);             // enter와 쌍 맞추기 (mismatch 시 경고)
+```
+
+---
+
+### 5. Assert — `vassert_id`
+
+직전에 설정한 조건 레지스터/플래그를 검증합니다. 캠페인에서는 보통 **beq 분기로 x1에 0/1을 만든 뒤** assert합니다.
+
+```c
+rv_xor(13, 11, 12);          // 기대값과 비교
+rv_addi(1, 0, 0);
+rv_beq(13, 1, 8);            // equal이면 skip
+rv_addi(1, 0, 1);            // fail path
+vassert_id(40);              // x1!=0 이면 PASS 카운트++
+```
+
+`assert_pass` / `assert_fail`는 TB 체크리스트에서 집계됩니다.
+
+---
+
+### 6. 로컬 force — `vforce` / `vrelease`
+
+**CPU 내부 x레지스터**를 시뮬레이터가 강제합니다. SoC 버스와 무관합니다.
+
+```c
+rv_addi(20, 0, 1);           // target = x20
+rv_addi(21, 0, 0x55);        // value  = x21
+vforce(20, 21);              // x20 읽기 → 0x55, 쓰기 무시
+rv_addi(22, 0, 0);
+rv_add(22, 22, 20);          // x22 = 0x55 확인
+vrelease(20);                // 강제 해제
+```
+
+`target >= 32`이면 CPU 로컬 mem shadow에 기록되지만, 일반 펌웨어는 레지스터 쌍 `(rd, rs2)` 패턴을 씁니다.
+
+---
+
+### 7. HW force — `vhw_force` / `vhw_release` (hierarchy)
+
+**SoC 버스 read를 가로채는** 전역 force 테이블(`u_hw_force`)입니다. 엔트리 키는 **`(hier_id, bus_addr)`** 입니다.
+
+| 항목 | 설명 |
+|------|------|
+| `hier_id` | VCPU `hierarchy_id`와 일치해야 hit (캠페인: SCPU1=`0x10`, SCPU2=`0x20`, SCPU3=`0x30`) |
+| `bus_addr` | `load_soc_addr`로 만든 물리 주소 (예: `SFR_CTRL` = `0x4000_0000`) |
+| wildcard | `hier_id = 0xFFFF_FFFF` → 모든 hierarchy에 적용 |
+
+인코딩: **`vhw_force(addr_r, hier_r, val_r)`** → rd=주소 레지스터, rs1=hier 레지스터, rs2=값 레지스터.
+
+```c
+load_soc_addr(10, SFR_CTRL); // x10 = 0x40000000
+rv_addi(14, 0, 0x10);        // Hier10 — SFR VCPU hierarchy
+rv_lui(16, 0x5);             // force value 0x5000
+vhw_force(10, 14, 16);       // (0x10, 0x40000000) → 0x5000 등록
+
+rv_lw(11, 10, 0);            // SoC 대신 0x5000 반환
+// ... vassert로 검증 ...
+
+vhw_release(10, 14);         // 엔트리 삭제
+rv_lw(11, 10, 0);            // 실제 SFR_CTRL 값 (예: 0x1)
+```
+
+시뮬 로그 예:
+
+```
+[HWForce] set hier=0x00000010 addr=0x40000000 val=0x00005000
+SCPU1 > [HWForce] READ 0x40000000 => 0x00005000 (hier=0x00000010)
+[HWForce] release hier=0x00000010 addr=0x40000000
+```
+
+**`vforce`와 혼동하지 말 것**
+
+| | `vforce` | `vhw_force` |
+|---|----------|-------------|
+| 범위 | 이 CPU의 x레지스터 | 버스 주소 + hierarchy |
+| 버스 트랜잭션 | 없음 | `lw`가 force 값을 받음 |
+| 테이블 | CPU 내부 | TB `u_hw_force` (공유) |
+
+---
+
+### 8. 멀티-CPU sync — `vsync`
+
+`vsync(id)`는 **barrier 참여**입니다. TB가 먼저 `sync_configure(id, participant_mask)`를 호출해야 합니다.
+
+**캠페인 parallel barrier** (`@0x380`, id=`10`, mask=`0x7` = SCPU1+2+3):
+
+```c
+// cpu_sfr/sync_barrier.c (SRAM/UART 동일 패턴)
+vsync(CAMPAIGN_SYNC_BARRIER_ID);  // id=10, 3 CPU 모두 도착할 때까지 대기
+load_soc_addr(10, SFR_CTRL);
+rv_lw(11, 10, 0);                 // barrier 해제 후 버스 접근
+vassert_id(50);
+vstop();
+```
+
+**solo marker** (`expected[id]==0`): TB configure 없이 호출하면 대기 없이 통과합니다. Phase C에서 `vsync(1)` / `vsync(2)` / `vsync(3)` 이 이 용도입니다.
+
+TB 측 흐름 (`gen_tb_campaign.py` 생성):
+
+1. `u_sync.sync_configure(8'd10, 64'd7)`
+2. `start_cpus_parallel(0x380)` — 3 CPU 동시 PC
+3. `run_cpus_parallel(800)` — `SYNC_WAIT` 중 `sync_poll`로 resume
+
+---
+
+### 9. Wave 덤프 — `vwave`
+
+per-CPU wave 버퍼에 PC/레지스터 샘플을 쌓고, Phase 끝 `wave_export_vcd`로 파일을 냅니다.
+
+| `cmd` | 의미 |
+|-------|------|
+| `0` (`WAVE_CMD_OFF`) | 기록 중지 |
+| `1` (`WAVE_CMD_ON`) | 기록 시작 |
+| `2` (`WAVE_CMD_DUMP_ALL`) | 모든 scope |
+| `3` (`WAVE_CMD_DUMP_SCOPE`) | `arg` = hierarchy id (예: `0x10` → `Hier10`) |
+
+```c
+vwave(1, 0);        // ON
+vwave(3, 0x10);     // Hier10 scope만
+// ... 실행 ...
+vwave(0, 0);        // OFF
+```
+
+---
+
+### 10. EDA interactive 콘솔 (VCS / Xcelium)
+
+**iverilog `vvp`는 batch 전용** — Ctrl+C는 프로세스 종료이며, 시뮬 중 `call` 콘솔이 없습니다. Interactive 디버그는 VCS/Xcelium을 사용합니다.
+
+1. `+console_pause`로 VCPU setup 직후 `$stop`
+2. UCLI에서 TB task 호출
+
+```tcl
+# 도움말
+call tb_full_campaign.console_help()
+
+# SCPU1 (cid=1) 상태 / 1 step
+call tb_full_campaign.console_cmd(4'd1, "status", 0, 0, 0)
+call tb_full_campaign.console_cmd(4'd1, "step", 0, 0, 0)
+
+# custom 명령 (펌웨어와 동일 효과)
+call tb_full_campaign.console_cmd(4'd1, "vsync", 32'd10, 0, 0)
+call tb_full_campaign.console_cmd(4'd1, "vhw_force", 32'h10, 32'h40000000, 32'h5000)
+call tb_full_campaign.console_cmd(4'd1, "vhw_release", 32'h10, 32'h40000000, 0)
+
+# barrier / HW force 테이블 (플랫폼)
+call tb_full_campaign.console_sync_cmd("sync_configure", 32'd10, 32'd7, 0)
+call tb_full_campaign.console_sync_cmd("hw_force_set", 32'h10, 32'h40000000, 32'h5000)
+call tb_full_campaign.console_sync_cmd("hw_force_status", 0, 0, 0)
+
+run    # 캠페인 계속
+```
+
+`cid=0`이면 모든 active VCPU에 동일 명령을 브로드캐스트합니다. 스크립트 예: `scripts/vcs/console_probe.tcl`.
+
+콘솔 명령 전체 목록은 시뮬 정지 후 `console_help` 출력을 따릅니다 (`stall`, `resume`, `bus_write`, `wdt_pet`, …).
+
+---
+
+### 11. 새 명령 추가 시 체크리스트
+
+1. `verif_cpu_defs.vh` — `VSEL_*` 상수
+2. `include/verif_cpu_custom.vh` — `exec_custom` case
+3. `verif_insns.h` — C 매크로
+4. (선택) `cpu_console_dispatch` — EDA 콘솔 문자열
+5. `gen_tb_campaign.py` — 캠페인 시나리오·체크에 반영
+6. `make full_campaign` — regression
 
 ## SCPU 개수 — 파라미터 하나로 조정
 
@@ -194,7 +459,7 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 
 | 타깃 | 체크 | 비고 |
 |------|------|------|
-| `make full_campaign` | 25/25 + VCD | 공식 regression |
+| `make full_campaign` | 43/43 + VCD | 공식 regression |
 | `make soc-bus-all` | 11/11 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite/3/4/5 |
 | `make soc-manifest` | 23/23 | real bridge, 3 active slaves |
 | `make soc-manifest-scale` | 26/26 | 60 `g_slv*` + active 3 Phase A/B/C |
@@ -254,24 +519,23 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
   logs/full_campaign/SCPU1.vcd
 ```
 
-## 체크리스트 (25항목)
+## 체크리스트 (43항목)
 
-`tb_full_campaign.v` + `tb_full_campaign_gen.vh` 기준:
+`tb_full_campaign_gen.vh`의 `CAMPAIGN_EXECUTE`가 생성하는 `check_eq` 기준 (주요 묶음):
 
-1. Icode pool embedded (readmemh)
-2. Phase A SoC init (17-step)
-3. Master SoC init_done poll
-4. Phase B multi-slots (2 per agent)
-5. Console stall/resume
-6. SFR assertions pass / bus activity
-7. SRAM assertions pass
-8. Icode RV32 exec (SFR/SRAM/UART slot0)
-9. Icode map bus ×6
-10. Icode inter-reset / multi-icode rounds / PASS=6
-11. UART WDT hang + recovery + DEADDEAD path
-12. VCD export
+| 묶음 | 검증 내용 |
+|------|-----------|
+| Pool / Phase A | icode embed, SoC 17-step init, agent snoop, vwdt/vtrace |
+| Phase B | master `init_done`, multi-slot collect |
+| Sync parallel | 3-CPU `vsync` barrier @ `0x380`, parallel bus |
+| Console | stall / bus_write / resume |
+| Phase C SFR | RV32 ISA, `vforce`, `vhw_force`, `vwave`, DEADDEAD/X/Z |
+| Phase C SRAM | JAL/JALR, solo `vsync` |
+| Icode platform | RV32 exec, map bus ×6, inter-reset, PASS=6 |
+| UART WDT | hang → recovery → DEADDEAD, solo `vsync` |
+| VCD | main + per-CPU export |
 
-시뮬 로그에서 `[PASS]` / `Checklist: 25 passed` 를 확인합니다.
+시뮬 로그에서 `Checklist: 43 passed / 0 failed` 를 확인합니다. 세부 문자열은 `include/tb_full_campaign_gen.vh` (자동 생성)을 참고하세요.
 
 ## 설정 변경 시 주의
 

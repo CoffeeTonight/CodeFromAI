@@ -3,10 +3,11 @@
 `ifndef VERIF_CPU_DEFS_VH
 `define VERIF_CPU_DEFS_VH
 
-`define CPU_STATE_RUNNING    2'd0
-`define CPU_STATE_STALLED    2'd1
-`define CPU_STATE_RESET      2'd2
-`define CPU_STATE_DUMMY      2'd3
+`define CPU_STATE_RUNNING    3'd0
+`define CPU_STATE_STALLED    3'd1
+`define CPU_STATE_RESET      3'd2
+`define CPU_STATE_DUMMY      3'd3
+`define CPU_STATE_SYNC_WAIT  3'd4
 
 `define OPCODE_LOAD      7'h03
 `define OPCODE_STORE     7'h23
@@ -31,6 +32,10 @@
 `define VSEL_FORCE       7'h15
 `define VSEL_RELEASE     7'h16
 `define VSEL_WAVE        7'h17
+`define VSEL_HW_FORCE    7'h18
+`define VSEL_HW_RELEASE  7'h19
+
+`define HW_FORCE_HIER_ANY 32'hFFFF_FFFF
 
 `define TXN_REC_MAX       256
 `define INSTR_TRACE_MAX   512

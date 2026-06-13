@@ -12,7 +12,9 @@ module verif_cpu_core #(
   parameter USE_SHARED_BUS      = 0,
   parameter USE_SHARED_POOL     = 0,
   parameter USE_SOC_BUS         = 0,
-  parameter USE_MANIFEST_SOC_BUS = 0
+  parameter USE_MANIFEST_SOC_BUS = 0,
+  parameter USE_SHARED_SYNC     = 0,
+  parameter USE_HW_FORCE        = 0
 )(
   output reg [31:0] final_pc,
   output reg [31:0] total_steps,
@@ -27,7 +29,12 @@ module verif_cpu_core #(
 );
 
   // --- State ---
-  reg [1:0]  state;
+  reg [2:0]  state;
+  reg        sync_attached;
+  reg [7:0]  sync_wait_id;
+  reg [31:0] sync_wait_gen;
+  reg [31:0] sync_arrive_count;
+  reg [31:0] hw_force_hit_count;
   reg [31:0] pc;
   reg [31:0] hierarchy_id;
   reg        trace_enabled;
@@ -296,8 +303,12 @@ module verif_cpu_core #(
     output [31:0] data;
     reg [1:0] resp;
     reg [7:0] i;
+    reg        force_hit;
+    reg [31:0] hw_val;
+    reg        hw_hit;
     begin
       last_bus_valid = 1'b0;
+      force_hit = 1'b0;
       if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
         data = 32'hDEADDEAD;
         last_bus_valid = 1'b1;
@@ -312,12 +323,31 @@ module verif_cpu_core #(
             last_bus_addr  = addr;
             last_bus_data  = data;
             last_bus_wr    = 1'b0;
+            force_hit = 1'b1;
             if (recorder_attached)
               u_rec.recorder_record(1'b0, addr, data, size);
             i = `FORCED_MEM_MAX;
           end
         end
-        if (i != `FORCED_MEM_MAX + 1) begin
+        if (!force_hit) begin
+          hw_force_lookup_impl(addr, hw_val, hw_hit);
+          if (hw_hit) begin
+            data = sanitize_xz_fn(hw_val, "hw_forced");
+            hw_force_hit_count = hw_force_hit_count + 1;
+            if (USE_HW_FORCE)
+              tb_full_campaign.u_hw_force.hw_force_record_hit();
+            last_bus_valid = 1'b1;
+            last_bus_addr  = addr;
+            last_bus_data  = data;
+            last_bus_wr    = 1'b0;
+            force_hit = 1'b1;
+            $display("SCPU%0d > [HWForce] READ 0x%08h => 0x%08h (hier=0x%08h)",
+                     CPU_ID, addr, data, hierarchy_id);
+            if (recorder_attached)
+              u_rec.recorder_record(1'b0, addr, data, size);
+          end
+        end
+        if (!force_hit) begin
           bus_read_impl(addr, size, data, resp);
           data = sanitize_xz_fn(data, "bus_read data");
           last_bus_valid = 1'b1;
@@ -356,6 +386,70 @@ module verif_cpu_core #(
     end
   endtask
 
+  task hw_force_set_impl;
+    input [31:0] hier_id;
+    input [31:0] addr;
+    input [31:0] value;
+    begin
+      if (USE_HW_FORCE)
+        tb_full_campaign.u_hw_force.hw_force_set(hier_id, addr, value);
+      else
+        $display("SCPU%0d > [HWForce] set ignored (no HW force manager)", CPU_ID);
+    end
+  endtask
+
+  task hw_force_clear_impl;
+    input [31:0] hier_id;
+    input [31:0] addr;
+    begin
+      if (USE_HW_FORCE)
+        tb_full_campaign.u_hw_force.hw_force_clear(hier_id, addr);
+      else
+        $display("SCPU%0d > [HWForce] release ignored (no HW force manager)", CPU_ID);
+    end
+  endtask
+
+  task hw_force_lookup_impl;
+    input  [31:0] addr;
+    output [31:0] value;
+    output        hit;
+    begin
+      if (USE_HW_FORCE)
+        tb_full_campaign.u_hw_force.hw_force_lookup(hierarchy_id, addr, value, hit);
+      else begin
+        hit   = 1'b0;
+        value = 32'd0;
+      end
+    end
+  endtask
+
+  function sync_arrive_impl;
+    input [7:0] sync_id;
+    begin
+      if (sync_attached && USE_SHARED_SYNC)
+        sync_arrive_impl = tb_full_campaign.u_sync.sync_arrive(CPU_ID, sync_id);
+      else begin
+        sync_arrive_impl = 1'b0;
+        $display("SCPU%0d > [Sync] VSYNC solo id=%0d", CPU_ID, sync_id);
+      end
+    end
+  endfunction
+
+  task cpu_vsync;
+    input [7:0] sync_id;
+    reg       need_wait;
+    begin
+      sync_arrive_count = sync_arrive_count + 1;
+      need_wait = sync_arrive_impl(sync_id);
+      if (need_wait) begin
+        sync_wait_id  = sync_id;
+        sync_wait_gen = tb_full_campaign.u_sync.sync_gen_snapshot(sync_id);
+        state         = `CPU_STATE_SYNC_WAIT;
+        $display("SCPU%0d > [Sync] waiting id=%0d gen=%0d", CPU_ID, sync_id, sync_wait_gen);
+      end
+    end
+  endtask
+
   `include "verif_cpu_custom.vh"
   `include "verif_cpu_execute.vh"
 
@@ -374,6 +468,9 @@ module verif_cpu_core #(
       wdt_timeout = WDT_DEFAULT; wdt_count = 0;
       wdt_enabled = 1; wdt_fired = 0;
       wdt_attached = 0; recorder_attached = 0;
+      sync_attached = 0; sync_wait_id = 0; sync_wait_gen = 0;
+      sync_arrive_count = 0;
+      hw_force_hit_count = 0;
       log_fd = 0; fn_sp = 0; trace_depth = 0;
       instr_trace_en = 0; instr_trace_count = 0;
       cov_en = 0; wave_enabled = 0; wave_chg_count = 0;
@@ -463,6 +560,24 @@ module verif_cpu_core #(
         state = `CPU_STATE_RUNNING;
         log_msg("Resumed");
       end
+    end
+  endtask
+
+  task cpu_sync_poll_resume;
+    begin
+      if (state == `CPU_STATE_SYNC_WAIT &&
+          (!sync_attached || !USE_SHARED_SYNC ||
+           tb_full_campaign.u_sync.sync_can_resume(CPU_ID, sync_wait_id, sync_wait_gen))) begin
+        state = `CPU_STATE_RUNNING;
+        $display("SCPU%0d > [Sync] resumed id=%0d", CPU_ID, sync_wait_id);
+      end
+    end
+  endtask
+
+  task cpu_attach_sync;
+    begin
+      sync_attached = 1'b1;
+      $display("SCPU%0d > Sync manager attached", CPU_ID);
     end
   endtask
 
@@ -606,6 +721,111 @@ module verif_cpu_core #(
     begin
       $display("SCPU%0d > [Console] WDT(cpu=%0d, enabled=%0d, count=%0d/%0d, fired=%0d)",
                CPU_ID, CPU_ID, wdt_enabled, wdt_count, wdt_timeout, wdt_fired);
+    end
+  endtask
+
+  // EDA interactive console — call from VCS/Xcelium UCLI while simulation is stopped.
+  // Example: call tb_full_campaign.console_cmd(4'd1, "vsync", 32'd10, 0, 0);
+  task cpu_console_help;
+    begin
+      $display("SCPU%0d > [Console] commands:", CPU_ID);
+      $display("  control: stall resume status step");
+      $display("  bus:     bus_write bus_read  (a0=addr a1=data a2=size)");
+      $display("  wdt:     wdt_pet wdt_status");
+      $display("  custom:  vstop vwdt_set vwdt_pet vdummy_on vdummy_off");
+      $display("           vtrace_enter vtrace_exit vtrace_log vsync vassert");
+      $display("           vforce vrelease vhw_force vhw_release vwave");
+      $display("  sync:    sync_poll (resume SYNC_WAIT when barrier done)");
+    end
+  endtask
+
+  task cpu_console_custom;
+    input [8*32:1] cmd;
+    input [31:0]   a0;
+    input [31:0]   a1;
+    input [31:0]   a2;
+    begin
+      if (cmd == "vstop")
+        exec_custom(`VSEL_STOP, 5'd0, 5'd0, 5'd0, 32'd0);
+      else if (cmd == "vwdt_set")
+        exec_custom(`VSEL_WDT_SET, 5'd0, 5'd0, 5'd0, a0);
+      else if (cmd == "vwdt_pet")
+        exec_custom(`VSEL_WDT_PET, 5'd0, 5'd0, 5'd0, 32'd0);
+      else if (cmd == "vdummy_on")
+        exec_custom(`VSEL_DUMMY_ON, 5'd0, 5'd0, 5'd0, 32'd0);
+      else if (cmd == "vdummy_off")
+        exec_custom(`VSEL_DUMMY_OFF, 5'd0, 5'd0, 5'd0, 32'd0);
+      else if (cmd == "vtrace_enter")
+        exec_custom(`VSEL_TRACE_ENTER, a0[4:0], 5'd0, 5'd0, a0);
+      else if (cmd == "vtrace_exit")
+        exec_custom(`VSEL_TRACE_EXIT, a0[4:0], 5'd0, 5'd0, a0);
+      else if (cmd == "vtrace_log")
+        exec_custom(`VSEL_TRACE_LOG, a0[4:0], 5'd0, 5'd0, a0);
+      else if (cmd == "vsync")
+        exec_custom(`VSEL_SYNC, a0[4:0], 5'd0, 5'd0, a0);
+      else if (cmd == "vassert")
+        exec_custom(`VSEL_ASSERT, a0[4:0],
+                    (a1 != 0) ? 5'd1 : 5'd0, 5'd0, a1);
+      else if (cmd == "vforce") begin
+        if (a0 < 32)
+          force_reg(a0[4:0], a1);
+        else
+          force_mem_addr(a0, a1);
+      end else if (cmd == "vrelease") begin
+        if (a0 < 32)
+          release_reg(a0[4:0]);
+        else
+          release_mem_addr(a0);
+      end else if (cmd == "vhw_force")
+        hw_force_set_impl(a0, a1, a2);
+      else if (cmd == "vhw_release")
+        hw_force_clear_impl(a0, a1);
+      else if (cmd == "vwave")
+        wave_handle_command(a0[4:0], a1);
+      else
+        $display("SCPU%0d > [Console] unknown custom cmd=%0s (try cpu_console_help)",
+                 CPU_ID, cmd);
+    end
+  endtask
+
+  task cpu_console_dispatch;
+    input [8*32:1] cmd;
+    input [31:0]   a0;
+    input [31:0]   a1;
+    input [31:0]   a2;
+    reg [31:0]     bus_rdata;
+    begin
+      if (cmd == "help")
+        cpu_console_help();
+      else if (cmd == "stall")
+        cpu_stall();
+      else if (cmd == "resume")
+        cpu_resume();
+      else if (cmd == "status")
+        cpu_print_status();
+      else if (cmd == "step")
+        cpu_step();
+      else if (cmd == "bus_write")
+        cpu_console_bus_write(a0, a1, a2[2:0]);
+      else if (cmd == "bus_read") begin
+        cpu_console_bus_read(a0, a2[2:0], bus_rdata);
+        $display("SCPU%0d > [Console] bus_read data=0x%08h", CPU_ID, bus_rdata);
+      end
+      else if (cmd == "wdt_pet")
+        cpu_wdt_pet();
+      else if (cmd == "wdt_status")
+        cpu_wdt_status();
+      else if (cmd == "sync_poll")
+        cpu_sync_poll_resume();
+      else if (cmd == "vstop" || cmd == "vwdt_set" || cmd == "vwdt_pet" ||
+               cmd == "vdummy_on" || cmd == "vdummy_off" ||
+               cmd == "vtrace_enter" || cmd == "vtrace_exit" || cmd == "vtrace_log" ||
+               cmd == "vsync" || cmd == "vassert" ||
+               cmd == "vforce" || cmd == "vrelease" ||
+               cmd == "vhw_force" || cmd == "vhw_release" || cmd == "vwave")
+        cpu_console_custom(cmd, a0, a1, a2);
+      else
+        $display("SCPU%0d > [Console] unknown cmd=%0s (try help)", CPU_ID, cmd);
     end
   endtask
 
@@ -777,6 +997,7 @@ module verif_cpu_core #(
         `CPU_STATE_STALLED: st = "STALLED";
         `CPU_STATE_RESET:   st = "RESET";
         `CPU_STATE_DUMMY:   st = "DUMMY_MODE";
+        `CPU_STATE_SYNC_WAIT: st = "SYNC_WAIT";
         default: st = "UNKNOWN";
       endcase
       $display("VerifCPU(id=%0d, width=%0d, state=%0s, pc=0x%08h)",

@@ -11,12 +11,17 @@ Usage:
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "filelists"
+WORK_DIR = OUT_DIR / "work"
+TEST_DIR = OUT_DIR / "test"
 EDA_DIR = OUT_DIR / "eda"
+EDA_WORK_DIR = EDA_DIR / "work"
+EDA_TEST_DIR = EDA_DIR / "test"
 VERDI_DIR = ROOT / "scripts" / "verdi"
 VCS_DIR = ROOT / "scripts" / "vcs"
 XCELIUM_DIR = ROOT / "scripts" / "xcelium"
@@ -69,14 +74,29 @@ STUB_BUS_RTL = [
     "rtl/verif_niu_master.v",
 ]
 
-MANIFEST_RTL = RTL_CORE + [
+# --- Canonical 3-way split (prefer these over legacy per-view .f files) ---
+VCPU_STACK = RTL_CORE + [
     "rtl/verif_orchestrator.v",
     "rtl/verif_agent.v",
+    "rtl/verif_cpu_sync.v",
+    "rtl/verif_cpu_hw_force.v",
 ]
 
-CHIP_TOP_RTL = MANIFEST_RTL
+RTL_INTEGRATION = VCPU_STACK + BUS_RTL + ["rtl/verif_vcpu_soc_cell.v"]
 
+TB_DUT_RTL = RTL_INTEGRATION + [
+    "rtl/verif_soc_bus.v",
+    "rtl/simple_soc.v",
+]
+
+MANIFEST_RTL = VCPU_STACK  # alias (integration reference TBs)
+CHIP_TOP_RTL = VCPU_STACK
 SOC_CELL_RTL = ["rtl/verif_vcpu_soc_cell.v"]
+
+RTL_CONNECT_HEADERS = [
+    "include/verif_soc_bus_connect.vh",
+    "include/verif_amba_connect_macros.vh",
+]
 
 INCDIRS = [
     "+incdir+include",
@@ -132,70 +152,56 @@ RTL_ALL = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "rtl").glob("*.
 # EDA GUI views (Verdi / SimVision / Xcelium -import). Combined flist = one -f import.
 VERDI_VIEWS: list[dict] = [
     {
-        "id": "full_campaign",
-        "title": "Authoritative campaign TB",
-        "flist": "full_campaign.f",
-        "top": "tb_full_campaign",
-        "defines": [],
-        "vcd": "sim_build/tb_full_campaign.vcd",
-        "extra_vcd": [
-            "logs/full_campaign/SCPU1.vcd",
-            "logs/full_campaign/SCPU2.vcd",
-            "logs/full_campaign/SCPU3.vcd",
-        ],
-    },
-    {
-        "id": "soc_manifest",
-        "title": "Integration TB — manifest slaves",
-        "flist": "soc_manifest.f",
-        "top": "tb_soc_manifest",
-        "defines": ["+define+VERIF_MANIFEST_SOC_TB"],
-        "vcd": "sim_build/tb_soc_manifest.vcd",
-        "extra_vcd": [],
-    },
-    {
-        "id": "soc_manifest_scale",
-        "title": "Scale integration TB — BUS_LAYOUT flat g_slv[]",
-        "flist": "soc_manifest_scale.f",
-        "top": "tb_soc_manifest_scale",
-        "defines": ["+define+VERIF_MANIFEST_SCALE_TB"],
-        "vcd": "sim_build/tb_soc_manifest_scale.vcd",
-        "extra_vcd": [],
-    },
-    {
-        "id": "chip_top_example",
-        "title": "Chip top smoke — soc_hierarchy yaml",
-        "flist": "chip_top_example.f",
-        "top": "chip_top_example",
-        "defines": ["+define+VERIF_CHIP_SOC_TB"],
-        "vcd": "sim_build/chip_top_example.vcd",
-        "extra_vcd": [],
-    },
-    {
-        "id": "integration_dut",
-        "title": "Customer integration — RTL only (no TB)",
-        "flist": "integration_dut.f",
+        "id": "rtl",
+        "category": "work",
+        "title": "Work — VerifCPU RTL for customer SoC (no TB)",
+        "flist": "work/rtl.f",
         "top": "verif_vcpu_soc_cell",
         "defines": [],
         "vcd": None,
         "extra_vcd": [],
     },
     {
-        "id": "rtl_library",
-        "title": "All RTL modules (browse library)",
-        "flist": "rtl_all.f",
-        "top": "verif_cpu_core",
+        "id": "full_campaign",
+        "category": "test",
+        "title": "Test — internal regression (simple_soc + full_campaign)",
+        "flist": "test/tb_dut.f",
+        "top": "tb_full_campaign",
         "defines": [],
-        "vcd": None,
+        "vcd": "sim_build/tb_full_campaign.vcd",
+        "extra_vcd": [],
+    },
+    {
+        "id": "soc_manifest",
+        "category": "test",
+        "title": "Test — bridge wiring reference (tb_soc_manifest)",
+        "flist": "test/soc_manifest.f",
+        "top": "tb_soc_manifest",
+        "defines": ["+define+VERIF_MANIFEST_SOC_TB"],
+        "vcd": "sim_build/tb_soc_manifest.vcd",
         "extra_vcd": [],
     },
 ]
 
 # VCS / Xcelium (xrun) — per-view split: vcpu.list + rtl.list + tb_top.list
-EDA_VIEWS: list[dict] = [
+EDA_WORK_VIEWS: list[dict] = [
+    {
+        "id": "integration",
+        "category": "work",
+        "title": "Work — customer SoC (RTL only, no TB)",
+        "top": "verif_vcpu_soc_cell",
+        "tb": None,
+        "rtl": [*BUS_RTL, *SOC_CELL_RTL],
+        "defines": [],
+        "headers": RTL_CONNECT_HEADERS,
+    },
+]
+
+EDA_TEST_VIEWS: list[dict] = [
     {
         "id": "full_campaign",
-        "title": "Authoritative campaign TB",
+        "category": "test",
+        "title": "Test — authoritative campaign TB",
         "top": "tb_full_campaign",
         "tb": "tb/tb_full_campaign.v",
         "rtl": ["rtl/verif_soc_bus.v", *SOC_RTL],
@@ -204,50 +210,37 @@ EDA_VIEWS: list[dict] = [
     },
     {
         "id": "soc_manifest",
-        "title": "Integration TB — manifest slaves",
+        "category": "test",
+        "title": "Test — integration TB (manifest slaves)",
         "top": "tb_soc_manifest",
         "tb": "tb/tb_soc_manifest.v",
-        "rtl": ["rtl/verif_orchestrator.v", "rtl/verif_agent.v", *BUS_RTL, *SOC_CELL_RTL],
+        "rtl": [*BUS_RTL, *SOC_CELL_RTL],
         "defines": ["+define+VERIF_MANIFEST_SOC_TB"],
         "headers": GEN_HEADERS_MANIFEST,
     },
     {
         "id": "soc_manifest_scale",
-        "title": "Scale integration TB",
+        "category": "test",
+        "title": "Test — scale integration TB",
         "top": "tb_soc_manifest_scale",
         "tb": "tb/tb_soc_manifest_scale.v",
-        "rtl": ["rtl/verif_orchestrator.v", "rtl/verif_agent.v", *BUS_RTL, *SOC_CELL_RTL],
+        "rtl": [*BUS_RTL, *SOC_CELL_RTL],
         "defines": ["+define+VERIF_MANIFEST_SCALE_TB"],
         "headers": GEN_HEADERS_MANIFEST_SCALE,
     },
     {
         "id": "chip_top_example",
-        "title": "Chip top smoke",
+        "category": "test",
+        "title": "Test — chip top smoke",
         "top": "chip_top_example",
         "tb": "tb/chip_top_example.v",
-        "rtl": [
-            "rtl/verif_orchestrator.v",
-            "rtl/verif_agent.v",
-            *BUS_RTL,
-            *STUB_BUS_RTL,
-            *SOC_CELL_RTL,
-        ],
+        "rtl": [*BUS_RTL, *STUB_BUS_RTL, *SOC_CELL_RTL],
         "defines": ["+define+VERIF_CHIP_SOC_TB"],
         "headers": GEN_HEADERS_CHIP_TOP,
     },
-    {
-        "id": "integration_dut",
-        "title": "Customer chip integration (RTL only)",
-        "top": "verif_vcpu_soc_cell",
-        "tb": None,
-        "rtl": ["rtl/verif_orchestrator.v", "rtl/verif_agent.v", *BUS_RTL, *SOC_CELL_RTL],
-        "defines": [],
-        "headers": [
-            "include/verif_soc_bus_connect.vh",
-            "include/verif_amba_connect_macros.vh",
-        ],
-    },
 ]
+
+EDA_VIEWS = EDA_WORK_VIEWS + EDA_TEST_VIEWS
 
 _VERDI_VCD: dict[str, str | None] = {v["id"]: v.get("vcd") for v in VERDI_VIEWS}
 
@@ -294,6 +287,12 @@ def _emit_files(
     return "\n".join(lines) + "\n"
 
 
+def _flist_rel(category: str, name: str) -> str:
+    """Relative path under filelists/ (e.g. work/rtl.f)."""
+    base = WORK_DIR if category == "work" else TEST_DIR
+    return f"{base.name}/{name}"
+
+
 def _emit_verdi_combined(source_flist: str, *, top: str) -> str:
     """Single filelist for Verdi GUI: Import Design → Add one .f."""
     src = (OUT_DIR / source_flist).read_text(encoding="utf-8")
@@ -328,7 +327,8 @@ def _emit_verdi_launcher(view: dict) -> str:
     top = view["top"]
     vcd = view.get("vcd")
     extra = view.get("extra_vcd") or []
-    combined = f"filelists/verdi_{vid}.f"
+    cat = view.get("category", "test")
+    combined = f"filelists/{cat}/verdi_{vid}.f"
     lines = [
         "#!/usr/bin/env bash",
         f"# Open {view['title']} in Synopsys Verdi (source + optional VCD).",
@@ -393,9 +393,10 @@ def _emit_vcs_compile() -> str:
         "case \"$VIEW\" in",
     ]
     for view in VERDI_VIEWS:
+        cat = view.get("category", "test")
         lines.append(
             f'  {view["id"]}) TOP="${{VERDI_TOP:-{view["top"]}}}"; '
-            f'FLIST="filelists/verdi_{view["id"]}.f" ;;'
+            f'FLIST="filelists/{cat}/verdi_{view["id"]}.f" ;;'
         )
     lines.extend([
         "  *)",
@@ -439,9 +440,18 @@ def _emit_list_file(
     return "\n".join(lines)
 
 
+def _eda_category(view: dict) -> str:
+    return view.get("category", "test")
+
+
+def _eda_view_prefix(view: dict) -> str:
+    return f"eda/{_eda_category(view)}/{view['id']}"
+
+
 def _emit_eda_view(view: dict, *, optional: set[str]) -> list[tuple[str, str]]:
     vid = view["id"]
-    out = EDA_DIR / vid
+    cat = _eda_category(view)
+    out = (EDA_WORK_DIR if cat == "work" else EDA_TEST_DIR) / vid
     out.mkdir(parents=True, exist_ok=True)
     specs: list[tuple[str, str]] = []
 
@@ -489,14 +499,14 @@ def _emit_eda_view(view: dict, *, optional: set[str]) -> list[tuple[str, str]]:
             ),
             encoding="utf-8",
         )
-        specs.append((f"eda/{vid}/tb_top.list", "empty (integration DUT)"))
+        specs.append((f"{_eda_view_prefix(view)}/tb_top.list", "empty (integration DUT)"))
 
     for name, title, paths, note in files:
         (out / name).write_text(
             _emit_list_file(paths, title=title, note=note),
             encoding="utf-8",
         )
-        specs.append((f"eda/{vid}/{name}", title))
+        specs.append((f"{_eda_view_prefix(view)}/{name}", title))
 
     (out / "defines.list").write_text(
         _emit_list_file(
@@ -507,18 +517,18 @@ def _emit_eda_view(view: dict, *, optional: set[str]) -> list[tuple[str, str]]:
         ),
         encoding="utf-8",
     )
-    specs.append((f"eda/{vid}/defines.list", "defines + header deps (comments)"))
+    specs.append((f"{_eda_view_prefix(view)}/defines.list", "defines + header deps (comments)"))
 
     (out / "top.txt").write_text(f"{top}\n", encoding="utf-8")
-    specs.append((f"eda/{vid}/top.txt", f"top module: {top}"))
+    specs.append((f"{_eda_view_prefix(view)}/top.txt", f"top module: {top}"))
 
     vcd = _VERDI_VCD.get(vid)
     if vcd:
         (out / "vcd.txt").write_text(f"{vcd}\n", encoding="utf-8")
-        specs.append((f"eda/{vid}/vcd.txt", "expected VCD path (after sim)"))
+        specs.append((f"{_eda_view_prefix(view)}/vcd.txt", "expected VCD path (after sim)"))
 
     # Master manifest — paths from package root (cwd = verif_cpu_verilog/)
-    eda_prefix = f"filelists/eda/{vid}"
+    eda_prefix = f"filelists/{_eda_view_prefix(view)}"
     manifest = [
         f"# EDA compile manifest — {view['title']}",
         "# Order: incdirs → defines → vcpu → rtl → tb_top",
@@ -534,7 +544,7 @@ def _emit_eda_view(view: dict, *, optional: set[str]) -> list[tuple[str, str]]:
     if tb:
         manifest.append(f"-F {eda_prefix}/tb_top.list")
     (out / "manifest.list").write_text("\n".join(manifest) + "\n", encoding="utf-8")
-    specs.append((f"eda/{vid}/manifest.list", "ordered -F bundle"))
+    specs.append((f"{_eda_view_prefix(view)}/manifest.list", "ordered -F bundle"))
 
     return specs
 
@@ -544,6 +554,15 @@ def _eda_view_ids() -> str:
 
 
 def _emit_eda_lib_sh() -> str:
+    case_lines = []
+    for v in EDA_VIEWS:
+        case_lines.append(
+            f'    {v["id"]}) echo "filelists/{_eda_view_prefix(v)}" ;;'
+        )
+    case_lines.append(
+        '    integration_dut) echo "filelists/eda/work/integration" ;;'
+    )
+    case_body = "\n".join(case_lines)
     return "\n".join([
         "#!/usr/bin/env bash",
         "# Shared helpers for generated simulator run scripts.",
@@ -551,19 +570,27 @@ def _emit_eda_lib_sh() -> str:
         "",
         f'EDA_VIEWS="{_eda_view_ids()}"',
         "",
+        "eda_prefix() {",
+        '  local view="$1"',
+        "  case \"$view\" in",
+        case_body,
+        "    *)",
+        '      echo "[eda] unknown view: $view" >&2',
+        '      echo "[eda] views: $EDA_VIEWS" >&2',
+        "      return 1 ;;",
+        "  esac",
+        "}",
+        "",
         "eda_require_view() {",
         '  local view="$1"',
-        '  local m="filelists/eda/${view}/manifest.list"',
-        '  if [[ ! -f "$m" ]]; then',
-        '    echo "[eda] missing $m — run: ./example.sh gen" >&2',
-        '    echo "[eda] views: $EDA_VIEWS" >&2',
+        '  local p',
+        '  p="$(eda_prefix "$view")" || return 1',
+        '  if [[ ! -f "$p/manifest.list" ]]; then',
+        '    echo "[eda] missing $p/manifest.list — run: ./example.sh gen" >&2',
         "    return 1",
         "  fi",
         "}",
         "",
-        "eda_prefix() {",
-        '  echo "filelists/eda/$1"',
-        "}",
         "",
         "eda_top() {",
         '  cat "$(eda_prefix "$1")/top.txt"',
@@ -791,7 +818,7 @@ def _emit_xcelium_run() -> str:
         "",
         'eda_require_view "$VIEW"',
         'TOP="${XRUN_TOP:-$(eda_top "$VIEW")}"',
-        'MANIFEST="filelists/eda/${VIEW}/manifest.list"',
+        'MANIFEST="$(eda_prefix "$VIEW")/manifest.list"',
         'OUTDIR="sim_build/xcelium_${VIEW}"',
         'mkdir -p "$OUTDIR"',
         "",
@@ -939,7 +966,7 @@ def _emit_vcs_compile_eda() -> str:
         '  VIEW="$MODE"',
         "fi",
         "",
-        'MANIFEST="filelists/eda/${VIEW}/manifest.list"',
+        'MANIFEST="$(eda_prefix "$VIEW")/manifest.list"',
         'TOPFILE="filelists/eda/${VIEW}/top.txt"',
         "",
         'if ! command -v "$VCS" >/dev/null 2>&1; then',
@@ -975,7 +1002,7 @@ def _emit_xcelium_xrun() -> str:
         'XRUN="${XRUN:-xrun}"',
         'VIEW="${1:-full_campaign}"',
         "",
-        'MANIFEST="filelists/eda/${VIEW}/manifest.list"',
+        'MANIFEST="$(eda_prefix "$VIEW")/manifest.list"',
         'TOPFILE="filelists/eda/${VIEW}/top.txt"',
         "",
         'if ! command -v "$XRUN" >/dev/null 2>&1; then',
@@ -1042,8 +1069,61 @@ def _check_paths(paths: list[str], optional: set[str] | None = None) -> list[str
     return paths
 
 
+def _clean_stale_eda_flat() -> None:
+    """Drop legacy eda/<view>/ dirs (before work/test split)."""
+    if not EDA_DIR.is_dir():
+        return
+    keep = {"work", "test", "README.txt"}
+    for child in EDA_DIR.iterdir():
+        if child.name in keep or not child.is_dir():
+            continue
+        shutil.rmtree(child)
+
+
+def _write_category_readme(path: Path, *, title: str, body: list[str]) -> None:
+    path.write_text(
+        "\n".join([f"# {title}", ""] + body + [""]),
+        encoding="utf-8",
+    )
+
+
+def _write_flist(
+    dest: Path,
+    rel_spec: str,
+    *,
+    title: str,
+    rtl: list[str],
+    tb: str | None = None,
+    defines: list[str] | None = None,
+    headers: list[str] | None = None,
+) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    text = _emit_files(
+        rtl,
+        title=title,
+        note=f"iverilog: iverilog -g2012 -f filelists/incdirs.f -f filelists/{rel_spec}",
+        tb=tb,
+        defines=defines,
+        headers=headers,
+    )
+    dest.write_text(text, encoding="utf-8")
+
+
+def _root_alias(name: str, target: str, title: str) -> str:
+    text = "\n".join([
+        f"// Legacy alias — use filelists/{target}",
+        f"// {title}",
+        f"// iverilog -g2012 -f filelists/incdirs.f -f filelists/{target}",
+        "",
+    ])
+    (OUT_DIR / name).write_text(text, encoding="utf-8")
+    return f"{name} → {target}"
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
+    TEST_DIR.mkdir(parents=True, exist_ok=True)
     opt = set(GEN_HEADERS_COMMON + GEN_HEADERS_CAMPAIGN + GEN_HEADERS_MANIFEST
               + GEN_HEADERS_MANIFEST_SCALE + GEN_HEADERS_CHIP_TOP + FW_ARTIFACTS
               + SOC_CELL_RTL)
@@ -1051,86 +1131,111 @@ def main() -> int:
     specs: list[tuple[str, str]] = []
 
     (OUT_DIR / "incdirs.f").write_text("\n".join(_emit_incdirs()), encoding="utf-8")
-    specs.append(("incdirs.f", "include dirs"))
+    specs.append(("incdirs.f", "shared include dirs"))
 
-    groups = [
-        ("rtl_core.f", "Core VCPU RTL (no SoC)", RTL_CORE, None, None, None),
-        ("rtl_soc.f", "Campaign SoC model", SOC_RTL + ["rtl/verif_soc_bus.v"], None, None, None),
-        ("rtl_bus.f", "AMBA bridge + simple slave models", BUS_RTL, None, None, None),
-        ("rtl_bus_all.f", "AMBA bridges + manifest-only stubs", BUS_RTL + STUB_BUS_RTL, None, None, None),
-        ("rtl_soc_cell.f", "Generated VCPU+bridge cells", SOC_CELL_RTL, None, None, None),
-        ("rtl_all.f", "All RTL under rtl/ (EDA library browse)", RTL_ALL, None, None, None),
+    work_groups = [
         (
-            "full_campaign.f",
-            "Authoritative campaign TB (./example.sh default)",
-            _check_paths(FULL_RTL, opt),
+            "vcpu.f",
+            "Work — VCPU IP (core + pool + orchestrator + agent)",
+            _check_paths(VCPU_STACK, opt),
+            None,
+            None,
+            None,
+        ),
+        (
+            "rtl.f",
+            "Work — real SoC attach (vcpu + bridges + soc_cell + connect VH)",
+            _check_paths(RTL_INTEGRATION, opt),
+            None,
+            None,
+            RTL_CONNECT_HEADERS,
+        ),
+    ]
+    test_groups = [
+        (
+            "tb_dut.f",
+            "Test — internal regression (rtl + simple_soc + tb_full_campaign)",
+            _check_paths(TB_DUT_RTL, opt),
             "tb/tb_full_campaign.v",
             None,
-            GEN_HEADERS_CAMPAIGN,
+            GEN_HEADERS_CAMPAIGN + FW_ARTIFACTS,
         ),
         (
             "soc_manifest.f",
-            "Integration TB — active slaves + real bridges",
-            _check_paths(MANIFEST_RTL + BUS_RTL + SOC_CELL_RTL, opt),
+            "Test — bridge wiring reference (tb_soc_manifest)",
+            _check_paths(RTL_INTEGRATION, opt),
             "tb/tb_soc_manifest.v",
             ["+define+VERIF_MANIFEST_SOC_TB"],
-            GEN_HEADERS_MANIFEST,
-        ),
-        (
-            "soc_manifest_scale.f",
-            "Scale integration TB — BUS_LAYOUT flat g_slv[]",
-            _check_paths(MANIFEST_RTL + BUS_RTL + SOC_CELL_RTL, opt),
-            "tb/tb_soc_manifest_scale.v",
-            ["+define+VERIF_MANIFEST_SCALE_TB"],
-            GEN_HEADERS_MANIFEST_SCALE,
-        ),
-        (
-            "chip_top_example.f",
-            "Chip top smoke — soc_hierarchy yaml",
-            _check_paths(CHIP_TOP_RTL + BUS_RTL + STUB_BUS_RTL + SOC_CELL_RTL, opt),
-            "tb/chip_top_example.v",
-            ["+define+VERIF_CHIP_SOC_TB"],
-            GEN_HEADERS_CHIP_TOP,
-        ),
-        (
-            "integration_dut.f",
-            "Customer chip integration — RTL only (no TB, no simple_soc)",
-            _check_paths(MANIFEST_RTL + BUS_RTL + SOC_CELL_RTL, opt),
-            None,
-            None,
-            [
-                "include/verif_soc_bus_connect.vh",
-                "include/verif_amba_connect_macros.vh",
-            ],
+            GEN_HEADERS_MANIFEST + FW_ARTIFACTS,
         ),
     ]
 
-    for name, title, rtl, tb, defines, headers in groups:
-        text = _emit_files(
-            rtl,
-            title=title,
-            note=f"iverilog example: iverilog -g2012 -I include -f filelists/{name}",
-            tb=tb,
-            defines=defines,
-            headers=headers,
+    for name, title, rtl, tb, defines, headers in work_groups:
+        rel = f"work/{name}"
+        _write_flist(
+            WORK_DIR / name, rel,
+            title=title, rtl=rtl, tb=tb, defines=defines, headers=headers,
         )
-        (OUT_DIR / name).write_text(text, encoding="utf-8")
-        specs.append((name, title))
+        specs.append((rel, title))
 
-    # Verdi combined imports (incdirs + defines + RTL inlined from sibling .f)
+    for name, title, rtl, tb, defines, headers in test_groups:
+        rel = f"test/{name}"
+        _write_flist(
+            TEST_DIR / name, rel,
+            title=title, rtl=rtl, tb=tb, defines=defines, headers=headers,
+        )
+        specs.append((rel, title))
+
+    for alias_line in (
+        _root_alias("vcpu.f", "work/vcpu.f", "moved to work/"),
+        _root_alias("rtl.f", "work/rtl.f", "moved to work/"),
+        _root_alias("tb_dut.f", "test/tb_dut.f", "moved to test/"),
+        _root_alias("integration_dut.f", "work/rtl.f", "same as work/rtl.f"),
+        _root_alias("full_campaign.f", "test/tb_dut.f", "same as test/tb_dut.f"),
+        _root_alias("soc_manifest.f", "test/soc_manifest.f", "moved to test/"),
+    ):
+        specs.append((alias_line.split(" → ")[0], alias_line))
+
+    # Verdi combined imports under work/ or test/
     for view in VERDI_VIEWS:
         src = view["flist"]
-        if not (OUT_DIR / src).is_file():
+        src_path = OUT_DIR / src
+        if not src_path.is_file():
             continue
-        combined_name = f"verdi_{view['id']}.f"
-        (OUT_DIR / combined_name).write_text(
+        cat = view.get("category", "test")
+        combined_rel = f"{cat}/verdi_{view['id']}.f"
+        combined_path = (WORK_DIR if cat == "work" else TEST_DIR) / f"verdi_{view['id']}.f"
+        combined_path.write_text(
             _emit_verdi_combined(src, top=view["top"]),
             encoding="utf-8",
         )
-        specs.append((combined_name, f"Verdi import — {view['title']}"))
+        specs.append((combined_rel, f"Verdi — {view['title']}"))
+
+    _write_category_readme(
+        WORK_DIR / "README.txt",
+        title="work — 회사 SoC 통합 (TB 없음)",
+        body=[
+            "vcpu.f  VCPU IP만",
+            "rtl.f   vcpu + AMBA bridge + verif_vcpu_soc_cell (+ connect.vh)",
+            "",
+            "iverilog -g2012 -f filelists/incdirs.f -f filelists/work/rtl.f",
+            "VCS/xrun view: integration  (filelists/eda/work/integration/)",
+        ],
+    )
+    _write_category_readme(
+        TEST_DIR / "README.txt",
+        title="test — 패키지 내부 검증·참고",
+        body=[
+            "tb_dut.f        ./example.sh sim (simple_soc + full_campaign)",
+            "soc_manifest.f  make soc-manifest (real bridge 배선 참고)",
+            "",
+            "iverilog -g2012 -f filelists/incdirs.f -f filelists/test/tb_dut.f",
+        ],
+    )
 
     # EDA split lists (VCS / Xcelium)
     EDA_DIR.mkdir(parents=True, exist_ok=True)
+    _clean_stale_eda_flat()
     for view in EDA_VIEWS:
         specs.extend(_emit_eda_view(view, optional=opt))
     (EDA_DIR / "README.txt").write_text(_emit_eda_readme(), encoding="utf-8")
@@ -1150,39 +1255,47 @@ def main() -> int:
     # Master index for human / scripting
     index_lines = [
         "# VerifCPU filelists — generated by tools/gen_filelist.py",
-        "# Run from verif_cpu_verilog/:  iverilog -g2012 -f filelists/<name>.f",
+        "# Run from verif_cpu_verilog/",
+        "",
+        "# === work/  (회사 SoC 통합용 — TB 없음) ===",
+        "#   work/vcpu.f   VCPU IP만",
+        "#   work/rtl.f    vcpu + AMBA bridge + soc_cell (+ connect.vh)",
+        "#   iverilog -g2012 -f filelists/incdirs.f -f filelists/work/rtl.f",
+        "",
+        "# === test/  (패키지 내부 검증·참고 TB) ===",
+        "#   test/tb_dut.f        ./example.sh sim (simple_soc + full_campaign)",
+        "#   test/soc_manifest.f  make soc-manifest (bridge 배선 참고)",
+        "",
+        "# EDA split: filelists/eda/work/integration/*.list",
+        "#             filelists/eda/test/<view>/*.list",
         "",
     ]
     for name, title in specs:
-        index_lines.append(f"#   {name:<28} {title}")
+        if name.endswith(".f") or "/" in name:
+            index_lines.append(f"#   {name:<32} {title}")
     index_lines.extend([
         "",
-        "# iverilog:",
-        "#   iverilog -g2012 -f filelists/incdirs.f -f filelists/full_campaign.f -o sim.vvp",
-        "",
-        "# Verdi (after ./example.sh gen; run sim first for VCD):",
-        "#   ./scripts/verdi/full_campaign.sh",
-        "#   verdi -sv -f filelists/verdi_full_campaign.f -top tb_full_campaign -ssf sim_build/tb_full_campaign.vcd",
-        "",
-        "# See scripts/verdi/README.txt for all views.",
-        "",
-        "# VCS / Xcelium (split lists per view):",
-        "#   filelists/eda/full_campaign/{vcpu,rtl,tb_top}.list",
-        "#   ./scripts/vcs/compile.sh full_campaign",
-        "#   ./scripts/xcelium/xrun.sh full_campaign",
-        "#   ./scripts/iverilog/run.sh full_campaign",
-        "#   ./scripts/verilator/run.sh full_campaign",
-        "# See filelists/eda/README.txt and scripts/README.txt",
+        "# Verdi: ./scripts/verdi/rtl.sh | full_campaign.sh | soc_manifest.sh",
         "",
     ])
     (OUT_DIR / "README.txt").write_text("\n".join(index_lines), encoding="utf-8")
 
+    for stale in (
+        "verdi_full_campaign.f",
+        "verdi_rtl.f",
+        "verdi_soc_manifest.f",
+    ):
+        p = OUT_DIR / stale
+        if p.is_file():
+            p.unlink()
+
     print(f"[filelist] Wrote {OUT_DIR}/ ({len(specs)} lists)")
     for name, _ in specs:
         print(f"  {OUT_DIR / name}")
-    print(f"[filelist] EDA split lists → {EDA_DIR}/")
+    print(f"[filelist] EDA work → {EDA_WORK_DIR}/")
+    print(f"[filelist] EDA test → {EDA_TEST_DIR}/")
     for view in EDA_VIEWS:
-        print(f"  {EDA_DIR / view['id']}/{{vcpu,rtl,tb_top}}.list")
+        print(f"  {EDA_DIR / _eda_category(view) / view['id']}/{{vcpu,rtl,tb_top}}.list")
     print(f"[filelist] Verdi launchers → {VERDI_DIR}/")
     for view in VERDI_VIEWS:
         print(f"  {VERDI_DIR / (view['id'] + '.sh')}")

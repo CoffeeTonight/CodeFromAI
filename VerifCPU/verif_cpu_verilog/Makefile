@@ -9,7 +9,9 @@ RTL = rtl/verif_cpu_bus.v \
 
 SOC_RTL = rtl/simple_soc.v \
           rtl/verif_orchestrator.v \
-          rtl/verif_agent.v
+          rtl/verif_agent.v \
+          rtl/verif_cpu_sync.v \
+          rtl/verif_cpu_hw_force.v
 
 FULL_RTL = $(RTL) \
            rtl/verif_soc_bus.v \

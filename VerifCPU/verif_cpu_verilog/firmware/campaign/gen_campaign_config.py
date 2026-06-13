@@ -389,8 +389,11 @@ def emit_layout(slots: list[dict], master: dict, max_slots: int, stride: int) ->
         "#define OFF_PHASE_A       0x000u",
         "#define OFF_PHASE_B       0x100u",
         "#define OFF_PHASE_C       0x200u",
+        "#define OFF_SYNC_BARRIER  0x380u",
         "#define OFF_UART_HANG     0xC00u",
         "#define OFF_UART_RECOVER  0xD00u",
+        "",
+        "#define CAMPAIGN_SYNC_BARRIER_ID  10u",
         "",
         f"#define REGION_SIZE       0x{REGION_BYTES:04X}u",
         f"#define POOL_WORD_STRIDE  0x{stride:04X}u",
@@ -471,6 +474,13 @@ def emit_cpus_mk(slots: list[dict], master: dict) -> None:
     print(f"[config] Wrote {OUT_CPUS_MK}")
 
 
+SYNC_BARRIER_SRC = {
+    "sfr": "cpu_sfr/sync_barrier.c",
+    "sram": "cpu_sram/sync_barrier.c",
+    "uart": "cpu_uart/sync_barrier.c",
+}
+
+
 def emit_cpu_rules_mk(slots: list[dict], master: dict) -> None:
     """Per-CPU firmware build rules (generated)."""
     lines = [
@@ -481,16 +491,26 @@ def emit_cpu_rules_mk(slots: list[dict], master: dict) -> None:
     def _emit_cpu_rules(name: str, phase_c: str, role: str) -> None:
         if role == "noop":
             return
+        sync_src = SYNC_BARRIER_SRC.get(role)
+        sync_dep = f" {sync_src}" if sync_src else ""
+        sync_compile: list[str] = []
+        sync_link = ""
+        if sync_src:
+            sync_compile = [
+                f"\t$(CC) $(CFLAGS) -c {sync_src} -o $(BUILD_DIR)/{name}_sync.o",
+            ]
+            sync_link = f" $(BUILD_DIR)/{name}_sync.o"
         lines.extend([
             f"{name}: $(BUILD_DIR)/{name}.bin",
             "",
-            f"$(BUILD_DIR)/{name}.elf: $(COMMON) {phase_c} campaign.ld | $(BUILD_DIR)",
+            f"$(BUILD_DIR)/{name}.elf: $(COMMON) {phase_c}{sync_dep} campaign.ld | $(BUILD_DIR)",
             f'\t@echo "Building {name} campaign firmware..."',
             f"\t$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/{name}_phase_a.o",
             f"\t$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/{name}_phase_b.o",
             f"\t$(CC) $(CFLAGS) -c {phase_c} -o $(BUILD_DIR)/{name}_phase_c.o",
+            *sync_compile,
             f"\t$(LD) $(LDFLAGS) -o $@ $(BUILD_DIR)/{name}_phase_a.o "
-            f"$(BUILD_DIR)/{name}_phase_b.o $(BUILD_DIR)/{name}_phase_c.o",
+            f"$(BUILD_DIR)/{name}_phase_b.o $(BUILD_DIR)/{name}_phase_c.o{sync_link}",
             f"\t$(OBJDUMP) -d $@ > $(BUILD_DIR)/{name}.dis",
             "",
             f"$(BUILD_DIR)/{name}.bin: $(BUILD_DIR)/{name}.elf",

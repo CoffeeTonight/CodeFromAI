@@ -94,10 +94,24 @@ def parse_cpus_mk(path: str) -> list[dict]:
     return cpus
 
 
+CAMPAIGN_SYNC_BARRIER_ID = 10
+
+
+def sync_participant_mask(cpus: list[dict]) -> int:
+    mask = 0
+    for c in cpus:
+        mask |= 1 << (c["id"] - 1)
+    return mask
+
+
 def cpu_hdl(cpu_id: int) -> str:
     if cpu_id == 0:
         return "u_mstr_cpu"
     return f"g_cpu[{cpu_id - 1}].u_cpu"
+
+
+def cpu_hierarchy_hex(cpu_id: int) -> str:
+    return f"32'h{(cpu_id * 0x10):08X}"
 
 
 def agent_hdl(cpu_id: int) -> str:
@@ -1241,7 +1255,8 @@ def emit_vcpu_generate(max_slots: int) -> list[str]:
         "  generate",
         f"    for (gci = 0; gci < `CAMPAIGN_MAX_SLOTS; gci = gci + 1) begin : g_cpu",
         "      verif_cpu_core #(",
-        "        .CPU_ID(gci + 1), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(1)",
+        "        .CPU_ID(gci + 1), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),"
+        " .USE_SOC_BUS(1), .USE_SHARED_SYNC(1), .USE_HW_FORCE(1)",
         "      ) u_cpu (",
         "        .final_pc(), .total_steps(), .sim_stop(),",
         "        .assert_pass(), .assert_fail(), .bus_txn_count(),",
@@ -1322,12 +1337,28 @@ def emit_setup_cpu_task(cpus: list[dict]) -> list[str]:
             f"          {hdl}.cpu_attach_wdt(wdt_to);",
             f"          {hdl}.cpu_attach_coverage();",
             f"          {hdl}.cpu_attach_wave_dumper();",
+            f"          {hdl}.cpu_attach_sync();",
+            f"          {hdl}.cpu_set_hierarchy({cpu_hierarchy_hex(c['id'])});",
             f'          $sformat(logpath, "%0s/SCPU{c["id"]}.log", log_dir);',
             f"          {hdl}.cpu_open_dedicated_log(logpath);",
             "        end",
         ])
     lines.extend(["        default: ;", "      endcase", "    end", "  endtask", ""])
     return lines
+
+
+def _emit_cpu_run_loop(hdl: str) -> list[str]:
+    return [
+        "          for (step = 0; step < max_steps; step = step + 1) begin",
+        f"            if ({hdl}.request_sim_stop || {hdl}.sim_stop)",
+        "              step = max_steps;",
+        f"            else if ({hdl}.state == `CPU_STATE_SYNC_WAIT)",
+        f"              {hdl}.cpu_sync_poll_resume();",
+        f"            else if ({hdl}.state == `CPU_STATE_RUNNING ||",
+        f"                     {hdl}.state == `CPU_STATE_DUMMY)",
+        f"              {hdl}.cpu_step();",
+        "          end",
+    ]
 
 
 def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
@@ -1356,13 +1387,7 @@ def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
                 f"            {hdl}.wdt_count = 0;",
                 f"            {hdl}.wdt_fired = 0;",
                 "          end",
-                "          for (step = 0; step < max_steps; step = step + 1) begin",
-                f"            if ({hdl}.request_sim_stop || {hdl}.sim_stop)",
-                "              step = max_steps;",
-                f"            else if ({hdl}.state == `CPU_STATE_RUNNING ||",
-                f"                     {hdl}.state == `CPU_STATE_DUMMY)",
-                f"              {hdl}.cpu_step();",
-                "          end",
+                *_emit_cpu_run_loop(hdl),
                 f"          if ({hdl}.recovery_count > rec_before)",
                 "            recovered = 1;",
             ])
@@ -1374,17 +1399,265 @@ def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
                 f"          {hdl}.sim_stop = 0;",
                 f"          {hdl}.wdt_count = 0;",
                 f"          {hdl}.wdt_fired = 0;",
-                "          for (step = 0; step < max_steps; step = step + 1) begin",
-                f"            if ({hdl}.request_sim_stop || {hdl}.sim_stop)",
-                "              step = max_steps;",
-                f"            else if ({hdl}.state == `CPU_STATE_RUNNING ||",
-                f"                     {hdl}.state == `CPU_STATE_DUMMY)",
-                f"              {hdl}.cpu_step();",
-                "          end",
+                *_emit_cpu_run_loop(hdl),
             ])
         lines.append("        end")
     lines.extend(["        default: ;", "      endcase", "    end", "  endtask", ""])
     return lines
+
+
+def emit_run_cpus_parallel_task(cpus: list[dict]) -> list[str]:
+    if not cpus:
+        return []
+    lines = [
+        "  task run_cpus_parallel;",
+        "    input [31:0] max_steps;",
+        "    reg        all_done;",
+        "    integer    s;",
+        "    begin",
+        "      for (s = 0; s < max_steps; s = s + 1) begin",
+        "        all_done = 1;",
+    ]
+    for c in cpus:
+        hdl = cpu_hdl(c["id"])
+        lines.extend([
+            f"        if (!({hdl}.request_sim_stop || {hdl}.sim_stop)) begin",
+            f"          if ({hdl}.state == `CPU_STATE_SYNC_WAIT)",
+            f"            {hdl}.cpu_sync_poll_resume();",
+            f"          if ({hdl}.state == `CPU_STATE_RUNNING ||",
+            f"                   {hdl}.state == `CPU_STATE_DUMMY) begin",
+            f"            {hdl}.cpu_step();",
+            "            all_done = 0;",
+            f"          end else if ({hdl}.state == `CPU_STATE_SYNC_WAIT)",
+            "            all_done = 0;",
+            "        end",
+        ])
+    lines.extend([
+        "        if (all_done) s = max_steps;",
+        "      end",
+        "    end",
+        "  endtask",
+        "",
+    ])
+    return lines
+
+
+def emit_start_cpus_parallel_task(cpus: list[dict]) -> list[str]:
+    if not cpus:
+        return []
+    lines = [
+        "  task start_cpus_parallel;",
+        "    input [31:0] offset;",
+        "    begin",
+    ]
+    for c in cpus:
+        hdl = cpu_hdl(c["id"])
+        lines.extend([
+            f"      {hdl}.pc = offset;",
+            f"      {hdl}.state = `CPU_STATE_RUNNING;",
+            f"      {hdl}.request_sim_stop = 0;",
+            f"      {hdl}.sim_stop = 0;",
+            f"      {hdl}.wdt_count = 0;",
+            f"      {hdl}.wdt_fired = 0;",
+        ])
+    lines.extend(["    end", "  endtask", ""])
+    return lines
+
+
+def emit_console_cmd_task(cpus: list[dict]) -> list[str]:
+    if not cpus:
+        return []
+    max_cid = max(c["id"] for c in cpus)
+    lines = [
+        "  // --- EDA interactive console (VCS/Xcelium UCLI while simulation is stopped) ---",
+        "  //   call tb_full_campaign.console_help();",
+        '  //   call tb_full_campaign.console_cmd(4\'d1, "vsync", 32\'d10, 0, 0);',
+        '  //   call tb_full_campaign.console_sync_cmd("sync_configure", 32\'d10, 32\'d7, 0);',
+        "  // cid=0 → all active VCPUs; cid 1..N → SCPU id",
+        "",
+        "  task console_help;",
+        "    begin",
+        "      $display(\"[Console] tb_full_campaign — call console_cmd / console_sync_cmd\");",
+        "      $display(\"  +console_pause  → $stop after VCPU setup (VCS/Xcelium interactive)\");",
+        "      console_sync_cmd(\"help\", 0, 0, 0);",
+    ]
+    for c in cpus:
+        lines.append(f"      {cpu_hdl(c['id'])}.cpu_console_help();")
+    lines.extend([
+        "    end",
+        "  endtask",
+        "",
+        "  task console_sync_cmd;",
+        "    input [8*32:1] cmd;",
+        "    input [31:0]   a0;",
+        "    input [31:0]   a1;",
+        "    input [31:0]   a2;",
+        "    reg [63:0]     mask;",
+        "    begin",
+        "      if (cmd == \"help\") begin",
+        "        $display(\"[Console] platform commands (sync + hw_force):\");",
+        "        $display(\"  sync_configure (a0=id a1=mask_low a2=mask_high)\");",
+        "        $display(\"  sync_barrier_count\");",
+        "        $display(\"  hw_force_set (a0=hier a1=addr a2=value)\");",
+        "        $display(\"  hw_force_release (a0=hier a1=addr)\");",
+        "        $display(\"  hw_force_status\");",
+        "      end else if (cmd == \"sync_configure\") begin",
+        "        mask = {a2, a1};",
+        "        u_sync.sync_configure(a0[7:0], mask);",
+        "      end else if (cmd == \"sync_barrier_count\")",
+        "        $display(\"[Console] sync barrier_release_count=%0d\", u_sync.barrier_release_count);",
+        "      else if (cmd == \"hw_force_set\")",
+        "        u_hw_force.hw_force_set(a0, a1, a2);",
+        "      else if (cmd == \"hw_force_release\")",
+        "        u_hw_force.hw_force_clear(a0, a1);",
+        "      else if (cmd == \"hw_force_status\")",
+        "        $display(\"[Console] hw_force active=%0d set=%0d hit=%0d\",",
+        "                 u_hw_force.active_count, u_hw_force.force_set_count, u_hw_force.force_hit_count);",
+        "      else",
+        "        $display(\"[Console] unknown platform cmd=%0s\", cmd);",
+        "    end",
+        "  endtask",
+        "",
+        "  task console_cmd;",
+        "    input [3:0]    cid;",
+        "    input [8*32:1] cmd;",
+        "    input [31:0]   a0;",
+        "    input [31:0]   a1;",
+        "    input [31:0]   a2;",
+        "    begin",
+    ])
+    for c in cpus:
+        cid = c["id"]
+        hdl = cpu_hdl(c["id"])
+        lines.append(
+            f"      if (cid == 0 || cid == {cid}) "
+            f"{hdl}.cpu_console_dispatch(cmd, a0, a1, a2);"
+        )
+    lines.extend([
+        f"      if (cid > 4'd{max_cid})",
+        f"        $display(\"[Console] unknown cpu_id=%0d (active VCPUs 1..{max_cid})\", cid);",
+        "    end",
+        "  endtask",
+        "",
+        "`define CAMPAIGN_CONSOLE_PAUSE \\",
+        "  if ($test$plusargs(\"console_pause\")) begin \\",
+        "    console_help(); \\",
+        "    $display(\"[Console] Paused (+console_pause). iverilog: no UCLI — use VCS/Xcelium.\"); \\",
+        "    $stop; \\",
+        "  end \\",
+        "",
+    ])
+    return lines
+
+
+def emit_sync_parallel_macro(cpus: list[dict]) -> list[str]:
+    if len(cpus) < 2:
+        return [
+            "`define CAMPAIGN_SYNC_PARALLEL \\",
+            '  $display("\\n[3] Multi-CPU sync skipped (<2 active VCPUs)"); \\',
+            "",
+        ]
+    mask = sync_participant_mask(cpus)
+    checks_done = " && ".join(
+        f"({cpu_hdl(c['id'])}.request_sim_stop || {cpu_hdl(c['id'])}.sim_stop)"
+        for c in cpus
+    )
+    checks_bus = []
+    for i, c in enumerate(cpus):
+        hdl = cpu_hdl(c["id"])
+        checks_bus.append(
+            f'  check_eq("Sync parallel bus {c["name"]}", _sync_bus{i} < {hdl}.bus_txn_count); \\'
+        )
+    bus_before = []
+    for i, c in enumerate(cpus):
+        hdl = cpu_hdl(c["id"])
+        bus_before.append(f"    _sync_bus{i} = {hdl}.bus_txn_count; \\")
+    return [
+        f"`define CAMPAIGN_SYNC_BARRIER_ID {CAMPAIGN_SYNC_BARRIER_ID}",
+        f"`define CAMPAIGN_SYNC_MASK 64'd{mask}",
+        "`define CAMPAIGN_OFF_SYNC_BARRIER 32'h380",
+        "`define CAMPAIGN_SYNC_PARALLEL \\",
+        "  begin : _sync_parallel \\",
+        "    reg [31:0] _rel_before; \\",
+        *[f"    reg [31:0] _sync_bus{i}; \\" for i in range(len(cpus))],
+        '    $display("\\n[3] Multi-CPU sync barrier + parallel bus (vsync firmware)"); \\',
+        "    _rel_before = u_sync.barrier_release_count; \\",
+        *bus_before,
+        f"    u_sync.sync_configure(8'd{CAMPAIGN_SYNC_BARRIER_ID}, 64'd{mask}); \\",
+        "    start_cpus_parallel(`CAMPAIGN_OFF_SYNC_BARRIER); \\",
+        "    run_cpus_parallel(800); \\",
+        '    check_eq("Sync parallel barrier release", u_sync.barrier_release_count == _rel_before + 1); \\',
+        f'    check_eq("Sync parallel firmware done", {checks_done}); \\',
+        *checks_bus,
+        "  end \\",
+        "",
+    ]
+
+
+def emit_scenario_feature_banner() -> list[str]:
+    return [
+        "// --- example.sh gen default campaign scenario (feature matrix) ---",
+        "// Platform: Phase A/B/C orchestrator, master init_done, agent snoop, icode pool",
+        "// Custom insn: vstop vwdt vtrace vsync vassert vforce/vrelease vhw_force/vhw_release vwave",
+        "// Debug: console stall/resume, WDT hang+recovery+DEADDEAD, unified pool, VCD export",
+        "// Sync: parallel vsync barrier @ OFF_SYNC_BARRIER + per-CPU solo vsync in phase_c",
+        "",
+    ]
+
+
+def emit_campaign_execute_macro(cpus: list[dict]) -> list[str]:
+    sfr = next((c for c in cpus if c["role"] in ("sfr", "solo")), None)
+    sfr_hdl = cpu_hdl(sfr["id"]) if sfr else None
+    phase_a_bus = (
+        f'  check_eq("Phase A bus txn (SFR)", {sfr_hdl}.bus_txn_count >= 1); \\'
+        if sfr_hdl else ""
+    )
+    phase_a_steps = (
+        f'  check_eq("Phase A vwdt/vtrace steps", {sfr_hdl}.total_steps >= 4); \\'
+        if sfr_hdl else ""
+    )
+    agent_snoop = (
+        "  check_eq(\"Phase A agent snoop\", sl_txns[0] >= 1 && sl_txns[1] >= 1 && sl_txns[2] >= 1); \\"
+        if len(cpus) >= 3 else ""
+    )
+    lines = [
+        "`define CAMPAIGN_EXECUTE \\",
+        "  `CAMPAIGN_LOAD_FIRMWARE \\",
+        "  `CAMPAIGN_SETUP_VCPUS \\",
+        "  `CAMPAIGN_CONSOLE_PAUSE \\",
+        '  $display("\\n[1] Phase A — SoC init + VCPU + agent snoop"); \\',
+        "  u_orch.phase_release(`PHASE_INIT, OFF_A); \\",
+        "  u_soc.run_init(); \\",
+        "  `CAMPAIGN_RUN_PHASE_A_AGENTS \\",
+        "  `CAMPAIGN_RUN_PHASE_A_VCORES \\",
+        '  check_eq("Phase A SoC init (17-step)", 1); \\',
+        phase_a_bus,
+        phase_a_steps,
+        agent_snoop,
+        '  $display("\\n[2] Phase B — master hints + collect"); \\',
+        "  `CAMPAIGN_MASTER_WAIT_INIT_DONE \\",
+        "  u_mstr.phase_release(`PHASE_COLLECT, OFF_B); \\",
+        "  u_orch.phase_release(`PHASE_COLLECT, OFF_B); \\",
+        "  u_mstr.inject_read_hints(); \\",
+        "  `CAMPAIGN_MANIFEST_BUS_READS \\",
+        "  `CAMPAIGN_RUN_PHASE_B_AGENTS \\",
+        "  `CAMPAIGN_RUN_PHASE_B_VCORES \\",
+        '  check_eq("Phase B multi-slots (2 per agent)", `CAMPAIGN_PHASE_B_SLOT_CHECK); \\',
+        "  `CAMPAIGN_SYNC_PARALLEL \\",
+        "  `CAMPAIGN_CONSOLE_STALL \\",
+        "  `CAMPAIGN_PHASE_C_SFR \\",
+        "  `CAMPAIGN_PHASE_C_SRAM \\",
+        '  $display("\\n[6] Platform icode — RV32 pool exec + multi-slot dispatch + inter-reset"); \\',
+        "  `CAMPAIGN_ICODE_RV32_EXEC \\",
+        "  `CAMPAIGN_ICODE_MAP_BUS_CHECKS \\",
+        "  `CAMPAIGN_ICODE_AGENT_ROUNDS \\",
+        "  `CAMPAIGN_ICODE_FINAL_CHECKS \\",
+        "  `CAMPAIGN_UART_WDT \\",
+        '  $display("\\n[8] VCD export"); \\',
+        "  `CAMPAIGN_VCD_EXPORT",
+        "",
+    ]
+    return [ln for ln in lines if ln]
 
 
 def emit_exec_icode_task(cpus: list[dict], use_lazy: bool) -> list[str]:
@@ -1741,6 +2014,12 @@ def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
             f"  check_eq(\"SFR assertions pass\", {hdl}.assert_fail == 0 && "
             f"{hdl}.assert_pass >= 3); \\",
             f"  check_eq(\"SFR bus activity\", {hdl}.bus_txn_count >= 3); \\",
+            f"  check_eq(\"SFR vwave dump\", {hdl}.wave_chg_count > 0); \\",
+            f"  check_eq(\"SFR vforce/vdummy/vassert\", {hdl}.assert_pass >= 3); \\",
+            f"  check_eq(\"SFR vhw_force hier hit\", {hdl}.hw_force_hit_count >= 1); \\",
+            f"  check_eq(\"SFR hw_force table\", u_hw_force.force_set_count >= 1); \\",
+            f"  check_eq(\"SFR vsync hits\", {hdl}.sync_arrive_count >= 1); \\",
+            f"  check_eq(\"SFR PC coverage\", {hdl}.unique_pcs >= 4); \\",
             "",
         ])
     else:
@@ -1755,6 +2034,8 @@ def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
             "  $display(\"\\n[5] Phase C — SRAM JAL/JALR\"); \\",
             f"  run_cpu_core({sram['id']}, OFF_C, 400, hang_rec); \\",
             f"  check_eq(\"SRAM assertions pass\", {hdl}.assert_fail == 0); \\",
+            f"  check_eq(\"SRAM JAL/JALR steps\", {hdl}.total_steps >= 10); \\",
+            f"  check_eq(\"SRAM vsync hits\", {hdl}.sync_arrive_count >= 1); \\",
             "",
         ])
     else:
@@ -1770,9 +2051,11 @@ def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
             "  hang_rec = 0; \\",
             f"  run_cpu_core({uart['id']}, OFF_UART_HANG, 200, hang_rec); \\",
             '  check_eq("WDT hang recovery", hang_rec == 1); \\',
+            f'  check_eq("WDT fired on hang", {hdl}.recovery_count >= 1); \\',
             f"  run_cpu_core({uart['id']}, OFF_UART_RECOVER, 300, hang_rec); \\",
             f"  check_eq(\"UART recover assertions\", {hdl}.assert_fail == 0); \\",
             f"  check_eq(\"DEADDEAD recovery path\", {hdl}.recovery_count >= 1); \\",
+            f"  check_eq(\"UART vsync solo\", {hdl}.sync_arrive_count >= 2); \\",
             "",
         ])
     else:
@@ -1851,12 +2134,18 @@ def generate_vh(
         "",
     ]
     out.extend(emit_macros(cpus, slaves, master, icode_by_name, pool_bytes, use_lazy))
+    out.extend(emit_scenario_feature_banner())
     out.extend(emit_phase_c_and_uart_macros(cpus))
+    out.extend(emit_sync_parallel_macro(cpus))
+    out.extend(emit_campaign_execute_macro(cpus))
     out.extend(emit_vcpu_generate(max_slot_count))
     out.extend(emit_master_agent(master))
     out.extend(emit_agent_generate(slaves, max_slot_count))
     out.extend(emit_setup_cpu_task(cpus))
     out.extend(emit_run_cpu_task(cpus))
+    out.extend(emit_start_cpus_parallel_task(cpus))
+    out.extend(emit_run_cpus_parallel_task(cpus))
+    out.extend(emit_console_cmd_task(cpus))
     out.extend(emit_master_wait_init_done_task())
     out.extend(emit_exec_icode_task(cpus, use_lazy))
     out.extend(["`endif", ""])

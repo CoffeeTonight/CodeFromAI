@@ -40,6 +40,17 @@ void phase_c_entry(void)
     vassert_id(40);
     vdummy_off();
     load_soc_addr(10, SFR_CTRL);
+    rv_addi(14, 0, 0x10);
+    rv_lui(16, 0x5);
+    vhw_force(10, 14, 16);
+    rv_lw(11, 10, 0);
+    rv_lui(12, 0x5);
+    rv_xor(13, 11, 12);
+    rv_addi(1, 0, 0);
+    rv_beq(13, 1, 8);
+    rv_addi(1, 0, 1);
+    vassert_id(43);
+    vhw_release(10, 14);
     rv_lw(11, 10, 0);
     rv_addi(1, 0, 1);
     vassert_id(41);

@@ -33,6 +33,13 @@ module tb_verification_harness;
   reg [31:0] rdata;
   integer rpt_fd;
 
+  task console_help;
+    begin
+      $display("[Console] tb_verification_harness — call console_cmd(cid, cmd, a0, a1, a2)");
+      u_cpu1.cpu_console_help();
+    end
+  endtask
+
   task console_cmd;
     input [3:0]    cid;
     input [8*32:1] cmd;
@@ -40,29 +47,11 @@ module tb_verification_harness;
     input [31:0]   a1;
     input [31:0]   a2;
     begin
-      if (cid == 0 || cid == 1) begin
-        if (cmd == "stall") u_cpu1.cpu_stall();
-        if (cmd == "resume") u_cpu1.cpu_resume();
-        if (cmd == "wdt_pet") u_cpu1.cpu_wdt_pet();
-        if (cmd == "wdt_status") u_cpu1.cpu_wdt_status();
-        if (cmd == "status") u_cpu1.cpu_print_status();
-        if (cmd == "bus_write") u_cpu1.cpu_console_bus_write(a0, a1, a2);
-        if (cmd == "bus_read") u_cpu1.cpu_console_bus_read(a0, a2, rdata);
-      end
-      if (cid == 0 || cid == 2) begin
-        if (cmd == "stall") u_cpu2.cpu_stall();
-        if (cmd == "resume") u_cpu2.cpu_resume();
-        if (cmd == "wdt_pet") u_cpu2.cpu_wdt_pet();
-        if (cmd == "bus_write") u_cpu2.cpu_console_bus_write(a0, a1, a2);
-        if (cmd == "bus_read") u_cpu2.cpu_console_bus_read(a0, a2, rdata);
-      end
-      if (cid == 0 || cid == 3) begin
-        if (cmd == "stall") u_cpu3.cpu_stall();
-        if (cmd == "resume") u_cpu3.cpu_resume();
-        if (cmd == "wdt_status") u_cpu3.cpu_wdt_status();
-        if (cmd == "bus_write") u_cpu3.cpu_console_bus_write(a0, a1, a2);
-        if (cmd == "bus_read") u_cpu3.cpu_console_bus_read(a0, a2, rdata);
-      end
+      if (cid == 0 || cid == 1) u_cpu1.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid == 0 || cid == 2) u_cpu2.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid == 0 || cid == 3) u_cpu3.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid > 4'd3)
+        $display("[Console] unknown cpu_id=%0d (harness VCPUs 1..3)", cid);
     end
   endtask
 

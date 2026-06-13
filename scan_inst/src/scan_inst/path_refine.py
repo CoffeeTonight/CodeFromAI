@@ -1,0 +1,285 @@
+"""Path-scoped parameter refinement for port search hits."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Dict, List, Mapping, Optional, Sequence
+
+from scan_inst.generate_fold import fold_generate_regions
+from scan_inst.index import DesignIndex
+from scan_inst.inst_scan import _MODULE_BLOCK_RE, scan_hierarchy_instances
+from scan_inst.models import InstanceEdge
+from scan_inst.params import collect_module_params, parse_param_pairs, resolve_param_map, split_module_header
+
+_PARAM_DECL_RE = re.compile(
+    r"\b(?:parameter|localparam)\b\s+(?:\w+\s+)?[^;]+;",
+    re.IGNORECASE,
+)
+
+
+@dataclass
+class PathRefineStep:
+    inst_leaf: str
+    module: str
+    child_module: str
+    file: str
+    param_overrides: Dict[str, str] = field(default_factory=dict)
+    scoped_params: Dict[str, str] = field(default_factory=dict)
+    resolved_ctx: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class PathRefineResult:
+    full_path: str
+    ok: bool
+    param_ctx: Dict[str, str]
+    steps: List[PathRefineStep] = field(default_factory=list)
+    note: str = ""
+
+
+def _module_chunk(index: DesignIndex, mod_name: str) -> tuple[str, str, str]:
+    rec = index.get_module(mod_name)
+    if not rec:
+        return "", "", ""
+    body = index.module_body(mod_name)
+    path = rec.file_path
+    if not path:
+        return "", "", body
+    try:
+        from pathlib import Path
+
+        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return path, "", body
+    for m in _MODULE_BLOCK_RE.finditer(text):
+        if m.group(1) != mod_name:
+            continue
+        header, mod_body = split_module_header(m.group(2))
+        return path, header, mod_body or body
+    return path, "", body
+
+
+def _header_params(header: str) -> Dict[str, str]:
+    return parse_param_pairs(header) if header else {}
+
+
+def _params_in_text(text: str) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for m in _PARAM_DECL_RE.finditer(text):
+        out.update(parse_param_pairs(m.group(0)))
+    return out
+
+
+def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
+    """Return module body text that appears before ``inst_leaf`` declaration."""
+    from scan_inst.inst_scan import _ATTR_RE, _BIND_LINE_RE, _KEYWORDS, _read_ident, _skip_balanced
+
+    clean = _ATTR_RE.sub(" ", body)
+    clean = _BIND_LINE_RE.sub("", clean)
+    n = len(clean)
+    i = 0
+    target = inst_leaf.lower()
+
+    def consume_hash(start: int) -> int:
+        pos = start
+        if pos >= n or clean[pos] != "#":
+            return pos
+        pos += 1
+        while pos < n and clean[pos].isspace():
+            pos += 1
+        if pos >= n or clean[pos] != "(":
+            return start
+        return _skip_balanced(clean, pos, "(", ")")
+
+    while i < n:
+        decl_start = i
+        while i < n and clean[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        cell, j = _read_ident(clean, i)
+        if not cell or cell.lower() in _KEYWORDS:
+            i = j if j > i else i + 1
+            continue
+        k = j
+        while k < n and clean[k].isspace():
+            k += 1
+        inst = ""
+        if k < n and clean[k] == "#":
+            k = consume_hash(k)
+            while k < n and clean[k].isspace():
+                k += 1
+            inst, k = _read_ident(clean, k)
+        else:
+            inst, k = _read_ident(clean, k)
+            if inst:
+                while k < n and clean[k].isspace():
+                    k += 1
+                if k < n and clean[k] == "#":
+                    k = consume_hash(k)
+        if not inst:
+            i += 1
+            continue
+        while k < n and clean[k].isspace():
+            k += 1
+        while k < n and clean[k] == "[":
+            k = _skip_balanced(clean, k, "[", "]")
+            while k < n and clean[k].isspace():
+                k += 1
+        if k >= n or clean[k] not in "(;":
+            i += 1
+            continue
+        if inst.lower() == target:
+            return clean[:decl_start]
+        if clean[k] == "(":
+            k = _skip_balanced(clean, k, "(", ")")
+        while k < n and clean[k].isspace():
+            k += 1
+        if k < n and clean[k] == ",":
+            k += 1
+            while k < n and clean[k].isspace():
+                k += 1
+            inst2, k2 = _read_ident(clean, k)
+            if inst2 and inst2.lower() == target:
+                return clean[:decl_start]
+            i = k
+            continue
+        i = k
+    return clean
+
+
+def scoped_module_params(
+    index: DesignIndex,
+    mod_name: str,
+    inst_leaf: str,
+) -> Dict[str, str]:
+    """Header params plus body localparams declared before ``inst_leaf``."""
+    _path, header, body = _module_chunk(index, mod_name)
+    params = dict(_header_params(header))
+    if body:
+        prefix = _body_prefix_before_instance(body, inst_leaf)
+        params.update(_params_in_text(prefix))
+        return params
+    rec = index.get_module(mod_name)
+    return dict(rec.raw_params) if rec else params
+
+
+def find_child_instance(
+    index: DesignIndex,
+    parent_mod: str,
+    inst_leaf: str,
+    parent_ctx: Mapping[str, str],
+    *,
+    scoped_params: Optional[Mapping[str, str]] = None,
+) -> Optional[InstanceEdge]:
+    body = index.module_body(parent_mod)
+    if not body:
+        return None
+    raw = dict(scoped_params or index.get_module(parent_mod).raw_params if index.get_module(parent_mod) else {})
+    pmap = resolve_param_map(raw, parent=parent_ctx)
+    folded = fold_generate_regions(body, pmap)
+    for edge in scan_hierarchy_instances(folded, param_map=pmap):
+        if edge.inst_name.lower() == inst_leaf.lower():
+            return edge
+    return None
+
+
+def refine_param_ctx_for_path(
+    index: DesignIndex,
+    top: str,
+    full_path: str,
+) -> PathRefineResult:
+    """
+    Walk one hierarchy path and fold parameters with instance-scoped localparams.
+
+    Used after a hierarchy hit to refine port dimension evaluation without
+    re-indexing the full design.
+    """
+    parts = full_path.split(".")
+    if not parts or parts[0] != top:
+        return PathRefineResult(full_path, False, {}, note="path does not start at top")
+
+    top_rec = index.get_module(top)
+    if not top_rec:
+        return PathRefineResult(full_path, False, {}, note=f"top not found: {top}")
+
+    module_ctx: Dict[str, str] = {}
+    steps: List[PathRefineStep] = []
+    current_mod = top
+
+    steps.append(
+        PathRefineStep(
+            inst_leaf=parts[0],
+            module=top,
+            child_module=top,
+            file=top_rec.file_path,
+            scoped_params=dict(_header_params(_module_chunk(index, top)[1])),
+            resolved_ctx={},
+        )
+    )
+
+    for inst_leaf in parts[1:]:
+        scoped = scoped_module_params(index, current_mod, inst_leaf)
+        site_ctx = resolve_param_map(scoped, parent=module_ctx)
+        edge = find_child_instance(
+            index,
+            current_mod,
+            inst_leaf,
+            module_ctx,
+            scoped_params=scoped,
+        )
+        if edge is None:
+            return PathRefineResult(
+                full_path,
+                False,
+                dict(module_ctx),
+                steps=steps,
+                note=f"instance not found: {current_mod}.{inst_leaf}",
+            )
+        child_rec = index.get_module(edge.child_module)
+        _path, header, body = _module_chunk(index, edge.child_module)
+        child_params = collect_module_params(header, body) if body or header else {}
+        if not child_params and child_rec:
+            child_params = dict(child_rec.raw_params)
+        module_ctx = resolve_param_map(
+            child_params,
+            overrides=edge.param_overrides,
+            parent=site_ctx,
+        )
+        steps.append(
+            PathRefineStep(
+                inst_leaf=inst_leaf,
+                module=current_mod,
+                child_module=edge.child_module,
+                file=child_rec.file_path if child_rec else "",
+                param_overrides=dict(edge.param_overrides),
+                scoped_params=dict(scoped),
+                resolved_ctx=dict(module_ctx),
+            )
+        )
+        current_mod = edge.child_module
+
+    return PathRefineResult(
+        full_path,
+        True,
+        dict(module_ctx),
+        steps=steps,
+        note="path-refined",
+    )
+
+
+def refine_rows_param_ctx(
+    index: DesignIndex,
+    top: str,
+    rows: Sequence,
+) -> Dict[str, Dict[str, str]]:
+    """Refine param ctx for each unique hierarchy path in ``rows``."""
+    out: Dict[str, Dict[str, str]] = {}
+    for row in rows:
+        path = getattr(row, "full_path", str(row))
+        if path in out:
+            continue
+        result = refine_param_ctx_for_path(index, top, path)
+        out[path] = result.param_ctx if result.ok else dict(getattr(row, "param_ctx", {}) or {})
+    return out

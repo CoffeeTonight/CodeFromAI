@@ -36,6 +36,7 @@ GEN_FW_HEX = [
 # ../../include — generated Verilog headers
 GEN_VH = [
     "include/campaign_params.vh",
+    "include/campaign_master.vh",
     "include/campaign_scale.vh",
     "include/campaign_manifest.vh",
     "include/campaign_soc_platform.vh",

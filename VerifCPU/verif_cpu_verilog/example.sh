@@ -101,12 +101,23 @@ stage_gen_artifacts() {
     fi
   done
 
-  mkdir -p "${out}/filelists"
-  for f in "${ROOT}/filelists/"*.f; do
-    [[ -f "$f" ]] || continue
-    copy_file "$f" "${out}/filelists/$(basename "$f")"
+  if [[ -d "${ROOT}/rtl" ]]; then
+    rm -rf "${out}/rtl"
+    cp -a "${ROOT}/rtl" "${out}/rtl"
     staged=$((staged + 1))
-  done
+  fi
+
+  if [[ -d "${ROOT}/tb" ]]; then
+    rm -rf "${out}/tb"
+    cp -a "${ROOT}/tb" "${out}/tb"
+    staged=$((staged + 1))
+  fi
+
+  if [[ -d "${ROOT}/filelists" ]]; then
+    rm -rf "${out}/filelists"
+    cp -a "${ROOT}/filelists" "${out}/filelists"
+    staged=$((staged + 1))
+  fi
 
   if [[ -d "${ROOT}/scripts" ]]; then
     rm -rf "${out}/scripts"
@@ -401,6 +412,12 @@ run_clean() {
   step "Clean verification artifacts (sim_build, logs, campaign build)"
   cd "$ROOT"
   make clean-artifacts
+  if [[ -n "$OUTDIR" && -d "$OUTDIR" ]]; then
+    rm -rf "$OUTDIR"
+    echo "[clean] removed output bundle: ${OUTDIR}"
+    OUTDIR=""
+    unset VERIF_CPU_OUTDIR
+  fi
   echo "[clean] done — regenerate with: ./example.sh gen"
 }
 
@@ -440,7 +457,7 @@ Output layout (-o DIR):
   DIR/firmware/campaign/build/*.bin
   DIR/firmware/full_campaign_*.hex
   DIR/include/*.vh (generated headers)
-  DIR/filelists/*.f
+  DIR/rtl/ DIR/tb/ DIR/filelists/ (full tree)
   DIR/scripts/...
   DIR/sim_build/tb_full_campaign.vcd (after sim)
   DIR/logs/full_campaign/SCPU*.vcd (after sim)

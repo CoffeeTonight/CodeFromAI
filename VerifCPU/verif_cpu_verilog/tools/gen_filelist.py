@@ -43,6 +43,8 @@ SOC_RTL = [
     "rtl/simple_soc.v",
     "rtl/verif_orchestrator.v",
     "rtl/verif_agent.v",
+    "rtl/verif_cpu_sync.v",
+    "rtl/verif_cpu_hw_force.v",
 ]
 
 FULL_RTL = RTL_CORE + [
@@ -75,21 +77,18 @@ STUB_BUS_RTL = [
 ]
 
 # --- Canonical 3-way split (prefer these over legacy per-view .f files) ---
+# Matches Makefile MANIFEST_RTL / CHIP_TOP_RTL (no sync/hw_force — those are in SOC_RTL).
 VCPU_STACK = RTL_CORE + [
     "rtl/verif_orchestrator.v",
     "rtl/verif_agent.v",
-    "rtl/verif_cpu_sync.v",
-    "rtl/verif_cpu_hw_force.v",
 ]
 
 RTL_INTEGRATION = VCPU_STACK + BUS_RTL + ["rtl/verif_vcpu_soc_cell.v"]
 
-TB_DUT_RTL = RTL_INTEGRATION + [
-    "rtl/verif_soc_bus.v",
-    "rtl/simple_soc.v",
-]
+# Authoritative full_campaign compile set (Makefile FULL_RTL).
+TB_DUT_RTL = FULL_RTL
 
-MANIFEST_RTL = VCPU_STACK  # alias (integration reference TBs)
+MANIFEST_RTL = VCPU_STACK
 CHIP_TOP_RTL = VCPU_STACK
 SOC_CELL_RTL = ["rtl/verif_vcpu_soc_cell.v"]
 

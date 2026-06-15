@@ -229,7 +229,21 @@ def stage_gen_artifacts(out: Path) -> list[Path]:
         if src.is_file():
             _copy_file(src, dst)
             staged.append(dst)
-    staged.extend(_copy_glob(ROOT / "filelists", out / "filelists", "*.f"))
+    for sub in ("rtl", "tb"):
+        src = ROOT / sub
+        if src.is_dir():
+            dst = out / sub
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+            staged.append(dst)
+    fl_src = ROOT / "filelists"
+    if fl_src.is_dir():
+        fl_dst = out / "filelists"
+        if fl_dst.exists():
+            shutil.rmtree(fl_dst)
+        shutil.copytree(fl_src, fl_dst)
+        staged.append(fl_dst)
     scripts = ROOT / "scripts"
     if scripts.is_dir():
         dst_scripts = out / "scripts"
@@ -401,6 +415,9 @@ def run_verdi(view: str = "full_campaign", *wave_args: str) -> None:
 def run_clean() -> None:
     step("Clean verification artifacts (sim_build, logs, campaign build)")
     run(["make", "clean-artifacts"])
+    if OUTDIR is not None and OUTDIR.is_dir():
+        shutil.rmtree(OUTDIR)
+        print(f"[clean] removed output bundle: {OUTDIR}")
     print("[clean] done — regenerate with: ./example.py gen")
 
 
@@ -436,7 +453,7 @@ Output layout (-o DIR):
   DIR/firmware/campaign/build/*.bin
   DIR/firmware/full_campaign_*.hex
   DIR/include/*.vh (generated headers)
-  DIR/filelists/*.f
+  DIR/rtl/ DIR/tb/ DIR/filelists/ (full tree)
   DIR/scripts/...
   DIR/sim_build/tb_full_campaign.vcd (after sim)
   DIR/logs/full_campaign/SCPU*.vcd (after sim)

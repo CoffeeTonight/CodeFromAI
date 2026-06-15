@@ -5,6 +5,7 @@ Python equivalent of example.sh. Same commands, env vars, and gen/bus-layout par
 
 Usage:
   ./example.py              # gen + full_campaign (default)
+  ./example.py -o DIR all   # mirror artifacts under DIR
   ./example.py gen 64
   ./example.py gen --axi 62 --ahb 1 --apb 1
   ./example.py all 64
@@ -28,9 +29,24 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 FW = ROOT / "firmware" / "campaign"
+OUTDIR: Path | None = None
 LOG_FULL = Path(os.environ.get("LOG_FULL", ROOT / "logs" / "full_campaign"))
 VCD_MAIN = ROOT / "sim_build" / "tb_full_campaign.vcd"
 PARAMS_VH = ROOT / "include" / "campaign_params.vh"
+
+# Generated / sim artifacts mirrored under -o/--output (repo paths stay canonical for make).
+GEN_INCLUDE_NAMES = (
+    "tb_full_campaign_gen.vh",
+    "icode_map.vh",
+    "icode_bind.vh",
+    "campaign_manifest.vh",
+    "campaign_params.vh",
+    "campaign_scale.vh",
+    "campaign_soc_platform.vh",
+    "campaign_master.vh",
+    "soc_init_seq.vh",
+    "verif_soc_bus_connect.vh",
+)
 
 sys.path.insert(0, str(FW))
 from amba_bus_registry import CLI_FLAG_TO_BUS  # noqa: E402
@@ -161,10 +177,96 @@ def parse_gen_args(argv: list[str]) -> None:
 
 def _make_env() -> dict[str, str]:
     env: dict[str, str] = {}
-    for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED"):
+    for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED", "LOG_FULL"):
         if os.environ.get(key):
             env[key] = os.environ[key]
     return env
+
+
+def configure_outdir(path: Path) -> Path:
+    """Route sim logs under OUTDIR and stage gen/sim artifacts there after each step."""
+    global OUTDIR, LOG_FULL, VCD_MAIN
+    out = path.expanduser().resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    OUTDIR = out
+    os.environ["VERIF_CPU_OUTDIR"] = str(out)
+    LOG_FULL = out / "logs" / "full_campaign"
+    os.environ["LOG_FULL"] = str(LOG_FULL)
+    VCD_MAIN = out / "sim_build" / "tb_full_campaign.vcd"
+    print(f"[example.py] output dir: {out}")
+    return out
+
+
+def _copy_file(src: Path, dst: Path) -> None:
+    if not src.is_file():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+
+
+def _copy_glob(src_dir: Path, dst_dir: Path, pattern: str) -> list[Path]:
+    copied: list[Path] = []
+    if not src_dir.is_dir():
+        return copied
+    for src in sorted(src_dir.glob(pattern)):
+        if not src.is_file():
+            continue
+        dst = dst_dir / src.name
+        _copy_file(src, dst)
+        copied.append(dst)
+    return copied
+
+
+def stage_gen_artifacts(out: Path) -> list[Path]:
+    staged: list[Path] = []
+    staged.extend(_copy_glob(FW / "build", out / "firmware" / "campaign" / "build", "*.bin"))
+    staged.extend(_copy_glob(FW / "build", out / "firmware" / "campaign" / "build", "*.elf"))
+    staged.extend(_copy_glob(FW / "build", out / "firmware" / "campaign" / "build", "*.dis"))
+    staged.extend(_copy_glob(ROOT / "firmware", out / "firmware", "full_campaign_*.hex"))
+    for name in GEN_INCLUDE_NAMES:
+        src = ROOT / "include" / name
+        dst = out / "include" / name
+        if src.is_file():
+            _copy_file(src, dst)
+            staged.append(dst)
+    staged.extend(_copy_glob(ROOT / "filelists", out / "filelists", "*.f"))
+    scripts = ROOT / "scripts"
+    if scripts.is_dir():
+        dst_scripts = out / "scripts"
+        if dst_scripts.exists():
+            shutil.rmtree(dst_scripts)
+        shutil.copytree(scripts, dst_scripts)
+        staged.append(dst_scripts)
+    if staged:
+        print(f"[example.py] staged {len(staged)} gen artifact path(s) under {out}")
+    return staged
+
+
+def stage_sim_artifacts(out: Path) -> list[Path]:
+    staged: list[Path] = []
+    sim_src = ROOT / "sim_build"
+    sim_dst = out / "sim_build"
+    if sim_src.is_dir():
+        sim_dst.mkdir(parents=True, exist_ok=True)
+        for src in sorted(sim_src.iterdir()):
+            if not src.is_file():
+                continue
+            dst = sim_dst / src.name
+            _copy_file(src, dst)
+            staged.append(dst)
+    log_src = Path(os.environ.get("LOG_FULL", LOG_FULL))
+    if log_src.is_dir():
+        log_dst = out / "logs" / "full_campaign"
+        log_dst.mkdir(parents=True, exist_ok=True)
+        for src in sorted(log_src.iterdir()):
+            if not src.is_file():
+                continue
+            dst = log_dst / src.name
+            _copy_file(src, dst)
+            staged.append(dst)
+    if staged:
+        print(f"[example.py] staged {len(staged)} sim artifact path(s) under {out}")
+    return staged
 
 
 def run_gen() -> None:
@@ -229,6 +331,9 @@ def run_gen() -> None:
     if verdi.is_dir():
         for p in sorted(verdi.glob("*.sh"))[:8]:
             print(f"  {p}")
+    if OUTDIR is not None:
+        stage_gen_artifacts(OUTDIR)
+        print(f"  (mirrored under {OUTDIR})")
 
 
 def run_sim() -> None:
@@ -237,14 +342,20 @@ def run_sim() -> None:
     need_cmd("vvp")
     need_cmd("python3")
     LOG_FULL.mkdir(parents=True, exist_ok=True)
-    run(["make", "full_campaign"])
+    run(["make", "full_campaign"], env=_make_env())
+    if OUTDIR is not None:
+        stage_sim_artifacts(OUTDIR)
     print()
     print("[sim] VCD artifacts:")
-    print(f"  Main : {VCD_MAIN}")
+    vcd_main = VCD_MAIN if OUTDIR is not None and VCD_MAIN.is_file() else ROOT / "sim_build" / "tb_full_campaign.vcd"
+    print(f"  Main : {vcd_main}")
+    log_dir = OUTDIR / "logs" / "full_campaign" if OUTDIR is not None else LOG_FULL
     for cid in (1, 2, 3):
-        p = LOG_FULL / f"SCPU{cid}.vcd"
+        p = log_dir / f"SCPU{cid}.vcd"
         if p.is_file():
             print(f"  CPU{cid}: {p} ({p.stat().st_size} bytes)")
+    if OUTDIR is not None:
+        print(f"  (mirrored under {OUTDIR})")
 
 
 def run_soc_manifest() -> None:
@@ -264,15 +375,17 @@ def run_chip_top() -> None:
 def run_vcd_only() -> None:
     step("VCD post-check (verify_vcd.py)")
     need_cmd("python3")
-    if not VCD_MAIN.is_file():
-        die(f"missing main VCD: {VCD_MAIN} (run ./example.py sim first)")
+    vcd_main = VCD_MAIN if VCD_MAIN.is_file() else ROOT / "sim_build" / "tb_full_campaign.vcd"
+    log_dir = LOG_FULL if LOG_FULL.is_dir() else ROOT / "logs" / "full_campaign"
+    if not vcd_main.is_file():
+        die(f"missing main VCD: {vcd_main} (run ./example.py sim first)")
     run([
         sys.executable,
         str(ROOT / "tools" / "verify_vcd.py"),
-        str(VCD_MAIN),
-        str(LOG_FULL / "SCPU1.vcd"),
-        str(LOG_FULL / "SCPU2.vcd"),
-        str(LOG_FULL / "SCPU3.vcd"),
+        str(vcd_main),
+        str(log_dir / "SCPU1.vcd"),
+        str(log_dir / "SCPU2.vcd"),
+        str(log_dir / "SCPU3.vcd"),
     ])
 
 
@@ -309,13 +422,31 @@ Commands:
   clean            Remove gen/sim artifacts (fw build/hex/hdr, generated .vh, filelists, scripts)
   help             Show this message
 
+Options:
+  -o, --output DIR   Mirror gen/sim artifacts under DIR (see layout below)
+                     Sim per-CPU logs go to DIR/logs/full_campaign during run.
+
 Environment:
   NUM_SCPU     Same as gen N (alternative to positional argument)
   BUS_LAYOUT   Ordered bus segments (axi:62,ahb:1,apb:1) — set by gen --axi/--ahb/--apb/--task
-  LOG_FULL     Per-CPU VCD log directory (default: .../logs/full_campaign)
+  LOG_FULL     Per-CPU VCD log directory (default: .../logs/full_campaign; overridden by -o)
+  VERIF_CPU_OUTDIR  Set automatically when -o is used
+
+Output layout (-o DIR):
+  DIR/firmware/campaign/build/*.bin
+  DIR/firmware/full_campaign_*.hex
+  DIR/include/*.vh (generated headers)
+  DIR/filelists/*.f
+  DIR/scripts/...
+  DIR/sim_build/tb_full_campaign.vcd (after sim)
+  DIR/logs/full_campaign/SCPU*.vcd (after sim)
+
+Note: make/iverilog still build in the repo tree; -o collects a portable artifact bundle.
 
 Examples:
   ./example.py
+  ./example.py -o /tmp/verif-out all
+  ./example.py -o ./artifacts gen 64
   ./example.py gen 64
   ./example.py gen --axi 62 --ahb 1 --apb 1
   ./example.py gen --apb 1 --axi 62 --ahb 1
@@ -335,6 +466,14 @@ def build_parser() -> argparse.ArgumentParser:
         add_help=False,
     )
     p.add_argument(
+        "-o",
+        "--output",
+        metavar="DIR",
+        dest="output",
+        default=None,
+        help="mirror gen/sim artifacts under DIR",
+    )
+    p.add_argument(
         "command",
         nargs="?",
         default="all",
@@ -350,6 +489,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.help:
         print(HELP_TEXT)
         return 0
+
+    if args.output is not None:
+        configure_outdir(Path(args.output))
 
     cmd = args.command
     rest = list(args.rest)

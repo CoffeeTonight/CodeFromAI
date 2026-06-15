@@ -650,10 +650,10 @@ v0x3000a8ba90_0 .var/i "hi", 31 0;
 v0x3000a8bb70 .array "hint_addr", 15 0, 31 0;
 v0x3000a8bc80_0 .var "hint_count", 31 0;
 v0x3000a8bd60_0 .var "hint_seen", 0 0;
-L_0x782ffd6060 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
-v0x3000a8be20_0 .net "icode_kind", 2 0, L_0x782ffd6060;  1 drivers
-L_0x782ffd6018 .functor BUFT 1, C4<00000000000000000001000000000000>, C4<0>, C4<0>, C4<0>;
-v0x3000a8bf00_0 .net "icode_ptr", 31 0, L_0x782ffd6018;  1 drivers
+L_0x7f2b376060 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
+v0x3000a8be20_0 .net "icode_kind", 2 0, L_0x7f2b376060;  1 drivers
+L_0x7f2b376018 .functor BUFT 1, C4<00000000000000000001000000000000>, C4<0>, C4<0>, C4<0>;
+v0x3000a8bf00_0 .net "icode_ptr", 31 0, L_0x7f2b376018;  1 drivers
 v0x3000a8bfe0_0 .var "init_txn_count", 31 0;
 v0x3000a8c0c0_0 .var "local_pc", 31 0;
 v0x3000a8c1a0_0 .var "local_phase", 1 0;
@@ -879,10 +879,10 @@ v0x3000a8e8a0_0 .var/i "hi", 31 0;
 v0x3000a8e980 .array "hint_addr", 15 0, 31 0;
 v0x3000a8ea90_0 .var "hint_count", 31 0;
 v0x3000a8eb70_0 .var "hint_seen", 0 0;
-L_0x782ffd60f0 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
-v0x3000a8ec30_0 .net "icode_kind", 2 0, L_0x782ffd60f0;  1 drivers
-L_0x782ffd60a8 .functor BUFT 1, C4<00000000000000000100000000000000>, C4<0>, C4<0>, C4<0>;
-v0x3000a8ed10_0 .net "icode_ptr", 31 0, L_0x782ffd60a8;  1 drivers
+L_0x7f2b3760f0 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
+v0x3000a8ec30_0 .net "icode_kind", 2 0, L_0x7f2b3760f0;  1 drivers
+L_0x7f2b3760a8 .functor BUFT 1, C4<00000000000000000100000000000000>, C4<0>, C4<0>, C4<0>;
+v0x3000a8ed10_0 .net "icode_ptr", 31 0, L_0x7f2b3760a8;  1 drivers
 v0x3000a8edf0_0 .var "init_txn_count", 31 0;
 v0x3000a8eed0_0 .var "local_pc", 31 0;
 v0x3000a8efb0_0 .var "local_phase", 1 0;
@@ -1107,10 +1107,10 @@ v0x3000a91a00_0 .var/i "hi", 31 0;
 v0x3000a91ae0 .array "hint_addr", 15 0, 31 0;
 v0x3000a91bf0_0 .var "hint_count", 31 0;
 v0x3000a91cd0_0 .var "hint_seen", 0 0;
-L_0x782ffd6180 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
-v0x3000a91d90_0 .net "icode_kind", 2 0, L_0x782ffd6180;  1 drivers
-L_0x782ffd6138 .functor BUFT 1, C4<00000000000000000101000000000000>, C4<0>, C4<0>, C4<0>;
-v0x3000a91e70_0 .net "icode_ptr", 31 0, L_0x782ffd6138;  1 drivers
+L_0x7f2b376180 .functor BUFT 1, C4<000>, C4<0>, C4<0>, C4<0>;
+v0x3000a91d90_0 .net "icode_kind", 2 0, L_0x7f2b376180;  1 drivers
+L_0x7f2b376138 .functor BUFT 1, C4<00000000000000000101000000000000>, C4<0>, C4<0>, C4<0>;
+v0x3000a91e70_0 .net "icode_ptr", 31 0, L_0x7f2b376138;  1 drivers
 v0x3000a91f50_0 .var "init_txn_count", 31 0;
 v0x3000a92030_0 .var "local_pc", 31 0;
 v0x3000a92110_0 .var "local_phase", 1 0;
@@ -26008,8 +26008,8 @@ P_0x3000aec0d0 .param/l "INIT_DONE_ADDR" 0 5 146, C4<010000000000000000000000000
 P_0x3000aec110 .param/l "INIT_DONE_MASK" 0 5 147, C4<10000000000000000000000000000000>;
 P_0x3000aec150 .param/l "INIT_DONE_POLL_MAX" 0 5 149, C4<00000000000000000001000000000000>;
 P_0x3000aec190 .param/l "INIT_DONE_VALUE" 0 5 148, C4<10000000000000000000000000000000>;
-o0x783002b468 .functor BUFZ 2, C4<zz>; HiZ drive
-v0x3000aecdb0_0 .net "phase", 1 0, o0x783002b468;  0 drivers
+o0x7f2b3cb468 .functor BUFZ 2, C4<zz>; HiZ drive
+v0x3000aecdb0_0 .net "phase", 1 0, o0x7f2b3cb468;  0 drivers
 S_0x3000aec440 .scope function.vec4.s1, "init_done_met" "init_done_met" 5 154, 5 154 0, S_0x3000aebf00;
  .timescale -9 -12;
 ; Variable init_done_met is vec4 return value of scope S_0x3000aec440

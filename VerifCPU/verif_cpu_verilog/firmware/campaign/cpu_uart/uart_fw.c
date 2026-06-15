@@ -28,7 +28,7 @@ void uart_recover_entry(void)
     vtrace_enter(0xE0);
     load_soc_addr(10, UART_IRQ_HANG);
     rv_lw(11, 10, 0);
-    rv_lui(12, 0xDEADD);
+    rv_lui(12, 0xDEADE);
     rv_addi(12, 12, -339);
     rv_xor(13, 11, 12);
     rv_addi(1, 0, 1);

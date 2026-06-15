@@ -8,8 +8,8 @@ void phase_c_entry(void)
     vtrace_enter(0xD0);
     load_soc_addr(10, SRAM_MARKER);
     rv_lw(11, 10, 0);
-    rv_lui(12, 0xDEADB);
-    rv_ori(12, 12, 0xEEF);
+    rv_lui(12, 0xDEADC);
+    rv_addi(12, 12, -273);
     rv_xor(13, 11, 12);
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);

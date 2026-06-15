@@ -296,6 +296,8 @@ class VerifCPU:
             if f3 == 0:
                 return f"add x{inst.rd},x{inst.rs1},x{inst.rs2}" if inst.funct7 == 0 else f"sub x{inst.rd},x{inst.rs1},x{inst.rs2}"
             if f3 == 1: return f"sll x{inst.rd},x{inst.rs1},x{inst.rs2}"
+            if f3 == 2: return f"slt x{inst.rd},x{inst.rs1},x{inst.rs2}"
+            if f3 == 3: return f"sltu x{inst.rd},x{inst.rs1},x{inst.rs2}"
             if f3 == 5:
                 return f"sra x{inst.rd},x{inst.rs1},x{inst.rs2}" if inst.funct7 == 0x20 else f"srl x{inst.rd},x{inst.rs1},x{inst.rs2}"
             if f3 == 7: return f"and x{inst.rd},x{inst.rs1},x{inst.rs2}"

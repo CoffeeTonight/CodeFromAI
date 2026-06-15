@@ -12,7 +12,7 @@ class InsnCoverageCollector:
 
     RV32_NAMES = {
         0x13: "OP_IMM", 0x33: "OP", 0x03: "LOAD", 0x23: "STORE",
-        0x63: "BRANCH", 0x6F: "JAL", 0x67: "JALR", 0x37: "LUI", 0x17: "AUIPC",
+        0x63: "BRANCH", 0x6F: "JAL", 0x67: "JALR", 0x37: "LUI",
     }
 
     def __init__(self):

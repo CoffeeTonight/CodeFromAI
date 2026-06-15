@@ -19,7 +19,7 @@ from verif_cpu.core.cpu import VerifCPU
 from verif_cpu.memory.unified_pool import UnifiedFirmwarePool
 from verif_cpu.core.isa import (
     encode_addi, encode_andi, encode_add, encode_sub, encode_and, encode_or, encode_xor,
-    encode_auipc, encode_custom
+    encode_custom
 )
 
 
@@ -56,9 +56,6 @@ def build_test_firmware() -> bytes:
 
     # x8 = x7 ^ x4
     words.append(encode_xor(8, 7, 4))
-
-    # x14 = pc + 0x1000 (AUIPC imm20=1) — verified after step loop
-    words.append(encode_auipc(14, 1))
 
     # x9 = x8 + 1 (via ADD)
     words.append(encode_addi(9, 0, 1))

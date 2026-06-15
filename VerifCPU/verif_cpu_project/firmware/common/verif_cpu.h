@@ -1,30 +1,19 @@
 #ifndef VERIF_CPU_H
 #define VERIF_CPU_H
 
-/*
- * Deprecated for campaign firmware — use verif_cpu_verilog/firmware/campaign/include/verif_insns.h
- * (SSOT). Macros below mirror verif_insns.h encoding for non-campaign demos only.
- */
-
 #include <stdint.h>
 
-#define _ENC_CUSTOM(sel, rd, rs1, rs2) \
-    (uint32_t)( (((sel) & 0x7Fu) << 25) | (((rs2) & 0x1Fu) << 20) \
-               | (((rs1) & 0x1Fu) << 15) | (((rd) & 0x1Fu) << 7) | 0x0Bu )
+// Custom verification instructions (using RISC-V custom-0 opcode space)
+// These are implemented in the Python golden model.
 
-#define EMIT32(e) __asm__ volatile (".word %0" :: "i"((uint32_t)(e)))
+#define vstop()           asm volatile (".word 0x0000000b")   // vstop (0x00)
+#define vtrace_enter(id)  asm volatile (".word (0x0B | ((%0)<<7))" : : "r"(id))  // placeholder
+#define vtrace_exit(id)   asm volatile (".word (0x0B | ((%0)<<7))" : : "r"(id))
+#define vassert(cond)     asm volatile (".word (0x0B | ((%0)<<7))" : : "r"(cond))
+#define vsync(id)         asm volatile (".word (0x0B | ((%0)<<7))" : : "r"(id))
+#define vwave(cmd)        asm volatile (".word (0x0B | ((%0)<<7))" : : "r"(cmd))
 
-#define vstop()              EMIT32(0x0000000b)
-#define vtrace_enter(id)     EMIT32(_ENC_CUSTOM(0x10, id, 0, 0))
-#define vtrace_exit(id)      EMIT32(_ENC_CUSTOM(0x11, id, 0, 0))
-#define vtrace_log(id)       EMIT32(_ENC_CUSTOM(0x12, id, 0, 0))
-#define vsync(id)            EMIT32(_ENC_CUSTOM(0x13, id, 0, 0))
-#define vassert_id(id)       EMIT32(_ENC_CUSTOM(0x14, id, 0, 0))
-#define vassert_rs1(rs1, id) EMIT32(_ENC_CUSTOM(0x14, id, rs1, 0))
-#define vforce(rd, rs2)       EMIT32(_ENC_CUSTOM(0x15, rd, 0, rs2))
-#define vrelease(rd)           EMIT32(_ENC_CUSTOM(0x16, rd, 0, 0))
-#define vwave(cmd, arg)        EMIT32(_ENC_CUSTOM(0x17, cmd, arg, 0))
-#define vhw_force(addr_r, hier_r, val_r) EMIT32(_ENC_CUSTOM(0x18, addr_r, hier_r, val_r))
-#define vhw_release(addr_r, hier_r)      EMIT32(_ENC_CUSTOM(0x19, addr_r, hier_r, 0))
+// For real implementation, better to use proper .insn or inline asm with correct encoding.
+// This is a starting point for the verification firmware.
 
 #endif /* VERIF_CPU_H */

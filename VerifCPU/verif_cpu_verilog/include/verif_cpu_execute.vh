@@ -92,6 +92,10 @@ task execute_instruction;
         $sformat(step_disasm, "add x%0d,x%0d,x%0d", rd, rs1, rs2);
       else if (funct3 == 3'h1)
         $sformat(step_disasm, "sll x%0d,x%0d,x%0d", rd, rs1, rs2);
+      else if (funct3 == 3'h2)
+        $sformat(step_disasm, "slt x%0d,x%0d,x%0d", rd, rs1, rs2);
+      else if (funct3 == 3'h3)
+        $sformat(step_disasm, "sltu x%0d,x%0d,x%0d", rd, rs1, rs2);
       else if (funct3 == 3'h5 && funct7 == 7'h20)
         $sformat(step_disasm, "sra x%0d,x%0d,x%0d", rd, rs1, rs2);
       else if (funct3 == 3'h5)

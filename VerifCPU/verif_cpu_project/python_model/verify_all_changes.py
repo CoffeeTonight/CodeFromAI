@@ -9,7 +9,9 @@ import sys
 from verif_cpu.core.cpu import VerifCPU
 from verif_cpu.core.execution import execute_instruction, _u32
 from verif_cpu.core.isa import (
+    OPCODE_OP,
     OPCODE_OP_IMM,
+    decode,
     encode_addi,
     encode_auipc,
     encode_custom,
@@ -31,6 +33,17 @@ def _enc_op_imm(rd, rs1, imm12, funct3, funct7=0):
         | ((funct3 & 7) << 12)
         | ((rd & 0x1F) << 7)
         | OPCODE_OP_IMM
+    )
+
+
+def _enc_op(rd, rs1, rs2, funct3, funct7=0):
+    return (
+        ((funct7 & 0x7F) << 25)
+        | ((rs2 & 0x1F) << 20)
+        | ((rs1 & 0x1F) << 15)
+        | ((funct3 & 7) << 12)
+        | ((rd & 0x1F) << 7)
+        | OPCODE_OP
     )
 
 
@@ -70,8 +83,9 @@ class Check:
         return 0 if self.failed == 0 else 1
 
 
-def test_rv32i(c: Check):
-    print("\n[1] RV32I (shift, branch, auipc)")
+def test_claude_shift_compare(c: Check):
+    """Claude RV32I gap list: slli/srli/srai/slti/sltiu/sll/srl/sra/slt/sltu."""
+    print("\n[1] RV32I shift + compare (Claude 10)")
     cpu = VerifCPU(1, 32)
     cpu.trace_enabled = False
 
@@ -85,6 +99,55 @@ def test_rv32i(c: Check):
     cpu.regs.write(4, 0xFFFFFFF0)
     execute_instruction(cpu, _enc_op_imm(5, 4, 4, funct3=5, funct7=0x20))
     c.ok("srai sign-extend", _u32(cpu.regs.read(5)) == 0xFFFFFFFF)
+
+    cpu.regs.write(10, 5)
+    execute_instruction(cpu, _enc_op_imm(11, 10, 10, funct3=2))
+    c.ok("slti 5<10", cpu.regs.read(11) == 1)
+    execute_instruction(cpu, _enc_op_imm(11, 10, 3, funct3=2))
+    c.ok("slti 5<3 false", cpu.regs.read(11) == 0)
+
+    cpu.regs.write(10, 1)
+    execute_instruction(cpu, _enc_op_imm(11, 10, 2, funct3=3))
+    c.ok("sltiu 1<2", cpu.regs.read(11) == 1)
+    cpu.regs.write(10, 0xFFFFFFFF)
+    execute_instruction(cpu, _enc_op_imm(11, 10, 1, funct3=3))
+    c.ok("sltiu unsigned 0xFFFFFFFF<1 false", cpu.regs.read(11) == 0)
+
+    cpu.regs.write(12, 0x80000000)
+    cpu.regs.write(13, 1)
+    execute_instruction(cpu, _enc_op(14, 12, 13, funct3=1))
+    c.ok("sll", _u32(cpu.regs.read(14)) == 0)
+
+    cpu.regs.write(12, 12)
+    cpu.regs.write(13, 2)
+    execute_instruction(cpu, _enc_op(14, 12, 13, funct3=5))
+    c.ok("srl", cpu.regs.read(14) == 3)
+
+    cpu.regs.write(12, 0xFFFFFFF0)
+    cpu.regs.write(13, 4)
+    execute_instruction(cpu, _enc_op(14, 12, 13, funct3=5, funct7=0x20))
+    c.ok("sra", _u32(cpu.regs.read(14)) == 0xFFFFFFFF)
+
+    cpu.regs.write(12, 1)
+    cpu.regs.write(13, 5)
+    execute_instruction(cpu, _enc_op(14, 12, 13, funct3=2))
+    c.ok("slt", cpu.regs.read(14) == 1)
+
+    cpu.regs.write(12, 5)
+    cpu.regs.write(13, 1)
+    execute_instruction(cpu, _enc_op(14, 12, 13, funct3=3))
+    c.ok("sltu", cpu.regs.read(14) == 0)
+
+    slt_raw = _enc_op(6, 1, 2, funct3=2)
+    sltu_raw = _enc_op(7, 1, 2, funct3=3)
+    c.ok("disasm slt", cpu._simple_disasm(decode(slt_raw), slt_raw) == "slt x6,x1,x2")
+    c.ok("disasm sltu", cpu._simple_disasm(decode(sltu_raw), sltu_raw) == "sltu x7,x1,x2")
+
+
+def test_rv32i(c: Check):
+    print("\n[2] RV32I (branch, auipc)")
+    cpu = VerifCPU(1, 32)
+    cpu.trace_enabled = False
 
     cpu.pc = 0x100
     execute_instruction(cpu, encode_auipc(6, 2))
@@ -104,7 +167,7 @@ def test_rv32i(c: Check):
 
 
 def test_custom_insn(c: Check):
-    print("\n[2] Custom insn encoding (vforce/vrelease/vassert)")
+    print("\n[3] Custom insn encoding (vforce/vrelease/vassert)")
     cpu = VerifCPU(1, 32)
     cpu.trace_enabled = False
 
@@ -136,7 +199,7 @@ def test_custom_insn(c: Check):
 
 
 def test_vsync(c: Check):
-    print("\n[3] VSYNC lockstep barrier")
+    print("\n[4] VSYNC lockstep barrier")
     barrier = SyncBarrier()
     fw = struct.pack(
         "<III",
@@ -169,6 +232,7 @@ def test_vsync(c: Check):
 def main() -> int:
     print("VerifCPU self-verification")
     c = Check()
+    test_claude_shift_compare(c)
     test_rv32i(c)
     test_custom_insn(c)
     test_vsync(c)

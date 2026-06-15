@@ -3,6 +3,7 @@
 #
 # Usage:
 #   ./example.sh              # gen + full_campaign (default)
+#   ./example.sh -o DIR all   # mirror artifacts under DIR
 #   ./example.sh gen 64
 #   ./example.sh gen --axi 62 --ahb 1 --apb 1   # bus layout: order = slot order from SCPU1
 #   ./example.sh gen --apb 1 --axi 62 --ahb 1   # APB at SCPU1, then AXI, then AHB
@@ -16,8 +17,23 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FW="${ROOT}/firmware/campaign"
+OUTDIR=""
 LOG_FULL="${LOG_FULL:-${ROOT}/logs/full_campaign}"
 VCD_MAIN="${ROOT}/sim_build/tb_full_campaign.vcd"
+
+# Generated headers mirrored under -o/--output (build still uses repo paths).
+GEN_INCLUDE_NAMES=(
+  tb_full_campaign_gen.vh
+  icode_map.vh
+  icode_bind.vh
+  campaign_manifest.vh
+  campaign_params.vh
+  campaign_scale.vh
+  campaign_soc_platform.vh
+  campaign_master.vh
+  soc_init_seq.vh
+  verif_soc_bus_connect.vh
+)
 
 die() { echo "[example.sh] ERROR: $*" >&2; exit 1; }
 
@@ -38,6 +54,113 @@ step() {
   echo "========================================================================"
   echo "$1"
   echo "========================================================================"
+}
+
+configure_outdir() {
+  local target="$1"
+  [[ -n "$target" ]] || die "empty output directory"
+  mkdir -p "$target"
+  OUTDIR="$(cd "$target" && pwd)"
+  export VERIF_CPU_OUTDIR="$OUTDIR"
+  LOG_FULL="${OUTDIR}/logs/full_campaign"
+  export LOG_FULL
+  VCD_MAIN="${OUTDIR}/sim_build/tb_full_campaign.vcd"
+  echo "[example.sh] output dir: ${OUTDIR}"
+}
+
+copy_file() {
+  local src="$1" dst="$2"
+  [[ -f "$src" ]] || return 0
+  mkdir -p "$(dirname "$dst")"
+  cp -a "$src" "$dst"
+}
+
+stage_gen_artifacts() {
+  [[ -n "$OUTDIR" ]] || return 0
+  local out="$OUTDIR"
+  local f name staged=0
+
+  mkdir -p "${out}/firmware/campaign/build"
+  for f in "${FW}/build/"*.bin "${FW}/build/"*.elf "${FW}/build/"*.dis; do
+    [[ -f "$f" ]] || continue
+    copy_file "$f" "${out}/firmware/campaign/build/$(basename "$f")"
+    staged=$((staged + 1))
+  done
+
+  mkdir -p "${out}/firmware"
+  for f in "${ROOT}/firmware"/full_campaign_*.hex; do
+    [[ -f "$f" ]] || continue
+    copy_file "$f" "${out}/firmware/$(basename "$f")"
+    staged=$((staged + 1))
+  done
+
+  for name in "${GEN_INCLUDE_NAMES[@]}"; do
+    if [[ -f "${ROOT}/include/${name}" ]]; then
+      copy_file "${ROOT}/include/${name}" "${out}/include/${name}"
+      staged=$((staged + 1))
+    fi
+  done
+
+  mkdir -p "${out}/filelists"
+  for f in "${ROOT}/filelists/"*.f; do
+    [[ -f "$f" ]] || continue
+    copy_file "$f" "${out}/filelists/$(basename "$f")"
+    staged=$((staged + 1))
+  done
+
+  if [[ -d "${ROOT}/scripts" ]]; then
+    rm -rf "${out}/scripts"
+    cp -a "${ROOT}/scripts" "${out}/scripts"
+    staged=$((staged + 1))
+  fi
+
+  echo "[example.sh] staged ${staged} gen artifact path(s) under ${out}"
+}
+
+stage_sim_artifacts() {
+  [[ -n "$OUTDIR" ]] || return 0
+  local out="$OUTDIR"
+  local f staged=0
+
+  if [[ -d "${ROOT}/sim_build" ]]; then
+    mkdir -p "${out}/sim_build"
+    for f in "${ROOT}/sim_build/"*; do
+      [[ -f "$f" ]] || continue
+      copy_file "$f" "${out}/sim_build/$(basename "$f")"
+      staged=$((staged + 1))
+    done
+  fi
+
+  if [[ -d "$LOG_FULL" ]]; then
+    mkdir -p "${out}/logs/full_campaign"
+    for f in "${LOG_FULL}/"*; do
+      [[ -f "$f" ]] || continue
+      copy_file "$f" "${out}/logs/full_campaign/$(basename "$f")"
+      staged=$((staged + 1))
+    done
+  fi
+
+  echo "[example.sh] staged ${staged} sim artifact path(s) under ${out}"
+}
+
+vcd_main_path() {
+  if [[ -n "$OUTDIR" && -f "${OUTDIR}/sim_build/tb_full_campaign.vcd" ]]; then
+    echo "${OUTDIR}/sim_build/tb_full_campaign.vcd"
+  elif [[ -f "${ROOT}/sim_build/tb_full_campaign.vcd" ]]; then
+    echo "${ROOT}/sim_build/tb_full_campaign.vcd"
+  else
+    echo "${VCD_MAIN}"
+  fi
+}
+
+log_full_path() {
+  if [[ -n "$OUTDIR" && -d "${OUTDIR}/logs/full_campaign" ]]; then
+    echo "${OUTDIR}/logs/full_campaign"
+  elif [[ -d "$LOG_FULL" ]]; then
+    echo "$LOG_FULL"
+  else
+    echo "${ROOT}/logs/full_campaign"
+  fi
 }
 
 parse_num_scpu() {
@@ -189,13 +312,17 @@ run_gen() {
 
   echo ""
   echo "[gen] Artifacts:"
-  ls -la build/*.bin 2>/dev/null || true
+  ls -la "${FW}/build/"*.bin 2>/dev/null || true
   ls -la "${ROOT}/firmware/"*.hex 2>/dev/null || true
   ls -la "${ROOT}/include/tb_full_campaign_gen.vh" \
          "${ROOT}/include/icode_map.vh" \
          "${ROOT}/include/campaign_manifest.vh" 2>/dev/null || true
   ls -la "${ROOT}/filelists/"*.f 2>/dev/null | head -16 || true
   ls -la "${ROOT}/scripts/verdi/"*.sh 2>/dev/null | head -8 || true
+  if [[ -n "$OUTDIR" ]]; then
+    stage_gen_artifacts
+    echo "  (mirrored under ${OUTDIR})"
+  fi
 }
 
 run_verdi() {
@@ -234,28 +361,40 @@ run_sim() {
   cd "$ROOT"
   mkdir -p "$LOG_FULL"
   make full_campaign
+  if [[ -n "$OUTDIR" ]]; then
+    stage_sim_artifacts
+  fi
 
   echo ""
   echo "[sim] VCD artifacts:"
-  echo "  Main : $VCD_MAIN"
+  local vcd_main log_dir
+  vcd_main="$(vcd_main_path)"
+  log_dir="$(log_full_path)"
+  echo "  Main : ${vcd_main}"
   for cid in 1 2 3; do
-    p="${LOG_FULL}/SCPU${cid}.vcd"
+    p="${log_dir}/SCPU${cid}.vcd"
     if [[ -f "$p" ]]; then
       echo "  CPU${cid}: $p ($(wc -c < "$p") bytes)"
     fi
   done
+  if [[ -n "$OUTDIR" ]]; then
+    echo "  (mirrored under ${OUTDIR})"
+  fi
 }
 
 run_vcd_only() {
   step "VCD post-check (verify_vcd.py)"
   need_cmd python3
-  [[ -f "$VCD_MAIN" ]] || die "missing main VCD: $VCD_MAIN (run ./example.sh sim first)"
+  local vcd_main log_dir
+  vcd_main="$(vcd_main_path)"
+  log_dir="$(log_full_path)"
+  [[ -f "$vcd_main" ]] || die "missing main VCD: $vcd_main (run ./example.sh sim first)"
 
   python3 "${ROOT}/tools/verify_vcd.py" \
-    "$VCD_MAIN" \
-    "${LOG_FULL}/SCPU1.vcd" \
-    "${LOG_FULL}/SCPU2.vcd" \
-    "${LOG_FULL}/SCPU3.vcd"
+    "$vcd_main" \
+    "${log_dir}/SCPU1.vcd" \
+    "${log_dir}/SCPU2.vcd" \
+    "${log_dir}/SCPU3.vcd"
 }
 
 run_clean() {
@@ -287,13 +426,31 @@ Commands:
   clean            Remove gen/sim artifacts (fw build/hex/hdr, generated .vh, filelists, scripts)
   help             Show this message
 
+Options:
+  -o, --output DIR   Mirror gen/sim artifacts under DIR (see layout below)
+                     Sim per-CPU logs go to DIR/logs/full_campaign during run.
+
 Environment:
   NUM_SCPU     Same as gen N (alternative to positional argument)
   BUS_LAYOUT   Ordered bus segments (axi:62,ahb:1,apb:1) — set by gen --axi/--ahb/--apb/--task
-  LOG_FULL     Per-CPU VCD log directory (default: .../VerifCPU/logs/full_campaign)
+  LOG_FULL     Per-CPU VCD log directory (default: .../logs/full_campaign; overridden by -o)
+  VERIF_CPU_OUTDIR  Set automatically when -o is used
+
+Output layout (-o DIR):
+  DIR/firmware/campaign/build/*.bin
+  DIR/firmware/full_campaign_*.hex
+  DIR/include/*.vh (generated headers)
+  DIR/filelists/*.f
+  DIR/scripts/...
+  DIR/sim_build/tb_full_campaign.vcd (after sim)
+  DIR/logs/full_campaign/SCPU*.vcd (after sim)
+
+Note: make/iverilog still build in the repo tree; -o collects a portable artifact bundle.
 
 Examples:
   ./example.sh
+  ./example.sh -o /tmp/verif-out all
+  ./example.sh -o ./artifacts gen 64
   ./example.sh gen 64
   ./example.sh gen --axi 62 --ahb 1 --apb 1
   ./example.sh gen --apb 1 --axi 62 --ahb 1   # APB at SCPU1, then AXI, then AHB
@@ -307,12 +464,29 @@ EOF
 }
 
 main() {
-  local cmd="${1:-all}"
-  shift || true
+  local -a argv=("$@")
+  while (( ${#argv[@]} > 0 )); do
+    case "${argv[0]}" in
+      -o|--output)
+        [[ ${#argv[@]} -ge 2 ]] || die "expected directory after ${argv[0]}"
+        configure_outdir "${argv[1]}"
+        argv=("${argv[@]:2}")
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  local cmd="${argv[0]:-all}"
+  local -a rest=()
+  if (( ${#argv[@]} > 1 )); then
+    rest=("${argv[@]:1}")
+  fi
 
   case "$cmd" in
     all|full|verify|gen|generate)
-      parse_gen_args "$@"
+      parse_gen_args "${rest[@]}"
       ;;
   esac
 
@@ -337,8 +511,7 @@ main() {
       run_vcd_only
       ;;
     verdi|verdi-gui|gui)
-      shift || true
-      run_verdi "$@"
+      run_verdi "${rest[@]}"
       ;;
     clean)
       run_clean

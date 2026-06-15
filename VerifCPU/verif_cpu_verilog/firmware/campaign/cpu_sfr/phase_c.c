@@ -32,7 +32,7 @@ void phase_c_entry(void)
     rv_addi(16, 0, 0xAB);
     load_soc_addr(10, SFR_CTRL);
     rv_lw(11, 10, 0);
-    rv_lui(12, 0xDEADD);
+    rv_lui(12, 0xDEADE);
     rv_addi(12, 12, -339);
     rv_xor(13, 11, 12);
     rv_addi(1, 0, 1);
@@ -57,7 +57,7 @@ void phase_c_entry(void)
     vassert_id(41);
     load_soc_addr(10, SFR_XZ_PORT);
     rv_lw(11, 10, 0);
-    rv_lui(12, 0xDEADD);
+    rv_lui(12, 0xDEADE);
     rv_addi(12, 12, -339);
     rv_xor(13, 11, 12);
     rv_addi(1, 0, 1);

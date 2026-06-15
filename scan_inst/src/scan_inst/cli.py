@@ -32,6 +32,7 @@ from scan_inst.run_request import (
     merge_run_config,
     resolve_connectivity_request,
     run_config_from_args,
+    try_load_run_request_from_path,
 )
 from scan_inst.cone import (
     fanin_cone,
@@ -326,12 +327,26 @@ def main(argv=None) -> int:
         ap.error("use either --fanin-cone or --fanout-cone, not both")
 
     cli_cfg = run_config_from_args(args)
+    config_path: Optional[Path] = None
     if args.config:
-        cfg = merge_run_config(load_run_request(args.config), cli_cfg, args)
+        config_path = Path(args.config)
+        cfg = merge_run_config(load_run_request(config_path), cli_cfg, args)
+    elif args.filelist:
+        auto = try_load_run_request_from_path(args.filelist)
+        if auto is not None:
+            config_path, base_cfg = auto
+            cfg = merge_run_config(base_cfg, cli_cfg, args)
+        else:
+            cfg = cli_cfg
     else:
         cfg = cli_cfg
     if not cfg.filelist:
         ap.error("filelist is required (positional or in --config JSON)")
+
+    if not cfg.quiet:
+        jobs_note = "auto" if cfg.jobs == 0 else str(cfg.jobs)
+        src = f"config={config_path}" if config_path is not None else "cli"
+        print(f"run: {src} jobs={jobs_note}", file=sys.stderr)
 
     batch_mode = bool(cfg.check_connect_batch or cfg.connect_inline)
     cone_mode = bool(cfg.fanin_cone or cfg.fanout_cone)

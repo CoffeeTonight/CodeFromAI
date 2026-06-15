@@ -91,6 +91,28 @@ def _parse_defines(data: Any) -> Dict[str, str]:
     raise ValueError("'defines' must be an object or array of MACRO[=VAL]")
 
 
+def _parse_jobs(data: Any) -> int:
+    if data is None:
+        return 0
+    if isinstance(data, bool):
+        raise ValueError("'jobs' must be an integer")
+    if isinstance(data, (int, float)):
+        return int(data)
+    if isinstance(data, str):
+        raw = data.strip().lower()
+        if not raw or raw == "auto":
+            return 0
+        return int(raw)
+    raise ValueError("'jobs' must be an integer")
+
+
+def _jobs_from_mapping(data: Mapping[str, Any]) -> int:
+    for key in ("jobs", "j", "job"):
+        if key in data:
+            return _parse_jobs(data[key])
+    return 0
+
+
 def _parse_string_list(data: Any, *, field: str) -> List[str]:
     if data is None:
         return []
@@ -294,7 +316,7 @@ def parse_run_request_json(
                 field="ignore_module",
             )
         ),
-        jobs=int(data.get("jobs", data.get("j", 0))),
+        jobs=_jobs_from_mapping(data),
         low_memory=bool(data.get("low_memory", False)),
         cache_dir=_resolve_path(base, data.get("cache_dir")),
         no_cache=bool(data.get("no_cache", False)),
@@ -309,6 +331,29 @@ def load_run_request(path: Union[str, Path]) -> RunConfig:
     p = Path(path)
     data = json.loads(p.read_text(encoding="utf-8"))
     return parse_run_request_json(data, base_dir=p.parent)
+
+
+def try_load_run_request_from_path(
+    path: Union[str, Path],
+) -> Optional[Tuple[Path, RunConfig]]:
+    """
+    If *path* is a run-spec JSON (object with ``filelist``), return ``(path, cfg)``.
+
+    Used when users pass ``scan-inst run.json`` without ``--config``.
+    """
+    p = Path(path)
+    if p.suffix.lower() != ".json" or not p.is_file():
+        return None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, Mapping) or "filelist" not in data:
+        return None
+    try:
+        return p, parse_run_request_json(data, base_dir=p.parent)
+    except ValueError:
+        return None
 
 
 def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:

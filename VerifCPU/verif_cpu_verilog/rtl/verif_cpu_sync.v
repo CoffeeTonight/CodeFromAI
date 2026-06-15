@@ -66,15 +66,16 @@ module verif_cpu_sync #(
     end
   endfunction
 
-  // Returns 1 if CPU must enter SYNC_WAIT until sync_can_resume is true.
-  function sync_arrive;
-    input [7:0] cpu_id;
-    input [7:0] sync_id;
-    reg [7:0]   sid;
-    reg [63:0]  cpu_bit;
-    reg [63:0]  arrived_masked;
+  // Returns need_wait=1 if CPU must enter SYNC_WAIT until sync_can_resume is true.
+  task sync_arrive;
+    input  [7:0] cpu_id;
+    input  [7:0] sync_id;
+    output       need_wait;
+    reg [7:0]    sid;
+    reg [63:0]   cpu_bit;
+    reg [63:0]   arrived_masked;
     begin
-      sync_arrive = 1'b0;
+      need_wait = 1'b0;
       sid = sync_id;
       if (sid >= MAX_SYNC_IDS || cpu_id == 0 || cpu_id > MAX_CPUS) begin
         $display("SCPU%0d > [Sync] VSYNC ignored (invalid id=%0d)", cpu_id, sid);
@@ -94,9 +95,9 @@ module verif_cpu_sync #(
           barrier_release_count = barrier_release_count + 1;
           $display("[Sync] barrier id=%0d RELEASE gen=%0d", sid, sync_gen[sid]);
         end else
-          sync_arrive = 1'b1;
+          need_wait = 1'b1;
       end
     end
-  endfunction
+  endtask
 
 endmodule

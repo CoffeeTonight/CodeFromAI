@@ -16,6 +16,7 @@ module verif_cpu_unified_pool #(
   integer    region_fd [0:15];
 
   reg [7:0]  page_buf [0:15][0:PAGE_BYTES-1];
+  reg [7:0]  fread_tmp [0:PAGE_BYTES-1];
   reg [31:0] page_tag [0:15];
   reg        page_valid [0:15];
 
@@ -23,6 +24,7 @@ module verif_cpu_unified_pool #(
   integer j;
   integer k;
   integer seek_ok;
+  integer bytes_read;
   integer ch;
 
   initial begin
@@ -56,13 +58,9 @@ module verif_cpu_unified_pool #(
         $display("[UnifiedPool] CPU%0d page seek failed off=0x%08h", cpu_id, page_start);
         page_valid[cpu_id] = 1'b0;
       end else begin
-        for (k = 0; k < PAGE_BYTES; k = k + 1) begin
-          ch = $fgetc(region_fd[cpu_id]);
-          if (ch < 0)
-            page_buf[cpu_id][k] = 8'h13;
-          else
-            page_buf[cpu_id][k] = ch[7:0];
-        end
+        bytes_read = $fread(fread_tmp, region_fd[cpu_id], 0, PAGE_BYTES);
+        for (k = 0; k < PAGE_BYTES; k = k + 1)
+          page_buf[cpu_id][k] = (k < bytes_read) ? fread_tmp[k] : 8'h13;
         page_tag[cpu_id]   = page_start;
         page_valid[cpu_id] = 1'b1;
       end

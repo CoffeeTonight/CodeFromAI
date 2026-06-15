@@ -10,4 +10,5 @@ rtl/verif_cpu_core.v
 rtl/verif_orchestrator.v
 rtl/verif_agent.v
 rtl/verif_cpu_sync.v
+rtl/verif_cpu_hw_force.v
 

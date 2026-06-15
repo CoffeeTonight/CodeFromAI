@@ -423,24 +423,25 @@ module verif_cpu_core #(
     end
   endtask
 
-  function sync_arrive_impl;
-    input [7:0] sync_id;
+  task sync_arrive_impl;
+    input  [7:0] sync_id;
+    output       need_wait;
     begin
       if (sync_attached && USE_SHARED_SYNC)
-        sync_arrive_impl = tb_full_campaign.u_sync.sync_arrive(CPU_ID, sync_id);
+        tb_full_campaign.u_sync.sync_arrive(CPU_ID, sync_id, need_wait);
       else begin
-        sync_arrive_impl = 1'b0;
+        need_wait = 1'b0;
         $display("SCPU%0d > [Sync] VSYNC solo id=%0d", CPU_ID, sync_id);
       end
     end
-  endfunction
+  endtask
 
   task cpu_vsync;
     input [7:0] sync_id;
     reg       need_wait;
     begin
       sync_arrive_count = sync_arrive_count + 1;
-      need_wait = sync_arrive_impl(sync_id);
+      sync_arrive_impl(sync_id, need_wait);
       if (need_wait) begin
         sync_wait_id  = sync_id;
         sync_wait_gen = tb_full_campaign.u_sync.sync_gen_snapshot(sync_id);

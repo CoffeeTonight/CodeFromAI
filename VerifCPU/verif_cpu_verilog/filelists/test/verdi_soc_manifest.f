@@ -18,6 +18,7 @@ rtl/verif_cpu_core.v
 rtl/verif_orchestrator.v
 rtl/verif_agent.v
 rtl/verif_cpu_sync.v
+rtl/verif_cpu_hw_force.v
 rtl/verif_apb2_master.v
 rtl/verif_apb_master.v
 rtl/verif_apb4_master.v

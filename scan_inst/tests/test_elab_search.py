@@ -4,8 +4,23 @@ from __future__ import annotations
 
 from scan_inst.elab import elaborate
 from scan_inst.index import DesignIndex
+from scan_inst.library_scan import scan_library_modules
 from scan_inst.preprocess import preprocess_file
 from scan_inst.search import search
+
+
+def test_library_scan_registers_all_modules_in_file(tmp_path):
+    lib = tmp_path / "lib.v"
+    lib.write_text(
+        """
+module lib_a; endmodule
+module lib_b; endmodule
+""",
+        encoding="utf-8",
+    )
+    stubs = scan_library_modules([lib], [])
+    assert set(stubs) == {"lib_a", "lib_b"}
+    assert all(rec.is_blackbox for rec in stubs.values())
 
 
 def test_index_maps_file_and_module(tmp_path):

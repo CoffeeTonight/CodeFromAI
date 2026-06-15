@@ -33,17 +33,15 @@ def scan_library_modules(
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             return
-        m = _MODULE_RE.search(text)
-        if not m:
-            return
-        name = m.group(1)
-        if name in stubs:
-            return
-        stubs[name] = ModuleRecord(
-            module_name=name,
-            file_path=str(path.resolve()),
-            is_blackbox=True,
-        )
+        for m in _MODULE_RE.finditer(text):
+            name = m.group(1)
+            if name in stubs:
+                continue
+            stubs[name] = ModuleRecord(
+                module_name=name,
+                file_path=str(path.resolve()),
+                is_blackbox=True,
+            )
 
     for lf in library_files:
         add_file(Path(lf))

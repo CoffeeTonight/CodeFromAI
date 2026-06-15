@@ -31,6 +31,8 @@ module verif_agent_slave #(
   reg [31:0] hint_count;
   reg [31:0] init_txn_count;
   integer i;
+  integer hi;
+  reg     hint_seen;
 
   reg [31:0] expect_val;
 
@@ -67,8 +69,14 @@ module verif_agent_slave #(
     if (local_phase == `PHASE_INIT)
       init_txn_count = init_txn_count + 1;
     if (local_phase == `PHASE_COLLECT && hint_count < `MAX_HINTS) begin
-      hint_addr[hint_count] = txn_addr;
-      hint_count = hint_count + 1;
+      hint_seen = 0;
+      for (hi = 0; hi < hint_count; hi = hi + 1)
+        if (hint_addr[hi] == txn_addr)
+          hint_seen = 1;
+      if (!hint_seen) begin
+        hint_addr[hint_count] = txn_addr;
+        hint_count = hint_count + 1;
+      end
     end
   end
 
@@ -81,21 +89,15 @@ module verif_agent_slave #(
   endtask
 
   task run_phase_b;
-    reg seen;
-    integer h, s;
+    integer h;
     begin
       $display("SCPU%0d (%s) > Phase B: collecting verification target addresses", CPU_ID, CPU_NAME);
       slot_count = 0;
-      for (h = 0; h < hint_count; h = h + 1) begin
-        seen = 0;
-        for (s = 0; s < slot_count; s = s + 1)
-          if (bus_addr[s] == hint_addr[h]) seen = 1;
-        if (!seen && slot_count < `MAX_SLOTS) begin
-          bus_addr[slot_count] = hint_addr[h];
-          $display("SCPU%0d (%s) >   slot[%0d] bus_addr=0x%08h",
-                   CPU_ID, CPU_NAME, slot_count, bus_addr[slot_count]);
-          slot_count = slot_count + 1;
-        end
+      for (h = 0; h < hint_count && slot_count < `MAX_SLOTS; h = h + 1) begin
+        bus_addr[slot_count] = hint_addr[h];
+        $display("SCPU%0d (%s) >   slot[%0d] bus_addr=0x%08h",
+                 CPU_ID, CPU_NAME, slot_count, bus_addr[slot_count]);
+        slot_count = slot_count + 1;
       end
       $display("SCPU%0d (%s) > Phase B done: %0d unique addresses", CPU_ID, CPU_NAME, slot_count);
     end

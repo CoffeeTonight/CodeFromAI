@@ -10,7 +10,10 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
+from scan_inst.ignore_path import source_path_matches
 from scan_inst.progress import format_work_location
+
+_IGNORE_PATH_STUB = "/* scan_inst: ignore-path skipped */"
 
 _IFDEF_RE = re.compile(
     r"`(?:ifdef|ifndef)\s+([A-Za-z_]\w*)"
@@ -235,12 +238,28 @@ def _expand_macros(text: str, defines: Mapping[str, str]) -> str:
     return _MACRO_USE_RE.sub(repl, text)
 
 
+def _should_skip_preprocess_path(
+    path: Path | str,
+    skip_path_patterns: Sequence[str],
+) -> bool:
+    """Skip when the resolved absolute path matches ignore-path folder patterns."""
+    if not skip_path_patterns:
+        return False
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = Path(path)
+    return source_path_matches(resolved, skip_path_patterns)
+
+
 def _expand_includes_once(
     text: str,
     source_file: Path,
     include_dirs: Sequence[Path],
     defines: MutableMapping[str, str],
     visiting: Set[Path],
+    *,
+    skip_path_patterns: Sequence[str] = (),
 ) -> str:
     out: List[str] = []
     last = 0
@@ -249,6 +268,8 @@ def _expand_includes_once(
         inc_path = _resolve_include(m.group(2).strip(), m.group(1), source_file, include_dirs)
         if inc_path is None:
             out.append(f"/* scan_inst: missing include {m.group(2)} */")
+        elif _should_skip_preprocess_path(inc_path.resolve(), skip_path_patterns):
+            out.append(_IGNORE_PATH_STUB)
         else:
             out.append(
                 _preprocess_include_unit(
@@ -256,6 +277,7 @@ def _expand_includes_once(
                     include_dirs,
                     defines,
                     visiting,
+                    skip_path_patterns=skip_path_patterns,
                 )
             )
         last = m.end()
@@ -277,9 +299,18 @@ def _expand_include_text(
     include_dirs: Sequence[Path],
     defines: MutableMapping[str, str],
     visiting: Set[Path],
+    *,
+    skip_path_patterns: Sequence[str] = (),
 ) -> str:
     for _ in range(32):
-        expanded = _expand_includes_once(text, path, include_dirs, defines, visiting)
+        expanded = _expand_includes_once(
+            text,
+            path,
+            include_dirs,
+            defines,
+            visiting,
+            skip_path_patterns=skip_path_patterns,
+        )
         if expanded == text:
             break
         text = expanded
@@ -291,9 +322,13 @@ def _preprocess_include_unit(
     include_dirs: Sequence[Path],
     defines: MutableMapping[str, str],
     visiting: Set[Path],
+    *,
+    skip_path_patterns: Sequence[str] = (),
 ) -> str:
     """Expand includes and `` `define ``/`` `undef `` only (keep `` `ifdef `` for parent)."""
     key = path.resolve()
+    if _should_skip_preprocess_path(key, skip_path_patterns):
+        return _IGNORE_PATH_STUB
     if key in visiting:
         return f"/* scan_inst: include cycle {path} */"
     visiting.add(key)
@@ -316,6 +351,7 @@ def _preprocess_include_unit(
         include_dirs,
         defines,
         visiting,
+        skip_path_patterns=skip_path_patterns,
     )
     cleaned, ops = _collect_define_undef_ops(text)
     if cache_key is not None:
@@ -329,10 +365,20 @@ def preprocess_file(
     include_dirs: Sequence[Path],
     defines: MutableMapping[str, str],
     visiting: Optional[Set[Path]] = None,
+    *,
+    skip_path_patterns: Sequence[str] = (),
 ) -> str:
     """Full preprocess for one translation unit."""
+    if _should_skip_preprocess_path(path, skip_path_patterns):
+        return _IGNORE_PATH_STUB
     visiting = visiting or set()
-    text = _preprocess_include_unit(path, include_dirs, defines, visiting)
+    text = _preprocess_include_unit(
+        path,
+        include_dirs,
+        defines,
+        visiting,
+        skip_path_patterns=skip_path_patterns,
+    )
     text = _expand_macros(text, defines)
     text = apply_ifdef_filter(text, defines)
     text = _BIND_LINE_RE.sub("", text)
@@ -349,13 +395,19 @@ def _resolve_preprocess_jobs(jobs: int, num_tasks: int) -> int:
 
 
 def _preprocess_file_task(
-    item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...]],
+    item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], Tuple[str, ...]],
 ) -> Tuple[str, str]:
-    src, inc_dirs, define_items = item
+    src, inc_dirs, define_items, skip_patterns = item
     sp = Path(src)
     inc = [Path(p) for p in inc_dirs]
     defs: Dict[str, str] = dict(define_items)
-    return str(sp.resolve()), preprocess_file(sp, inc, defs, set())
+    return str(sp.resolve()), preprocess_file(
+        sp,
+        inc,
+        defs,
+        set(),
+        skip_path_patterns=skip_patterns,
+    )
 
 
 def _includes_in_text(text: str, source_file: Path, include_dirs: Sequence[Path]) -> List[Path]:
@@ -370,18 +422,24 @@ def _includes_in_text(text: str, source_file: Path, include_dirs: Sequence[Path]
 def _collect_include_closure(
     sources: Sequence[str | Path],
     include_dirs: Sequence[Path],
+    *,
+    skip_path_patterns: Sequence[str] = (),
 ) -> List[Path]:
     """Discover unique `` `include `` files reachable from RTL sources (light read)."""
     seen: Set[Path] = set()
     queue: List[Path] = []
     for src in sources:
         sp = Path(src)
+        if _should_skip_preprocess_path(sp, skip_path_patterns):
+            continue
         try:
             raw = sp.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         for inc_path in _includes_in_text(raw, sp, include_dirs):
             key = inc_path.resolve()
+            if _should_skip_preprocess_path(key, skip_path_patterns):
+                continue
             if key not in seen:
                 seen.add(key)
                 queue.append(key)
@@ -395,6 +453,8 @@ def _collect_include_closure(
             continue
         for inc_path in _includes_in_text(raw, path, include_dirs):
             key = inc_path.resolve()
+            if _should_skip_preprocess_path(key, skip_path_patterns):
+                continue
             if key not in seen:
                 seen.add(key)
                 queue.append(key)
@@ -406,6 +466,7 @@ def _warm_include_cache_for_sources(
     include_dirs: Sequence[Path],
     base_defines: Mapping[str, str],
     *,
+    skip_path_patterns: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> int:
     """
@@ -413,14 +474,35 @@ def _warm_include_cache_for_sources(
 
     Workers receive this cache via pool initializer (``spawn``) or ``fork`` COW.
     """
-    closure = _collect_include_closure(sources, include_dirs)
+    all_closure = _collect_include_closure(
+        sources,
+        include_dirs,
+        skip_path_patterns=(),
+    )
+    closure = _collect_include_closure(
+        sources,
+        include_dirs,
+        skip_path_patterns=skip_path_patterns,
+    )
+    if skip_path_patterns and on_progress and len(all_closure) > len(closure):
+        skipped = len(all_closure) - len(closure)
+        on_progress(
+            f"preprocess: ignore-path skips {skipped} included file(s) "
+            f"(resolved absolute path)"
+        )
     if not closure:
         return 0
     if on_progress:
         on_progress(f"preprocess: warming {len(closure)} shared include(s)")
     warm_defs: Dict[str, str] = dict(base_defines)
     for path in closure:
-        _preprocess_include_unit(path, include_dirs, warm_defs, set())
+        _preprocess_include_unit(
+            path,
+            include_dirs,
+            warm_defs,
+            set(),
+            skip_path_patterns=skip_path_patterns,
+        )
     return len(closure)
 
 
@@ -453,6 +535,7 @@ def preprocess_sources(
     base_defines: Mapping[str, str],
     *,
     jobs: int = 0,
+    skip_path_patterns: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
     progress_every: int = 500,
     file_via_filelist: Optional[Mapping[str, str]] = None,
@@ -472,14 +555,16 @@ def preprocess_sources(
             f"({workers} workers, jobs={jobs_note})"
         )
 
+    skip_tuple = tuple(skip_path_patterns)
     _warm_include_cache_for_sources(
         src_list,
         inc,
         base_defines,
+        skip_path_patterns=skip_tuple,
         on_progress=on_progress,
     )
 
-    tasks = [(src, inc_dirs, define_items) for src in src_list]
+    tasks = [(src, inc_dirs, define_items, skip_tuple) for src in src_list]
     if workers == 1 or total <= 1:
         out = _run_preprocess_tasks_serial(
             tasks,

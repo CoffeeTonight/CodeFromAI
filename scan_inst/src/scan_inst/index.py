@@ -79,16 +79,22 @@ def _scan_file_task(item: Tuple[str, str, ScanMode]) -> Dict[str, ModuleRecord]:
 
 
 def _preprocess_scan_file_task(
-    item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode],
+    item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode, Tuple[str, ...]],
 ) -> Dict[str, ModuleRecord]:
     """Picklable fused preprocess + scan (avoids retaining full preprocessed text)."""
-    fpath, inc_dirs, define_items, mode = item
+    fpath, inc_dirs, define_items, mode, skip_patterns = item
     path = Path(fpath)
     from scan_inst.preprocess import preprocess_file
 
     inc = [Path(p) for p in inc_dirs]
     defs: Dict[str, str] = dict(define_items)
-    text = preprocess_file(path, inc, defs, set())
+    text = preprocess_file(
+        path,
+        inc,
+        defs,
+        set(),
+        skip_path_patterns=skip_patterns,
+    )
     return scan_preprocessed(text, fpath)
 
 
@@ -158,6 +164,7 @@ def _build_merged_from_sources(
     defines: Mapping[str, str],
     jobs: int = 0,
     low_memory: bool = False,
+    skip_path_patterns: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
     file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
@@ -173,6 +180,7 @@ def _build_merged_from_sources(
                     include_dirs=include_dirs,
                     defines=defines,
                     jobs=jobs,
+                    skip_path_patterns=skip_path_patterns,
                     on_progress=on_progress,
                     file_via_filelist=file_via_filelist,
                 ),
@@ -187,6 +195,7 @@ def _build_merged_from_sources(
         include_dirs,
         defines,
         jobs=jobs,
+        skip_path_patterns=skip_path_patterns,
         on_progress=on_progress,
         file_via_filelist=file_via_filelist,
     )
@@ -246,13 +255,17 @@ def _scan_sources_fused(
     include_dirs: Sequence[str],
     defines: Mapping[str, str],
     jobs: int = 0,
+    skip_path_patterns: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
     file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
     define_items = tuple(sorted(defines.items()))
     inc_dirs = tuple(str(Path(p)) for p in include_dirs)
-    tasks: List[Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode]] = [
-        (fpath, inc_dirs, define_items, "parse") for fpath in parse_sources
+    skip_tuple = tuple(skip_path_patterns)
+    tasks: List[
+        Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode, Tuple[str, ...]]
+    ] = [
+        (fpath, inc_dirs, define_items, "parse", skip_tuple) for fpath in parse_sources
     ]
     merged: Dict[str, ModuleRecord] = {}
     if not tasks:
@@ -483,6 +496,7 @@ class DesignIndex:
                 defines=defines or {},
                 jobs=jobs,
                 low_memory=self.low_memory,
+                skip_path_patterns=self.ignore_path_patterns,
                 on_progress=on_progress,
                 file_via_filelist=self.file_via_filelist,
             )
@@ -593,7 +607,10 @@ class DesignIndex:
             ignore_path_files=ignore_path_files or (),
             ignore_modules=ignore_modules or (),
         )
-        src_list = sorted(str(Path(s)) for s in sources)
+        src_list = sorted(
+            {str(Path(s).resolve()) for s in sources},
+            key=str,
+        )
         parse_sources, ignore_sources = partition_sources(src_list, path_patterns)
         if on_progress and ignore_sources:
             on_progress(
@@ -607,6 +624,7 @@ class DesignIndex:
             defines=defines,
             jobs=jobs,
             low_memory=low_memory,
+            skip_path_patterns=path_patterns,
             on_progress=on_progress,
             file_via_filelist=file_via_filelist,
         )

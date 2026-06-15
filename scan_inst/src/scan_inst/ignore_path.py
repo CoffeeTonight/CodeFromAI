@@ -110,10 +110,18 @@ def _segment_matches(pattern: str, segment: str) -> bool:
     return pattern == segment or pattern.lower() == segment.lower()
 
 
-def source_path_matches(path: str, patterns: Sequence[str]) -> bool:
+def normalized_ignore_path(path: str | Path) -> str:
+    """Canonical absolute path string for ignore-path matching."""
+    try:
+        return str(Path(path).resolve()).replace("\\", "/")
+    except OSError:
+        return str(path).replace("\\", "/")
+
+
+def source_path_matches(path: str | Path, patterns: Sequence[str]) -> bool:
     if not patterns:
         return False
-    norm = str(path).replace("\\", "/")
+    norm = normalized_ignore_path(path)
     norm_lower = norm.lower()
     for pat in patterns:
         if not pat:
@@ -139,10 +147,11 @@ def partition_sources(
     parse_out: List[str] = []
     ignore_out: List[str] = []
     for src in sources:
-        if source_path_matches(src, patterns):
-            ignore_out.append(src)
+        resolved = normalized_ignore_path(src)
+        if source_path_matches(resolved, patterns):
+            ignore_out.append(resolved)
         else:
-            parse_out.append(src)
+            parse_out.append(resolved)
     return parse_out, ignore_out
 
 

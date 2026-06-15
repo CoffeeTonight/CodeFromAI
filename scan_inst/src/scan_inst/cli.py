@@ -36,6 +36,7 @@ from scan_inst.run_request import (
     jobs_from_env,
     jobs_hint_from_config_text,
     load_run_request_with_jobs_source,
+    merge_options_from_connect_batch_json,
     merge_run_config,
     resolve_connectivity_request,
     resolve_jobs_after_merge,
@@ -359,6 +360,16 @@ def main(argv=None) -> int:
     if not cfg.filelist:
         ap.error("filelist is required (positional or in --config JSON)")
 
+    connect_batch_jobs_source: Optional[str] = None
+    connect_batch_path: Optional[Path] = None
+    if cfg.check_connect_batch:
+        connect_batch_path = Path(cfg.check_connect_batch)
+        cfg, connect_batch_jobs_source = merge_options_from_connect_batch_json(
+            cfg,
+            connect_batch_path,
+            args,
+        )
+
     env_jobs_source: Optional[str] = None
     if cfg.jobs == 0 and int(args.jobs) == 0:
         env_jobs, env_src = jobs_from_env()
@@ -369,6 +380,7 @@ def main(argv=None) -> int:
         cfg,
         args,
         json_jobs_source=json_jobs_source,
+        connect_batch_jobs_source=connect_batch_jobs_source,
         env_jobs_source=env_jobs_source,
     )
 
@@ -384,10 +396,17 @@ def main(argv=None) -> int:
                 f"(source={jobs_res.source})",
                 file=sys.stderr,
             )
+        elif connect_batch_path is not None:
+            print(
+                f"run: connect-batch={connect_batch_path.resolve()} jobs={jobs_res.note} "
+                f"(source={jobs_res.source})",
+                file=sys.stderr,
+            )
         else:
             print(
                 f"run: no config loaded jobs={jobs_res.note} "
-                f"(source={jobs_res.source}; use -c run.json or SCAN_INST_CONFIG)",
+                f"(source={jobs_res.source}; use -c run.json, "
+                f"jobs in --check-connect-batch JSON, or SCAN_INST_CONFIG)",
                 file=sys.stderr,
             )
         if (

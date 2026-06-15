@@ -233,6 +233,12 @@ Check item aliases
 Options
 -------
   top                 Elaboration top when not set on CLI / run JSON
+  jobs (int)          Parallel index workers (same as run JSON; 0=auto)
+  j / job / workers   Aliases for jobs
+  ignore-path         RTL folder patterns; matched on resolved absolute paths
+                      (filelist sources and every `include` target)
+  no-cache            Disable index/elab disk cache
+  refresh-cache       Force index rebuild
   defines             Merged into compile defines (also used at index build
                       when loaded via --config)
   include-ff (bool)   Allow paths through always_ff (default: comb-only)

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scan_inst.ignore_path import partition_sources, source_path_matches
+from scan_inst.ignore_path import (
+    normalized_ignore_path,
+    partition_sources,
+    source_path_matches,
+)
 from scan_inst.index import DesignIndex
 
 
@@ -45,6 +49,45 @@ def test_ignore_path_case_insensitive_folder_segment():
     path = "/proj/rtl/PCIeLinkTop/foo.v"
     assert source_path_matches(path, ["pcielinktop"])
     assert source_path_matches(path, ["pciephytop"]) is False
+
+
+def test_partition_sources_uses_resolved_absolute_path(tmp_path):
+    vendor = tmp_path / "pcielinktop"
+    vendor.mkdir()
+    rtl = vendor / "ip.v"
+    rtl.write_text("module ip; endmodule\n", encoding="utf-8")
+    rel = Path("pcielinktop") / "ip.v"
+    parse, ignore = partition_sources([str(tmp_path / rel)], ["pcielinktop"])
+    assert ignore == [str(rtl.resolve())]
+    assert not parse
+
+
+def test_preprocess_skips_ignore_path_includes(tmp_path):
+    vendor = tmp_path / "pcielinktop"
+    vendor.mkdir()
+    defs = vendor / "pcie_link_user_defs.v"
+    nested = vendor / "nested.vh"
+    nested.write_text("\n".join(f"`define N{i} 1" for i in range(2000)), encoding="utf-8")
+    defs.write_text('`include "nested.vh"\n`define PCIE_LINK 1\n', encoding="utf-8")
+    top = tmp_path / "top.v"
+    top.write_text(
+        '`include "pcie_link_user_defs.v"\nmodule top; endmodule\n',
+        encoding="utf-8",
+    )
+
+    from scan_inst.preprocess import preprocess_sources
+
+    out = preprocess_sources(
+        [str(top)],
+        [vendor],
+        {},
+        jobs=1,
+        skip_path_patterns=["pcielinktop"],
+    )
+    text = out[str(top.resolve())]
+    assert "ignore-path skipped" in text
+    assert "PCIE_LINK" not in text
+    assert normalized_ignore_path(defs).endswith("pcielinktop/pcie_link_user_defs.v")
 
 
 def test_ignore_path_no_read_when_only_referenced(tmp_path):

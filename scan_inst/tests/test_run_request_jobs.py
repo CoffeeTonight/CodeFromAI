@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scan_inst.cli import _build_parser
 from scan_inst.run_request import (
+    merge_options_from_connect_batch_json,
     merge_run_config,
     parse_run_request_json,
     run_config_from_args,
@@ -117,3 +118,28 @@ def test_jobs_workers_alias():
         base_dir="/tmp",
     )
     assert cfg.jobs == 12
+
+
+def test_jobs_from_check_connect_batch_json(tmp_path: Path):
+    batch = tmp_path / "checks.json"
+    batch.write_text(
+        """
+        {
+          "top": "SOC_TOP",
+          "jobs": 16,
+          "ignore-path": ["pcielinktop"],
+          "checks": [{"id": "a", "a": "top.a", "b": "top.b"}]
+        }
+        """,
+        encoding="utf-8",
+    )
+    ap = _build_parser()
+    args = ap.parse_args(
+        ["top.f", "--check-connect-batch", str(batch)],
+    )
+    cli = run_config_from_args(args)
+    merged, src = merge_options_from_connect_batch_json(cli, batch, args)
+    assert merged.jobs == 16
+    assert src == "connect-batch:jobs"
+    assert merged.ignore_path == ("pcielinktop",)
+    assert merged.top == "SOC_TOP"

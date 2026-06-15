@@ -388,11 +388,71 @@ def load_run_request(path: Union[str, Path]) -> RunConfig:
     return parse_run_request_json(data, base_dir=p.parent)
 
 
+def merge_options_from_connect_batch_json(
+    cfg: RunConfig,
+    batch_path: Union[str, Path],
+    args: Any,
+) -> tuple[RunConfig, Optional[str]]:
+    """
+    Apply run-level fields from ``--check-connect-batch`` JSON.
+
+    Connectivity batch files often carry ``jobs``, ``ignore-path``, etc. alongside
+    ``checks`` when users do not use a separate ``-c`` run JSON.
+    """
+    if not batch_path:
+        return cfg, None
+    p = Path(batch_path)
+    if not p.is_file():
+        return cfg, None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return cfg, None
+    if not isinstance(data, Mapping):
+        return cfg, None
+
+    out = cfg
+    jobs_source: Optional[str] = None
+
+    if not _field_overridden(args, "jobs", 0) and out.jobs == 0:
+        jobs, src = _jobs_from_document(data)
+        if src is not None:
+            out = replace(out, jobs=jobs)
+            jobs_source = f"connect-batch:{src}"
+
+    if not args.ignore_path and not out.ignore_path:
+        ignore_raw = data.get("ignore_path", data.get("ignore-path"))
+        if ignore_raw is not None:
+            ignore = tuple(
+                _parse_string_list(ignore_raw, field="ignore_path")
+            )
+            if ignore:
+                out = replace(out, ignore_path=ignore)
+
+    if not args.no_cache and not out.no_cache and bool(data.get("no_cache")):
+        out = replace(out, no_cache=True)
+
+    if (
+        not args.refresh_cache
+        and not out.refresh_cache
+        and bool(data.get("refresh_cache"))
+    ):
+        out = replace(out, refresh_cache=True)
+
+    if not _field_overridden(args, "top", None) and not out.top:
+        top = str(_mapping_get_ci(data, "top") or "").strip()
+        if top:
+            out = replace(out, top=top)
+
+    return out, jobs_source
+
+
 def resolve_jobs_after_merge(
     cfg: RunConfig,
     args: Any,
     *,
     json_jobs_source: Optional[str] = None,
+    connect_batch_jobs_source: Optional[str] = None,
     env_jobs_source: Optional[str] = None,
 ) -> JobsResolution:
     """Describe where effective parallel job count came from."""
@@ -400,6 +460,8 @@ def resolve_jobs_after_merge(
         return JobsResolution(jobs=cfg.jobs, source="cli:-j")
     if env_jobs_source is not None:
         return JobsResolution(jobs=cfg.jobs, source=env_jobs_source)
+    if connect_batch_jobs_source is not None:
+        return JobsResolution(jobs=cfg.jobs, source=connect_batch_jobs_source)
     if json_jobs_source is not None:
         return JobsResolution(jobs=cfg.jobs, source=f"json:{json_jobs_source}")
     if cfg.jobs == 0:

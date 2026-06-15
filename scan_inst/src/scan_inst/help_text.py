@@ -33,12 +33,16 @@ JSON help:
   scan-inst --help-stress     random RTL connectivity stress / pytest
 
 environment:
+  SCAN_INST_LAZY              default on: light index preprocess, scoped connect elab,
+                              lazy filelist expand (SCAN_INST_LAZY=0 to disable)
   SCAN_INST_CACHE_DIR         index/elab cache root
   SCAN_INST_IGNORE_PATH       default --ignore-path patterns (comma-separated)
   SCAN_INST_IGNORE_MODULE     default --ignore-module names (comma-separated)
   SCAN_INST_IGNORE_FILELIST   default --ignore-filelist patterns (comma-separated)
-  SCAN_INST_NO_INCLUDE_WARM   skip include warm before parallel preprocess
+  SCAN_INST_INCLUDE_WARM      opt-in include warm before parallel preprocess
+  SCAN_INST_NO_INCLUDE_WARM   skip include discovery/warm entirely
   SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 200; 0 = no limit)
+  SCAN_INST_LOG_SLOW_FILES    log per-file preprocess/scan timing (1=10s, or seconds)
   SCAN_INST_LOW_MEMORY_AUTO   auto fused index above N sources (default 1500; 0=off)
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
 
@@ -145,6 +149,13 @@ Ignore rules
   ignore-path-file (string | array)  External ignore lists (--ignore-path-file)
   ignore-module (string | array)     Module names (--ignore-module)
   ignore-filelist (string | array)   Listing .f names/paths (--ignore-filelist)
+
+Environment (optional)
+----------------------
+  env (object)                Process env for scan-inst tuning (see HELP epilog).
+                              Keys like SCAN_INST_INCLUDE_WARM, SCAN_INST_LOG_SLOW_FILES.
+                              Aliases: environment, scan-inst-env.
+                              JSON env wins over shell export for the same key.
 
 Cache / parallelism
 -------------------

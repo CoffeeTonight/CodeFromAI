@@ -18,7 +18,7 @@ import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Set, Union
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, Union
 
 OnFilelistProgress = Callable[[str], None]
 
@@ -59,6 +59,8 @@ def expand_filelist(
     *,
     index_cwd: Optional[Union[str, Path]] = None,
     on_progress: Optional[OnFilelistProgress] = None,
+    ignore_filelist_patterns: Optional[Sequence[str]] = None,
+    defer_source_exists: bool = False,
 ) -> FilelistResult:
     """
     Expand a top ``.f`` into :class:`FilelistResult`.
@@ -91,13 +93,24 @@ def expand_filelist(
             p = base / p
         return _resolve_abs(p)
 
+    from scan_inst.ignore_path import filelist_path_matches
+
+    ignore_fl = list(ignore_filelist_patterns or ())
+
+    def _skip_nested_filelist(fpath: Path, chain_text: str) -> bool:
+        if not ignore_fl:
+            return False
+        return filelist_path_matches(fpath, chain=chain_text, patterns=ignore_fl)
+
     def add_source(sp: Path, *, via_filelist: Path, chain: List[Path]) -> None:
         if sp in seen_src:
             return
         seen_src.add(sp)
         result.source_via_filelist[sp] = via_filelist
         result.source_filelist_chain[sp] = " -> ".join(str(p) for p in chain)
-        if sp.exists():
+        if defer_source_exists:
+            result.source_files.append(sp)
+        elif sp.exists():
             result.source_files.append(sp)
         else:
             result.errors.append(f"Source not found: {sp}")
@@ -232,6 +245,11 @@ def expand_filelist(
             elif line.startswith("-f "):
                 nested = line[3:].strip()
                 np = resolve_path(nested, fpath.parent)
+                chain_text = " -> ".join(str(p) for p in this_chain + [np])
+                if _skip_nested_filelist(np, chain_text):
+                    if on_progress:
+                        on_progress(f"filelist: skip {np.name} (ignore-filelist)")
+                    continue
                 link_nested(fpath, np, "-f")
                 parse_one(
                     np,
@@ -243,6 +261,11 @@ def expand_filelist(
             elif line.startswith("-F "):
                 nested = line[3:].strip()
                 np = resolve_path(nested, cwd)
+                chain_text = " -> ".join(str(p) for p in this_chain + [np])
+                if _skip_nested_filelist(np, chain_text):
+                    if on_progress:
+                        on_progress(f"filelist: skip {np.name} (ignore-filelist)")
+                    continue
                 link_nested(fpath, np, "-F")
                 parse_one(
                     np,

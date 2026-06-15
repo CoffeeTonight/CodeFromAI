@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from scan_inst.hch_compat.filelist_preprocess import FilelistResult as HchFilelistResult
 from scan_inst.hch_compat.filelist_preprocess import expand_filelist
@@ -113,12 +113,16 @@ def parse_filelist(
     extra_defines: Optional[Dict[str, str]] = None,
     env: Optional[Dict[str, str]] = None,
     on_progress: Optional[Callable[[str], None]] = None,
+    ignore_filelists: Optional[Sequence[str]] = None,
+    defer_source_exists: bool = False,
 ) -> FilelistResult:
     fl = expand_filelist(
         top_filelist,
         env,
         index_cwd=index_cwd,
         on_progress=on_progress,
+        ignore_filelist_patterns=ignore_filelists,
+        defer_source_exists=defer_source_exists,
     )
     if extra_defines:
         fl.defines.update(extra_defines)

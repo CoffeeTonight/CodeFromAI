@@ -20,6 +20,11 @@ from scan_inst.cache import (
     store_cached_elab,
 )
 from scan_inst.elab import elaborate_tops_parallel
+from scan_inst.lazy_scope import (
+    elab_scope_paths,
+    endpoint_specs_from_request,
+    lazy_processing_enabled,
+)
 from scan_inst.perf import effective_low_memory
 from scan_inst.filelist import parse_filelist
 from scan_inst.progress import ProgressHeartbeat, ProgressReporter, progress_callback
@@ -466,11 +471,19 @@ def main(argv=None) -> int:
             else default_log_path(cfg.filelist, cfg.output)
         )
 
+    lazy = lazy_processing_enabled()
+    if lazy and on_progress:
+        on_progress(
+            "index: lazy preprocessing enabled (SCAN_INST_LAZY=0 to disable)"
+        )
+
     fl = parse_filelist(
         cfg.filelist,
         index_cwd=cfg.index_cwd,
         extra_defines=extra_defines,
         on_progress=on_progress,
+        ignore_filelists=list(cfg.ignore_filelist),
+        defer_source_exists=lazy,
     )
     if not fl.source_files:
         print("No sources in filelist", file=sys.stderr)
@@ -558,8 +571,19 @@ def main(argv=None) -> int:
         print("Hint: scan-inst ... --find-top", file=sys.stderr)
         return 2
 
+    elab_scope = None
+    use_scoped_elab = lazy and (batch_mode or cfg.check_connect) and not cone_mode
+    if use_scoped_elab:
+        pair = tuple(cfg.check_connect) if cfg.check_connect else None
+        specs = endpoint_specs_from_request(connect_request, pair=pair)
+        if specs:
+            top_for_scope = tops[0] if tops else ""
+            elab_scope = elab_scope_paths(specs, top=top_for_scope)
+            if on_progress:
+                on_progress(f"elab: scoped {len(elab_scope)} path(s) for connect")
+
     def _get_cached_elab(top_name: str):
-        if not use_cache:
+        if not use_cache or elab_scope is not None:
             return None
         return get_cached_elab(bundle, top_name, cfg.max_depth)
 
@@ -568,6 +592,8 @@ def main(argv=None) -> int:
         root,
         part,
     ) -> None:
+        if elab_scope is not None:
+            return
         store_cached_elab(
             bundle,
             top_name,
@@ -582,6 +608,7 @@ def main(argv=None) -> int:
         index,
         tops,
         max_depth=cfg.max_depth,
+        scope_paths=elab_scope,
         jobs=cfg.jobs,
         get_cached=_get_cached_elab,
         store_cached=_store_cached_elab,

@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.index import DesignIndex
+from scan_inst.lazy_scope import child_path_in_scope
 from scan_inst.models import ElabNode, FlatRow
 from scan_inst.params import resolve_param_map
 
@@ -26,6 +27,7 @@ def elaborate(
     top: str,
     *,
     max_depth: Optional[int] = None,
+    scope_paths: Optional[Set[str]] = None,
 ) -> tuple[ElabNode, List[FlatRow]]:
     if top not in index.modules:
         raise ValueError(f"Top module not found: {top}")
@@ -109,6 +111,8 @@ def elaborate(
             child_path = f"{full_path}.{edge.inst_name}"
             if child_path in seen_paths:
                 continue
+            if not child_path_in_scope(child_path, scope_paths):
+                continue
             child = stitch(
                 edge.child_module,
                 edge.inst_name,
@@ -125,8 +129,19 @@ def elaborate(
     return root, rows
 
 
-def flatten(index: DesignIndex, top: str, *, max_depth: Optional[int] = None) -> List[FlatRow]:
-    _, rows = elaborate(index, top, max_depth=max_depth)
+def flatten(
+    index: DesignIndex,
+    top: str,
+    *,
+    max_depth: Optional[int] = None,
+    scope_paths: Optional[Set[str]] = None,
+) -> List[FlatRow]:
+    _, rows = elaborate(
+        index,
+        top,
+        max_depth=max_depth,
+        scope_paths=scope_paths,
+    )
     return rows
 
 
@@ -135,6 +150,7 @@ def elaborate_tops_parallel(
     tops: Sequence[str],
     *,
     max_depth: Optional[int] = None,
+    scope_paths: Optional[Set[str]] = None,
     jobs: int = 0,
     get_cached: Optional[
         Callable[[str], Optional[Tuple[ElabNode, List[FlatRow]]]]
@@ -160,7 +176,12 @@ def elaborate_tops_parallel(
                 return top_name, cached, True
         if on_progress:
             on_progress(f"elab: elaborating top {top_name}")
-        root, part = elaborate(index, top_name, max_depth=max_depth)
+        root, part = elaborate(
+            index,
+            top_name,
+            max_depth=max_depth,
+            scope_paths=scope_paths,
+        )
         if store_cached is not None:
             store_cached(top_name, root, part)
         return top_name, (root, part), False

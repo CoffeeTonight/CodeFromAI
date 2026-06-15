@@ -360,6 +360,32 @@ def _preprocess_include_unit(
     return cleaned
 
 
+def preprocess_file_for_index(
+    path: Path,
+    include_dirs: Sequence[Path],
+    defines: MutableMapping[str, str],
+    visiting: Optional[Set[Path]] = None,
+    *,
+    skip_path_patterns: Sequence[str] = (),
+) -> str:
+    """
+    Light preprocess for index/instance scan: includes + ``ifdef`` only.
+
+    Macro expand and bind stripping are deferred to connect/elab ``module_body``.
+    """
+    if _should_skip_preprocess_path(path, skip_path_patterns):
+        return _IGNORE_PATH_STUB
+    visiting = visiting or set()
+    text = _preprocess_include_unit(
+        path,
+        include_dirs,
+        defines,
+        visiting,
+        skip_path_patterns=skip_path_patterns,
+    )
+    return apply_ifdef_filter(text, defines)
+
+
 def preprocess_file(
     path: Path,
     include_dirs: Sequence[Path],
@@ -401,7 +427,12 @@ def _preprocess_file_task(
     sp = Path(src)
     inc = [Path(p) for p in inc_dirs]
     defs: Dict[str, str] = dict(define_items)
-    return str(sp.resolve()), preprocess_file(
+    from scan_inst.lazy_scope import lazy_processing_enabled
+
+    preprocess_fn = (
+        preprocess_file_for_index if lazy_processing_enabled() else preprocess_file
+    )
+    return str(sp.resolve()), preprocess_fn(
         sp,
         inc,
         defs,
@@ -566,13 +597,17 @@ from scan_inst.perf import DEFAULT_INCLUDE_WARM_MAX as _DEFAULT_INCLUDE_WARM_MAX
 
 
 def _include_warm_policy() -> Tuple[bool, Optional[int]]:
-    """Return ``(enabled, cap)``; ``cap is None`` means no limit."""
+    """Return ``(enabled, cap)``; warm is opt-in via ``SCAN_INST_INCLUDE_WARM=1``."""
+    from scan_inst.perf import include_warm_enabled
+
     if os.environ.get("SCAN_INST_NO_INCLUDE_WARM", "").strip().lower() in (
         "1",
         "yes",
         "true",
         "on",
     ):
+        return False, None
+    if not include_warm_enabled():
         return False, None
     raw = os.environ.get("SCAN_INST_INCLUDE_WARM_MAX", "").strip()
     if not raw:
@@ -621,7 +656,18 @@ def _warm_include_cache_for_sources(
     warm_enabled, warm_cap = _include_warm_policy()
     if not warm_enabled:
         if on_progress:
-            on_progress("preprocess: skip include warm (SCAN_INST_NO_INCLUDE_WARM)")
+            if os.environ.get("SCAN_INST_NO_INCLUDE_WARM", "").strip().lower() in (
+                "1",
+                "yes",
+                "true",
+                "on",
+            ):
+                on_progress("preprocess: skip include warm (SCAN_INST_NO_INCLUDE_WARM)")
+            else:
+                on_progress(
+                    "preprocess: skip include warm "
+                    "(set SCAN_INST_INCLUDE_WARM=1 to enable)"
+                )
         return 0
 
     discover_cap = (warm_cap + 1) if warm_cap is not None else None
@@ -650,10 +696,10 @@ def _warm_include_cache_for_sources(
     if warm_cap is not None and len(closure) > warm_cap:
         if on_progress:
             on_progress(
-                f"preprocess: skip include warm ({len(closure)} includes > {warm_cap}; "
-                f"set SCAN_INST_INCLUDE_WARM_MAX=0 for no limit)"
+                f"preprocess: partial include warm ({warm_cap}/{len(closure)} includes; "
+                f"set SCAN_INST_INCLUDE_WARM_MAX=0 for full warm)"
             )
-        return 0
+        closure = closure[:warm_cap]
 
     workers = _resolve_preprocess_jobs(jobs, len(closure))
     if on_progress:

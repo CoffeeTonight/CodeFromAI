@@ -10,7 +10,7 @@ from scan_inst.generate_fold import fold_generate_regions, prepare_body_for_inst
 from scan_inst.params import (
     _find_top_level_op,
     _param_int,
-    collect_module_params,
+    collect_connect_module_params,
     resolve_param_expr,
     resolve_param_map,
 )
@@ -2620,7 +2620,7 @@ def build_module_connect_index(
     ff_barrier: bool = False,
 ) -> ModuleConnectIndex:
     pmap = dict(param_map or {})
-    body_params = collect_module_params("", body)
+    body_params = collect_connect_module_params("", body)
     full_pmap = resolve_param_map(body_params, parent=pmap, overrides=pmap)
     if fold_generate:
         text = prepare_connect_body(

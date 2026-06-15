@@ -41,4 +41,5 @@ def test_no_include_warm_skips_discovery_scan(tmp_path, monkeypatch):
     )
     assert warmed == 0
     assert any("skip include warm" in line for line in lines)
+    assert any("SCAN_INST_NO_INCLUDE_WARM" in line for line in lines)
     assert not any("include discovery" in line for line in lines)

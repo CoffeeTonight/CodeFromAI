@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from scan_inst.run_request import (
+    apply_config_env_from_document,
     load_run_request,
     parse_run_request_json,
     resolve_connectivity_request,
@@ -65,6 +66,29 @@ def test_load_run_request_resolves_relative_paths(tmp_path: Path):
     cfg = load_run_request(cfg_path)
     assert cfg.filelist == str(fl.resolve())
     assert cfg.check_connect_batch == str((tmp_path / "checks.json").resolve())
+
+
+def test_apply_config_env_from_document(monkeypatch):
+    monkeypatch.delenv("SCAN_INST_LOG_SLOW_FILES", raising=False)
+    monkeypatch.setenv("SCAN_INST_JOBS", "4")
+    applied = apply_config_env_from_document(
+        {
+            "env": {
+                "SCAN_INST_INCLUDE_WARM": "1",
+                "SCAN_INST_INCLUDE_WARM_MAX": "0",
+                "SCAN_INST_LOG_SLOW_FILES": "1",
+                "SCAN_INST_JOBS": "16",
+            }
+        }
+    )
+    assert "SCAN_INST_INCLUDE_WARM" in applied
+    assert "SCAN_INST_LOG_SLOW_FILES" in applied
+    assert "SCAN_INST_JOBS" in applied
+    import os
+
+    assert os.environ["SCAN_INST_INCLUDE_WARM"] == "1"
+    assert os.environ["SCAN_INST_INCLUDE_WARM_MAX"] == "0"
+    assert os.environ["SCAN_INST_JOBS"] == "16"
 
 
 def test_cli_config_only_stress_run(tmp_path: Path):

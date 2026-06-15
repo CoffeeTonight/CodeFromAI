@@ -174,7 +174,23 @@ def split_module_header(chunk: str) -> Tuple[str, str]:
 
 def strip_body_param_declarations(body: str) -> str:
     """Remove body ``parameter``/``localparam`` statements (index instance scan)."""
-    return _BODY_PARAM_STMT_RE.sub("\n", body)
+    if "parameter" not in body.lower() and "localparam" not in body.lower():
+        return body
+    lines: List[str] = []
+    skip_until_semi = False
+    for line in body.splitlines():
+        if skip_until_semi:
+            if ";" in line:
+                skip_until_semi = False
+            continue
+        stripped = line.lstrip()
+        lower = stripped.lower()
+        if lower.startswith("parameter") or lower.startswith("localparam"):
+            if ";" not in line:
+                skip_until_semi = True
+            continue
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def body_param_scan_skipped(body: str, *, max_body_bytes: Optional[int] = None) -> bool:
@@ -264,6 +280,23 @@ def instance_param_exprs(edges: Iterable[object]) -> List[str]:
         overrides = getattr(edge, "param_overrides", None) or {}
         exprs.extend(overrides.values())
     return exprs
+
+
+def bracket_dim_exprs(body: str) -> List[str]:
+    """``[lo:hi]`` fragments in *body* (connect/index param seeds)."""
+    return [m.group(0) for m in re.finditer(r"\[[^\]]+\]", body)]
+
+
+def collect_connect_module_params(
+    header_text: str,
+    body: str,
+    *,
+    instance_exprs: Optional[Iterable[str]] = None,
+) -> Dict[str, str]:
+    """Connect-time params: header + seeds from dims / instances (no full body scan)."""
+    seeds = list(instance_exprs or [])
+    seeds.extend(bracket_dim_exprs(body))
+    return collect_index_module_params(header_text, body, seeds)
 
 
 def collect_index_module_params(

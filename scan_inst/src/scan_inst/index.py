@@ -34,8 +34,13 @@ from scan_inst.params import (
     parse_param_pairs,
     resolve_param_map,
     split_module_header,
+    strip_body_param_declarations,
 )
-from scan_inst.perf import body_param_scan_max, log_large_module_skips
+from scan_inst.perf import (
+    body_param_scan_max,
+    log_large_module_skips,
+    slow_file_log_threshold_sec,
+)
 
 
 def _scan_module_body(
@@ -100,24 +105,61 @@ def _scan_file_task(item: Tuple[str, str, ScanMode]) -> Dict[str, ModuleRecord]:
     return scan_preprocessed(text, fpath)
 
 
+def _log_slow_index_file(
+    fpath: str,
+    *,
+    preprocess_sec: float,
+    scan_sec: float,
+    text_bytes: int,
+) -> None:
+    import sys
+
+    total = preprocess_sec + scan_sec
+    threshold = slow_file_log_threshold_sec()
+    if threshold is None or total < threshold:
+        return
+    mb = text_bytes / (1024 * 1024)
+    print(
+        f"index: slow file {total:.1f}s "
+        f"(preprocess {preprocess_sec:.1f}s, scan {scan_sec:.1f}s, "
+        f"{mb:.1f} MiB preprocessed) {fpath}",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def _preprocess_scan_file_task(
     item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode, Tuple[str, ...]],
 ) -> Dict[str, ModuleRecord]:
     """Picklable fused preprocess + scan (avoids retaining full preprocessed text)."""
     fpath, inc_dirs, define_items, mode, skip_patterns = item
     path = Path(fpath)
-    from scan_inst.preprocess import preprocess_file
+    from scan_inst.lazy_scope import lazy_processing_enabled
+    from scan_inst.preprocess import preprocess_file, preprocess_file_for_index
 
     inc = [Path(p) for p in inc_dirs]
     defs: Dict[str, str] = dict(define_items)
-    text = preprocess_file(
+    preprocess_fn = (
+        preprocess_file_for_index if lazy_processing_enabled() else preprocess_file
+    )
+    t0 = time.perf_counter()
+    text = preprocess_fn(
         path,
         inc,
         defs,
         set(),
         skip_path_patterns=skip_patterns,
     )
-    return scan_preprocessed(text, fpath)
+    t_prep = time.perf_counter() - t0
+    mods = scan_preprocessed(text, fpath)
+    t_scan = time.perf_counter() - t0 - t_prep
+    _log_slow_index_file(
+        fpath,
+        preprocess_sec=t_prep,
+        scan_sec=t_scan,
+        text_bytes=len(text),
+    )
+    return mods
 
 
 def _merge_file_scans(
@@ -483,8 +525,9 @@ def _scan_instances_for_index(
         return parse_param_pairs(header), [], True
 
     header_params = parse_param_pairs(header)
+    scan_body = strip_body_param_declarations(body)
     edges = scan_hierarchy_instances(
-        body,
+        scan_body,
         param_map=resolve_param_map(header_params),
     )
     inst_exprs = [
@@ -494,7 +537,7 @@ def _scan_instances_for_index(
     raw_params = collect_index_module_params(header, body, inst_exprs)
     if set(raw_params) != set(header_params):
         edges = scan_hierarchy_instances(
-            body,
+            scan_body,
             param_map=resolve_param_map(raw_params),
         )
     return raw_params, edges, False

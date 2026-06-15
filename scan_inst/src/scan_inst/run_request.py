@@ -121,6 +121,55 @@ def _mapping_get_ci(data: Mapping[str, Any], key: str) -> Any:
     return None
 
 
+_CONFIG_ENV_KEYS = (
+    "env",
+    "environment",
+    "scan-inst-env",
+    "scan_inst_env",
+)
+
+
+def _config_env_block(data: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+    for key in _CONFIG_ENV_KEYS:
+        hit = _mapping_get_ci(data, key)
+        if hit is not None:
+            if not isinstance(hit, Mapping):
+                raise ValueError(
+                    f"'{key}' must be an object of environment variable names to values"
+                )
+            return hit
+    return None
+
+
+def apply_config_env_from_document(
+    data: Mapping[str, Any],
+    *,
+    overwrite: bool = True,
+) -> List[str]:
+    """
+    Apply ``env`` / ``environment`` / ``scan-inst-env`` from a run or batch JSON.
+
+    By default JSON wins over existing shell ``export`` (``overwrite=True``).
+    Pass ``overwrite=False`` to leave variables already set in the shell unchanged.
+    """
+    block = _config_env_block(data)
+    if block is None:
+        return []
+    applied: List[str] = []
+    for raw_key, raw_val in block.items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        if not overwrite and key in os.environ:
+            continue
+        if raw_val is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = str(raw_val).strip()
+        applied.append(key)
+    return applied
+
+
 def _jobs_from_mapping(
     data: Mapping[str, Any],
 ) -> tuple[int, Optional[str]]:
@@ -392,6 +441,8 @@ def parse_run_request_json(
 def load_run_request(path: Union[str, Path]) -> RunConfig:
     p = Path(path)
     data = json.loads(p.read_text(encoding="utf-8-sig"))
+    if isinstance(data, Mapping):
+        apply_config_env_from_document(data)
     return parse_run_request_json(data, base_dir=p.parent)
 
 
@@ -417,6 +468,8 @@ def merge_options_from_connect_batch_json(
         return cfg, None
     if not isinstance(data, Mapping):
         return cfg, None
+
+    apply_config_env_from_document(data)
 
     out = cfg
     jobs_source: Optional[str] = None
@@ -512,6 +565,7 @@ def try_load_run_request_from_path(
     if not isinstance(data, Mapping) or "filelist" not in data:
         return None
     try:
+        apply_config_env_from_document(data)
         cfg = parse_run_request_json(data, base_dir=p.parent)
         _, src = _jobs_from_document(data)
         return p, cfg, src
@@ -525,6 +579,8 @@ def load_run_request_with_jobs_source(
     p = Path(path)
     text = p.read_text(encoding="utf-8-sig")
     data = json.loads(text)
+    if isinstance(data, Mapping):
+        apply_config_env_from_document(data)
     cfg = parse_run_request_json(data, base_dir=p.parent)
     _, src = _jobs_from_document(data)
     return cfg, src

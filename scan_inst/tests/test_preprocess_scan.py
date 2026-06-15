@@ -7,6 +7,7 @@ from pathlib import Path
 from scan_inst.filelist import parse_filelist
 from scan_inst.preprocess import (
     _INCLUDE_UNIT_CACHE,
+    _collect_include_closure,
     apply_ifdef_filter,
     clear_include_unit_cache,
     preprocess_file,
@@ -41,6 +42,29 @@ def test_ifdef_filter():
     assert "u_a" in on and "u_b" not in on
     off = apply_ifdef_filter(src, {"USE_A": "0"})
     assert "u_b" in off and "u_a" not in off
+
+
+def test_collect_include_closure_skip_count(tmp_path: Path):
+    ignored_dir = tmp_path / "pcielinktop"
+    ignored_dir.mkdir()
+    (ignored_dir / "skip.vh").write_text("`define X 1\n", encoding="utf-8")
+    keep = tmp_path / "keep.vh"
+    keep.write_text("`define Y 1\n", encoding="utf-8")
+    src = tmp_path / "top.v"
+    src.write_text(
+        '`include "pcielinktop/skip.vh"\n'
+        '`include "keep.vh"\n'
+        "module top; endmodule\n",
+        encoding="utf-8",
+    )
+    closure, skipped = _collect_include_closure(
+        [src],
+        [tmp_path],
+        skip_path_patterns=["pcielinktop"],
+    )
+    assert len(closure) == 1
+    assert closure[0].resolve() == keep.resolve()
+    assert skipped == 1
 
 
 def test_preprocess_warms_shared_includes(tmp_path: Path):

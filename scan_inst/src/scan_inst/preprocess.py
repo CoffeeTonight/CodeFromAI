@@ -410,12 +410,28 @@ def _preprocess_file_task(
     )
 
 
-def _includes_in_text(text: str, source_file: Path, include_dirs: Sequence[Path]) -> List[Path]:
+def _includes_in_file(
+    path: Path,
+    source_file: Path,
+    include_dirs: Sequence[Path],
+) -> List[Path]:
+    """Line-oriented `` `include `` discovery (closure scan only; no full-file read)."""
     found: List[Path] = []
-    for m in _INCLUDE_RE.finditer(strip_comments(text)):
-        inc_path = _resolve_include(m.group(2).strip(), m.group(1), source_file, include_dirs)
-        if inc_path is not None:
-            found.append(inc_path)
+    try:
+        with path.open(encoding="utf-8", errors="ignore") as fh:
+            for raw_line in fh:
+                line = _LINE_COMMENT_RE.sub("", raw_line)
+                for m in _INCLUDE_RE.finditer(line):
+                    inc_path = _resolve_include(
+                        m.group(2).strip(),
+                        m.group(1),
+                        source_file,
+                        include_dirs,
+                    )
+                    if inc_path is not None:
+                        found.append(inc_path)
+    except OSError:
+        pass
     return found
 
 
@@ -424,21 +440,19 @@ def _collect_include_closure(
     include_dirs: Sequence[Path],
     *,
     skip_path_patterns: Sequence[str] = (),
-) -> List[Path]:
+) -> Tuple[List[Path], int]:
     """Discover unique `` `include `` files reachable from RTL sources (light read)."""
     seen: Set[Path] = set()
     queue: List[Path] = []
+    skipped = 0
     for src in sources:
         sp = Path(src)
         if _should_skip_preprocess_path(sp, skip_path_patterns):
             continue
-        try:
-            raw = sp.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for inc_path in _includes_in_text(raw, sp, include_dirs):
+        for inc_path in _includes_in_file(sp, sp, include_dirs):
             key = inc_path.resolve()
             if _should_skip_preprocess_path(key, skip_path_patterns):
+                skipped += 1
                 continue
             if key not in seen:
                 seen.add(key)
@@ -447,18 +461,39 @@ def _collect_include_closure(
     while idx < len(queue):
         path = queue[idx]
         idx += 1
-        try:
-            raw = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for inc_path in _includes_in_text(raw, path, include_dirs):
+        for inc_path in _includes_in_file(path, path, include_dirs):
             key = inc_path.resolve()
             if _should_skip_preprocess_path(key, skip_path_patterns):
+                skipped += 1
                 continue
             if key not in seen:
                 seen.add(key)
                 queue.append(key)
-    return queue
+    return queue, skipped
+
+
+_DEFAULT_INCLUDE_WARM_MAX = 1000
+
+
+def _include_warm_policy() -> Tuple[bool, Optional[int]]:
+    """Return ``(enabled, cap)``; ``cap is None`` means no limit."""
+    if os.environ.get("SCAN_INST_NO_INCLUDE_WARM", "").strip().lower() in (
+        "1",
+        "yes",
+        "true",
+        "on",
+    ):
+        return False, None
+    raw = os.environ.get("SCAN_INST_INCLUDE_WARM_MAX", "").strip()
+    if not raw:
+        return True, _DEFAULT_INCLUDE_WARM_MAX
+    try:
+        cap = int(raw)
+    except ValueError:
+        return True, _DEFAULT_INCLUDE_WARM_MAX
+    if cap == 0:
+        return True, None
+    return True, max(1, cap)
 
 
 def _warm_include_cache_for_sources(
@@ -474,24 +509,32 @@ def _warm_include_cache_for_sources(
 
     Workers receive this cache via pool initializer (``spawn``) or ``fork`` COW.
     """
-    all_closure = _collect_include_closure(
-        sources,
-        include_dirs,
-        skip_path_patterns=(),
-    )
-    closure = _collect_include_closure(
+    closure, skipped = _collect_include_closure(
         sources,
         include_dirs,
         skip_path_patterns=skip_path_patterns,
     )
-    if skip_path_patterns and on_progress and len(all_closure) > len(closure):
-        skipped = len(all_closure) - len(closure)
+    if skip_path_patterns and on_progress and skipped > 0:
         on_progress(
             f"preprocess: ignore-path skips {skipped} included file(s) "
             f"(resolved absolute path)"
         )
     if not closure:
         return 0
+
+    warm_enabled, warm_cap = _include_warm_policy()
+    if not warm_enabled:
+        if on_progress:
+            on_progress("preprocess: skip include warm (SCAN_INST_NO_INCLUDE_WARM)")
+        return 0
+    if warm_cap is not None and len(closure) > warm_cap:
+        if on_progress:
+            on_progress(
+                f"preprocess: skip include warm ({len(closure)} includes > {warm_cap}; "
+                f"set SCAN_INST_INCLUDE_WARM_MAX=0 for no limit)"
+            )
+        return 0
+
     if on_progress:
         on_progress(f"preprocess: warming {len(closure)} shared include(s)")
     warm_defs: Dict[str, str] = dict(base_defines)

@@ -36,6 +36,8 @@ environment:
   SCAN_INST_CACHE_DIR         index/elab cache root
   SCAN_INST_IGNORE_PATH       default --ignore-path patterns (comma-separated)
   SCAN_INST_IGNORE_MODULE     default --ignore-module names (comma-separated)
+  SCAN_INST_NO_INCLUDE_WARM   skip serial include warm before parallel preprocess
+  SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 1000; 0 = no limit)
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
 
 CONFIG_HELP = """\

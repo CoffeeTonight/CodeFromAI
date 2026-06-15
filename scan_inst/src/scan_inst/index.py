@@ -279,6 +279,22 @@ def _scan_sources_fused(
             f"index: scanning 0/{total} files "
             f"({workers} workers, jobs={jobs_note})"
         )
+    from scan_inst.preprocess import (
+        _install_include_cache_snapshot,
+        _snapshot_include_cache,
+        _warm_include_cache_for_sources,
+    )
+
+    inc_paths = [Path(p) for p in include_dirs]
+    _warm_include_cache_for_sources(
+        parse_sources,
+        inc_paths,
+        defines,
+        skip_path_patterns=skip_tuple,
+        on_progress=on_progress,
+    )
+    cache_snapshot = _snapshot_include_cache()
+
     if workers == 1:
         for i, task in enumerate(tasks, start=1):
             _merge_file_scans(merged, _preprocess_scan_file_task(task))
@@ -298,7 +314,11 @@ def _scan_sources_fused(
         from scan_inst.manifest import scan_chunksize
 
         chunk = scan_chunksize(total, workers)
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            initializer=_install_include_cache_snapshot,
+            initargs=(cache_snapshot,),
+        ) as pool:
             for i, per_file in enumerate(
                 pool.map(_preprocess_scan_file_task, tasks, chunksize=chunk),
                 start=1,

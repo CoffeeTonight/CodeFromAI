@@ -37,8 +37,9 @@ environment:
   SCAN_INST_IGNORE_PATH       default --ignore-path patterns (comma-separated)
   SCAN_INST_IGNORE_MODULE     default --ignore-module names (comma-separated)
   SCAN_INST_IGNORE_FILELIST   default --ignore-filelist patterns (comma-separated)
-  SCAN_INST_NO_INCLUDE_WARM   skip serial include warm before parallel preprocess
-  SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 1000; 0 = no limit)
+  SCAN_INST_NO_INCLUDE_WARM   skip include warm before parallel preprocess
+  SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 200; 0 = no limit)
+  SCAN_INST_LOW_MEMORY_AUTO   auto fused index above N sources (default 1500; 0=off)
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
 
 CONFIG_HELP = """\

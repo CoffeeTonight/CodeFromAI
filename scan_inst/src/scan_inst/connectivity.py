@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import math
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, IO, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -119,6 +122,15 @@ def _effective_defines(
     defines: Mapping[str, str] | None,
 ) -> Dict[str, str]:
     return {**collect_design_defines(index), **dict(defines or {})}
+
+
+def _resolve_connect_jobs(jobs: int, num_tasks: int) -> int:
+    if jobs < 0:
+        return 1
+    if jobs == 0:
+        cpu = os.cpu_count() or 1
+        return max(1, min(cpu, num_tasks))
+    return max(1, min(jobs, num_tasks))
 
 
 def _connect_pair(
@@ -330,27 +342,97 @@ class ConnectivitySession:
         pairs: Sequence[Tuple[str, str]],
         *,
         trace: bool = False,
+        jobs: int = 0,
     ) -> List[ConnectResult]:
-        return [self.check(a, b, trace=trace) for a, b in pairs]
+        pair_list = list(pairs)
+        if not pair_list:
+            return []
+        workers = _resolve_connect_jobs(jobs, len(pair_list))
+        if workers == 1 or len(pair_list) < 4:
+            return [self.check(a, b, trace=trace) for a, b in pair_list]
+
+        chunk_count = min(workers, len(pair_list))
+        chunk_size = max(1, math.ceil(len(pair_list) / chunk_count))
+        chunks = [
+            pair_list[i : i + chunk_size]
+            for i in range(0, len(pair_list), chunk_size)
+        ]
+
+        def _run_chunk(chunk: Sequence[Tuple[str, str]]) -> List[ConnectResult]:
+            local = ConnectivitySession(
+                rows=self.rows,
+                index=self.index,
+                top=self.top,
+                defines=dict(self._effective_defines),
+                strict_generate=self.strict_generate,
+                ff_barrier=self.ff_barrier,
+                over_approximate_if=self.over_approximate_if,
+            )
+            return [local.check(a, b, trace=trace) for a, b in chunk]
+
+        out: List[ConnectResult] = []
+        with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+            for part in pool.map(_run_chunk, chunks):
+                out.extend(part)
+        return out
 
     def run_request(
         self,
         request: ConnectivityRequest,
         *,
         trace: Optional[bool] = None,
+        jobs: int = 0,
     ) -> ConnectivityBatchResult:
         use_trace = request.trace if trace is None else trace
-        results = tuple(
-            self.check(
-                chk.endpoint_a,
-                chk.endpoint_b,
-                trace=use_trace,
-                check_id=chk.check_id,
+        checks = list(request.checks)
+        workers = _resolve_connect_jobs(jobs, len(checks))
+        if workers == 1 or len(checks) < 4:
+            results = tuple(
+                self.check(
+                    chk.endpoint_a,
+                    chk.endpoint_b,
+                    trace=use_trace,
+                    check_id=chk.check_id,
+                )
+                for chk in checks
             )
-            for chk in request.checks
-        )
+            return ConnectivityBatchResult(
+                results=results,
+                modules_cached=self.modules_cached,
+            )
+
+        chunk_count = min(workers, len(checks))
+        chunk_size = max(1, math.ceil(len(checks) / chunk_count))
+        chunks = [
+            checks[i : i + chunk_size] for i in range(0, len(checks), chunk_size)
+        ]
+
+        def _run_chunk(chunk: Sequence[Any]) -> List[ConnectResult]:
+            local = ConnectivitySession(
+                rows=self.rows,
+                index=self.index,
+                top=self.top,
+                defines=dict(self._effective_defines),
+                strict_generate=self.strict_generate,
+                ff_barrier=self.ff_barrier,
+                over_approximate_if=self.over_approximate_if,
+            )
+            return [
+                local.check(
+                    chk.endpoint_a,
+                    chk.endpoint_b,
+                    trace=use_trace,
+                    check_id=chk.check_id,
+                )
+                for chk in chunk
+            ]
+
+        merged: List[ConnectResult] = []
+        with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+            for part in pool.map(_run_chunk, chunks):
+                merged.extend(part)
         return ConnectivityBatchResult(
-            results=results,
+            results=tuple(merged),
             modules_cached=self.modules_cached,
         )
 
@@ -479,6 +561,7 @@ def run_connectivity_request(
     index: DesignIndex,
     top: str = "",
     extra_defines: Mapping[str, str] | None = None,
+    jobs: int = 0,
 ) -> ConnectivityBatchResult:
     """Run a full JSON connectivity request (checks + options)."""
     top_name = request.top or top
@@ -495,7 +578,7 @@ def run_connectivity_request(
         ff_barrier=not request.include_ff,
         over_approximate_if=request.over_approximate_if,
     )
-    return session.run_request(request)
+    return session.run_request(request, jobs=jobs)
 
 
 def format_connect_result_row(result: ConnectResult) -> str:

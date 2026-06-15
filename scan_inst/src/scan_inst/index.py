@@ -5,9 +5,11 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import threading
+import time
 from collections import defaultdict
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Callable, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.generate_fold import needs_generate_fold, prepare_body_for_instance_scan
@@ -24,10 +26,16 @@ from scan_inst.ignore_path import (
 from scan_inst.library_scan import scan_library_modules
 from scan_inst.models import FilelistLinkInfo, InstanceEdge, ModuleRecord
 from scan_inst.params import (
+    body_param_scan_skipped,
+    collect_index_module_params,
     collect_module_params,
+    dim_exprs_from_inst_names,
+    parse_param_pairs,
     resolve_param_map,
     split_module_header,
+    strip_body_param_declarations,
 )
+from scan_inst.perf import body_param_scan_max, log_large_module_skips
 
 
 def _scan_module_body(
@@ -59,6 +67,20 @@ def _module_name_ignored(name: str, patterns: List[str]) -> bool:
 
 
 ScanMode = Literal["parse", "ignore"]
+
+_SCAN_PREPROCESSED: Dict[str, str] = {}
+
+
+def _install_scan_preprocessed(snapshot: Mapping[str, str]) -> None:
+    """Seed worker-local preprocessed map (``spawn``) or share via ``fork`` COW."""
+    global _SCAN_PREPROCESSED
+    _SCAN_PREPROCESSED = dict(snapshot)
+
+
+def _scan_file_from_snapshot(item: Tuple[str, ScanMode]) -> Dict[str, ModuleRecord]:
+    fpath, mode = item
+    text = _preprocessed_text(_SCAN_PREPROCESSED, fpath)
+    return _scan_file_task((fpath, text, mode))
 
 
 def _resolve_jobs(jobs: int, num_tasks: int) -> int:
@@ -223,37 +245,103 @@ def _scan_sources(
     on_progress: Optional[Callable[[str], None]] = None,
     file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
-    tasks: List[Tuple[str, str, ScanMode]] = [
-        (fpath, _preprocessed_text(preprocessed, fpath), "parse")
-        for fpath in parse_sources
-    ]
+    path_tasks: List[Tuple[str, ScanMode]] = [(fpath, "parse") for fpath in parse_sources]
     merged: Dict[str, ModuleRecord] = {}
-    if not tasks:
+    if not path_tasks:
         return merged
 
-    total = len(tasks)
+    total = len(path_tasks)
+    workers = _resolve_jobs(jobs, total)
+    t0 = time.perf_counter()
     if on_progress:
-        on_progress(f"index: scanning 0/{total} files (in-process)")
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"index: scanning 0/{total} files "
+            f"({workers} workers, jobs={jobs_note})"
+        )
     from scan_inst.progress import format_work_location, maybe_track_work
 
-    for i, task in enumerate(tasks, start=1):
-        _merge_file_scans(merged, _scan_file_task(task))
+    def _report_progress(i: int, fpath: str) -> None:
         maybe_track_work(
             on_progress,
-            task[0],
+            fpath,
             index=i,
             total=total,
             via_map=file_via_filelist,
         )
         if on_progress and (i == total or i % 500 == 0):
-
             loc = format_work_location(
-                task[0],
+                fpath,
                 index=i,
                 total=total,
                 via_map=file_via_filelist,
             )
             on_progress(f"index: scanning {i}/{total} files — {loc}")
+
+    if workers == 1 or total <= 1:
+        for i, fpath in enumerate(parse_sources, start=1):
+            text = _preprocessed_text(preprocessed, fpath)
+            _merge_file_scans(merged, _scan_file_task((fpath, text, "parse")))
+            _report_progress(i, fpath)
+    else:
+        scan_snapshot = dict(preprocessed)
+        scanned = False
+        try:
+            from scan_inst.manifest import scan_chunksize
+
+            chunk = scan_chunksize(total, workers)
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                initializer=_install_scan_preprocessed,
+                initargs=(scan_snapshot,),
+            ) as pool:
+                for i, per_file in enumerate(
+                    pool.map(_scan_file_from_snapshot, path_tasks, chunksize=chunk),
+                    start=1,
+                ):
+                    _merge_file_scans(merged, per_file)
+                    _report_progress(i, path_tasks[i - 1][0])
+            scanned = True
+        except (OSError, PermissionError, RuntimeError) as exc:
+            if on_progress:
+                on_progress(
+                    f"index: parallel scan workers failed ({exc!r}); "
+                    "retrying with thread pool"
+                )
+        if not scanned:
+            try:
+                text_tasks = [
+                    (fpath, _preprocessed_text(preprocessed, fpath), "parse")
+                    for fpath in parse_sources
+                ]
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    for i, per_file in enumerate(
+                        pool.map(_scan_file_task, text_tasks),
+                        start=1,
+                    ):
+                        _merge_file_scans(merged, per_file)
+                        _report_progress(i, text_tasks[i - 1][0])
+                scanned = True
+            except (OSError, PermissionError, RuntimeError) as exc2:
+                if on_progress:
+                    on_progress(
+                        f"index: thread scan failed ({exc2!r}); "
+                        "falling back to serial"
+                    )
+        if not scanned:
+            for i, fpath in enumerate(parse_sources, start=1):
+                text = _preprocessed_text(preprocessed, fpath)
+                _merge_file_scans(merged, _scan_file_task((fpath, text, "parse")))
+                _report_progress(i, fpath)
+
+    elapsed = time.perf_counter() - t0
+    if on_progress and total:
+        rate = total / elapsed if elapsed > 0 else 0.0
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"index: scan done {total} files in {elapsed:.1f}s "
+            f"({rate:.1f} files/s, {workers} workers, jobs={jobs_note})"
+        )
     return merged
 
 
@@ -282,12 +370,14 @@ def _scan_sources_fused(
 
     workers = _resolve_jobs(jobs, len(tasks))
     total = len(tasks)
+    t0 = time.perf_counter()
     if on_progress:
         jobs_note = "auto" if jobs == 0 else str(jobs)
         on_progress(
             f"index: scanning 0/{total} files "
-            f"({workers} workers, jobs={jobs_note})"
+            f"({workers} workers, jobs={jobs_note}, fused)"
         )
+    from scan_inst.progress import format_work_location, maybe_track_work
     from scan_inst.preprocess import (
         _install_include_cache_snapshot,
         _snapshot_include_cache,
@@ -300,13 +390,12 @@ def _scan_sources_fused(
         inc_paths,
         defines,
         skip_path_patterns=skip_tuple,
+        jobs=jobs,
         on_progress=on_progress,
     )
     cache_snapshot = _snapshot_include_cache()
 
     if workers == 1:
-        from scan_inst.progress import format_work_location, maybe_track_work
-
         for i, task in enumerate(tasks, start=1):
             _merge_file_scans(merged, _preprocess_scan_file_task(task))
             maybe_track_work(
@@ -325,66 +414,113 @@ def _scan_sources_fused(
                     via_map=file_via_filelist,
                 )
                 on_progress(f"index: scanning {i}/{total} sources — {loc}")
-        return merged
+    else:
+        try:
+            from scan_inst.manifest import scan_chunksize
 
-    try:
-        from scan_inst.manifest import scan_chunksize
-
-        chunk = scan_chunksize(total, workers)
-        with ProcessPoolExecutor(
-            max_workers=workers,
-            initializer=_install_include_cache_snapshot,
-            initargs=(cache_snapshot,),
-        ) as pool:
-            from scan_inst.progress import format_work_location, maybe_track_work
-
-            for i, per_file in enumerate(
-                pool.map(_preprocess_scan_file_task, tasks, chunksize=chunk),
-                start=1,
-            ):
-                _merge_file_scans(merged, per_file)
-                fpath = tasks[i - 1][0]
-                maybe_track_work(
-                    on_progress,
-                    fpath,
-                    index=i,
-                    total=total,
-                    via_map=file_via_filelist,
-                )
-                if on_progress and (i == total or i % 500 == 0):
-                    loc = format_work_location(
+            chunk = scan_chunksize(total, workers)
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                initializer=_install_include_cache_snapshot,
+                initargs=(cache_snapshot,),
+            ) as pool:
+                for i, per_file in enumerate(
+                    pool.map(_preprocess_scan_file_task, tasks, chunksize=chunk),
+                    start=1,
+                ):
+                    _merge_file_scans(merged, per_file)
+                    fpath = tasks[i - 1][0]
+                    maybe_track_work(
+                        on_progress,
                         fpath,
                         index=i,
                         total=total,
                         via_map=file_via_filelist,
                     )
-                    on_progress(f"index: scanning {i}/{total} sources — {loc}")
-    except (OSError, PermissionError, RuntimeError):
-        for task in tasks:
-            _merge_file_scans(merged, _preprocess_scan_file_task(task))
+                    if on_progress and (i == total or i % 500 == 0):
+                        loc = format_work_location(
+                            fpath,
+                            index=i,
+                            total=total,
+                            via_map=file_via_filelist,
+                        )
+                        on_progress(f"index: scanning {i}/{total} sources — {loc}")
+        except (OSError, PermissionError, RuntimeError):
+            for task in tasks:
+                _merge_file_scans(merged, _preprocess_scan_file_task(task))
+
+    elapsed = time.perf_counter() - t0
+    if on_progress and total:
+        rate = total / elapsed if elapsed > 0 else 0.0
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"index: fused scan done {total} files in {elapsed:.1f}s "
+            f"({rate:.1f} files/s, {workers} workers, jobs={jobs_note})"
+        )
     return merged
 
 
+def _module_header_body(text: str, mod_name: str) -> Tuple[str, str]:
+    for m in _MODULE_BLOCK_RE.finditer(text):
+        if m.group(1) == mod_name:
+            return split_module_header(m.group(2))
+    return "", ""
+
+
 def _scan_instances_for_index(
+    header: str,
     body: str,
-    raw_params: Mapping[str, str],
-) -> Tuple[List[InstanceEdge], bool]:
-    """Index-time scan: defer generate fold to :meth:`DesignIndex.instances_for`."""
-    defer = needs_generate_fold(body)
-    if defer:
-        return [], True
-    pmap = resolve_param_map(raw_params)
-    return scan_hierarchy_instances(body, param_map=pmap), False
+    *,
+    max_body_bytes: Optional[int] = None,
+) -> Tuple[Dict[str, str], List[InstanceEdge], bool]:
+    """
+    Index-time scan: find instances first, then collect only params they need.
+
+    Generate bodies are deferred to :meth:`DesignIndex.instances_for`.
+    """
+    if needs_generate_fold(body):
+        return parse_param_pairs(header), [], True
+
+    scan_body = strip_body_param_declarations(body)
+    header_params = parse_param_pairs(header)
+    edges = scan_hierarchy_instances(
+        scan_body,
+        param_map=resolve_param_map(header_params),
+    )
+    dim_exprs = dim_exprs_from_inst_names(e.inst_name for e in edges)
+    raw_params = collect_index_module_params(
+        header,
+        body,
+        dim_exprs,
+        max_body_bytes=max_body_bytes,
+    )
+    if set(raw_params) != set(header_params):
+        edges = scan_hierarchy_instances(
+            scan_body,
+            param_map=resolve_param_map(raw_params),
+        )
+    return raw_params, edges, False
 
 
 def scan_preprocessed(text: str, file_path: str) -> Dict[str, ModuleRecord]:
     out: Dict[str, ModuleRecord] = {}
+    param_limit = body_param_scan_max()
     for m in _MODULE_BLOCK_RE.finditer(text):
         name = m.group(1)
         chunk = m.group(2)
         header, body = split_module_header(chunk)
-        raw_params = collect_module_params(header, body)
-        edges, defer_fold = _scan_instances_for_index(body, raw_params)
+        if body_param_scan_skipped(body, max_body_bytes=param_limit) and log_large_module_skips():
+            import sys
+
+            print(
+                f"index: instance-first params ({len(body)} B) {file_path} :: {name}",
+                file=sys.stderr,
+            )
+        raw_params, edges, defer_fold = _scan_instances_for_index(
+            header,
+            body,
+            max_body_bytes=param_limit,
+        )
         kind_m = re.search(
             rf"\b(module|interface|program)\s+{re.escape(name)}\b",
             text[m.start() : m.start() + 80],
@@ -455,6 +591,7 @@ class DesignIndex:
             names.sort()
         self._default_ctx: Dict[str, str] = {}
         self._instance_cache: Dict[Tuple[str, str], List[InstanceEdge]] = {}
+        self._instance_cache_lock = threading.Lock()
         self._rebuild_default_ctx()
 
     def _rebuild_default_ctx(self) -> None:
@@ -464,6 +601,15 @@ class DesignIndex:
                 continue
             if rec.raw_params or rec.instances:
                 self._default_ctx[name] = _ctx_key(resolve_param_map(rec.raw_params))
+
+    def __getstate__(self) -> dict:
+        state = self.__dict__.copy()
+        state.pop("_instance_cache_lock", None)
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self._instance_cache_lock = threading.Lock()
 
     def _rebuild_file_modules(self) -> None:
         self.file_modules = defaultdict(list)
@@ -608,6 +754,7 @@ class DesignIndex:
                 library_dirs or [],
                 libexts=libexts or (),
                 skip_path_patterns=path_patterns,
+                jobs=index_jobs,
             )
             for name, stub in stubs.items():
                 if name not in merged:
@@ -829,8 +976,16 @@ class DesignIndex:
         if not body and rec.instances:
             return list(rec.instances)
 
+        raw_params = rec.raw_params
+        if rec.needs_generate_fold:
+            text = self._source_text(rec.file_path)
+            hdr, full_body = _module_header_body(text, mod_name)
+            if full_body:
+                body = full_body
+                raw_params = collect_module_params(hdr, full_body, max_body_bytes=0)
+
         pmap = resolve_param_map(
-            rec.raw_params,
+            raw_params,
             overrides=overrides,
             parent=parent_ctx,
         )
@@ -839,15 +994,20 @@ class DesignIndex:
             return rec.instances
 
         cache_key = (mod_name, ctx_key)
-        cached = self._instance_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        with self._instance_cache_lock:
+            cached = self._instance_cache.get(cache_key)
+            if cached is not None:
+                return cached
 
         edges = _scan_module_body(
             body,
-            rec.raw_params,
+            raw_params,
             parent_ctx=parent_ctx,
             overrides=overrides,
         )
-        self._instance_cache[cache_key] = edges
-        return edges
+        with self._instance_cache_lock:
+            hit = self._instance_cache.get(cache_key)
+            if hit is not None:
+                return hit
+            self._instance_cache[cache_key] = edges
+            return edges

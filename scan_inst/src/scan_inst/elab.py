@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
-from typing import List, Mapping, Optional, Set
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.index import DesignIndex
 from scan_inst.models import ElabNode, FlatRow
 from scan_inst.params import resolve_param_map
+
+
+def _resolve_elab_jobs(jobs: int, num_tasks: int) -> int:
+    if jobs < 0:
+        return 1
+    if jobs == 0:
+        cpu = os.cpu_count() or 1
+        return max(1, min(cpu, num_tasks))
+    return max(1, min(jobs, num_tasks))
 
 
 def elaborate(
@@ -116,3 +128,69 @@ def elaborate(
 def flatten(index: DesignIndex, top: str, *, max_depth: Optional[int] = None) -> List[FlatRow]:
     _, rows = elaborate(index, top, max_depth=max_depth)
     return rows
+
+
+def elaborate_tops_parallel(
+    index: DesignIndex,
+    tops: Sequence[str],
+    *,
+    max_depth: Optional[int] = None,
+    jobs: int = 0,
+    get_cached: Optional[
+        Callable[[str], Optional[Tuple[ElabNode, List[FlatRow]]]]
+    ] = None,
+    store_cached: Optional[
+        Callable[[str, ElabNode, List[FlatRow]], None]
+    ] = None,
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> Tuple[List[ElabNode], List[FlatRow], int]:
+    """Elaborate one or more tops; optional cache hooks; parallel when ``jobs`` > 1."""
+    tops_list = [t for t in tops if t]
+    if not tops_list:
+        return [], [], 0
+
+    workers = _resolve_elab_jobs(jobs, len(tops_list))
+    t0 = time.perf_counter()
+    cache_hits = 0
+
+    def _elab_one(top_name: str) -> Tuple[str, Tuple[ElabNode, List[FlatRow]], bool]:
+        if get_cached is not None:
+            cached = get_cached(top_name)
+            if cached is not None:
+                return top_name, cached, True
+        if on_progress:
+            on_progress(f"elab: elaborating top {top_name}")
+        root, part = elaborate(index, top_name, max_depth=max_depth)
+        if store_cached is not None:
+            store_cached(top_name, root, part)
+        return top_name, (root, part), False
+
+    ordered: List[Tuple[str, Tuple[ElabNode, List[FlatRow]]]] = []
+    if workers == 1 or len(tops_list) == 1:
+        for top_name in tops_list:
+            name, data, hit = _elab_one(top_name)
+            if hit:
+                cache_hits += 1
+            ordered.append((name, data))
+    else:
+        results: dict[str, Tuple[ElabNode, List[FlatRow]]] = {}
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for name, data, hit in pool.map(_elab_one, tops_list):
+                results[name] = data
+                if hit:
+                    cache_hits += 1
+        ordered = [(top_name, results[top_name]) for top_name in tops_list]
+
+    roots = [data[0] for _, data in ordered]
+    rows: List[FlatRow] = []
+    for _, data in ordered:
+        rows.extend(data[1])
+
+    if on_progress and tops_list:
+        elapsed = time.perf_counter() - t0
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"elab: done {len(tops_list)} top(s) in {elapsed:.1f}s "
+            f"({cache_hits} cache hits, {workers} workers, jobs={jobs_note})"
+        )
+    return roots, rows, cache_hits

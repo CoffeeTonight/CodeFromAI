@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
 
 def _skip_balanced(text: str, start: int, open_ch: str, close_ch: str) -> int:
@@ -54,6 +54,19 @@ _PARAM_PAIR_RE = re.compile(
 _OVERRIDE_PAIR_RE = re.compile(
     r"\.?\s*([A-Za-z_]\w*)\s*\(\s*([^)]+)\s*\)",
     re.IGNORECASE,
+)
+_BODY_PARAM_STMT_RE = re.compile(
+    r"(?:\b(?:parameter|localparam)\b\s+(?:\w+\s+)?[^;]+;)",
+    re.IGNORECASE,
+)
+_EXPR_IDENT_RE = re.compile(r"[A-Za-z_]\w*")
+_PARAM_KEYWORDS = frozenset(
+    {
+        "parameter", "localparam", "module", "endmodule", "generate", "endgenerate",
+        "if", "else", "for", "while", "begin", "end", "genvar", "assign", "wire",
+        "logic", "reg", "input", "output", "inout", "always", "initial", "function",
+        "task", "typedef", "and", "or", "not", "signed", "unsigned", "integer",
+    }
 )
 
 
@@ -159,15 +172,110 @@ def split_module_header(chunk: str) -> Tuple[str, str]:
     return header, chunk[i:]
 
 
-def collect_module_params(header_text: str, body: str) -> Dict[str, str]:
+def strip_body_param_declarations(body: str) -> str:
+    """Remove body ``parameter``/``localparam`` statements (index instance scan)."""
+    return _BODY_PARAM_STMT_RE.sub("\n", body)
+
+
+def body_param_scan_skipped(body: str, *, max_body_bytes: Optional[int] = None) -> bool:
+    """True when index scan would skip body parameter collection."""
+    if max_body_bytes is None:
+        from scan_inst.perf import body_param_scan_max
+
+        max_body_bytes = body_param_scan_max()
+    return max_body_bytes > 0 and len(body) > max_body_bytes
+
+
+def collect_module_params(
+    header_text: str,
+    body: str,
+    *,
+    max_body_bytes: Optional[int] = None,
+) -> Dict[str, str]:
     """Module header + body parameter/localparam declarations (defaults)."""
     params = parse_param_pairs(header_text)
-    for m in re.finditer(
-        r"(?:\b(?:parameter|localparam)\b\s+(?:\w+\s+)?[^;]+;)",
+    if body_param_scan_skipped(body, max_body_bytes=max_body_bytes):
+        return params
+    for m in _BODY_PARAM_STMT_RE.finditer(body):
+        params.update(parse_param_pairs(m.group(0)))
+    return params
+
+
+def param_names_in_exprs(exprs: Iterable[str]) -> Set[str]:
+    """Identifier tokens in dimension / override expressions (exclude keywords)."""
+    names: Set[str] = set()
+    for expr in exprs:
+        for m in _EXPR_IDENT_RE.finditer(expr):
+            tok = m.group(0)
+            if tok.lower() not in _PARAM_KEYWORDS:
+                names.add(tok)
+    return names
+
+
+def _find_body_param_value(body: str, name: str) -> Optional[str]:
+    m = re.search(
+        rf"\b(?:parameter|localparam)\b\s+(?:\w+\s+)?{re.escape(name)}\s*=",
         body,
         re.IGNORECASE,
-    ):
-        params.update(parse_param_pairs(m.group(0)))
+    )
+    if not m:
+        return None
+    val, _ = _scan_param_value(body, m.end())
+    return val
+
+
+def collect_body_params_closure(body: str, seeds: Set[str]) -> Dict[str, str]:
+    """Resolve only body params reachable from ``seeds`` (name-targeted search)."""
+    if not seeds:
+        return {}
+    pending = set(seeds)
+    found: Dict[str, str] = {}
+    while pending:
+        name = pending.pop()
+        if name in found:
+            continue
+        val = _find_body_param_value(body, name)
+        if val is None:
+            continue
+        found[name] = val
+        for dep in param_names_in_exprs([val]):
+            if dep not in found:
+                pending.add(dep)
+    return found
+
+
+def dim_exprs_from_inst_names(inst_names: Iterable[str]) -> List[str]:
+    """Extract ``lo``/``hi`` from ``u[N-1:0]``-style instance names."""
+    exprs: List[str] = []
+    for inst in inst_names:
+        for m in re.finditer(r"\[([^\]]+)\]", inst):
+            inner = m.group(1).strip()
+            if ":" not in inner:
+                continue
+            lo, hi = inner.split(":", 1)
+            exprs.extend([lo.strip(), hi.strip()])
+    return exprs
+
+
+def collect_index_module_params(
+    header_text: str,
+    body: str,
+    instance_dim_exprs: Iterable[str],
+    *,
+    max_body_bytes: Optional[int] = None,
+) -> Dict[str, str]:
+    """
+    Index-time params: header defaults + body closure only for instance dimensions.
+
+    Large bodies never get a full linear parameter scan.
+    """
+    params = parse_param_pairs(header_text)
+    if not body_param_scan_skipped(body, max_body_bytes=max_body_bytes):
+        for m in _BODY_PARAM_STMT_RE.finditer(body):
+            params.update(parse_param_pairs(m.group(0)))
+        return params
+    seeds = param_names_in_exprs(instance_dim_exprs) - set(params)
+    params.update(collect_body_params_closure(body, seeds))
     return params
 
 

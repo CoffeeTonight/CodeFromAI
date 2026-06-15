@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
@@ -472,7 +472,7 @@ def _collect_include_closure(
     return queue, skipped
 
 
-_DEFAULT_INCLUDE_WARM_MAX = 1000
+from scan_inst.perf import DEFAULT_INCLUDE_WARM_MAX as _DEFAULT_INCLUDE_WARM_MAX
 
 
 def _include_warm_policy() -> Tuple[bool, Optional[int]]:
@@ -496,12 +496,30 @@ def _include_warm_policy() -> Tuple[bool, Optional[int]]:
     return True, max(1, cap)
 
 
+def _warm_include_unit_task(
+    item: Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], Tuple[str, ...]],
+) -> str:
+    src, inc_dirs, define_items, skip_patterns = item
+    path = Path(src)
+    inc = [Path(p) for p in inc_dirs]
+    defs: Dict[str, str] = dict(define_items)
+    _preprocess_include_unit(
+        path,
+        inc,
+        defs,
+        set(),
+        skip_path_patterns=skip_patterns,
+    )
+    return str(path.resolve())
+
+
 def _warm_include_cache_for_sources(
     sources: Sequence[str | Path],
     include_dirs: Sequence[Path],
     base_defines: Mapping[str, str],
     *,
     skip_path_patterns: Sequence[str] = (),
+    jobs: int = 0,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> int:
     """
@@ -535,17 +553,37 @@ def _warm_include_cache_for_sources(
             )
         return 0
 
+    workers = _resolve_preprocess_jobs(jobs, len(closure))
     if on_progress:
-        on_progress(f"preprocess: warming {len(closure)} shared include(s)")
-    warm_defs: Dict[str, str] = dict(base_defines)
-    for path in closure:
-        _preprocess_include_unit(
-            path,
-            include_dirs,
-            warm_defs,
-            set(),
-            skip_path_patterns=skip_path_patterns,
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"preprocess: warming {len(closure)} shared include(s) "
+            f"({workers} workers, jobs={jobs_note})"
         )
+    define_items = tuple(sorted(base_defines.items()))
+    inc_dirs = tuple(str(p) for p in include_dirs)
+    skip_tuple = tuple(skip_path_patterns)
+    warm_tasks = [
+        (str(path), inc_dirs, define_items, skip_tuple) for path in closure
+    ]
+    if workers == 1 or len(warm_tasks) <= 1:
+        for task in warm_tasks:
+            _warm_include_unit_task(task)
+    else:
+        try:
+            from scan_inst.manifest import scan_chunksize
+
+            chunk = scan_chunksize(len(warm_tasks), workers)
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [
+                    pool.submit(_warm_include_unit_task, task)
+                    for task in warm_tasks
+                ]
+                for _ in as_completed(futures):
+                    pass
+        except (OSError, PermissionError, RuntimeError):
+            for task in warm_tasks:
+                _warm_include_unit_task(task)
     return len(closure)
 
 
@@ -611,6 +649,7 @@ def preprocess_sources(
         inc,
         base_defines,
         skip_path_patterns=skip_tuple,
+        jobs=jobs,
         on_progress=on_progress,
     )
 

@@ -19,7 +19,8 @@ from scan_inst.cache import (
     load_or_build_index,
     store_cached_elab,
 )
-from scan_inst.elab import elaborate
+from scan_inst.elab import elaborate_tops_parallel
+from scan_inst.perf import effective_low_memory
 from scan_inst.filelist import parse_filelist
 from scan_inst.progress import ProgressHeartbeat, ProgressReporter, progress_callback
 from scan_inst.report import RunReport, default_log_path, emit_run_report
@@ -481,6 +482,14 @@ def main(argv=None) -> int:
         enabled=not cfg.quiet and len(fl.source_files) >= 500,
         get_detail=reporter.get_detail,
     )
+    low_memory = effective_low_memory(
+        explicit=cfg.low_memory,
+        num_sources=len(fl.source_files),
+    )
+    if low_memory and not cfg.low_memory and on_progress:
+        on_progress(
+            f"index: auto low-memory fused build ({len(fl.source_files)} sources)"
+        )
     with heartbeat:
         index, bundle, index_cache_hit, index_rebuilt, index_incremental, cache_path = (
             load_or_build_index(
@@ -495,7 +504,7 @@ def main(argv=None) -> int:
             jobs=cfg.jobs,
             use_cache=use_cache,
             refresh_cache=cfg.refresh_cache,
-            low_memory=cfg.low_memory,
+            low_memory=low_memory,
             on_progress=on_progress,
             )
         )
@@ -549,29 +558,35 @@ def main(argv=None) -> int:
         print("Hint: scan-inst ... --find-top", file=sys.stderr)
         return 2
 
-    rows = []
-    roots = []
-    elab_cache_hits = 0
-    for top_name in tops:
-        cached = get_cached_elab(bundle, top_name, cfg.max_depth) if use_cache else None
-        if cached is not None:
-            root, part = cached
-            elab_cache_hits += 1
-        else:
-            if on_progress:
-                on_progress(f"elab: elaborating top {top_name}")
-            root, part = elaborate(index, top_name, max_depth=cfg.max_depth)
-            store_cached_elab(
-                bundle,
-                top_name,
-                cfg.max_depth,
-                root,
-                part,
-                cache_dir=cache_dir,
-                use_cache=use_cache,
-            )
-        roots.append(root)
-        rows.extend(part)
+    def _get_cached_elab(top_name: str):
+        if not use_cache:
+            return None
+        return get_cached_elab(bundle, top_name, cfg.max_depth)
+
+    def _store_cached_elab(
+        top_name: str,
+        root,
+        part,
+    ) -> None:
+        store_cached_elab(
+            bundle,
+            top_name,
+            cfg.max_depth,
+            root,
+            part,
+            cache_dir=cache_dir,
+            use_cache=use_cache,
+        )
+
+    roots, rows, elab_cache_hits = elaborate_tops_parallel(
+        index,
+        tops,
+        max_depth=cfg.max_depth,
+        jobs=cfg.jobs,
+        get_cached=_get_cached_elab,
+        store_cached=_store_cached_elab,
+        on_progress=on_progress,
+    )
     if elab_cache_hits and on_progress:
         on_progress(f"cache hit: elab ({elab_cache_hits}/{len(tops)} tops)")
     rows.sort(key=lambda r: (r.full_path.count("."), r.full_path))
@@ -682,6 +697,7 @@ def main(argv=None) -> int:
                 index=index,
                 top=top_name,
                 extra_defines=compile_defines,
+                jobs=cfg.jobs,
             )
             connect_results = batch.results
             body = format_connect_results_tsv(

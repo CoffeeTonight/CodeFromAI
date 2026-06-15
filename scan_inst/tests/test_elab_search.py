@@ -165,6 +165,22 @@ module leaf; endmodule
     assert not index._preprocessed_sources
 
 
+def test_parallel_scan_matches_serial(tmp_path):
+    lines = []
+    for i in range(12):
+        lines.append(f"module m{i}; m{(i + 1) % 12} u ( ); endmodule\n")
+    rtl = tmp_path / "many.v"
+    rtl.write_text("".join(lines), encoding="utf-8")
+    sources = [str(rtl)]
+    serial = DesignIndex.build_from_sources(
+        sources, include_dirs=[], defines={}, jobs=1
+    )
+    parallel = DesignIndex.build_from_sources(
+        sources, include_dirs=[], defines={}, jobs=4
+    )
+    assert set(serial.modules) == set(parallel.modules)
+
+
 def test_build_from_sources_low_memory_matches_two_pass(tmp_path):
     rtl = tmp_path / "d.v"
     rtl.write_text(

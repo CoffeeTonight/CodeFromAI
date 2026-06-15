@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -106,11 +107,65 @@ def _parse_jobs(data: Any) -> int:
     raise ValueError("'jobs' must be an integer")
 
 
-def _jobs_from_mapping(data: Mapping[str, Any]) -> int:
-    for key in ("jobs", "j", "job"):
-        if key in data:
-            return _parse_jobs(data[key])
-    return 0
+_JOBS_KEY_ALIASES = ("jobs", "j", "job", "workers", "parallel")
+
+
+def _mapping_get_ci(data: Mapping[str, Any], key: str) -> Any:
+    if key in data:
+        return data[key]
+    key_lower = key.lower()
+    for raw_key, value in data.items():
+        if isinstance(raw_key, str) and raw_key.lower() == key_lower:
+            return value
+    return None
+
+
+def _jobs_from_mapping(
+    data: Mapping[str, Any],
+) -> tuple[int, Optional[str]]:
+    """Return (jobs, source_key) when a jobs-like field is present."""
+    for key in _JOBS_KEY_ALIASES:
+        hit = _mapping_get_ci(data, key)
+        if hit is not None:
+            return _parse_jobs(hit), key
+    return 0, None
+
+
+def _jobs_from_document(data: Mapping[str, Any]) -> tuple[int, Optional[str]]:
+    jobs, src = _jobs_from_mapping(data)
+    if src is not None:
+        return jobs, src
+    for nest in ("run", "index", "execution", "config"):
+        sub = data.get(nest)
+        if isinstance(sub, Mapping):
+            nested_jobs, nested_src = _jobs_from_mapping(sub)
+            if nested_src is not None:
+                return nested_jobs, f"{nest}.{nested_src}"
+    connect = data.get("connect")
+    if isinstance(connect, Mapping):
+        nested_jobs, nested_src = _jobs_from_mapping(connect)
+        if nested_src is not None:
+            return nested_jobs, f"connect.{nested_src}"
+    return 0, None
+
+
+def jobs_from_env() -> tuple[int, Optional[str]]:
+    raw = os.environ.get("SCAN_INST_JOBS", "").strip()
+    if not raw:
+        return 0, None
+    return _parse_jobs(raw), "env:SCAN_INST_JOBS"
+
+
+@dataclass(frozen=True)
+class JobsResolution:
+    jobs: int
+    source: str
+
+    @property
+    def note(self) -> str:
+        if self.jobs == 0:
+            return "auto"
+        return str(self.jobs)
 
 
 def _parse_string_list(data: Any, *, field: str) -> List[str]:
@@ -316,7 +371,7 @@ def parse_run_request_json(
                 field="ignore_module",
             )
         ),
-        jobs=_jobs_from_mapping(data),
+        jobs=_jobs_from_document(data)[0],
         low_memory=bool(data.get("low_memory", False)),
         cache_dir=_resolve_path(base, data.get("cache_dir")),
         no_cache=bool(data.get("no_cache", False)),
@@ -329,13 +384,41 @@ def parse_run_request_json(
 
 def load_run_request(path: Union[str, Path]) -> RunConfig:
     p = Path(path)
-    data = json.loads(p.read_text(encoding="utf-8"))
+    data = json.loads(p.read_text(encoding="utf-8-sig"))
     return parse_run_request_json(data, base_dir=p.parent)
+
+
+def resolve_jobs_after_merge(
+    cfg: RunConfig,
+    args: Any,
+    *,
+    json_jobs_source: Optional[str] = None,
+    env_jobs_source: Optional[str] = None,
+) -> JobsResolution:
+    """Describe where effective parallel job count came from."""
+    if _field_overridden(args, "jobs", 0):
+        return JobsResolution(jobs=cfg.jobs, source="cli:-j")
+    if env_jobs_source is not None:
+        return JobsResolution(jobs=cfg.jobs, source=env_jobs_source)
+    if json_jobs_source is not None:
+        return JobsResolution(jobs=cfg.jobs, source=f"json:{json_jobs_source}")
+    if cfg.jobs == 0:
+        return JobsResolution(jobs=0, source="default:auto")
+    return JobsResolution(jobs=cfg.jobs, source="json")
+
+
+def jobs_hint_from_config_text(text: str) -> Optional[str]:
+    """Best-effort detect jobs-like keys in raw JSON when parsing yielded auto."""
+    lowered = text.lower()
+    for token in _JOBS_KEY_ALIASES:
+        if f'"{token}"' in lowered or f"'{token}'" in lowered:
+            return token
+    return None
 
 
 def try_load_run_request_from_path(
     path: Union[str, Path],
-) -> Optional[Tuple[Path, RunConfig]]:
+) -> Optional[Tuple[Path, RunConfig, Optional[str]]]:
     """
     If *path* is a run-spec JSON (object with ``filelist``), return ``(path, cfg)``.
 
@@ -351,9 +434,22 @@ def try_load_run_request_from_path(
     if not isinstance(data, Mapping) or "filelist" not in data:
         return None
     try:
-        return p, parse_run_request_json(data, base_dir=p.parent)
+        cfg = parse_run_request_json(data, base_dir=p.parent)
+        _, src = _jobs_from_document(data)
+        return p, cfg, src
     except ValueError:
         return None
+
+
+def load_run_request_with_jobs_source(
+    path: Union[str, Path],
+) -> tuple[RunConfig, Optional[str]]:
+    p = Path(path)
+    text = p.read_text(encoding="utf-8-sig")
+    data = json.loads(text)
+    cfg = parse_run_request_json(data, base_dir=p.parent)
+    _, src = _jobs_from_document(data)
+    return cfg, src
 
 
 def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:

@@ -85,7 +85,35 @@ def test_auto_detect_run_json_without_config_flag(tmp_path: Path):
     )
     loaded = try_load_run_request_from_path(run_json)
     assert loaded is not None
-    path, cfg = loaded
+    path, cfg, jobs_src = loaded
     assert path == run_json
+    assert jobs_src == "jobs"
     assert cfg.jobs == 16
     assert cfg.filelist == str(fl.resolve())
+
+
+def test_jobs_nested_under_connect_block():
+    cfg = parse_run_request_json(
+        {
+            "filelist": "top.f",
+            "connect": {"jobs": 16, "checks": [{"id": "a", "a": "t.a", "b": "t.b"}]},
+        },
+        base_dir="/tmp",
+    )
+    assert cfg.jobs == 16
+
+
+def test_jobs_case_insensitive_key():
+    cfg = parse_run_request_json(
+        {"filelist": "top.f", "Jobs": 16},
+        base_dir="/tmp",
+    )
+    assert cfg.jobs == 16
+
+
+def test_jobs_workers_alias():
+    cfg = parse_run_request_json(
+        {"filelist": "top.f", "workers": 12},
+        base_dir="/tmp",
+    )
+    assert cfg.jobs == 12

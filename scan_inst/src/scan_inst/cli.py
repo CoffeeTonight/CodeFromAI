@@ -5,9 +5,13 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
+import os
+
+import scan_inst
 from scan_inst.coverage_audit import compute_coverage_audit
 from scan_inst.cache import (
     default_cache_dir,
@@ -29,9 +33,12 @@ from scan_inst.connectivity import (
     run_connectivity_request,
 )
 from scan_inst.run_request import (
-    load_run_request,
+    jobs_from_env,
+    jobs_hint_from_config_text,
+    load_run_request_with_jobs_source,
     merge_run_config,
     resolve_connectivity_request,
+    resolve_jobs_after_merge,
     run_config_from_args,
     try_load_run_request_from_path,
 )
@@ -302,6 +309,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="fused per-file index build (less RAM, slower cold build; default is 2-pass)",
     )
+    ap.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {scan_inst.__version__} ({Path(scan_inst.__file__).resolve().parent})",
+    )
     return ap
 
 
@@ -329,13 +341,16 @@ def main(argv=None) -> int:
 
     cli_cfg = run_config_from_args(args)
     config_path: Optional[Path] = None
-    if args.config:
-        config_path = Path(args.config)
-        cfg = merge_run_config(load_run_request(config_path), cli_cfg, args)
+    json_jobs_source: Optional[str] = None
+    config_arg = args.config or os.environ.get("SCAN_INST_CONFIG")
+    if config_arg:
+        config_path = Path(config_arg)
+        base_cfg, json_jobs_source = load_run_request_with_jobs_source(config_path)
+        cfg = merge_run_config(base_cfg, cli_cfg, args)
     elif args.filelist:
         auto = try_load_run_request_from_path(args.filelist)
         if auto is not None:
-            config_path, base_cfg = auto
+            config_path, base_cfg, json_jobs_source = auto
             cfg = merge_run_config(base_cfg, cli_cfg, args)
         else:
             cfg = cli_cfg
@@ -344,10 +359,54 @@ def main(argv=None) -> int:
     if not cfg.filelist:
         ap.error("filelist is required (positional or in --config JSON)")
 
+    env_jobs_source: Optional[str] = None
+    if cfg.jobs == 0 and int(args.jobs) == 0:
+        env_jobs, env_src = jobs_from_env()
+        if env_src is not None:
+            cfg = replace(cfg, jobs=env_jobs)
+            env_jobs_source = env_src
+    jobs_res = resolve_jobs_after_merge(
+        cfg,
+        args,
+        json_jobs_source=json_jobs_source,
+        env_jobs_source=env_jobs_source,
+    )
+
     if not cfg.quiet:
-        jobs_note = "auto" if cfg.jobs == 0 else str(cfg.jobs)
-        src = f"config={config_path}" if config_path is not None else "cli"
-        print(f"run: {src} jobs={jobs_note}", file=sys.stderr)
+        pkg_dir = Path(scan_inst.__file__).resolve().parent
+        print(
+            f"run: scan-inst {scan_inst.__version__} ({pkg_dir})",
+            file=sys.stderr,
+        )
+        if config_path is not None:
+            print(
+                f"run: config={config_path.resolve()} jobs={jobs_res.note} "
+                f"(source={jobs_res.source})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"run: no config loaded jobs={jobs_res.note} "
+                f"(source={jobs_res.source}; use -c run.json or SCAN_INST_CONFIG)",
+                file=sys.stderr,
+            )
+        if (
+            config_path is not None
+            and cfg.jobs == 0
+            and json_jobs_source is None
+        ):
+            try:
+                hint = jobs_hint_from_config_text(
+                    config_path.read_text(encoding="utf-8-sig")
+                )
+            except OSError:
+                hint = None
+            if hint is not None:
+                print(
+                    f"run: WARNING config contains {hint!r} but jobs stayed auto; "
+                    f"put {hint} at top level (not nested) or use SCAN_INST_JOBS=16",
+                    file=sys.stderr,
+                )
 
     batch_mode = bool(cfg.check_connect_batch or cfg.connect_inline)
     cone_mode = bool(cfg.fanin_cone or cfg.fanout_cone)

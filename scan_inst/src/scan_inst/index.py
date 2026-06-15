@@ -85,11 +85,7 @@ def _preprocess_scan_file_task(
     fpath, inc_dirs, define_items, mode = item
     path = Path(fpath)
     if mode == "ignore":
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            text = ""
-        return scan_ignore_path_stubs(text, fpath)
+        return _scan_ignore_sources_fast([fpath])
     from scan_inst.preprocess import preprocess_file
 
     inc = [Path(p) for p in inc_dirs]
@@ -115,6 +111,36 @@ def _preprocessed_text(preprocessed: Mapping[str, str], fpath: str) -> str:
     raise KeyError(fpath)
 
 
+def _scan_ignore_sources_fast(
+    ignore_sources: List[str],
+    *,
+    on_progress: Optional[Callable[[str], None]] = None,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
+) -> Dict[str, ModuleRecord]:
+    """Stub-only scan for ignore-path RTL (no preprocess)."""
+    from scan_inst.progress import format_work_location
+
+    merged: Dict[str, ModuleRecord] = {}
+    total = len(ignore_sources)
+    if on_progress and total:
+        on_progress(f"index: ignore-path stub scan 0/{total} files (skip preprocess)")
+    for i, fpath in enumerate(ignore_sources, start=1):
+        try:
+            text = Path(fpath).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            text = ""
+        _merge_file_scans(merged, scan_ignore_path_stubs(text, fpath))
+        if on_progress and (i == total or i % 500 == 0):
+            loc = format_work_location(
+                fpath,
+                index=i,
+                total=total,
+                via_map=file_via_filelist,
+            )
+            on_progress(f"index: ignore-path stub scan {i}/{total} files — {loc}")
+    return merged
+
+
 def _build_merged_from_sources(
     parse_sources: List[str],
     ignore_sources: List[str],
@@ -127,35 +153,55 @@ def _build_merged_from_sources(
     file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
     """Default: parallel preprocess then in-memory scan (preprocessed map discarded)."""
-    if low_memory:
-        return _scan_sources_fused(
-            parse_sources,
-            ignore_sources,
-            include_dirs=include_dirs,
-            defines=defines,
-            jobs=jobs,
-            on_progress=on_progress,
-            file_via_filelist=file_via_filelist,
+    merged: Dict[str, ModuleRecord] = {}
+    if ignore_sources:
+        _merge_file_scans(
+            merged,
+            _scan_ignore_sources_fast(
+                ignore_sources,
+                on_progress=on_progress,
+                file_via_filelist=file_via_filelist,
+            ),
         )
+    if low_memory:
+        if parse_sources:
+            _merge_file_scans(
+                merged,
+                _scan_sources_fused(
+                    parse_sources,
+                    [],
+                    include_dirs=include_dirs,
+                    defines=defines,
+                    jobs=jobs,
+                    on_progress=on_progress,
+                    file_via_filelist=file_via_filelist,
+                ),
+            )
+        return merged
+    if not parse_sources:
+        return merged
     from scan_inst.preprocess import preprocess_sources
 
-    all_sources = list(parse_sources) + list(ignore_sources)
     preprocessed = preprocess_sources(
-        all_sources,
+        parse_sources,
         include_dirs,
         defines,
         jobs=jobs,
         on_progress=on_progress,
         file_via_filelist=file_via_filelist,
     )
-    return _scan_sources(
-        preprocessed,
-        parse_sources,
-        ignore_sources,
-        jobs=jobs,
-        on_progress=on_progress,
-        file_via_filelist=file_via_filelist,
+    _merge_file_scans(
+        merged,
+        _scan_sources(
+            preprocessed,
+            parse_sources,
+            [],
+            jobs=jobs,
+            on_progress=on_progress,
+            file_via_filelist=file_via_filelist,
+        ),
     )
+    return merged
 
 
 def _scan_sources(
@@ -548,6 +594,11 @@ class DesignIndex:
         )
         src_list = sorted(str(Path(s)) for s in sources)
         parse_sources, ignore_sources = partition_sources(src_list, path_patterns)
+        if on_progress and ignore_sources:
+            on_progress(
+                f"index: {len(ignore_sources)} sources match ignore-path "
+                f"({len(path_patterns)} patterns, skip preprocess)"
+            )
         merged = _build_merged_from_sources(
             parse_sources,
             ignore_sources,

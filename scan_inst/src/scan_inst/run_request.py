@@ -275,13 +275,24 @@ def parse_run_request_json(
         cone_graph=_resolve_path(base, data.get("cone_graph", data.get("cone-graph"))),
         strict_generate=bool(data.get("strict_generate", False)),
         over_approximate_if=over_approx,
-        ignore_path=tuple(_parse_string_list(data.get("ignore_path"), field="ignore_path")),
+        ignore_path=tuple(
+            _parse_string_list(
+                data.get("ignore_path", data.get("ignore-path")),
+                field="ignore_path",
+            )
+        ),
         ignore_path_file=tuple(
             _resolve_path(base, p) or p
-            for p in _parse_string_list(data.get("ignore_path_file"), field="ignore_path_file")
+            for p in _parse_string_list(
+                data.get("ignore_path_file", data.get("ignore-path-file")),
+                field="ignore_path_file",
+            )
         ),
         ignore_module=tuple(
-            _parse_string_list(data.get("ignore_module"), field="ignore_module")
+            _parse_string_list(
+                data.get("ignore_module", data.get("ignore-module")),
+                field="ignore_module",
+            )
         ),
         jobs=int(data.get("jobs", data.get("j", 0))),
         low_memory=bool(data.get("low_memory", False)),

@@ -118,6 +118,10 @@ def source_path_matches(path: str, patterns: Sequence[str]) -> bool:
                 return True
         elif pat in norm:
             return True
+        else:
+            segments = [seg for seg in norm.split("/") if seg]
+            if pat in segments:
+                return True
     return False
 
 

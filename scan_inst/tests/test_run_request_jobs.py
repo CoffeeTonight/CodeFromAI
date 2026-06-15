@@ -19,3 +19,14 @@ def test_jobs_field_takes_precedence_over_j():
         base_dir="/tmp",
     )
     assert cfg.jobs == 8
+
+
+def test_ignore_path_hyphen_alias_in_json():
+    cfg = parse_run_request_json(
+        {
+            "filelist": "top.f",
+            "ignore-path": ["pcielinktop", "pciephyyop"],
+        },
+        base_dir="/tmp",
+    )
+    assert cfg.ignore_path == ("pcielinktop", "pciephyyop")

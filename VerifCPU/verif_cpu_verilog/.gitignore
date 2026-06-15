@@ -1,0 +1,22 @@
+# iverilog simulation
+sim_build/
+*.vvp
+*.vcd
+
+# Campaign firmware build (regenerate: make -C firmware/campaign all)
+firmware/campaign/build/
+
+# Merged campaign hex (regenerate: make -C firmware/campaign merge)
+firmware/full_campaign_unified.hex
+firmware/full_campaign_vcpu.hex
+
+# Simulation logs
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Editor / OS
+*~
+.DS_Store

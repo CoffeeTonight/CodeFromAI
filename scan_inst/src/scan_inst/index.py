@@ -84,8 +84,6 @@ def _preprocess_scan_file_task(
     """Picklable fused preprocess + scan (avoids retaining full preprocessed text)."""
     fpath, inc_dirs, define_items, mode = item
     path = Path(fpath)
-    if mode == "ignore":
-        return _scan_ignore_sources_fast([fpath])
     from scan_inst.preprocess import preprocess_file
 
     inc = [Path(p) for p in inc_dirs]
@@ -111,34 +109,45 @@ def _preprocessed_text(preprocessed: Mapping[str, str], fpath: str) -> str:
     raise KeyError(fpath)
 
 
-def _scan_ignore_sources_fast(
-    ignore_sources: List[str],
+def _inject_referenced_ignore_stubs(
+    merged: Dict[str, ModuleRecord],
     *,
-    on_progress: Optional[Callable[[str], None]] = None,
-    file_via_filelist: Optional[Mapping[str, str]] = None,
-) -> Dict[str, ModuleRecord]:
-    """Stub-only scan for ignore-path RTL (no preprocess)."""
-    from scan_inst.progress import format_work_location
+    path_patterns: Sequence[str],
+    module_patterns: Sequence[str],
+) -> None:
+    """
+    Add ignorePath stubs for instance targets not defined in parsed RTL.
 
-    merged: Dict[str, ModuleRecord] = {}
-    total = len(ignore_sources)
-    if on_progress and total:
-        on_progress(f"index: ignore-path stub scan 0/{total} files (skip preprocess)")
-    for i, fpath in enumerate(ignore_sources, start=1):
-        try:
-            text = Path(fpath).read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            text = ""
-        _merge_file_scans(merged, scan_ignore_path_stubs(text, fpath))
-        if on_progress and (i == total or i % 500 == 0):
-            loc = format_work_location(
-                fpath,
-                index=i,
-                total=total,
-                via_map=file_via_filelist,
+    Avoids reading every file under ignore-path directories; hierarchy references
+    alone determine which module names need a stop boundary.
+    """
+    if not path_patterns and not module_patterns:
+        return
+    referenced: set[str] = set()
+    for rec in merged.values():
+        if rec.stop_reason:
+            continue
+        for edge in rec.instances:
+            child = edge.child_module
+            if child and child not in merged:
+                referenced.add(child)
+    for mod_name in sorted(referenced):
+        if mod_name in merged:
+            continue
+        if _module_name_ignored(mod_name, list(module_patterns)):
+            merged[mod_name] = ModuleRecord(
+                module_name=mod_name,
+                file_path="",
+                stop_reason="ignorePath",
+                is_blackbox=True,
             )
-            on_progress(f"index: ignore-path stub scan {i}/{total} files — {loc}")
-    return merged
+        elif path_patterns:
+            merged[mod_name] = ModuleRecord(
+                module_name=mod_name,
+                file_path="",
+                stop_reason="ignorePath",
+                is_blackbox=True,
+            )
 
 
 def _build_merged_from_sources(
@@ -154,15 +163,6 @@ def _build_merged_from_sources(
 ) -> Dict[str, ModuleRecord]:
     """Default: parallel preprocess then in-memory scan (preprocessed map discarded)."""
     merged: Dict[str, ModuleRecord] = {}
-    if ignore_sources:
-        _merge_file_scans(
-            merged,
-            _scan_ignore_sources_fast(
-                ignore_sources,
-                on_progress=on_progress,
-                file_via_filelist=file_via_filelist,
-            ),
-        )
     if low_memory:
         if parse_sources:
             _merge_file_scans(
@@ -216,9 +216,6 @@ def _scan_sources(
     tasks: List[Tuple[str, str, ScanMode]] = [
         (fpath, _preprocessed_text(preprocessed, fpath), "parse")
         for fpath in parse_sources
-    ] + [
-        (fpath, _preprocessed_text(preprocessed, fpath), "ignore")
-        for fpath in ignore_sources
     ]
     merged: Dict[str, ModuleRecord] = {}
     if not tasks:
@@ -256,8 +253,6 @@ def _scan_sources_fused(
     inc_dirs = tuple(str(Path(p)) for p in include_dirs)
     tasks: List[Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...], ScanMode]] = [
         (fpath, inc_dirs, define_items, "parse") for fpath in parse_sources
-    ] + [
-        (fpath, inc_dirs, define_items, "ignore") for fpath in ignore_sources
     ]
     merged: Dict[str, ModuleRecord] = {}
     if not tasks:
@@ -534,11 +529,17 @@ class DesignIndex:
                     file_path=rec.file_path,
                     stop_reason="ignorePath",
                 )
+        _inject_referenced_ignore_stubs(
+            merged,
+            path_patterns=path_patterns,
+            module_patterns=module_patterns,
+        )
         if library_files is not None or library_dirs is not None:
             stubs = scan_library_modules(
                 library_files or [],
                 library_dirs or [],
                 libexts=libexts or (),
+                skip_path_patterns=path_patterns,
             )
             for name, stub in stubs.items():
                 if name not in merged:
@@ -596,8 +597,8 @@ class DesignIndex:
         parse_sources, ignore_sources = partition_sources(src_list, path_patterns)
         if on_progress and ignore_sources:
             on_progress(
-                f"index: {len(ignore_sources)} sources match ignore-path "
-                f"({len(path_patterns)} patterns, skip preprocess)"
+                f"index: {len(ignore_sources)} sources in ignore-path "
+                f"({len(path_patterns)} patterns; skip file scan, stub on reference)"
             )
         merged = _build_merged_from_sources(
             parse_sources,
@@ -656,7 +657,7 @@ class DesignIndex:
         merged = _scan_sources(
             preprocessed,
             parse_sources,
-            ignore_sources,
+            [],
             jobs=jobs,
             on_progress=on_progress,
         )

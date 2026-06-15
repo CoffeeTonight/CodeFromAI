@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from scan_inst.coverage_audit import compute_coverage_audit
 from scan_inst.cache import (
     default_cache_dir,
     get_cached_elab,
@@ -489,6 +490,9 @@ def main(argv=None) -> int:
         on_progress(f"cache hit: elab ({elab_cache_hits}/{len(tops)} tops)")
     rows.sort(key=lambda r: (r.full_path.count("."), r.full_path))
     elapsed = time.perf_counter() - t0
+    coverage = (
+        compute_coverage_audit(index, fl, rows, tops=tops) if rows and tops else None
+    )
 
     if cone_mode:
         top_name = tops[0] if tops else ""
@@ -556,6 +560,7 @@ def main(argv=None) -> int:
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
                 search_pattern=cone_label,
+                coverage=coverage,
             ),
             log_path=log_path,
         )
@@ -645,6 +650,7 @@ def main(argv=None) -> int:
                 mode=("check-connect-batch" if batch_mode else "check-connect"),
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
+                coverage=coverage,
             ),
             log_path=log_path,
         )
@@ -714,6 +720,7 @@ def main(argv=None) -> int:
                 mode="search",
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
+                coverage=coverage,
             ),
             log_path=log_path,
         )
@@ -751,6 +758,7 @@ def main(argv=None) -> int:
                 mode="hierarchy",
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
+                coverage=coverage,
             ),
             log_path=log_path,
         )

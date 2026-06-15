@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, TextIO, Tuple
 
+from scan_inst.coverage_audit import CoverageAuditResult
 from scan_inst.filelist import FilelistResult
 from scan_inst.index import DesignIndex
 from scan_inst.models import SearchHit
@@ -59,6 +60,7 @@ class RunReport:
     mode: str = "hierarchy"
     output_path: str = "-"
     filelist_warnings: int = 0
+    coverage: Optional[CoverageAuditResult] = None
 
     def lines(self) -> List[str]:
         out: List[str] = []
@@ -147,6 +149,10 @@ class RunReport:
         if self.filelist_warnings:
             out.append("")
             out.append(f"Warnings:      {self.filelist_warnings} filelist issue(s)")
+
+        if self.coverage is not None:
+            out.append("")
+            out.extend(self.coverage.summary_lines())
 
         out.append("---")
         return out

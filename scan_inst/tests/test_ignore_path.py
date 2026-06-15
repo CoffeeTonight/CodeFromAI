@@ -23,7 +23,10 @@ def test_ignore_path_skips_preprocess_for_vendor_tree(tmp_path):
         encoding="utf-8",
     )
     top = tmp_path / "top.v"
-    top.write_text("module top; leaf u ( ); endmodule\nmodule leaf; endmodule\n", encoding="utf-8")
+    top.write_text(
+        "module top; big u_big ( ); endmodule\n",
+        encoding="utf-8",
+    )
 
     sources = [str(top), str(slow)]
     index = DesignIndex.build_from_sources(
@@ -36,6 +39,33 @@ def test_ignore_path_skips_preprocess_for_vendor_tree(tmp_path):
     assert index.get_module("big").stop_reason == "ignorePath"
     assert index.get_module("top") is not None
     assert index.get_module("top").stop_reason == ""
+
+
+def test_ignore_path_case_insensitive_folder_segment():
+    path = "/proj/rtl/PCIeLinkTop/foo.v"
+    assert source_path_matches(path, ["pcielinktop"])
+    assert source_path_matches(path, ["pciephytop"]) is False
+
+
+def test_ignore_path_no_read_when_only_referenced(tmp_path):
+    vendor = tmp_path / "PCIeLinkTop"
+    vendor.mkdir()
+    slow = vendor / "big.v"
+    slow.write_text(
+        "`include \"missing.vh\"\nmodule big; endmodule\n",
+        encoding="utf-8",
+    )
+    top = tmp_path / "top.v"
+    top.write_text("module top; big u_big ( ); endmodule\n", encoding="utf-8")
+
+    index = DesignIndex.build_from_sources(
+        [str(top), str(slow)],
+        include_dirs=[],
+        defines={},
+        jobs=1,
+        ignore_paths=["pcielinktop"],
+    )
+    assert index.get_module("big").stop_reason == "ignorePath"
 
 
 def test_partition_sources_splits_ignore(tmp_path):

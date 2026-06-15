@@ -106,21 +106,26 @@ def _glob_matches_path(norm: str, pattern: str) -> bool:
     return any(fnmatch.fnmatchcase(seg, pattern) for seg in norm.split("/") if seg)
 
 
+def _segment_matches(pattern: str, segment: str) -> bool:
+    return pattern == segment or pattern.lower() == segment.lower()
+
+
 def source_path_matches(path: str, patterns: Sequence[str]) -> bool:
     if not patterns:
         return False
     norm = str(path).replace("\\", "/")
+    norm_lower = norm.lower()
     for pat in patterns:
         if not pat:
             continue
         if _is_glob_pattern(pat):
             if _glob_matches_path(norm, pat):
                 return True
-        elif pat in norm:
+        elif pat.lower() in norm_lower:
             return True
         else:
             segments = [seg for seg in norm.split("/") if seg]
-            if pat in segments:
+            if any(_segment_matches(pat, seg) for seg in segments):
                 return True
     return False
 

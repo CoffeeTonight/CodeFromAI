@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Dict, Mapping, Sequence
 
+from scan_inst.ignore_path import source_path_matches
 from scan_inst.models import ModuleRecord
 
 _MODULE_RE = re.compile(
@@ -20,11 +21,14 @@ def scan_library_modules(
     library_dirs: Sequence[str | Path],
     *,
     libexts: Sequence[str] = _DEFAULT_EXTS,
+    skip_path_patterns: Sequence[str] = (),
 ) -> Dict[str, ModuleRecord]:
     stubs: Dict[str, ModuleRecord] = {}
     exts = tuple(libexts)
 
     def add_file(path: Path) -> None:
+        if skip_path_patterns and source_path_matches(str(path), skip_path_patterns):
+            return
         if not path.is_file():
             return
         if path.suffix and path.suffix not in exts:
@@ -51,5 +55,7 @@ def scan_library_modules(
             continue
         for ext in exts:
             for path in d.rglob(f"*{ext}"):
+                if skip_path_patterns and source_path_matches(str(path), skip_path_patterns):
+                    continue
                 add_file(path)
     return stubs

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.ignore_path import source_path_matches
-from scan_inst.progress import format_work_location
+from scan_inst.progress import format_work_location, maybe_track_work
 
 _IGNORE_PATH_STUB = "/* scan_inst: ignore-path skipped */"
 
@@ -561,6 +561,13 @@ def _run_preprocess_tasks_serial(
     for i, task in enumerate(tasks, start=1):
         key, text = _preprocess_file_task(task)
         out[key] = text
+        maybe_track_work(
+            on_progress,
+            task[0],
+            index=i,
+            total=total,
+            via_map=file_via_filelist,
+        )
         if on_progress and (i == total or i % progress_every == 0):
             loc = format_work_location(
                 task[0],
@@ -632,6 +639,13 @@ def preprocess_sources(
                     start=1,
                 ):
                     out[key] = text
+                    maybe_track_work(
+                        on_progress,
+                        key,
+                        index=i,
+                        total=total,
+                        via_map=file_via_filelist,
+                    )
                     if on_progress and (i == total or i % progress_every == 0):
                         loc = format_work_location(
                             key,
@@ -656,6 +670,13 @@ def preprocess_sources(
                         start=1,
                     ):
                         out[key] = text
+                        maybe_track_work(
+                            on_progress,
+                            key,
+                            index=i,
+                            total=total,
+                            via_map=file_via_filelist,
+                        )
                         if on_progress and (i == total or i % progress_every == 0):
                             loc = format_work_location(
                                 key,

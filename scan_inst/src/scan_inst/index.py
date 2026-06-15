@@ -233,10 +233,18 @@ def _scan_sources(
     total = len(tasks)
     if on_progress:
         on_progress(f"index: scanning 0/{total} files (in-process)")
+    from scan_inst.progress import format_work_location, maybe_track_work
+
     for i, task in enumerate(tasks, start=1):
         _merge_file_scans(merged, _scan_file_task(task))
+        maybe_track_work(
+            on_progress,
+            task[0],
+            index=i,
+            total=total,
+            via_map=file_via_filelist,
+        )
         if on_progress and (i == total or i % 500 == 0):
-            from scan_inst.progress import format_work_location
 
             loc = format_work_location(
                 task[0],
@@ -296,10 +304,18 @@ def _scan_sources_fused(
     cache_snapshot = _snapshot_include_cache()
 
     if workers == 1:
+        from scan_inst.progress import format_work_location, maybe_track_work
+
         for i, task in enumerate(tasks, start=1):
             _merge_file_scans(merged, _preprocess_scan_file_task(task))
+            maybe_track_work(
+                on_progress,
+                task[0],
+                index=i,
+                total=total,
+                via_map=file_via_filelist,
+            )
             if on_progress and (i == total or i % 500 == 0):
-                from scan_inst.progress import format_work_location
 
                 loc = format_work_location(
                     task[0],
@@ -319,15 +335,22 @@ def _scan_sources_fused(
             initializer=_install_include_cache_snapshot,
             initargs=(cache_snapshot,),
         ) as pool:
+            from scan_inst.progress import format_work_location, maybe_track_work
+
             for i, per_file in enumerate(
                 pool.map(_preprocess_scan_file_task, tasks, chunksize=chunk),
                 start=1,
             ):
                 _merge_file_scans(merged, per_file)
+                fpath = tasks[i - 1][0]
+                maybe_track_work(
+                    on_progress,
+                    fpath,
+                    index=i,
+                    total=total,
+                    via_map=file_via_filelist,
+                )
                 if on_progress and (i == total or i % 500 == 0):
-                    from scan_inst.progress import format_work_location
-
-                    fpath = tasks[i - 1][0]
                     loc = format_work_location(
                         fpath,
                         index=i,

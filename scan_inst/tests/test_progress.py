@@ -9,6 +9,7 @@ from scan_inst.progress import (
     ProgressHeartbeat,
     ProgressReporter,
     format_work_location,
+    progress_callback,
     split_progress_detail,
 )
 
@@ -46,6 +47,30 @@ def test_progress_reporter_detail_for_heartbeat():
     assert reporter.get_detail() == (
         "filelist: cpu_block.f | folder: rtl/cpu | file: alu.v (500/12000)"
     )
+
+
+def test_track_work_updates_heartbeat_between_milestones():
+    reporter = ProgressReporter(stream=io.StringIO(), enabled=True)
+    reporter.set_filelist("top.f")
+    sink = progress_callback(reporter)
+    assert sink is not None
+    sink.track(
+        "/eda/soc/rtl/cpu/alu/foo.v",
+        index=501,
+        total=12000,
+    )
+    assert "file: foo.v" in reporter.get_detail()
+    assert "(501/12000)" in reporter.get_detail()
+
+    sink.track(
+        "/eda/soc/rtl/dv/tb_top.v",
+        index=750,
+        total=12000,
+    )
+    detail = reporter.get_detail()
+    assert "file: tb_top.v" in detail
+    assert "(750/12000)" in detail
+    assert "foo.v" not in detail
 
 
 def test_progress_heartbeat_includes_detail():

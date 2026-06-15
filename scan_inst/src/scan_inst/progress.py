@@ -108,11 +108,38 @@ class ProgressReporter:
         """Update location detail from a progress line suffix."""
         suffix = split_progress_detail(message)
         if suffix is not None:
-            self.set_location(suffix)
-            listing = _parse_listing_label(suffix)
+            self._apply_location_detail(suffix)
+
+    def track_work(
+        self,
+        file_path: str,
+        *,
+        index: int,
+        total: int,
+        via_map: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        """Update heartbeat location without printing a progress line."""
+        self._apply_location_detail(
+            format_work_location(
+                file_path,
+                index=index,
+                total=total,
+                via_map=via_map,
+            )
+        )
+
+    def _apply_location_detail(self, detail: str) -> None:
+        detail = detail.strip()
+        if not detail:
+            return
+        listing = _parse_listing_label(detail)
+        with self._lock:
+            self._location = detail
             if listing:
-                with self._lock:
-                    self._active_listing_label = listing
+                self._active_listing_label = listing
+
+    def elapsed(self) -> float:
+        return time.perf_counter() - self._t0
 
     def get_detail(self) -> str:
         with self._lock:
@@ -141,8 +168,49 @@ def _strip_listing_prefix(detail: str) -> str:
     kept = [s for s in segments if not s.startswith("listing:")]
     return " | ".join(kept)
 
-    def elapsed(self) -> float:
-        return time.perf_counter() - self._t0
+
+class ProgressSink:
+    """Callable progress sink: ``emit`` logs lines; ``track`` updates heartbeat only."""
+
+    def __init__(self, reporter: ProgressReporter) -> None:
+        self._reporter = reporter
+
+    def __call__(self, message: str) -> None:
+        self.emit(message)
+
+    def emit(self, message: str) -> None:
+        self._reporter.phase(message)
+        self._reporter.absorb_progress(message)
+
+    def track(
+        self,
+        file_path: str,
+        *,
+        index: int,
+        total: int,
+        via_map: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        self._reporter.track_work(
+            file_path,
+            index=index,
+            total=total,
+            via_map=via_map,
+        )
+
+
+def maybe_track_work(
+    on_progress: Optional[ProgressFn],
+    file_path: str,
+    *,
+    index: int,
+    total: int,
+    via_map: Optional[Mapping[str, str]] = None,
+) -> None:
+    if on_progress is None:
+        return
+    track = getattr(on_progress, "track", None)
+    if callable(track):
+        track(file_path, index=index, total=total, via_map=via_map)
 
 
 class ProgressHeartbeat:
@@ -195,12 +263,7 @@ def null_progress() -> Iterator[None]:
     yield
 
 
-def progress_callback(reporter: Optional[ProgressReporter]) -> Optional[ProgressFn]:
+def progress_callback(reporter: Optional[ProgressReporter]) -> Optional[ProgressSink]:
     if reporter is None or not reporter._enabled:
         return None
-
-    def _emit(message: str) -> None:
-        reporter.phase(message)
-        reporter.absorb_progress(message)
-
-    return _emit
+    return ProgressSink(reporter)

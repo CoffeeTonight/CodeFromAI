@@ -7,7 +7,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Iterator, Optional, TextIO
+from typing import Callable, Iterator, Mapping, Optional, TextIO
 
 
 def format_duration(seconds: float) -> str:
@@ -26,11 +26,33 @@ def format_duration(seconds: float) -> str:
 ProgressFn = Callable[[str], None]
 
 
+def resolve_listing_filelist(
+    rtl_file: str,
+    via_map: Optional[Mapping[str, str]],
+) -> str:
+    """Return the ``.f`` that listed this RTL (basename), if known."""
+    if not via_map:
+        return ""
+    keys = (
+        str(Path(rtl_file).resolve()),
+        str(Path(rtl_file)),
+        rtl_file,
+    )
+    for key in keys:
+        hit = via_map.get(key)
+        if hit:
+            p = Path(str(hit))
+            return p.name or str(p)
+    return ""
+
+
 def format_work_location(
     file_path: str,
     *,
     index: Optional[int] = None,
     total: Optional[int] = None,
+    listing_filelist: str = "",
+    via_map: Optional[Mapping[str, str]] = None,
 ) -> str:
     """Short folder + file label for heartbeat / progress detail."""
     p = Path(str(file_path).replace("\\", "/"))
@@ -41,7 +63,10 @@ def format_work_location(
         folder = "/".join(parts)
     else:
         folder = "."
+    listing = listing_filelist or resolve_listing_filelist(file_path, via_map)
     label = f"folder: {folder} | file: {p.name}"
+    if listing:
+        label = f"listing: {listing} | {label}"
     if index is not None and total is not None:
         label = f"{label} ({index}/{total})"
     return label
@@ -63,6 +88,7 @@ class ProgressReporter:
         self._t0 = time.perf_counter()
         self._lock = threading.Lock()
         self._filelist_label = ""
+        self._active_listing_label = ""
         self._location = ""
 
     def phase(self, message: str) -> None:
@@ -83,15 +109,37 @@ class ProgressReporter:
         suffix = split_progress_detail(message)
         if suffix is not None:
             self.set_location(suffix)
+            listing = _parse_listing_label(suffix)
+            if listing:
+                with self._lock:
+                    self._active_listing_label = listing
 
     def get_detail(self) -> str:
         with self._lock:
             parts: list[str] = []
-            if self._filelist_label:
-                parts.append(f"filelist: {self._filelist_label}")
-            if self._location:
-                parts.append(self._location)
+            listing = self._active_listing_label or self._filelist_label
+            if listing:
+                parts.append(f"filelist: {listing}")
+            loc = _strip_listing_prefix(self._location)
+            if loc:
+                parts.append(loc)
             return " | ".join(parts)
+
+
+def _parse_listing_label(detail: str) -> str:
+    for segment in detail.split("|"):
+        seg = segment.strip()
+        if seg.startswith("listing:"):
+            return seg.split(":", 1)[1].strip()
+    return ""
+
+
+def _strip_listing_prefix(detail: str) -> str:
+    if not detail:
+        return ""
+    segments = [s.strip() for s in detail.split("|")]
+    kept = [s for s in segments if not s.startswith("listing:")]
+    return " | ".join(kept)
 
     def elapsed(self) -> float:
         return time.perf_counter() - self._t0

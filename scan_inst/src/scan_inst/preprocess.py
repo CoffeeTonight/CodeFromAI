@@ -10,6 +10,8 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
+from scan_inst.progress import format_work_location
+
 _IFDEF_RE = re.compile(
     r"`(?:ifdef|ifndef)\s+([A-Za-z_]\w*)"
     r"|`elsif\s+([A-Za-z_]\w*)"
@@ -427,6 +429,7 @@ def _run_preprocess_tasks_serial(
     *,
     on_progress: Optional[Callable[[str], None]] = None,
     progress_every: int = 500,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, str]:
     out: Dict[str, str] = {}
     total = len(tasks)
@@ -434,9 +437,12 @@ def _run_preprocess_tasks_serial(
         key, text = _preprocess_file_task(task)
         out[key] = text
         if on_progress and (i == total or i % progress_every == 0):
-            from scan_inst.progress import format_work_location
-
-            loc = format_work_location(task[0], index=i, total=total)
+            loc = format_work_location(
+                task[0],
+                index=i,
+                total=total,
+                via_map=file_via_filelist,
+            )
             on_progress(f"preprocess: {i}/{total} sources — {loc}")
     return out
 
@@ -449,6 +455,7 @@ def preprocess_sources(
     jobs: int = 0,
     on_progress: Optional[Callable[[str], None]] = None,
     progress_every: int = 500,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, str]:
     """Return map of source path → preprocessed text."""
     t0 = time.perf_counter()
@@ -459,7 +466,11 @@ def preprocess_sources(
     total = len(src_list)
     workers = _resolve_preprocess_jobs(jobs, total)
     if on_progress and total:
-        on_progress(f"preprocess: 0/{total} sources ({workers} workers)")
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"preprocess: 0/{total} sources "
+            f"({workers} workers, jobs={jobs_note})"
+        )
 
     _warm_include_cache_for_sources(
         src_list,
@@ -474,6 +485,7 @@ def preprocess_sources(
             tasks,
             on_progress=on_progress,
             progress_every=progress_every,
+            file_via_filelist=file_via_filelist,
         )
     else:
         out = {}
@@ -493,9 +505,12 @@ def preprocess_sources(
                 ):
                     out[key] = text
                     if on_progress and (i == total or i % progress_every == 0):
-                        from scan_inst.progress import format_work_location
-
-                        loc = format_work_location(key, index=i, total=total)
+                        loc = format_work_location(
+                            key,
+                            index=i,
+                            total=total,
+                            via_map=file_via_filelist,
+                        )
                         on_progress(f"preprocess: {i}/{total} sources — {loc}")
         except (OSError, PermissionError, RuntimeError) as exc:
             msg = (
@@ -514,9 +529,12 @@ def preprocess_sources(
                     ):
                         out[key] = text
                         if on_progress and (i == total or i % progress_every == 0):
-                            from scan_inst.progress import format_work_location
-
-                            loc = format_work_location(key, index=i, total=total)
+                            loc = format_work_location(
+                                key,
+                                index=i,
+                                total=total,
+                                via_map=file_via_filelist,
+                            )
                             on_progress(f"preprocess: {i}/{total} sources — {loc}")
             except (OSError, PermissionError, RuntimeError) as exc2:
                 msg2 = (
@@ -531,13 +549,15 @@ def preprocess_sources(
                     tasks,
                     on_progress=on_progress,
                     progress_every=progress_every,
+                    file_via_filelist=file_via_filelist,
                 )
 
     elapsed = time.perf_counter() - t0
     if on_progress and total:
         rate = total / elapsed if elapsed > 0 else 0.0
+        jobs_note = "auto" if jobs == 0 else str(jobs)
         on_progress(
             f"preprocess: done {total} sources in {elapsed:.1f}s "
-            f"({rate:.1f} files/s, {workers} workers)"
+            f"({rate:.1f} files/s, {workers} workers, jobs={jobs_note})"
         )
     return out

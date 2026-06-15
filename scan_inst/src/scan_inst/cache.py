@@ -154,12 +154,13 @@ def build_design_index(
         if source_subset is None
         else list(source_subset)
     )
+    via_map, chain_map = filelist_provenance_maps(fl)
+    jobs_note = "auto" if jobs == 0 else str(jobs)
     if on_progress:
         on_progress(
             f"index: building from {len(sources)} sources "
-            f"({len(fl.filelist_info)} filelists)"
+            f"({len(fl.filelist_info)} filelists, jobs={jobs_note})"
         )
-    via_map, chain_map = filelist_provenance_maps(fl)
     return DesignIndex.build_from_sources(
         sources,
         include_dirs=[str(p) for p in fl.include_dirs],

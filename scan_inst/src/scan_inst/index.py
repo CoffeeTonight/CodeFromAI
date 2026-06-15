@@ -124,6 +124,7 @@ def _build_merged_from_sources(
     jobs: int = 0,
     low_memory: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
     """Default: parallel preprocess then in-memory scan (preprocessed map discarded)."""
     if low_memory:
@@ -134,6 +135,7 @@ def _build_merged_from_sources(
             defines=defines,
             jobs=jobs,
             on_progress=on_progress,
+            file_via_filelist=file_via_filelist,
         )
     from scan_inst.preprocess import preprocess_sources
 
@@ -144,6 +146,7 @@ def _build_merged_from_sources(
         defines,
         jobs=jobs,
         on_progress=on_progress,
+        file_via_filelist=file_via_filelist,
     )
     return _scan_sources(
         preprocessed,
@@ -151,6 +154,7 @@ def _build_merged_from_sources(
         ignore_sources,
         jobs=jobs,
         on_progress=on_progress,
+        file_via_filelist=file_via_filelist,
     )
 
 
@@ -161,6 +165,7 @@ def _scan_sources(
     *,
     jobs: int = 0,
     on_progress: Optional[Callable[[str], None]] = None,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
     tasks: List[Tuple[str, str, ScanMode]] = [
         (fpath, _preprocessed_text(preprocessed, fpath), "parse")
@@ -181,7 +186,12 @@ def _scan_sources(
         if on_progress and (i == total or i % 500 == 0):
             from scan_inst.progress import format_work_location
 
-            loc = format_work_location(task[0], index=i, total=total)
+            loc = format_work_location(
+                task[0],
+                index=i,
+                total=total,
+                via_map=file_via_filelist,
+            )
             on_progress(f"index: scanning {i}/{total} files — {loc}")
     return merged
 
@@ -194,6 +204,7 @@ def _scan_sources_fused(
     defines: Mapping[str, str],
     jobs: int = 0,
     on_progress: Optional[Callable[[str], None]] = None,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, ModuleRecord]:
     define_items = tuple(sorted(defines.items()))
     inc_dirs = tuple(str(Path(p)) for p in include_dirs)
@@ -209,14 +220,23 @@ def _scan_sources_fused(
     workers = _resolve_jobs(jobs, len(tasks))
     total = len(tasks)
     if on_progress:
-        on_progress(f"index: scanning 0/{total} files ({workers} workers)")
+        jobs_note = "auto" if jobs == 0 else str(jobs)
+        on_progress(
+            f"index: scanning 0/{total} files "
+            f"({workers} workers, jobs={jobs_note})"
+        )
     if workers == 1:
         for i, task in enumerate(tasks, start=1):
             _merge_file_scans(merged, _preprocess_scan_file_task(task))
             if on_progress and (i == total or i % 500 == 0):
                 from scan_inst.progress import format_work_location
 
-                loc = format_work_location(task[0], index=i, total=total)
+                loc = format_work_location(
+                    task[0],
+                    index=i,
+                    total=total,
+                    via_map=file_via_filelist,
+                )
                 on_progress(f"index: scanning {i}/{total} sources — {loc}")
         return merged
 
@@ -234,7 +254,12 @@ def _scan_sources_fused(
                     from scan_inst.progress import format_work_location
 
                     fpath = tasks[i - 1][0]
-                    loc = format_work_location(fpath, index=i, total=total)
+                    loc = format_work_location(
+                        fpath,
+                        index=i,
+                        total=total,
+                        via_map=file_via_filelist,
+                    )
                     on_progress(f"index: scanning {i}/{total} sources — {loc}")
     except (OSError, PermissionError, RuntimeError):
         for task in tasks:
@@ -418,6 +443,7 @@ class DesignIndex:
                 jobs=jobs,
                 low_memory=self.low_memory,
                 on_progress=on_progress,
+                file_via_filelist=self.file_via_filelist,
             )
             for name, rec in merged.items():
                 self.modules[name] = rec
@@ -530,6 +556,7 @@ class DesignIndex:
             jobs=jobs,
             low_memory=low_memory,
             on_progress=on_progress,
+            file_via_filelist=file_via_filelist,
         )
         return cls._assemble(
             merged,

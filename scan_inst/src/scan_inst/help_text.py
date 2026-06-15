@@ -144,6 +144,7 @@ Ignore rules
 Cache / parallelism
 -------------------
   jobs (int)                  Parallel index workers; 0=auto CPU count
+  j (int)                     Alias for jobs
   low-memory (bool)           Fused per-file build (less RAM, slower cold index)
   cache-dir (string)          Disk cache directory
   no-cache (bool)             Disable index/elab cache

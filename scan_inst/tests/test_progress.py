@@ -13,6 +13,18 @@ from scan_inst.progress import (
 )
 
 
+def test_format_work_location_includes_listing_filelist():
+    via = {"/eda/soc/rtl/cpu/alu/foo.v": "/eda/soc/lists/cpu_block.f"}
+    loc = format_work_location(
+        "/eda/soc/rtl/cpu/alu/foo.v",
+        index=3,
+        total=100,
+        via_map=via,
+    )
+    assert "listing: cpu_block.f" in loc
+    assert "file: foo.v" in loc
+
+
 def test_format_work_location_shortens_long_paths():
     loc = format_work_location(
         "/eda/soc/rtl/cpu/alu/foo.v",
@@ -29,10 +41,10 @@ def test_progress_reporter_detail_for_heartbeat():
     reporter.set_filelist("/proj/design/filelist.f")
     reporter.absorb_progress(
         "index: scanning 500/12000 files — "
-        "folder: rtl/cpu | file: alu.v (500/12000)"
+        "listing: cpu_block.f | folder: rtl/cpu | file: alu.v (500/12000)"
     )
     assert reporter.get_detail() == (
-        "filelist: filelist.f | folder: rtl/cpu | file: alu.v (500/12000)"
+        "filelist: cpu_block.f | folder: rtl/cpu | file: alu.v (500/12000)"
     )
 
 

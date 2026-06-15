@@ -283,7 +283,7 @@ def parse_run_request_json(
         ignore_module=tuple(
             _parse_string_list(data.get("ignore_module"), field="ignore_module")
         ),
-        jobs=int(data.get("jobs", 0)),
+        jobs=int(data.get("jobs", data.get("j", 0))),
         low_memory=bool(data.get("low_memory", False)),
         cache_dir=_resolve_path(base, data.get("cache_dir")),
         no_cache=bool(data.get("no_cache", False)),

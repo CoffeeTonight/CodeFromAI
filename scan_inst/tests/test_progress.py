@@ -54,23 +54,32 @@ def test_track_work_updates_heartbeat_between_milestones():
     reporter.set_filelist("top.f")
     sink = progress_callback(reporter)
     assert sink is not None
+    via = {
+        "/eda/soc/rtl/cpu/alu/foo.v": "/eda/soc/lists/cpu_block.f",
+        "/eda/soc/rtl/dv/tb_top.v": "/eda/soc/lists/dv.f",
+    }
     sink.track(
         "/eda/soc/rtl/cpu/alu/foo.v",
         index=501,
         total=12000,
+        via_map=via,
     )
     assert "file: foo.v" in reporter.get_detail()
+    assert "filelist: cpu_block.f" in reporter.get_detail()
     assert "(501/12000)" in reporter.get_detail()
 
     sink.track(
         "/eda/soc/rtl/dv/tb_top.v",
         index=750,
         total=12000,
+        via_map=via,
     )
     detail = reporter.get_detail()
     assert "file: tb_top.v" in detail
+    assert "filelist: dv.f" in detail
     assert "(750/12000)" in detail
     assert "foo.v" not in detail
+    assert "cpu_block.f" not in detail
 
 
 def test_progress_heartbeat_includes_detail():

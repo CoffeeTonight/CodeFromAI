@@ -30,10 +30,10 @@ from scan_inst.params import (
     collect_index_module_params,
     collect_module_params,
     dim_exprs_from_inst_names,
+    instance_param_exprs,
     parse_param_pairs,
     resolve_param_map,
     split_module_header,
-    strip_body_param_declarations,
 )
 from scan_inst.perf import body_param_scan_max, log_large_module_skips
 
@@ -392,6 +392,7 @@ def _scan_sources_fused(
         skip_path_patterns=skip_tuple,
         jobs=jobs,
         on_progress=on_progress,
+        file_via_filelist=file_via_filelist,
     )
     cache_snapshot = _snapshot_include_cache()
 
@@ -481,22 +482,19 @@ def _scan_instances_for_index(
     if needs_generate_fold(body):
         return parse_param_pairs(header), [], True
 
-    scan_body = strip_body_param_declarations(body)
     header_params = parse_param_pairs(header)
     edges = scan_hierarchy_instances(
-        scan_body,
+        body,
         param_map=resolve_param_map(header_params),
     )
-    dim_exprs = dim_exprs_from_inst_names(e.inst_name for e in edges)
-    raw_params = collect_index_module_params(
-        header,
-        body,
-        dim_exprs,
-        max_body_bytes=max_body_bytes,
-    )
+    inst_exprs = [
+        *dim_exprs_from_inst_names(e.inst_name for e in edges),
+        *instance_param_exprs(edges),
+    ]
+    raw_params = collect_index_module_params(header, body, inst_exprs)
     if set(raw_params) != set(header_params):
         edges = scan_hierarchy_instances(
-            scan_body,
+            body,
             param_map=resolve_param_map(raw_params),
         )
     return raw_params, edges, False

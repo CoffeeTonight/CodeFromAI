@@ -105,9 +105,25 @@ endmodule
     assert names == {"u[0]", "u[1]", "u[2]", "u[3]"}
 
 
-def test_collect_index_module_params_instance_first(monkeypatch):
-    monkeypatch.setenv("SCAN_INST_BODY_PARAM_SCAN_MAX", "50")
+def test_collect_index_module_params_instance_first():
     body = _huge_param_block(100) + "\nparameter NEED = 3;"
-    params = collect_index_module_params("", body, ["NEED-1:0"])
+    params = collect_index_module_params("", body, ["NEED-1:0", "NEED"])
     assert params == {"NEED": "3"}
     assert "P0" not in params
+
+
+def test_scan_preprocessed_compact_20k_params_no_threshold(monkeypatch):
+    """Many compact decls under 512KB still use instance-first (not full scan)."""
+    monkeypatch.delenv("SCAN_INST_BODY_PARAM_SCAN_MAX", raising=False)
+    body = _huge_param_block(20000) + "\nleaf u [L1-1:0] ();\n"
+    body += "\n".join(f"parameter L{i} = L{i+1};" for i in range(1, 10))
+    body += "\nparameter L10 = 8;\n"
+    text = f"module top;\n{body}\nendmodule\n"
+    t0 = time.perf_counter()
+    mods = scan_preprocessed(text, "compact.v")
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 10.0, f"scan took {elapsed:.1f}s"
+    rec = mods["top"]
+    assert "L1" in rec.raw_params
+    assert "P0" not in rec.raw_params
+    assert len(rec.instances) == 8

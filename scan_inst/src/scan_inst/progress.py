@@ -26,6 +26,23 @@ def format_duration(seconds: float) -> str:
 ProgressFn = Callable[[str], None]
 
 
+def _rtl_path_keys(rtl_file: str) -> tuple[str, ...]:
+    p = Path(str(rtl_file).replace("\\", "/"))
+    keys: list[str] = []
+    for candidate in (p,):
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            pass
+        s = str(candidate).replace("\\", "/")
+        if s and s not in keys:
+            keys.append(s)
+    raw = str(rtl_file).replace("\\", "/")
+    if raw and raw not in keys:
+        keys.append(raw)
+    return tuple(keys)
+
+
 def resolve_listing_filelist(
     rtl_file: str,
     via_map: Optional[Mapping[str, str]],
@@ -33,15 +50,16 @@ def resolve_listing_filelist(
     """Return the ``.f`` that listed this RTL (basename), if known."""
     if not via_map:
         return ""
-    keys = (
-        str(Path(rtl_file).resolve()),
-        str(Path(rtl_file)),
-        rtl_file,
-    )
-    for key in keys:
+    for key in _rtl_path_keys(rtl_file):
         hit = via_map.get(key)
         if hit:
             p = Path(str(hit))
+            return p.name or str(p)
+    rtl_norm = _rtl_path_keys(rtl_file)[0] if rtl_file else ""
+    for src_key, listing in via_map.items():
+        src_norm = _rtl_path_keys(src_key)[0] if src_key else ""
+        if src_norm and rtl_norm and src_norm == rtl_norm:
+            p = Path(str(listing))
             return p.name or str(p)
     return ""
 
@@ -90,6 +108,8 @@ class ProgressReporter:
         self._filelist_label = ""
         self._active_listing_label = ""
         self._location = ""
+        self._current_file = ""
+        self._via_map: Optional[Mapping[str, str]] = None
 
     def phase(self, message: str) -> None:
         if not self._enabled:
@@ -119,12 +139,15 @@ class ProgressReporter:
         via_map: Optional[Mapping[str, str]] = None,
     ) -> None:
         """Update heartbeat location without printing a progress line."""
+        if via_map is not None:
+            self._via_map = via_map
+        self._current_file = file_path
         self._apply_location_detail(
             format_work_location(
                 file_path,
                 index=index,
                 total=total,
-                via_map=via_map,
+                via_map=self._via_map,
             )
         )
 
@@ -144,7 +167,11 @@ class ProgressReporter:
     def get_detail(self) -> str:
         with self._lock:
             parts: list[str] = []
-            listing = self._active_listing_label or self._filelist_label
+            listing = self._active_listing_label
+            if not listing and self._current_file and self._via_map:
+                listing = resolve_listing_filelist(self._current_file, self._via_map)
+            if not listing:
+                listing = self._filelist_label
             if listing:
                 parts.append(f"filelist: {listing}")
             loc = _strip_listing_prefix(self._location)

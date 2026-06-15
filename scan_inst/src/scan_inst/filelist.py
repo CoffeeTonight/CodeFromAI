@@ -85,13 +85,15 @@ def filelist_provenance_maps(
     fl: FilelistResult,
 ) -> tuple[Dict[str, str], Dict[str, str]]:
     """Normalize RTL path -> listing filelist / chain."""
+    from scan_inst.ignore_path import normalized_ignore_path
+
     via: Dict[str, str] = {}
     chain: Dict[str, str] = {}
     for src, listing in fl.source_via_filelist.items():
-        key = str(Path(src).resolve())
+        key = normalized_ignore_path(src)
         via[key] = str(Path(listing).resolve())
     for src, path_chain in fl.source_filelist_chain.items():
-        chain[str(Path(src).resolve())] = path_chain
+        chain[normalized_ignore_path(src)] = path_chain
     return via, chain
 
 

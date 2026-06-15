@@ -257,24 +257,27 @@ def dim_exprs_from_inst_names(inst_names: Iterable[str]) -> List[str]:
     return exprs
 
 
+def instance_param_exprs(edges: Iterable[object]) -> List[str]:
+    """Expressions from instance ``#(.name(expr))`` overrides."""
+    exprs: List[str] = []
+    for edge in edges:
+        overrides = getattr(edge, "param_overrides", None) or {}
+        exprs.extend(overrides.values())
+    return exprs
+
+
 def collect_index_module_params(
     header_text: str,
     body: str,
-    instance_dim_exprs: Iterable[str],
-    *,
-    max_body_bytes: Optional[int] = None,
+    instance_exprs: Iterable[str],
 ) -> Dict[str, str]:
     """
-    Index-time params: header defaults + body closure only for instance dimensions.
+    Index-time params: header defaults + body closure for instance dim/override refs.
 
-    Large bodies never get a full linear parameter scan.
+    Never does a full body parameter scan (compact 20k-decl bodies stay fast).
     """
     params = parse_param_pairs(header_text)
-    if not body_param_scan_skipped(body, max_body_bytes=max_body_bytes):
-        for m in _BODY_PARAM_STMT_RE.finditer(body):
-            params.update(parse_param_pairs(m.group(0)))
-        return params
-    seeds = param_names_in_exprs(instance_dim_exprs) - set(params)
+    seeds = param_names_in_exprs(instance_exprs) - set(params)
     params.update(collect_body_params_closure(body, seeds))
     return params
 

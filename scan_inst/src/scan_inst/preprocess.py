@@ -435,41 +435,131 @@ def _includes_in_file(
     return found
 
 
+def _enqueue_include(
+    inc_path: Path,
+    *,
+    seen: Set[Path],
+    queue: List[Path],
+    skip_path_patterns: Sequence[str],
+    max_includes: Optional[int],
+) -> int:
+    """Add include to closure; return 1 if skipped by ignore-path."""
+    try:
+        key = inc_path.resolve()
+    except OSError:
+        key = inc_path
+    if _should_skip_preprocess_path(key, skip_path_patterns):
+        return 1
+    if key not in seen:
+        seen.add(key)
+        queue.append(key)
+    return 0
+
+
 def _collect_include_closure(
     sources: Sequence[str | Path],
     include_dirs: Sequence[Path],
     *,
     skip_path_patterns: Sequence[str] = (),
+    max_includes: Optional[int] = None,
+    on_progress: Optional[Callable[[str], None]] = None,
+    jobs: int = 0,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
+    progress_every: int = 100,
 ) -> Tuple[List[Path], int]:
     """Discover unique `` `include `` files reachable from RTL sources (light read)."""
+    src_list = [str(Path(s)) for s in sources]
+    total = len(src_list)
     seen: Set[Path] = set()
     queue: List[Path] = []
     skipped = 0
-    for src in sources:
+
+    def _over_cap() -> bool:
+        return max_includes is not None and len(seen) >= max_includes
+
+    def _scan_source(src: str) -> Tuple[List[Path], int]:
         sp = Path(src)
         if _should_skip_preprocess_path(sp, skip_path_patterns):
-            continue
+            return [], 0
+        found: List[Path] = []
+        skip = 0
         for inc_path in _includes_in_file(sp, sp, include_dirs):
-            key = inc_path.resolve()
+            try:
+                key = inc_path.resolve()
+            except OSError:
+                key = inc_path
             if _should_skip_preprocess_path(key, skip_path_patterns):
-                skipped += 1
+                skip += 1
                 continue
-            if key not in seen:
-                seen.add(key)
-                queue.append(key)
+            found.append(key)
+        return found, skip
+
+    workers = _resolve_preprocess_jobs(jobs, total)
+    if workers > 1 and total > 1:
+        try:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for i, (found, skip) in enumerate(
+                    pool.map(_scan_source, src_list),
+                    start=1,
+                ):
+                    skipped += skip
+                    for key in found:
+                        if key not in seen:
+                            seen.add(key)
+                            queue.append(key)
+                        if _over_cap():
+                            break
+                    if on_progress and (i == total or i % progress_every == 0):
+                        loc = format_work_location(
+                            src_list[i - 1],
+                            index=i,
+                            total=total,
+                            via_map=file_via_filelist,
+                        )
+                        on_progress(
+                            f"preprocess: include discovery {i}/{total} — {loc}"
+                        )
+                    if _over_cap():
+                        return list(seen), skipped
+        except (OSError, PermissionError, RuntimeError):
+            workers = 1
+
+    if workers == 1:
+        for i, src in enumerate(src_list, start=1):
+            found, skip = _scan_source(src)
+            skipped += skip
+            for key in found:
+                if key not in seen:
+                    seen.add(key)
+                    queue.append(key)
+                if _over_cap():
+                    return list(seen), skipped
+            if on_progress and (i == total or i % progress_every == 0):
+                loc = format_work_location(
+                    src,
+                    index=i,
+                    total=total,
+                    via_map=file_via_filelist,
+                )
+                on_progress(f"preprocess: include discovery {i}/{total} — {loc}")
+
     idx = 0
     while idx < len(queue):
+        if _over_cap():
+            break
         path = queue[idx]
         idx += 1
         for inc_path in _includes_in_file(path, path, include_dirs):
-            key = inc_path.resolve()
-            if _should_skip_preprocess_path(key, skip_path_patterns):
-                skipped += 1
-                continue
-            if key not in seen:
-                seen.add(key)
-                queue.append(key)
-    return queue, skipped
+            skipped += _enqueue_include(
+                inc_path,
+                seen=seen,
+                queue=queue,
+                skip_path_patterns=skip_path_patterns,
+                max_includes=max_includes,
+            )
+            if _over_cap():
+                break
+    return list(seen), skipped
 
 
 from scan_inst.perf import DEFAULT_INCLUDE_WARM_MAX as _DEFAULT_INCLUDE_WARM_MAX
@@ -521,16 +611,33 @@ def _warm_include_cache_for_sources(
     skip_path_patterns: Sequence[str] = (),
     jobs: int = 0,
     on_progress: Optional[Callable[[str], None]] = None,
+    file_via_filelist: Optional[Mapping[str, str]] = None,
 ) -> int:
     """
     Pre-expand shared includes once in the parent process.
 
     Workers receive this cache via pool initializer (``spawn``) or ``fork`` COW.
     """
+    warm_enabled, warm_cap = _include_warm_policy()
+    if not warm_enabled:
+        if on_progress:
+            on_progress("preprocess: skip include warm (SCAN_INST_NO_INCLUDE_WARM)")
+        return 0
+
+    discover_cap = (warm_cap + 1) if warm_cap is not None else None
+    if on_progress and sources:
+        on_progress(
+            f"preprocess: include discovery 0/{len(sources)} sources "
+            f"(cap={warm_cap if warm_cap is not None else 'none'})"
+        )
     closure, skipped = _collect_include_closure(
         sources,
         include_dirs,
         skip_path_patterns=skip_path_patterns,
+        max_includes=discover_cap,
+        on_progress=on_progress,
+        jobs=jobs,
+        file_via_filelist=file_via_filelist,
     )
     if skip_path_patterns and on_progress and skipped > 0:
         on_progress(
@@ -540,11 +647,6 @@ def _warm_include_cache_for_sources(
     if not closure:
         return 0
 
-    warm_enabled, warm_cap = _include_warm_policy()
-    if not warm_enabled:
-        if on_progress:
-            on_progress("preprocess: skip include warm (SCAN_INST_NO_INCLUDE_WARM)")
-        return 0
     if warm_cap is not None and len(closure) > warm_cap:
         if on_progress:
             on_progress(
@@ -651,6 +753,7 @@ def preprocess_sources(
         skip_path_patterns=skip_tuple,
         jobs=jobs,
         on_progress=on_progress,
+        file_via_filelist=file_via_filelist,
     )
 
     tasks = [(src, inc_dirs, define_items, skip_tuple) for src in src_list]

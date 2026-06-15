@@ -1,0 +1,294 @@
+# gate=c-compile
+# rtl_root=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog
+
+========================================================================
+$ ./example.sh gen
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+[example.sh] default CAMPAIGN_NUM_SCPU=3 (yaml active slaves)
+
+========================================================================
+[1/2] Generate campaign firmware + Verilog headers (NUM_SCPU=3)
+========================================================================
+[deps] python3 -m pip install -r requirements.txt (tinyrv, PyYAML)
+Requirement already satisfied: tinyrv>=0.1.0 in /home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages (from -r /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/requirements.txt (line 2)) (0.1.0)
+Requirement already satisfied: PyYAML>=6.0 in /home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages (from -r /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/requirements.txt (line 3)) (6.0.3)
+Requirement already satisfied: dataclasses-struct==1.4.0 in /home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages (from tinyrv>=0.1.0->-r /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/requirements.txt (line 2)) (1.4.0)
+Requirement already satisfied: lief==0.17.0 in /home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages (from tinyrv>=0.1.0->-r /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/requirements.txt (line 2)) (0.17.0)
+Requirement already satisfied: readchar==4.2.1 in /home/user/.pyenv/versions/3.12.7/lib/python3.12/site-packages (from tinyrv>=0.1.0->-r /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/requirements.txt (line 2)) (4.2.1)
+[gen] config    → CAMPAIGN_NUM_SCPU=3 → manifest, cpus.mk, campaign_scale.vh
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+[gen] soc_init  → soc_init_seq.vh, campaign_soc_platform.vh
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+python3 gen_soc_init.py
+[gen_soc_init] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/soc_init_seq.vh (17 steps)
+[gen_soc_init] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_soc_platform.vh (init_done @ 0x40000018)
+[gen] manifest  → campaign_manifest.vh
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+python3 gen_campaign_manifest.py
+[manifest] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_manifest.vh (6 master hints)
+[gen] icodes    → icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+python3 gen_campaign_manifest.py
+[manifest] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_manifest.vh (6 master hints)
+python3 build_icode_pool.py
+[gen_icodes_c] mode=manifest manifest_active=3 icodes=6 (hand=6, probe=0, written=0, pruned=0)
+  sfr/check_sfr_ctrl.c
+  sfr/check_sfr_mask.c
+  sram/check_sram_marker.c
+  sram/check_sram_aux.c
+  uart/check_uart_baud.c
+  uart/check_uart_irq.c
+[gen_icodes_c] tip: ICODE_CATALOG=50 for full catalog regression build
+make[1]: Entering directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+
+=== icode bins ready (6 images) ===
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sfr_ctrl.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sfr_mask.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sram_aux.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sram_marker.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_uart_baud.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_uart_irq.bin
+make[1]: Leaving directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_full_campaign_gen.vh (3 slots, 3 active VCPUs, 3 campaign agents, pool=28672B → readmemh)
+[gen_tb] Wrote chip_top bind + chip_top_example_gen.vh + decode (4 hierarchy cell(s))
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_defs.vh + /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_gen.vh + decode + manifest bus bind (3 bind slot(s), 3 SoC cell(s))
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_scale_defs.vh + scale gen (3 wired cell(s), max gi=3)
+[1/4] Generating icode C sources (manifest targets via gen_icodes_c.py)...
+[2/4] Compiling icodes (make -C icodes)...
+[3/4] Merging 6 icodes → icode_pool.bin
+       pool size = 28672 bytes (6 slots)
+[4/4] Probing icodes + emitting mapping header...
+[5/5] Generating tb_full_campaign_gen.vh...
+
+=== icode pool build complete ===
+  check_sfr_ctrl           ptr=0x00001000 R@0x40000000 tap=0 (20 B)
+  check_sfr_mask           ptr=0x00002000 R@0x40000004 tap=0 (20 B)
+  check_sram_aux           ptr=0x00003000 R@0x80000004 tap=1 (20 B)
+  check_sram_marker        ptr=0x00004000 R@0x80000000 tap=1 (20 B)
+  check_uart_baud          ptr=0x00005000 R@0xc0000000 tap=2 (20 B)
+  check_uart_irq           ptr=0x00006000 R@0xc0000010 tap=2 (20 B)
+
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/icode_pool.bin
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.h
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.json
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/icode_map.vh
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/icode_bind.vh
+[gen] VCPU bins + merge → full_campaign_unified.hex
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+make all-inner
+make[1]: Entering directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign'
+[config] Saved .bus_layout_stamp (NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=3)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (3 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1800)
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=3 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+python3 gen_soc_init.py
+[gen_soc_init] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/soc_init_seq.vh (17 steps)
+[gen_soc_init] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_soc_platform.vh (init_done @ 0x40000018)
+python3 gen_campaign_manifest.py
+[manifest] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_manifest.vh (6 master hints)
+python3 build_icode_pool.py
+[gen_icodes_c] mode=manifest manifest_active=3 icodes=6 (hand=6, probe=0, written=0, pruned=0)
+  sfr/check_sfr_ctrl.c
+  sfr/check_sfr_mask.c
+  sram/check_sram_marker.c
+  sram/check_sram_aux.c
+  uart/check_uart_baud.c
+  uart/check_uart_irq.c
+[gen_icodes_c] tip: ICODE_CATALOG=50 for full catalog regression build
+make[2]: Entering directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+
+=== icode bins ready (6 images) ===
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sfr_ctrl.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sfr_mask.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sram_aux.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_sram_marker.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_uart_baud.bin
+-rwxrwxr-x. 1 user user 20 Jun 12 13:44 ../build/icodes/check_uart_irq.bin
+make[2]: Leaving directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_full_campaign_gen.vh (3 slots, 3 active VCPUs, 3 campaign agents, pool=28672B → readmemh)
+[gen_tb] Wrote chip_top bind + chip_top_example_gen.vh + decode (4 hierarchy cell(s))
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_defs.vh + /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_gen.vh + decode + manifest bus bind (3 bind slot(s), 3 SoC cell(s))
+[gen_tb] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_scale_defs.vh + scale gen (3 wired cell(s), max gi=3)
+[1/4] Generating icode C sources (manifest targets via gen_icodes_c.py)...
+[2/4] Compiling icodes (make -C icodes)...
+[3/4] Merging 6 icodes → icode_pool.bin
+       pool size = 28672 bytes (6 slots)
+[4/4] Probing icodes + emitting mapping header...
+[5/5] Generating tb_full_campaign_gen.vh...
+
+=== icode pool build complete ===
+  check_sfr_ctrl           ptr=0x00001000 R@0x40000000 tap=0 (20 B)
+  check_sfr_mask           ptr=0x00002000 R@0x40000004 tap=0 (20 B)
+  check_sram_aux           ptr=0x00003000 R@0x80000004 tap=1 (20 B)
+  check_sram_marker        ptr=0x00004000 R@0x80000000 tap=1 (20 B)
+  check_uart_baud          ptr=0x00005000 R@0xc0000000 tap=2 (20 B)
+  check_uart_irq           ptr=0x00006000 R@0xc0000010 tap=2 (20 B)
+
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/icode_pool.bin
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.h
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.json
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/icode_map.vh
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/icode_bind.vh
+python3 merge_campaign.py
+[merge] VCPU image + icode policy (pool=28672 B, max embed=262144 B → readmemh embed)
+  [SFR ] pool_word=0x0000 (936 bytes) <- /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/SFR.bin
+  [SRAM] pool_word=0x0800 (936 bytes) <- /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/SRAM.bin
+  [UART] pool_word=0x1000 (3396 bytes) <- /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/UART.bin
+[merge] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/full_campaign_vcpu.bin (24576 bytes)
+[merge] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/full_campaign_vcpu.hex (6144 words)
+  [ICODE] embedded @ word 0x1800 (28672 bytes)
+[merge] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign/build/full_campaign_unified.bin (53248 bytes)
+[merge] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/full_campaign_unified.hex (13312 words)
+
+=== Campaign firmware ready ===
+-rw-rw-r--. 1 user user 53248 Jun 14 06:08 build/full_campaign_unified.bin
+-rw-rw-r--. 1 user user 24576 Jun 14 06:08 build/full_campaign_vcpu.bin
+-rw-rw-r--. 1 user user 28672 Jun 14 06:08 build/icode_pool.bin
+-rwxrwxr-x. 1 user user     8 Jun 13 07:15 build/NOOP.bin
+-rwxrwxr-x. 1 user user   936 Jun 13 07:15 build/SFR.bin
+-rwxrwxr-x. 1 user user   936 Jun 13 07:15 build/SRAM.bin
+-rwxrwxr-x. 1 user user  3396 Jun 13 07:15 build/UART.bin
+make[1]: Leaving directory '/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/campaign'
+[gen] filelists + sim scripts → eda/*/*.list, scripts/{iverilog,verilator,vcs,xcelium,verdi}/
+python3 tools/gen_filelist.py
+[filelist] Wrote /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/ (51 lists)
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/incdirs.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/work/vcpu.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/work/rtl.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/test/tb_dut.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/test/soc_manifest.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/vcpu.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/rtl.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/tb_dut.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/integration_dut.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/full_campaign.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/soc_manifest.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/work/verdi_rtl.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/test/verdi_full_campaign.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/test/verdi_soc_manifest.f
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/tb_top.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/incdirs.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/vcpu.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/rtl.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/defines.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/top.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/manifest.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/incdirs.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/vcpu.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/rtl.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/tb_top.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/defines.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/top.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/vcd.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/manifest.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/incdirs.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/vcpu.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/rtl.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/tb_top.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/defines.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/top.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/vcd.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/manifest.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/incdirs.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/vcpu.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/rtl.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/tb_top.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/defines.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/top.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/manifest.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/incdirs.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/vcpu.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/rtl.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/tb_top.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/defines.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/top.txt
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/manifest.list
+[filelist] EDA work → /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/
+[filelist] EDA test → /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/work/integration/{vcpu,rtl,tb_top}.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/full_campaign/{vcpu,rtl,tb_top}.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest/{vcpu,rtl,tb_top}.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/soc_manifest_scale/{vcpu,rtl,tb_top}.list
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/eda/test/chip_top_example/{vcpu,rtl,tb_top}.list
+[filelist] Verdi launchers → /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/rtl.sh
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/full_campaign.sh
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/soc_manifest.sh
+[filelist] Simulator run scripts → scripts/{iverilog,verilator,vcs,xcelium}/run.sh
+  /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/README.txt
+
+[gen] Artifacts:
+-rw-rw-r--. 1 user user 119808 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/full_campaign_unified.hex
+-rw-rw-r--. 1 user user  55296 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/full_campaign_vcpu.hex
+-rw-rw-r--. 1 user user    153 Jun  6 04:51 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/harness_main.hex
+-rw-rw-r--. 1 user user    153 Jun  6 04:51 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/harness_troublemaker.hex
+-rw-rw-r--. 1 user user   6912 Jun  6 04:51 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/harness_unified.hex
+-rw-rw-r--. 1 user user     72 Jun  6 04:51 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/harness_worker.hex
+-rw-rw-r--. 1 user user    134 Jun  6 04:45 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/firmware/rv32i_test.hex
+-rw-rw-r--. 1 user user  1938 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/campaign_manifest.vh
+-rw-rw-r--. 1 user user  1081 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/icode_map.vh
+-rw-rw-r--. 1 user user 25911 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/include/tb_full_campaign_gen.vh
+-rw-rw-r--. 1 user user 142 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/full_campaign.f
+-rw-rw-r--. 1 user user 222 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/incdirs.f
+-rw-rw-r--. 1 user user 133 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/integration_dut.f
+-rw-rw-r--. 1 user user 129 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/rtl.f
+-rw-rw-r--. 1 user user 147 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/soc_manifest.f
+-rw-rw-r--. 1 user user 135 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/tb_dut.f
+-rw-rw-r--. 1 user user 131 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/filelists/vcpu.f
+-rwxrwxr-x. 1 user user 1067 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/full_campaign.sh
+-rwxrwxr-x. 1 user user  932 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/rtl.sh
+-rwxrwxr-x. 1 user user 1057 Jun 14 06:08 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/scripts/verdi/soc_manifest.sh
+
+========================================================================
+$ make sim_build/tb_full_campaign.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+iverilog -g2012 -I include -o sim_build/tb_full_campaign.vvp rtl/verif_cpu_bus.v rtl/verif_cpu_unified_pool.v rtl/verif_cpu_txn_recorder.v rtl/verif_cpu_core.v rtl/verif_soc_bus.v rtl/simple_soc.v rtl/verif_orchestrator.v rtl/verif_agent.v rtl/verif_cpu_sync.v rtl/verif_cpu_hw_force.v tb/tb_full_campaign.v

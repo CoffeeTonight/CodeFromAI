@@ -1,0 +1,18 @@
+{
+  "run_id": "a202d46d193c",
+  "as_of": "2026-06-14",
+  "mode": "single_verify",
+  "work_queue_len": 1,
+  "acquisition_log": [],
+  "verify_results": [
+    {
+      "project_id": "EXAMPLE-SOC",
+      "stage": "simulation",
+      "group": "gpio_ext",
+      "verdict": "PASS",
+      "completeness": 1.0,
+      "run_id": "be56f42bf0ba"
+    }
+  ],
+  "verdict": "PASS"
+}

@@ -1,0 +1,19 @@
+# Dummy Confluence intake — platform/intake/dummy_confluence_snapshot.yaml
+
+project_id: VERIF-CPU-SOC
+source: dummy_confluence_snapshot
+confluence_page_id: "333300003"
+title: "VerifCPU SoC — RISC-V Verification CPU (Verilog)"
+git_url: git@github.com:CoffeeTonight/CodeFromAI.git
+rtl_subdir: VerifCPU/verif_cpu_verilog
+doc_rev: r1.0
+doc_path: confluence/SOC/VERIF-CPU/verification-spec
+jira_epic: SOC-4000
+schedule_plan: soc-dv-4p-v1
+current_milestone: M2
+intake:
+  fetched_at: 2026-06-14
+  source: dummy_confluence_snapshot
+  refresh_policy:
+    interval_days: 30
+    next_refresh: 2026-07-14

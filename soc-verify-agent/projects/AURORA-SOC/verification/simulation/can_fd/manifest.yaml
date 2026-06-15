@@ -1,0 +1,8 @@
+stage: simulation
+group: can_fd
+milestone: M2
+schedule: 2026-02-15
+depends_on: [sanity]
+gates: [compile, sim]
+owner: dv-team-a
+jira_component: SOC-CAN-FD

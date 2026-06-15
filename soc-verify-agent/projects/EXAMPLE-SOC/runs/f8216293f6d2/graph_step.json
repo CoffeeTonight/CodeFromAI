@@ -1,0 +1,73 @@
+{
+  "source": "langgraph",
+  "graph": "verify_group",
+  "node": "finalize_reproduction",
+  "stage": "simulation",
+  "group": "gpio_ext",
+  "runner": "python",
+  "fix_round": 0,
+  "orchestrator_run_id": "9c5499bbab93",
+  "required_artifacts": [
+    "scripts/NN_simulation_*.sh",
+    "scripts/verification_sequence.yaml",
+    "reproduction_finalize.json"
+  ],
+  "optional_artifacts": [
+    "sub_stop.json"
+  ],
+  "topology_hint": {
+    "graph": "verify_group",
+    "entry": "setup",
+    "nodes": [
+      "setup",
+      "load_context",
+      "select_runner",
+      "run_gate",
+      "evaluate",
+      "parity_check",
+      "run_codegen",
+      "promote",
+      "finalize_reproduction",
+      "finalize"
+    ],
+    "edges": {
+      "load_context": [
+        "select_runner",
+        "finalize"
+      ],
+      "run_gate": [
+        "select_runner",
+        "evaluate",
+        "finalize"
+      ],
+      "evaluate": [
+        "select_runner",
+        "parity_check",
+        "finalize"
+      ],
+      "parity_check": [
+        "promote",
+        "run_codegen",
+        "finalize"
+      ],
+      "run_codegen": [
+        "parity_check"
+      ],
+      "promote": [
+        "finalize_reproduction"
+      ],
+      "finalize_reproduction": [
+        "finalize"
+      ]
+    },
+    "runner_loop_diagram": "templates/obsidian/08-RUNNER-LOOP.md"
+  },
+  "rules": [
+    "Read md_only_prompt.json for verification MD only",
+    "Read templates/obsidian/08-RUNNER-LOOP.md — mandatory runner loop",
+    "Follow graph transitions; do not skip nodes (parity_check enforced in code)",
+    "PASS requires verdict JSON on disk",
+    "promote requires parity_report.json ok:true (or python_canonical skip)"
+  ],
+  "rules_template": "templates/scripts/README.md"
+}

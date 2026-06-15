@@ -1,0 +1,78 @@
+{
+  "workspace_id": "example-workspace",
+  "user": {
+    "id": "example-user",
+    "notify_channel": "slack:#soc-verify"
+  },
+  "confluence": {
+    "base_url": "https://confluence.example.com",
+    "auth": {
+      "token_env": "CONFLUENCE_TOKEN",
+      "user_env": "CONFLUENCE_USER"
+    },
+    "hints": {
+      "project_discovery": {
+        "cql": "space=DV AND label=active-soc",
+        "root_page_id": "123456789",
+        "project_table_heading": "Active SoC Projects",
+        "project_id_column": "Project ID"
+      },
+      "milestone_section_heading": "Milestones",
+      "field_map": {
+        "git_url": "Git Repository",
+        "doc_rev": "Spec Revision",
+        "doc_path": "Verification Spec",
+        "jira_epic": "JIRA Epic"
+      },
+      "verification_group_table_heading": "Verification Groups",
+      "notes": "Example workspace — copy config.example.json and edit hints for your Confluence layout."
+    }
+  },
+  "git": {
+    "clone_root": "/work/repos",
+    "tag_pattern": "v*",
+    "default_remote": "origin",
+    "auth": {
+      "ssh_key_env": "GIT_SSH_KEY_PATH"
+    }
+  },
+  "jira": {
+    "base_url": "https://jira.example.com",
+    "project_key": "SOC",
+    "issue_type": "Verification",
+    "auth": {
+      "token_env": "JIRA_TOKEN"
+    },
+    "field_map": {
+      "completeness": "customfield_10010",
+      "verdict": "customfield_10011",
+      "tag": "customfield_10012"
+    }
+  },
+  "llm": {
+    "mode": "stub",
+    "endpoint": "",
+    "model": "soc-dv-agent",
+    "md_only": true,
+    "auth": {
+      "token_env": "COMPANY_LLM_TOKEN"
+    }
+  },
+  "schedules": {
+    "project_search_days": 7,
+    "project_intake_days": 30,
+    "tag_refresh_days": 4,
+    "monthly_intake_cron": "0 9 1 * *",
+    "timezone": "Asia/Seoul"
+  },
+  "environment": {
+    "profile": "team-a-eda-2024",
+    "module_init": "/opt/eda/init_vcs2024.sh",
+    "license_queue": "soc-dv-farm"
+  },
+  "paths": {
+    "obsidian_vault": "./vault",
+    "projects_root": "./projects"
+  },
+  "overrides": {}
+}

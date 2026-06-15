@@ -1,0 +1,6 @@
+project_id: VERIF-CPU-SOC
+discovered_from: discovered.yaml
+environment_profile: team-a-eda-2024
+sync:
+  fetched_at: 2026-06-14
+  source: [discovered.yaml, state.yaml]

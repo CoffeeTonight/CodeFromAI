@@ -1,0 +1,51 @@
+# 4단계 SoC 개발 표준 일정 (플랫폼 참조). 산업계 DV 용어 기반.
+
+plan_id: soc-dv-4p-v1
+label_ko: "SoC DV 4단계 표준 계획"
+label_en: "SoC DV Four-Phase Plan"
+start: 2025-10-01
+end: 2026-06-30
+
+milestones:
+  - id: M1
+    label_ko: "아키텍처·검증 계획 (Architecture & Verification Planning)"
+    label_en: Architecture & Verification Planning
+    window: [2025-10-01, 2025-11-30]
+    design_goal: "VPlan, TB 아키텍처, DV 환경·filelist 골격, coverage 계획"
+    dv_focus: [vplan, env_bringup, tb_architecture]
+
+  - id: M2
+    label_ko: "블록 RTL·유닛 검증 (Block RTL & Unit DV)"
+    label_en: Block RTL & Unit DV
+    window: [2025-12-01, 2026-02-15]
+    design_goal: "IP RTL 통합·블록 동결, block UVM, sanity(c-compile/rtl_sim) 게이트"
+    dv_focus: [ip_integration, block_uvm, sanity, lint_block]
+
+  - id: M3
+    label_ko: "SoC 통합·시스템 검증 (SoC Integration & System DV)"
+    label_en: SoC Integration & System DV
+    window: [2026-02-16, 2026-05-15]
+    design_goal: "탑 RTL 통합, chip-level sim, interconnect, 회귀 확대, coverage 수집"
+    dv_focus: [chip_sim, subsystem_integration, regression_ramp, coverage_merge]
+
+  - id: M4
+    label_ko: "DV 사인오프·Tape-out (DV Sign-off & Tape-out)"
+    label_en: DV Sign-off & Tape-out
+    window: [2026-05-16, 2026-06-30]
+    design_goal: "Coverage closure, release gate, GLS/formal sign-off, tape-out handoff"
+    dv_focus: [coverage_closure, release_gate, nightly_regress, tapeout_handoff]
+
+# 검증 stage별 권장 실행 시기 (verification/{stage}/{group}/ MILESTONE.md 참조)
+verification_timing:
+  sanity:
+    c-compile: {from: M2, through: M4, cadence: tag_refresh}
+    rtl_sim: {from: M2, through: M4, cadence: tag_refresh, after: c-compile}
+  consistency:
+    default: {primary: M2, mandatory_by: M3}
+  static:
+    default: {primary: M2, mandatory_by: M3}
+  simulation:
+    block: {start: M2, peak: M3, through: M4}
+    system: {start: M3, peak: M3, through: M4}
+  regression:
+    default: {pilot: M3, mandatory: M4}

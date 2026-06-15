@@ -1,0 +1,18 @@
+{
+  "gate": "rtl_sim",
+  "status": "PASS",
+  "exit_code": 0,
+  "evidence": [
+    "campaign checklist 0 failed",
+    "VCD post-check OK \u2192 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vcd"
+  ],
+  "artifacts": {
+    "log": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/runs/verif-test-1781415710/rtl_sim.log",
+    "vcd": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vcd",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog"
+  },
+  "trust": {
+    "script": "rtl_sim.py",
+    "version": "0.2.0"
+  }
+}

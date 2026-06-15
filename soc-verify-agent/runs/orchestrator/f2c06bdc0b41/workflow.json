@@ -1,0 +1,9 @@
+{
+  "run_id": "f2c06bdc0b41",
+  "as_of": "2026-06-14",
+  "mode": "single_verify",
+  "work_queue_len": 1,
+  "acquisition_log": [],
+  "verify_results": [],
+  "verdict": "INFO_GAP"
+}

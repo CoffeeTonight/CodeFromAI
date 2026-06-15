@@ -1,0 +1,6 @@
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "write_ops", "ok": false, "reason": "forbidden_action"}
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "compile", "ok": true, "reason": "allowed"}
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "write_ops", "ok": false, "reason": "forbidden_action"}
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "compile", "ok": true, "reason": "allowed"}
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "write_ops", "ok": false, "reason": "forbidden_action"}
+{"kind": "tool", "session_id": "test-session", "graph": "verify_group", "node": "run_gate", "tool": "compile", "ok": true, "reason": "allowed"}

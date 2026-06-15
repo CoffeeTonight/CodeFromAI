@@ -1,0 +1,15 @@
+signatures:
+- g|1|4e7cefcb
+- g|1|4e7cefcb
+- g|1|4e7cefcb
+stalemate: true
+force_mode: llm_full
+same_failure_threshold: 3
+signature_fields:
+- gate
+- error_code
+- log_hash_8
+on_stalemate:
+  force_mode: llm_full
+  append_questions: true
+  do_not: auto_pass

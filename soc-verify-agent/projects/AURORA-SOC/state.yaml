@@ -1,0 +1,55 @@
+as_of: 2026-06-13
+active: false
+status: completed
+completed_at: 2026-05-28
+schedule_plan: soc-dv-4p-v1
+current_milestone: M4
+sync:
+  fetched_at: 2026-05-28
+  source: intake
+  refresh_policy:
+    interval_days: 30
+    next_refresh: null
+milestones:
+  - id: M1
+    label: Architecture & Verification Planning
+    window: [2025-10-01, 2025-11-30]
+    status: completed
+  - id: M2
+    label: Block RTL & Unit DV
+    window: [2025-12-01, 2026-02-15]
+    status: completed
+  - id: M3
+    label: SoC Integration & System DV
+    window: [2026-02-16, 2026-05-15]
+    status: completed
+  - id: M4
+    label: DV Sign-off & Tape-out
+    window: [2026-05-16, 2026-06-30]
+    status: completed
+verification_groups_due:
+  - stage: sanity
+    group: c-compile
+    milestone: M2
+    due: tag_refresh
+    status: done
+    last_verdict: PASS
+  - stage: sanity
+    group: rtl_sim
+    milestone: M2
+    due: tag_refresh
+    status: done
+    last_verdict: PASS
+  - stage: simulation
+    group: can_fd
+    milestone: M2
+    due: 2026-02-01
+    status: done
+    last_verdict: PASS
+  - stage: regression
+    group: nightly_full
+    milestone: M4
+    due: 2026-05-20
+    status: done
+    last_verdict: PASS
+environment_profile: team-a-eda-2024

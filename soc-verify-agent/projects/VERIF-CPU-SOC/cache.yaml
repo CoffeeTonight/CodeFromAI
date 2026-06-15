@@ -1,0 +1,17 @@
+tag:
+  value: main
+  fetched_at: '2026-06-14'
+  refresh_policy:
+    interval_days: 4
+    next_refresh: '2026-06-18'
+  replace_decision: replace
+  previous_tag: ''
+clone:
+  path: /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main
+  valid_for_tag: main
+  fetched_at: '2026-06-14'
+sanity:
+  last_verdict: null
+  last_run: null
+  valid_for_tag: main
+group_results: {}

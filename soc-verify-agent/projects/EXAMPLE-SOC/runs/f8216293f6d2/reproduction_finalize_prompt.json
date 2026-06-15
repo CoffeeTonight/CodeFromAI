@@ -1,0 +1,33 @@
+{
+  "contract": "reproduction_finalize_gate",
+  "project_id": "EXAMPLE-SOC",
+  "stage": "simulation",
+  "group": "gpio_ext",
+  "run_id": "f8216293f6d2",
+  "verdict_path": "/home/user/Desktop/soc-verify-agent/projects/EXAMPLE-SOC/runs/f8216293f6d2/verdict_gpio_ext.json",
+  "verification_title": "",
+  "existing_step": null,
+  "validation": {
+    "ok": false,
+    "stage": "simulation",
+    "group": "gpio_ext",
+    "step": null,
+    "script": "",
+    "script_path": "",
+    "issues": [
+      "verification_sequence.yaml missing step for simulation/gpio_ext",
+      "missing scripts/README.md"
+    ]
+  },
+  "rules_template": "templates/scripts/README.md",
+  "project_scripts_readme": "scripts/README.md",
+  "required_writes": [
+    "scripts/{NN}_simulation_<title_slug>.sh",
+    "scripts/verification_sequence.yaml (append or update step)",
+    "runs/f8216293f6d2/reproduction_finalize.json"
+  ],
+  "forbidden": [
+    "gate CLI options on orchestrator (e.g. ./run.sh coi_conn)",
+    "per-gate reproduce_script in reports/index.yaml"
+  ]
+}

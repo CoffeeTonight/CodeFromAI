@@ -1,0 +1,14 @@
+session_id: cd3f4f9d1f86
+root: /home/user/Desktop/soc-verify-agent
+graph_id: verify_group
+thread_id: cd3f4f9d1f86
+mode: single_verify
+project_id: EXAMPLE-SOC
+stage: simulation
+group: gpio_ext
+started: true
+finished: false
+last_completed_node: setup
+waiting_for: ''
+llm_invoked_nodes: []
+contract_blocks: []

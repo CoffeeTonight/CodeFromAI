@@ -1,0 +1,162 @@
+# Node contract — LangGraph 노드별 진입/탈출 artifact gate + LLM capability sandbox
+# 코드: src/soc_verify/node_contract.py, src/soc_verify/tool_sandbox.py
+# LLM은 graph_session tick/resume 만으로 상태 전이; 도구·쓰기는 이 계약으로 제한.
+
+version: node-contract-v1
+instruction_ko: >
+  각 노드는 requires_exit 충족 전 graph advance 불가.
+  allowed_tools / allowed_write_globs 밖의 행동은 sandbox가 거부한다.
+
+graphs:
+  verify_group:
+    forbidden_global:
+      - edit_langgraph_source
+      - edit_registry_policies
+      - direct_canonical_promote
+      - skip_parity_check
+      - auto_pass
+    nodes:
+      setup:
+        actor: platform
+        requires_exit: []
+      load_context:
+        actor: platform
+        requires_exit: []
+      select_runner:
+        actor: platform
+        requires_exit: []
+      diagnose_env:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/env_diagnosis.md"
+          - type: file_exists
+            path: "{run_dir}/bridge_patch_proposal.md"
+        allowed_tools:
+          - read_log
+          - read_environment_profile
+          - write_env_diagnosis
+          - write_bridge_patch
+        allowed_write_globs:
+          - "projects/*/runs/*/**"
+          - "projects/*/meta/environment_profile.yaml"
+        forbidden_actions:
+          - write_ops
+          - change_check_criteria
+          - promote
+      patch_bridge:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{bridge_path}"
+        allowed_tools: []
+        allowed_write_globs:
+          - "projects/*/bridge/*/*.py"
+          - "projects/*/meta/environment_profile.yaml"
+          - "projects/*/patterns/**"
+        forbidden_actions:
+          - write_ops
+      run_gate:
+        actor: llm_when_runner_llm
+        requires_exit:
+          - type: any_of
+            checks:
+              - type: file_exists
+                path: "{run_dir}/verdict_{group}.json"
+              - type: file_exists
+                path: "{run_dir}/sub_stop.json"
+        allowed_tools:
+          - compile
+          - simulate
+          - read_log
+          - scan_log
+          - write_verdict
+          - write_sub_stop
+        allowed_write_globs:
+          - "projects/*/runs/*/**"
+        forbidden_actions:
+          - write_ops
+          - edit_registry
+          - promote
+      evaluate:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/completeness_decision.json"
+      parity_check:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/parity_report.json"
+      run_codegen:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{ops_path}"
+        allowed_tools:
+          - read_file
+          - read_parity_report
+          - read_llm_reference
+          - write_ops
+        allowed_write_globs:
+          - "projects/*/ops/*/*.py"
+          - "projects/*/runs/*/**"
+        forbidden_actions:
+          - compile
+          - simulate
+          - promote
+          - edit_registry
+      promote:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/promote_decision.md"
+          - type: json_field_true
+            path: "{run_dir}/parity_report.json"
+            field: ok
+        allowed_tools:
+          - read_trust_report
+          - write_promote_decision
+        allowed_write_globs:
+          - "projects/*/runs/*/**/promote_decision.md"
+          - "projects/*/runs/*/**/crystallize_proposal.md"
+        forbidden_actions:
+          - write_registry
+          - write_ops
+      finalize_reproduction:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/reproduction_finalize.json"
+        allowed_tools:
+          - write_step_script
+          - update_verification_sequence
+        allowed_write_globs:
+          - "projects/*/scripts/*.sh"
+          - "projects/*/scripts/verification_sequence.yaml"
+          - "projects/*/runs/*/**"
+        forbidden_actions:
+          - gate_cli_options
+      finalize:
+        actor: platform
+        requires_exit: []
+
+  orchestrator:
+    forbidden_global:
+      - edit_langgraph_source
+      - skip_finalize_reproduction_sequence
+    nodes:
+      finalize_reproduction_sequence:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{orch_run_dir}/reproduction_sequence_finalize.json"
+        allowed_tools:
+          - write_orchestrator_script
+          - update_verification_sequence
+        allowed_write_globs:
+          - "projects/*/scripts/run_*_verification_sequence.sh"
+          - "projects/*/scripts/verification_sequence.yaml"
+          - "projects/*/scripts/99_*.sh"
+          - "projects/*/reports/index.yaml"
+          - "runs/orchestrator/*/**"

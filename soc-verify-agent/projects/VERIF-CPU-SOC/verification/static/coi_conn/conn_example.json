@@ -1,0 +1,390 @@
+{
+  "meta": {
+    "tool": "scan_inst",
+    "scan_inst_root": "/home/user/Desktop/scan_inst",
+    "mode": "check-connect-batch",
+    "purpose": "coi_conn — connectivity 입력 값·케이스 카탈로그 (한 번에 전부 실행하지 않음)",
+    "usage": "gate 실행 시 checks에서 2~3건 선택. expected_connected는 soc-verify gate 전용(scan_inst 미전달)",
+    "tsv_columns": [
+      "check_id",
+      "endpoint_a",
+      "endpoint_b",
+      "connected",
+      "mode",
+      "note",
+      "errors",
+      "hops"
+    ],
+    "help": "scan-inst --help-connect"
+  },
+  "minimal_formats": {
+    "pairs_array_only": [
+      ["top.clk", "top.u_child.clk"],
+      ["top.rst_n", "top.u_other.rst_n"]
+    ],
+    "object_minimal": {
+      "checks": [
+        ["chip_top_example.u_periph_sfr.PCLK", "chip_top_example.u_periph_sram.HCLK"]
+      ]
+    },
+    "endpoint_alias_examples": {
+      "a_b": {
+        "id": "alias_ab",
+        "a": "top.sig_a",
+        "b": "top.u0.sig_b"
+      },
+      "from_to": {
+        "id": "alias_from_to",
+        "from": "top.sig_a",
+        "to": "top.u0.sig_b"
+      },
+      "src_dst": {
+        "id": "alias_src_dst",
+        "src": "top.sig_a",
+        "dst": "top.u0.sig_b"
+      },
+      "endpoint_a_b": {
+        "id": "alias_endpoint",
+        "endpoint_a": "top.sig_a",
+        "endpoint_b": "top.u0.sig_b"
+      }
+    },
+    "text_pairs_file": {
+      "path": "runs/{run_id}/coi_conn_pairs.txt",
+      "lines": [
+        "# tab or whitespace separated",
+        "chip_top_example.u_periph_sfr.PCLK\tchip_top_example.u_periph_sram.HCLK",
+        "chip_top_example.u_periph_sfr.PADDR chip_top_example.u_periph_sram.HADDR"
+      ]
+    }
+  },
+  "scan_options": {
+    "comb_only_default": {
+      "include_ff": false,
+      "connect_trace": false,
+      "strict_generate": false,
+      "over_approximate_if": true,
+      "note": "기본 — 조합 논리 COI만 (FF barrier)"
+    },
+    "through_ff": {
+      "include_ff": true,
+      "ff_barrier": false,
+      "note": "always_ff D→Q 통과 허용 (include_ff=true ↔ ff_barrier=false)"
+    },
+    "with_trace": {
+      "connect_trace": true,
+      "connect_log": true,
+      "note": "TSV hops + 터미널 path evidence (child-down, parent-up, intra-module …)"
+    },
+    "strict_generate": {
+      "strict_generate": true,
+      "note": "generate region folding 엄격"
+    },
+    "over_approx_off": {
+      "over_approximate_if": false,
+      "note": "if/generate over-approx 비활성"
+    },
+    "defines_merge": {
+      "defines": {
+        "USE_PCIE": "1",
+        "DEBUG": "1"
+      },
+      "defines_array_alt": ["USE_PCIE=1", "DEBUG"],
+      "note": "filelist define에 merge"
+    },
+    "top_and_filelist_override": {
+      "top": "chip_top_example",
+      "filelist": "filelists/eda/test/chip_top_example/manifest.list",
+      "index_cwd": "$RTL_ROOT",
+      "note": "run JSON / gate spec에서 CLI --top/--index-cwd 대체 가능"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "fmt_pair_array",
+      "category": "format",
+      "check": ["top.clk", "top.u0.clk"],
+      "expected_connected": true,
+      "expected_tsv": { "mode": "port-port", "errors_empty": true },
+      "note": "최소 pairs 배열 — id 없으면 TSV check_id 빈칸"
+    },
+    {
+      "case_id": "fmt_from_to",
+      "category": "format",
+      "check": {
+        "id": "fmt_from_to",
+        "from": "chip_top_example.u_periph_sfr.PCLK",
+        "to": "chip_top_example.u_periph_sram.HCLK"
+      },
+      "expected_connected": true,
+      "expected_tsv": { "mode": "port-port", "errors_empty": true }
+    },
+    {
+      "case_id": "mode_port_port_connected",
+      "category": "mode",
+      "mode": "port-port",
+      "check": {
+        "id": "mode_port_port_connected",
+        "a": "chip_top_example.u_periph_sfr.PCLK",
+        "b": "chip_top_example.u_periph_sram.HCLK"
+      },
+      "expected_connected": true,
+      "expected_tsv": {
+        "connected": true,
+        "mode": "port-port",
+        "errors_empty": true,
+        "note_contains": "connected"
+      },
+      "note": "두 port — 부모 top에서 동일 net(soc_clk) fanout"
+    },
+    {
+      "case_id": "mode_port_port_disconnected",
+      "category": "mode",
+      "mode": "port-port",
+      "check": {
+        "id": "mode_port_port_disconnected",
+        "a": "chip_top_example.u_periph_sfr.PADDR",
+        "b": "chip_top_example.u_periph_sram.HADDR"
+      },
+      "expected_connected": false,
+      "expected_tsv": {
+        "connected": false,
+        "mode": "port-port",
+        "errors_empty": true,
+        "note_contains": "no path"
+      },
+      "note": "서로 다른 버스 주소 port — 구조적 경로 없음(의도적 분리)"
+    },
+    {
+      "case_id": "mode_port_hierarchy",
+      "category": "mode",
+      "mode": "port-hierarchy",
+      "check": {
+        "id": "mode_port_hierarchy",
+        "a": "chip_top_example.u_periph_sfr.PADDR",
+        "b": "chip_top_example.u_ag_1"
+      },
+      "expected_connected": false,
+      "expected_tsv": {
+        "connected": false,
+        "mode": "port-hierarchy",
+        "errors_empty": true
+      },
+      "note": "port ↔ instance — agent까지 COI 없을 수 있음"
+    },
+    {
+      "case_id": "mode_hierarchy_hierarchy_sibling",
+      "category": "mode",
+      "mode": "hierarchy-hierarchy",
+      "check": {
+        "id": "mode_hierarchy_hierarchy_sibling",
+        "a": "chip_top_example.u_orch",
+        "b": "chip_top_example.u_pool"
+      },
+      "expected_connected": false,
+      "expected_tsv": {
+        "connected": false,
+        "mode": "hierarchy-hierarchy",
+        "errors_empty": true,
+        "note_contains": "ancestor/descendant"
+      },
+      "note": "형제 instance — port trace 없이 hierarchy 관계만"
+    },
+    {
+      "case_id": "mode_hierarchy_hierarchy_same_branch",
+      "category": "mode",
+      "mode": "hierarchy-hierarchy",
+      "check": {
+        "id": "mode_hierarchy_hierarchy_same_branch",
+        "a": "chip_top_example.u_orch",
+        "b": "chip_top_example.u_ag_1"
+      },
+      "expected_connected": false,
+      "expected_tsv": {
+        "connected": false,
+        "mode": "hierarchy-hierarchy",
+        "errors_empty": true,
+        "note_contains": "ancestor/descendant"
+      },
+      "note": "같은 top 하위 — 직접 net COI 없음"
+    },
+    {
+      "case_id": "outcome_connected_true",
+      "category": "outcome",
+      "check": {
+        "id": "outcome_connected_true",
+        "a": "chip_top_example.u_periph_sfr.PCLK",
+        "b": "chip_top_example.u_periph_sram.HCLK"
+      },
+      "expected_connected": true,
+      "expected_tsv": { "connected": true, "errors_empty": true }
+    },
+    {
+      "case_id": "outcome_connected_false_no_path",
+      "category": "outcome",
+      "check": {
+        "id": "outcome_connected_false_no_path",
+        "a": "chip_top_example.u_periph_sfr.PADDR",
+        "b": "chip_top_example.u_periph_sram.HADDR"
+      },
+      "expected_connected": false,
+      "expected_tsv": { "connected": false, "errors_empty": true, "note_contains": "no path" }
+    },
+    {
+      "case_id": "error_hierarchy_not_found",
+      "category": "error",
+      "check": {
+        "id": "error_hierarchy_not_found",
+        "a": "chip_top_example.u_nope",
+        "b": "chip_top_example.u_ag_1"
+      },
+      "expected_connected": false,
+      "gate_status": "FAIL",
+      "expected_tsv": {
+        "connected": false,
+        "errors_nonempty": true,
+        "errors_contains": "hierarchy not found"
+      },
+      "note": "존재하지 않는 instance — COI 탐색 전 실패, errors에 elab 근거"
+    },
+    {
+      "case_id": "error_port_on_hierarchy",
+      "category": "error",
+      "check": {
+        "id": "error_port_on_hierarchy",
+        "a": "chip_top_example.u_orch.reset_pulse",
+        "b": "chip_top_example.u_ag_1"
+      },
+      "expected_connected": false,
+      "gate_status": "FAIL",
+      "expected_tsv": {
+        "connected": false,
+        "mode": "unknown",
+        "errors_nonempty": true,
+        "errors_contains": "hierarchy not found"
+      },
+      "note": "모듈에 없는 port suffix — path stops at hierarchy"
+    },
+    {
+      "case_id": "error_top_level_net_as_hierarchy",
+      "category": "error",
+      "check": {
+        "id": "error_top_level_net_as_hierarchy",
+        "a": "chip_top_example.S01_APB_PADDR",
+        "b": "chip_top_example.u_periph_sfr.PADDR"
+      },
+      "expected_connected": false,
+      "gate_status": "FAIL",
+      "expected_tsv": {
+        "errors_nonempty": true,
+        "errors_contains": "hierarchy not found"
+      },
+      "note": "top 내부 wire를 hierarchy path처럼 쓰면 실패 — port/instance 표기 사용"
+    },
+    {
+      "case_id": "stress_port_port_connected",
+      "category": "reference_stress",
+      "design": "scan_inst/examples/stress_seed42",
+      "filelist": "examples/stress_seed42/filelist.f",
+      "top": "stress_top",
+      "index_cwd": "/home/user/Desktop/scan_inst",
+      "check": {
+        "id": "stress_port_port",
+        "a": "stress_top.probe_in",
+        "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.probe_out"
+      },
+      "expected_connected": true,
+      "expected_tsv": { "mode": "port-port", "errors_empty": true },
+      "note": "bundled stress RTL — spine probe 연결 (repo root에서 실행)"
+    },
+    {
+      "case_id": "stress_port_hierarchy",
+      "category": "reference_stress",
+      "design": "scan_inst/examples/stress_seed42",
+      "check": {
+        "id": "stress_port_inst",
+        "a": "stress_top.probe_in",
+        "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine"
+      },
+      "expected_connected": true,
+      "note": "port → deep instance"
+    },
+    {
+      "case_id": "stress_missing_hierarchy",
+      "category": "reference_stress",
+      "design": "scan_inst/examples/stress_seed42",
+      "check": {
+        "id": "stress_missing_hierarchy",
+        "a": "stress_top.u_missing.probe_in",
+        "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.probe_out"
+      },
+      "expected_connected": false,
+      "gate_status": "FAIL",
+      "expected_tsv": { "errors_nonempty": true },
+      "note": "stress 의도적 negative — missing instance"
+    },
+    {
+      "case_id": "opt_include_ff",
+      "category": "option",
+      "scan_options": { "include_ff": true },
+      "check": {
+        "id": "opt_include_ff",
+        "a": "chip_top_example.u_periph_sfr.PCLK",
+        "b": "chip_top_example.u_periph_sram.HCLK"
+      },
+      "expected_connected": true,
+      "note": "FF 통과 허용 시에도 동일 check 가능 — 정책만 변경"
+    },
+    {
+      "case_id": "opt_connect_trace",
+      "category": "option",
+      "scan_options": { "connect_trace": true },
+      "check": {
+        "id": "opt_connect_trace",
+        "a": "chip_top_example.u_periph_sfr.PCLK",
+        "b": "chip_top_example.u_periph_sram.HCLK"
+      },
+      "expected_connected": true,
+      "note": "hops 열·터미널 path evidence 채움"
+    }
+  ],
+  "production_gate_batch": {
+    "description": "VERIF-CPU-SOC 실제 gate — coi_conn_checks.json (2~3건 선택 실행)",
+    "file": "verification/static/coi_conn/coi_conn_checks.json",
+    "checks": [
+      {
+        "id": "sfr_clk_to_sram_clk",
+        "a": "chip_top_example.u_periph_sfr.PCLK",
+        "b": "chip_top_example.u_periph_sram.HCLK",
+        "expected_connected": true
+      },
+      {
+        "id": "sfr_paddr_to_sram_haddr",
+        "a": "chip_top_example.u_periph_sfr.PADDR",
+        "b": "chip_top_example.u_periph_sram.HADDR",
+        "expected_connected": false
+      },
+      {
+        "id": "orch_to_pool",
+        "a": "chip_top_example.u_orch",
+        "b": "chip_top_example.u_pool",
+        "expected_connected": false
+      }
+    ]
+  },
+  "run_json_embed_example": {
+    "description": "scan_inst --config run.json 에 connect 블록 인라인",
+    "filelist": "filelists/eda/test/chip_top_example/manifest.list",
+    "mode": "check-connect-batch",
+    "top": "chip_top_example",
+    "index-cwd": "$RTL_ROOT",
+    "output": "runs/{run_id}/coi_conn.tsv",
+    "connect": {
+      "include_ff": false,
+      "connect_trace": true,
+      "checks": [
+        { "id": "sfr_clk_to_sram_clk", "a": "chip_top_example.u_periph_sfr.PCLK", "b": "chip_top_example.u_periph_sram.HCLK" }
+      ]
+    }
+  }
+}

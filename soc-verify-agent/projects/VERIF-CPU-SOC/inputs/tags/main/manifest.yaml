@@ -1,0 +1,23 @@
+# User-provided artifacts for tag `main` — update when weekly/SFR docs arrive
+tag: main
+project_id: VERIF-CPU-SOC
+updated_at: 2026-06-14
+updated_by: dv-team-a
+
+artifacts: []
+# Example entries (uncomment and add files when available):
+#  - path: weekly_release/release_notes_2026-W24.md
+#    kind: weekly_release
+#    rev: 2026-W24
+#    used_by: [simulation/slave_rw]
+#    note: 주간 RTL tag main 배포 노트
+#  - path: sfr/sfrmap.csv
+#    kind: sfr_design
+#    rev: r2.1
+#    used_by: [static/coi_conn, simulation/slave_rw]
+#    note: SFR 주소맵 — soc_regs.h 대조용
+#  - path: overrides/coi_conn_checks.json
+#    kind: override
+#    rev: "1"
+#    used_by: [static/coi_conn]
+#    note: run_dir override용 endpoint 스냅샷

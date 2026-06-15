@@ -1,0 +1,8 @@
+stage: simulation
+group: gpio_ext
+milestone: M3
+schedule: 2026-06-20
+depends_on: [sanity]
+gates: [compile, sim]
+owner: dv-team-a
+jira_component: SOC-GPIO

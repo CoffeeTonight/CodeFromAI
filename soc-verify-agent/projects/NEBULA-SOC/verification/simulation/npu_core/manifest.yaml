@@ -1,0 +1,8 @@
+stage: simulation
+group: npu_core
+milestone: M2
+schedule: 2025-12-20
+depends_on: [sanity]
+gates: [compile, sim]
+owner: dv-team-b
+jira_component: SOC-NPU

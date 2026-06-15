@@ -1,0 +1,45 @@
+{
+  "gate": "c-compile",
+  "status": "PASS",
+  "exit_code": 0,
+  "evidence": [
+    "log scan: no error keywords, success markers present",
+    "artifact OK \u2192 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp",
+    "c-fw deliverables: 5"
+  ],
+  "artifacts": {
+    "log": "projects/VERIF-CPU-SOC/runs/slave-rw-prep/c-compile.log",
+    "vvp": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog",
+    "firmware": {
+      "firmware/full_campaign_unified.hex": {
+        "mtime_ns": 1781421436865912863,
+        "size": 119808
+      },
+      "firmware/full_campaign_vcpu.hex": {
+        "mtime_ns": 1781421436853912863,
+        "size": 55296
+      },
+      "firmware/campaign/build/full_campaign_vcpu.bin": {
+        "mtime_ns": 1781421436849912863,
+        "size": 24576
+      },
+      "firmware/campaign/build/icode_pool.bin": {
+        "mtime_ns": 1781421436465912864,
+        "size": 28672
+      },
+      "include/tb_full_campaign_gen.vh": {
+        "mtime_ns": 1781421436657912864,
+        "size": 25911
+      }
+    }
+  },
+  "trust": {
+    "script": "c-compile.py",
+    "version": "0.3.1"
+  },
+  "log_scan": {
+    "ok": true,
+    "error_hits": []
+  }
+}

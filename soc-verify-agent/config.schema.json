@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "soc-verify-agent/config.schema.json",
+  "title": "SoC Verify Agent — User Configuration",
+  "description": "Everything the user must define. Verification methods stay in per-group CHECK.md / RESPOND.md only.",
+  "type": "object",
+  "required": ["workspace_id", "confluence", "git", "jira", "schedules", "environment"],
+  "properties": {
+    "workspace_id": {
+      "type": "string",
+      "description": "Unique workspace/team identifier"
+    },
+    "user": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "notify_channel": { "type": "string", "description": "slack:#channel or email:user@corp" }
+      }
+    },
+    "confluence": {
+      "type": "object",
+      "required": ["base_url", "hints"],
+      "properties": {
+        "base_url": { "type": "string", "format": "uri" },
+        "auth": {
+          "type": "object",
+          "description": "Credential reference only — not secrets in repo",
+          "properties": {
+            "token_env": { "type": "string", "default": "CONFLUENCE_TOKEN" },
+            "user_env": { "type": "string", "default": "CONFLUENCE_USER" }
+          }
+        },
+        "hints": {
+          "type": "object",
+          "description": "User-provided discovery hints for finding projects to run",
+          "required": ["project_discovery"],
+          "properties": {
+            "project_discovery": {
+              "type": "object",
+              "description": "How to find executable projects",
+              "properties": {
+                "cql": { "type": "string", "description": "Confluence CQL e.g. space=DV AND label=active-soc" },
+                "root_page_id": { "type": "string" },
+                "project_table_heading": { "type": "string", "default": "Active SoC Projects" },
+                "project_id_column": { "type": "string", "default": "Project ID" }
+              }
+            },
+            "milestone_section_heading": { "type": "string", "default": "Milestones" },
+            "field_map": {
+              "type": "object",
+              "description": "Confluence field label → discovered.yaml key",
+              "properties": {
+                "git_url": { "type": "string", "default": "Git Repository" },
+                "doc_rev": { "type": "string", "default": "Spec Revision" },
+                "doc_path": { "type": "string", "default": "Verification Spec" },
+                "jira_epic": { "type": "string", "default": "JIRA Epic" }
+              }
+            },
+            "verification_group_table_heading": { "type": "string", "default": "Verification Groups" },
+            "notes": { "type": "string", "description": "Free-form hints for LLM intake" }
+          }
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "required": ["clone_root", "tag_pattern"],
+      "properties": {
+        "clone_root": { "type": "string" },
+        "tag_pattern": { "type": "string", "default": "v*" },
+        "default_remote": { "type": "string", "default": "origin" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "ssh_key_env": { "type": "string" }
+          }
+        }
+      }
+    },
+    "jira": {
+      "type": "object",
+      "required": ["base_url", "project_key"],
+      "properties": {
+        "base_url": { "type": "string", "format": "uri" },
+        "project_key": { "type": "string" },
+        "issue_type": { "type": "string", "default": "Verification" },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "token_env": { "type": "string", "default": "JIRA_TOKEN" }
+          }
+        },
+        "field_map": {
+          "type": "object",
+          "properties": {
+            "completeness": { "type": "string" },
+            "verdict": { "type": "string" },
+            "tag": { "type": "string" }
+          }
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "description": "Company LLM bridge — reads MD-only + graph_step.json",
+      "properties": {
+        "mode": { "type": "string", "enum": ["stub", "http", "script"], "default": "stub" },
+        "endpoint": { "type": "string", "description": "HTTP API for sub-agent verify" },
+        "graph_endpoint": {
+          "type": "string",
+          "description": "LangGraph→LLM: flow_spec + graph_api callbacks (graph driver)"
+        },
+        "promote_endpoint": { "type": "string", "description": "HTTP API for promote_decision" },
+        "graph_script_path": { "type": "string", "description": "Script for graph invoke-llm (--payload)" },
+        "model": { "type": "string" },
+        "md_only": { "type": "boolean", "default": true },
+        "auth": {
+          "type": "object",
+          "properties": { "token_env": { "type": "string", "default": "COMPANY_LLM_TOKEN" } }
+        },
+        "script_path": { "type": "string", "description": "External python script: --run-dir" },
+        "promote_script_path": { "type": "string" }
+      }
+    },
+    "schedules": {
+      "type": "object",
+      "properties": {
+        "project_search_days": {
+          "type": "integer",
+          "default": 7,
+          "minimum": 1,
+          "description": "과제 서치(Confluence CQL) 주기 — active_projects.yaml"
+        },
+        "project_intake_days": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "description": "과제 정보·state 동기화 주기 — discovered/state/meta"
+        },
+        "tag_refresh_days": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 1,
+          "description": "git tag 감시 주기 — cache.yaml"
+        },
+        "monthly_intake_cron": { "type": "string", "default": "0 9 1 * *" },
+        "timezone": { "type": "string", "default": "Asia/Seoul" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["profile"],
+      "properties": {
+        "profile": { "type": "string", "description": "EDA farm / module set name" },
+        "module_init": { "type": "string", "description": "Shell snippet or path to env script" },
+        "license_queue": { "type": "string" }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "obsidian_vault": { "type": "string" },
+        "projects_root": { "type": "string", "default": "./projects" }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "description": "Optional overrides of platform policies.yaml",
+      "properties": {
+        "tau_run": { "type": "number", "minimum": 0, "maximum": 1 },
+        "completeness_jira_min": { "type": "number" }
+      }
+    }
+  }
+}

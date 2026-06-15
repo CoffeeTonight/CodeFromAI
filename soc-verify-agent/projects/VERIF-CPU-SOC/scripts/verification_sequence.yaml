@@ -1,0 +1,29 @@
+# VERIF-CPU-SOC — 검증 실행 순서 (고정)
+# run_VERIF-CPU-SOC_verification_sequence.sh 가 아래 순서 그대로 호출합니다.
+# gate 옵션 없음 — 이 파일 + 셸 스크립트 파일명이 SSOT.
+
+project_id: VERIF-CPU-SOC
+tag: main
+milestone: M2
+
+orchestrator: run_VERIF-CPU-SOC_verification_sequence.sh
+reports_script: 99_generate_verification_reports.sh
+
+steps:
+  - step: 1
+    verification_title: "Sanity — VerifCPU c-compile & elab"
+    script: 01_sanity_VerifCPU_c-compile_and_elab.sh
+    stage: sanity
+    group: c-compile
+
+  - step: 2
+    verification_title: "Static COI connectivity (chip_top)"
+    script: 02_static_COI_connectivity_chip_top.sh
+    stage: static
+    group: coi_conn
+
+  - step: 3
+    verification_title: "Simulation slave R/W (single / burst / cpu_sync)"
+    script: 03_simulation_slave_R_W_single_burst_cpu_sync.sh
+    stage: simulation
+    group: slave_rw

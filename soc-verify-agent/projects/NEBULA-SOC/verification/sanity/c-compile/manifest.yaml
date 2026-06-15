@@ -1,0 +1,7 @@
+stage: sanity
+group: c-compile
+milestone: M2
+schedule: tag_refresh
+depends_on: []
+gates: [compile, elaboration]
+owner: dv-team-b

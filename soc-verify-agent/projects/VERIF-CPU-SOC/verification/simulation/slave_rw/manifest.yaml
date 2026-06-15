@@ -1,0 +1,9 @@
+stage: simulation
+group: slave_rw
+milestone: M2
+schedule: milestone
+depends_on: [sanity]
+gates: [compile, sim_single, sim_burst, sim_cpu_sync]
+owner: dv-team-a
+tool_hint: verif_cpu_verilog
+jira_component: SOC-VERIF-CPU

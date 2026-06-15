@@ -1,0 +1,94 @@
+# Platform policies — code reads these; LLM and users cannot override via MD.
+
+tag:
+  on_new_tag: always_replace
+
+trust:
+  tau_run: 0.75
+  tau_promote_min: 0.70
+  fail_delta: -0.10
+  pass_delta: 0.05
+
+loop_guard:
+  same_failure_threshold: 3
+  on_stalemate:
+    force_mode: llm_full
+    append_questions: true
+    do_not: auto_pass
+
+node_contract:
+  file: registry/node_contract.yaml
+  enforce_exit_before_llm_advance: true
+  enforce_sandbox_writes: true
+  audit_trace_transitions: true
+
+bridge_loop:
+  diagram: templates/obsidian/09-BRIDGE-LOOP.md
+  max_bridge_rounds: 8
+  routes_env_tool_to: diagnose_env
+  routes_verification_fail_to: select_runner
+
+runner_contract:
+  # Mandatory loop: templates/obsidian/08-RUNNER-LOOP.md
+  diagram: templates/obsidian/08-RUNNER-LOOP.md
+  trust_contract: templates/obsidian/07-TRUST-CONTRACT.md
+  mandatory_parity_before_promote: true
+  default_llm_mode: llm_tools
+  modes:
+    llm_tools: "Tool calling first — PASS before codegen"
+    llm_codegen: "Write/fix ops/*.py until parity matches llm_reference"
+    python_canonical: "Run ops only — no LLM at runtime"
+  max_codegen_rounds: 10
+  skip_nodes_forbidden:
+    - parity_check
+    - run_codegen
+
+info_gap:
+  exit_code: 4
+  hard_stop: true
+
+demote:
+  triggers:
+    - tag_replace
+    - env_fingerprint_change
+    - false_negative_detected
+
+completeness:
+  formula: "(1-e)(1-t)(1-i)(1-l)"
+  # C is NOT a stop signal. Low C → LLM runs directly; high C → Python runs.
+  # Only INFO_GAP (i unresolved) hard-stops progress.
+
+  metrics:
+    e: unresolved_env_incidents / gates_run
+    t: tool_incidents / gates_run
+    i: 1 if unresolved_info_gap else 0
+    l: llm_fix_rounds / max(1, fix_rounds + 1)
+
+  thresholds:
+    runner_python_min: 0.75     # C >= this → python eligible (with trust)
+    jira_complete_min: 0.80     # below → JIRA "complete" withheld; loop still runs
+    healthy_complete_min: 0.90
+    promote_min: 0.85
+    promote_max_t: 0.10
+    promote_max_l: 0.15
+    withhold_jira_note: needs_hardening
+
+  runner_selection:
+    # python when BOTH trust >= tau_run AND C >= runner_python_min
+    # else llm (direct) — never idle
+    combine: min_trust_and_completeness
+
+  actions:
+    i_unresolved: hard_stop
+    c_low: llm_runner          # progress continues
+    c_high: python_runner      # progress continues
+    pass_and_c_below_jira_min: continue_with_llm_bias_before_jira
+    pass_and_c_at_or_above_jira_min: jira_report_allowed
+    promote_requires: [trust_ok, llm_approve, c_ge_promote_min, t_le_promote_max_t, l_le_promote_max_l]
+
+promotion:
+  writer: registry_writer.py
+  requires:
+    - trust_report.json
+    - promote_decision.md
+    - trust_score >= tau_promote_min

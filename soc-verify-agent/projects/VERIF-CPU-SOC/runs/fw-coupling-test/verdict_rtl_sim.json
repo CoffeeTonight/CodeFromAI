@@ -1,0 +1,45 @@
+{
+  "gate": "rtl_sim",
+  "status": "PASS",
+  "exit_code": 0,
+  "evidence": [
+    "log scan: no error keywords, success markers present",
+    "sim used c-compile fw (5 artifacts, unchanged)",
+    "artifact OK \u2192 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vcd"
+  ],
+  "artifacts": {
+    "log": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/runs/fw-coupling-test/rtl_sim.log",
+    "vcd": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vcd",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog",
+    "firmware": {
+      "firmware/full_campaign_unified.hex": {
+        "mtime_ns": 1781417946953914195,
+        "size": 119808
+      },
+      "firmware/full_campaign_vcpu.hex": {
+        "mtime_ns": 1781417946945914195,
+        "size": 55296
+      },
+      "firmware/campaign/build/full_campaign_vcpu.bin": {
+        "mtime_ns": 1781417946937914195,
+        "size": 24576
+      },
+      "firmware/campaign/build/icode_pool.bin": {
+        "mtime_ns": 1781417946569914195,
+        "size": 28672
+      },
+      "include/tb_full_campaign_gen.vh": {
+        "mtime_ns": 1781417946753914195,
+        "size": 25911
+      }
+    }
+  },
+  "trust": {
+    "script": "rtl_sim.py",
+    "version": "0.3.1"
+  },
+  "log_scan": {
+    "ok": true,
+    "error_hits": []
+  }
+}

@@ -1,0 +1,215 @@
+# LangGraph flow 명세서 — 회사 LLM이 이 파일을 읽고 graph API로 진행한다.
+# Python 라우팅 로직과 동기화됨 (graphs/verify_group.py, graphs/orchestrator.py)
+
+version: graph-flow-spec-v1
+role: flow_specification
+instruction_ko: >
+  LLM은 이 명세의 노드·엣지를 따른다. 각 노드 완료 후 graph API resume/tick을 호출한다.
+  검증 로직은 md_only_prompt.md 만 사용. 그래프 API는 플랫폼이 제공한다.
+  Runner 루프(필수): templates/obsidian/08-RUNNER-LOOP.md — llm_tools PASS → parity_check →
+  (불일치 시) run_codegen → parity_check 반복 → parity.ok 후에만 promote.
+  PASS 후 마무리: 재현 스크립트(파일명=검증 제목, gate 옵션 없음)를 반드시 생성·갱신한다.
+
+api:
+  cli_base: "soc-verify --root {root} graph"
+  http_base: "http://{host}:{port}/graph"
+  endpoints:
+    spec: "GET /spec"
+    start: "POST /sessions"
+    status: "GET /sessions/{session_id}"
+    tick: "POST /sessions/{session_id}/tick"
+    resume: "POST /sessions/{session_id}/resume"
+    invoke_llm: "POST /sessions/{session_id}/invoke-llm"
+    sandbox: "POST /sessions/{session_id}/sandbox"
+
+graphs:
+  orchestrator:
+    id: orchestrator
+    entry: setup
+    description: "과제 서치·acquisition·verify 작업 큐"
+    nodes:
+      setup:
+        actor: platform
+        action: run_id·work_index 초기화
+      plan_work:
+        actor: platform
+        action: acquisition due + verification_groups_due → work_queue
+      run_acquisition:
+        actor: platform
+        action: project_search/intake/state_sync/tag_watch 갱신
+      prepare_verify:
+        actor: platform
+        action: tag·milestone 게이트, group_context 로드
+      dispatch_verify:
+        actor: platform
+        action: verify_group 세션 시작
+      advance_work:
+        actor: platform
+        action: work_index 증가
+      finalize_reproduction_sequence:
+        actor: llm_assisted
+        action: >
+          프로젝트별 전체 재현 파이프라인 마무리 —
+          run_{PROJECT_ID}_verification_sequence.sh, verification_sequence.yaml,
+          99_generate_verification_reports.sh, reports/index.yaml verification_sequence 블록.
+          gate CLI 옵션 금지. 검증 수행 순서 = bash 호출 순서.
+        reads:
+          - templates/scripts/README.md
+          - projects/{id}/scripts/README.md
+          - projects/{id}/scripts/verification_sequence.yaml
+          - runs/orchestrator/{run_id}/reproduction_sequence_prompt.json
+        writes:
+          - projects/{id}/scripts/run_{PROJECT_ID}_verification_sequence.sh
+          - projects/{id}/scripts/verification_sequence.yaml
+          - projects/{id}/scripts/99_generate_verification_reports.sh
+          - projects/{id}/reports/index.yaml
+          - runs/orchestrator/{run_id}/reproduction_sequence_finalize.json
+        llm_trigger: true
+      finalize:
+        actor: platform
+        action: workflow.json 기록
+    edges:
+      setup: [plan_work]
+      plan_work: [run_acquisition, prepare_verify, finalize_reproduction_sequence]
+      run_acquisition: [advance_work]
+      advance_work: [run_acquisition, prepare_verify, finalize_reproduction_sequence]
+      prepare_verify: [dispatch_verify, advance_work]
+      dispatch_verify: [advance_work, finalize_reproduction_sequence]
+      finalize_reproduction_sequence: [finalize]
+
+  verify_group:
+    id: verify_group
+    entry: setup
+    description: "단일 verification group 실행·평가·승격·재현 스크립트 마무리"
+    nodes:
+      setup:
+        actor: platform
+        action: run_dir·events 초기화
+      load_context:
+        actor: platform
+        action: preflight, tag/milestone 게이트, group_context
+        reads: [md_only_prompt sources from verification folder]
+      select_runner:
+        actor: platform
+        action: trust+C → python|llm 결정 (코드만)
+      run_gate:
+        actor: llm_when_runner_llm
+        action: compile/sim 실행 또는 LLM sub-agent
+        reads: [graph_step.json, md_only_prompt.md]
+        writes: ["verdict_{group}.json", sub_stop.json]
+        llm_trigger: true
+      diagnose_env:
+        actor: llm_assisted
+        action: >
+          env/tool 실행 오류 진단 — CHECK 판정 변경 금지.
+          env_diagnosis.md + bridge_patch_proposal.md 작성.
+        reads:
+          - templates/obsidian/09-BRIDGE-LOOP.md
+          - runs/{run_id}/env_diagnosis_prompt.json
+          - runs/{run_id}/verdict_{group}.json
+        writes:
+          - runs/{run_id}/env_diagnosis.md
+          - runs/{run_id}/bridge_patch_proposal.md
+        llm_trigger: true
+      patch_bridge:
+        actor: platform
+        action: >
+          bridge/{stage}/{group}.py crystallize + environment_profile.yaml 갱신.
+          이후 select_runner → run_gate 재시도.
+        writes:
+          - projects/{id}/bridge/{stage}/{group}.py
+          - projects/{id}/meta/environment_profile.yaml
+      evaluate:
+        actor: platform
+        action: completeness C, jira_allowed
+      parity_check:
+        actor: platform
+        action: >
+          LLM tool-run vs Python ops parity — promote 전 필수 게이트.
+          llm_reference_verdict.json vs subprocess ops verdict 비교.
+          python_canonical runner는 skip+ok 기록; llm 경로는 반드시 compare.
+        reads:
+          - runs/{run_id}/llm_reference_verdict.json
+          - ops/{stage}/{group}.py
+        writes:
+          - runs/{run_id}/parity_report.json
+      run_codegen:
+        actor: llm_assisted
+        action: >
+          llm_tools PASS 후 ops/*.py 작성·수정 — parity FAIL은 ops 버그만 수정.
+          parity.ok 전 promote 금지 (registry_writer 차단).
+        reads:
+          - templates/obsidian/08-RUNNER-LOOP.md
+          - runs/{run_id}/llm_reference_verdict.json
+          - runs/{run_id}/parity_report.json
+          - runs/{run_id}/graph_step.json
+        writes:
+          - ops/{stage}/{group}.py
+          - runs/{run_id}/codegen_prompt.json
+        llm_trigger: true
+      promote:
+        actor: llm_assisted
+        action: trust_report → promote_decision → registry → crystallize
+        writes: [promote_decision.md, crystallize_proposal.md]
+        llm_trigger: true
+      finalize_reproduction:
+        actor: llm_assisted
+        action: >
+          gate PASS 마무리 — step 스크립트(NN_{stage}_{제목}.sh) 생성·갱신,
+          verification_sequence.yaml step 추가/수정. gate 옵션·reproduce_main 금지.
+        reads:
+          - templates/scripts/README.md
+          - projects/{id}/scripts/README.md
+          - runs/{run_id}/reproduction_finalize_prompt.json
+          - runs/{run_id}/verdict_{group}.json
+        writes:
+          - projects/{id}/scripts/NN_{stage}_{title_slug}.sh
+          - projects/{id}/scripts/verification_sequence.yaml
+          - runs/{run_id}/reproduction_finalize.json
+        llm_trigger: true
+      finalize:
+        actor: platform
+        action: questions_pending, erl_reflect
+    edges:
+      setup: [load_context]
+      load_context: [select_runner, finalize]
+      select_runner: [run_gate]
+      run_gate: [select_runner, evaluate, diagnose_env, finalize]
+      diagnose_env: [patch_bridge, finalize]
+      patch_bridge: [select_runner]
+      evaluate: [select_runner, parity_check, finalize]
+      parity_check: [promote, run_codegen, finalize]
+      run_codegen: [parity_check]
+      promote: [finalize_reproduction]
+      finalize_reproduction: [finalize]
+      finalize: []
+
+llm_contract:
+  read:
+    - registry/graph_flow_spec.yaml
+    - templates/obsidian/08-RUNNER-LOOP.md
+    - runs/{session}/graph_step.json
+    - runs/{run_id}/md_only_prompt.md
+    - templates/scripts/README.md
+  runner_loop:
+    diagram: templates/obsidian/08-RUNNER-LOOP.md
+    trust_contract: templates/obsidian/07-TRUST-CONTRACT.md
+    mandatory: >
+      ops 없으면 llm_tools PASS → llm_reference → ops 작성 → parity 동일할 때까지 ops만 수정
+      → parity.ok 후 promote. skip 금지 (코드 edge 강제).
+  node_contract:
+    file: registry/node_contract.yaml
+    sandbox_api: "POST /sessions/{session_id}/sandbox"
+    tick_blocked_without_exit_artifacts: true
+  never_read_for_verify_logic:
+    - src/soc_verify/graphs/*.py
+    - registry/policies.yaml
+  after_node_complete:
+    - POST graph resume or tick
+  on_run_gate:
+    - graph가 invoke-llm으로 회사 LLM 호출 (config.llm.endpoint)
+  on_finalize_reproduction:
+    - gate PASS 후 step 스크립트·verification_sequence.yaml 필수
+    - 파일명에서 검증 제목 식별 가능해야 함
+  on_finalize_reproduction_sequence:
+    - 전체 오케스트레이터 스크립트·고정 순서만 허용 (CLI gate 인자 금지)

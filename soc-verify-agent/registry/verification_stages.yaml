@@ -1,0 +1,55 @@
+# SoC 검증 단계 정의 (플랫폼 공통). 사용자는 verification/{stage}/{group}/ 에 MD만 작성.
+
+stages:
+  sanity:
+    id: sanity
+    label_ko: "Sanity (기본 스모크)"
+    description: "tag 반영 후 compile, minimal RTL sim, filelist 로드 가능 여부"
+    cadence: tag_refresh          # config.schedules.tag_refresh_days
+    typical_gates: [c-compile, rtl_sim]
+    depends_on: []
+    blocks_stages: [consistency, static, simulation, regression]
+    folder: verification/sanity
+
+  consistency:
+    id: consistency
+    label_ko: "Consistency (정합성)"
+    description: "Lint, CDC/RDC, SDC/filelist 정합, IP-XACT·매크로 일치"
+    cadence: milestone
+    typical_gates: [lint, cdc, rdc, filelist_check]
+    depends_on: [sanity]
+    folder: verification/consistency
+
+  static:
+    id: static
+    label_ko: "Static (정적 검증)"
+    description: "SpyGlass, VC Formal 준비, assertion/constraint 정적 분석"
+    cadence: milestone
+    typical_gates: [spyglass, formal_lint, sdc_validation]
+    depends_on: [sanity]
+    folder: verification/static
+
+  simulation:
+    id: simulation
+    label_ko: "Simulation (시뮬레이션)"
+    description: "블록/단위 UVM testbench, directed/random sim, waveform/debug"
+    cadence: milestone
+    typical_gates: [compile, sim, uvm_smoke]
+    depends_on: [sanity]
+    folder: verification/simulation
+
+  regression:
+    id: regression
+    label_ko: "Regression (회귀)"
+    description: "전체 regression suite, coverage 수집·merge, release gate"
+    cadence: milestone
+    typical_gates: [regress, coverage, release_check]
+    depends_on: [sanity, simulation]
+    folder: verification/regression
+
+# 폴더 규약 (고정)
+layout:
+  verification: "projects/{project_id}/verification/{stage}/{group}/"
+  ops: "projects/{project_id}/ops/{stage}/{group}.py"
+  user_md_only: [CHECK.md, RESPOND.md, MILESTONE.md, RUN.md]
+  platform_files: [manifest.yaml]

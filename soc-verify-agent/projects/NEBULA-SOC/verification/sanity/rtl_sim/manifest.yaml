@@ -1,0 +1,7 @@
+stage: sanity
+group: rtl_sim
+milestone: M2
+schedule: tag_refresh
+depends_on: [c-compile]
+gates: [rtl_smoke, minimal_sim]
+owner: dv-team-b

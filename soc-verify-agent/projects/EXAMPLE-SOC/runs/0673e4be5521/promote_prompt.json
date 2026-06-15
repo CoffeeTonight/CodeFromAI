@@ -1,0 +1,9 @@
+{
+  "contract": "promote_decision",
+  "script": "gpio_ext.py",
+  "trust_score": 1.0,
+  "reproducibility": 1.0,
+  "golden_match": 1.0,
+  "eligible_for_promote": true,
+  "evidence": []
+}

@@ -1,0 +1,31 @@
+project_id: VERIF-CPU-SOC
+tag: main
+generated_at: 2026-06-14
+inputs_manifest: ../inputs/tags/main/manifest.yaml
+
+verification_sequence:
+  yaml: scripts/verification_sequence.yaml
+  orchestrator: scripts/run_VERIF-CPU-SOC_verification_sequence.sh
+  reports_script: scripts/99_generate_verification_reports.sh
+  readme: scripts/README.md
+
+gates:
+  - stage: static
+    group: coi_conn
+    title: Static COI connectivity (chip_top)
+    milestone: M2
+    run_id: coi-conn-test
+    verdict: runs/coi-conn-test/verdict_coi_conn.json
+    report: reports/by_tag/main/static_coi_conn.md
+    spec: verification/static/coi_conn/coi_conn.md
+
+  - stage: simulation
+    group: slave_rw
+    title: Simulation slave R/W (single / burst / cpu_sync)
+    milestone: M2
+    run_id: exit-scan-test2
+    verdict: runs/exit-scan-test2/verdict_slave_rw.json
+    report: reports/by_tag/main/simulation_slave_rw.md
+    spec: verification/simulation/slave_rw/slave_rw.md
+    depends_on:
+      - sanity/c-compile

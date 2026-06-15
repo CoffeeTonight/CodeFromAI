@@ -1,0 +1,14 @@
+session_id: 7d8b7dadc7b6
+root: /home/user/Desktop/soc-verify-agent
+graph_id: verify_group
+thread_id: 7d8b7dadc7b6
+mode: single_verify
+project_id: EXAMPLE-SOC
+stage: simulation
+group: gpio_ext
+started: false
+finished: false
+last_completed_node: ''
+waiting_for: ''
+llm_invoked_nodes: []
+contract_blocks: []

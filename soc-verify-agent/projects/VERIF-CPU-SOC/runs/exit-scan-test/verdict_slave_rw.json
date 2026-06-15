@@ -1,0 +1,86 @@
+{
+  "gate": "slave_rw",
+  "status": "FAIL",
+  "exit_code": 1,
+  "evidence": [
+    "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_soc_dut.vvp",
+    "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_full_campaign.vvp"
+  ],
+  "artifacts": {
+    "log": "projects/VERIF-CPU-SOC/runs/exit-scan-test/slave_rw.log",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog",
+    "firmware_before": {
+      "firmware/full_campaign_unified.hex": {
+        "mtime_ns": 1781422834497912330,
+        "size": 119808
+      },
+      "firmware/full_campaign_vcpu.hex": {
+        "mtime_ns": 1781422834485912330,
+        "size": 55296
+      },
+      "firmware/campaign/build/full_campaign_vcpu.bin": {
+        "mtime_ns": 1781422834477912330,
+        "size": 24576
+      },
+      "firmware/campaign/build/icode_pool.bin": {
+        "mtime_ns": 1781422834097912330,
+        "size": 28672
+      },
+      "include/tb_full_campaign_gen.vh": {
+        "mtime_ns": 1781422834289912330,
+        "size": 25911
+      }
+    },
+    "firmware_after": {
+      "firmware/full_campaign_unified.hex": {
+        "mtime_ns": 1781422834497912330,
+        "size": 119808
+      },
+      "firmware/full_campaign_vcpu.hex": {
+        "mtime_ns": 1781422834485912330,
+        "size": 55296
+      },
+      "firmware/campaign/build/full_campaign_vcpu.bin": {
+        "mtime_ns": 1781422834477912330,
+        "size": 24576
+      },
+      "firmware/campaign/build/icode_pool.bin": {
+        "mtime_ns": 1781422834097912330,
+        "size": 28672
+      },
+      "include/tb_full_campaign_gen.vh": {
+        "mtime_ns": 1781422834289912330,
+        "size": 25911
+      }
+    },
+    "tiers": {
+      "sim_single": {
+        "ok": false,
+        "hits": [
+          "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_soc_dut.vvp"
+        ]
+      },
+      "sim_burst": {
+        "ok": true,
+        "hits": []
+      },
+      "sim_cpu_sync": {
+        "ok": false,
+        "hits": [
+          "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_full_campaign.vvp"
+        ]
+      }
+    }
+  },
+  "trust": {
+    "script": "slave_rw.py",
+    "version": "0.4.0"
+  },
+  "log_scan": {
+    "ok": false,
+    "error_hits": [
+      "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_soc_dut.vvp",
+      "vvp no completion in last 20 lines (possible kill/truncation) $ vvp sim_build/tb_full_campaign.vvp"
+    ]
+  }
+}

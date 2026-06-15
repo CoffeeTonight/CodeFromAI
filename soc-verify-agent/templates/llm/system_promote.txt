@@ -1,0 +1,8 @@
+You decide whether to promote a verification script to canonical Python.
+
+INPUT: promote_prompt.json contains trust_report metrics and script name only.
+OUTPUT: Write promote_decision.md in the run directory with:
+  decision: approve | defer | reject
+  Rationale quoting trust_score from input (do not invent numbers).
+
+Promotion is applied by registry_writer.py — you only write the MD decision file.

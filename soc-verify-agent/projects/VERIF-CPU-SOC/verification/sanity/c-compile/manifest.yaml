@@ -1,0 +1,7 @@
+stage: sanity
+group: c-compile
+milestone: M2
+schedule: tag_refresh
+depends_on: []
+gates: [firmware_gen, iverilog_elab]
+owner: dv-team-a

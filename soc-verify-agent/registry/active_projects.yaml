@@ -1,0 +1,28 @@
+as_of: 2026-06-13
+source: dummy_confluence_snapshot
+schedule_plan: soc-dv-4p-v1
+acquisition:
+  project_search:
+    fetched_at: 2026-06-13
+    source: dummy_confluence_snapshot
+    refresh_policy:
+      interval_days: 7
+      next_refresh: 2026-06-20
+projects:
+  - id: AURORA-SOC
+    active: false
+    status: completed
+    completed_at: 2026-05-28
+    current_milestone: M4
+  - id: EXAMPLE-SOC
+    active: true
+    status: in_progress
+    current_milestone: M3
+  - id: NEBULA-SOC
+    active: true
+    status: in_progress
+    current_milestone: M2
+  - id: VERIF-CPU-SOC
+    active: true
+    status: in_progress
+    current_milestone: M2

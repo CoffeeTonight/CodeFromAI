@@ -1,0 +1,43 @@
+# 정보 취득(acquisition) 유형 — 스케줄러·preflight 공통 스키마
+
+types:
+  project_search:
+    id: project_search
+    label_ko: "과제 서치"
+    description: "Confluence CQL 등으로 실행 대상 과제 목록 탐색"
+    stored_in: registry/active_projects.yaml
+    block_path: acquisition.project_search
+    config_interval: schedules.project_search_days
+    default_interval_days: 7
+
+  project_intake:
+    id: project_intake
+    label_ko: "과제 정보 갱신"
+    description: "과제별 discovered/state/meta 동기화 (Confluence intake)"
+    stored_in: projects/{id}/discovered.yaml
+    block_path: intake
+    config_interval: schedules.project_intake_days
+    default_interval_days: 30
+
+  state_sync:
+    id: state_sync
+    label_ko: "과제 상태 동기화"
+    description: "마일스톤·due groups 등 state.yaml 갱신"
+    stored_in: projects/{id}/state.yaml
+    block_path: sync
+    config_interval: schedules.project_intake_days
+    default_interval_days: 30
+
+  tag_watch:
+    id: tag_watch
+    label_ko: "태그 감시·갱신"
+    description: "git tag fetch 및 mandatory replace"
+    stored_in: projects/{id}/cache.yaml
+    block_path: tag
+    config_interval: schedules.tag_refresh_days
+    default_interval_days: 4
+
+# 공통 refresh_policy 스키마
+refresh_policy:
+  required_on_block: [fetched_at]
+  optional: [source, refresh_policy.interval_days, refresh_policy.next_refresh]

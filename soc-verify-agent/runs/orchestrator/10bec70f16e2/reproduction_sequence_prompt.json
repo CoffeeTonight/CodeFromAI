@@ -1,0 +1,39 @@
+{
+  "contract": "reproduction_finalize_sequence",
+  "project_id": "EXAMPLE-SOC",
+  "verify_results": [
+    {
+      "project_id": "EXAMPLE-SOC",
+      "stage": "simulation",
+      "group": "gpio_ext",
+      "verdict": "PASS",
+      "completeness": 1.0,
+      "run_id": "6405b3bc03b0"
+    }
+  ],
+  "sequence_steps": [],
+  "validation": {
+    "ok": false,
+    "project_id": "EXAMPLE-SOC",
+    "orchestrator": "run_EXAMPLE-SOC_verification_sequence.sh",
+    "steps_count": 0,
+    "issues": [
+      "missing orchestrator: scripts/run_EXAMPLE-SOC_verification_sequence.sh",
+      "missing reports script: scripts/99_generate_verification_reports.sh",
+      "verification_sequence.yaml has no steps",
+      "missing reports/index.yaml"
+    ]
+  },
+  "rules_template": "templates/scripts/README.md",
+  "required_writes": [
+    "scripts/run_EXAMPLE-SOC_verification_sequence.sh",
+    "scripts/99_generate_verification_reports.sh",
+    "scripts/verification_sequence.yaml",
+    "reports/index.yaml → verification_sequence block",
+    "runs/orchestrator/{run_id}/reproduction_sequence_finalize.json"
+  ],
+  "rules": [
+    "Orchestrator has no CLI args — bash each step in verified order",
+    "Filename encodes verification title (NN_stage_title.sh)"
+  ]
+}

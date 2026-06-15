@@ -1,0 +1,18 @@
+{
+  "gate": "c-compile",
+  "status": "PASS",
+  "exit_code": 0,
+  "evidence": [
+    "example.sh gen OK",
+    "iverilog elaborate OK \u2192 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp"
+  ],
+  "artifacts": {
+    "log": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/runs/verif-test-1781415710/c-compile.log",
+    "vvp": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog"
+  },
+  "trust": {
+    "script": "c-compile.py",
+    "version": "0.2.0"
+  }
+}

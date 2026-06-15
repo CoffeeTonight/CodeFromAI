@@ -1,0 +1,647 @@
+# gate=slave_rw
+# rtl_root=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog
+
+========================================================================
+# tier=compile
+
+========================================================================
+$ make sim_build/tb_soc_dut.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+make: 'sim_build/tb_soc_dut.vvp' is up to date.
+
+========================================================================
+$ make sim_build/tb_soc_bus_all.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+make: 'sim_build/tb_soc_bus_all.vvp' is up to date.
+
+========================================================================
+# tier=sim_single
+
+========================================================================
+$ vvp sim_build/tb_soc_dut.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+VCD info: dumpfile sim_build/tb_soc_dut.vcd opened for output.
+========================================================================
+tb_soc_dut: SimpleSoC + VerifCPU agents (iverilog behavior model)
+========================================================================
+
+[1] Phase A - SoC init + slave snoop
+SCPU3 () > soft_reset phase=0 pc=0x00000000
+SCPU2 () > soft_reset phase=0 pc=0x00000000
+SCPU1 () > soft_reset phase=0 pc=0x00000000
+[Orch] phase_release phase=0 boot_fw=0x00000000
+[SoC] init sequence start (17 steps from soc_init_seq.h)
+[SoC] init sequence done (17 steps)
+SCPU1 () > Phase A: init logging (tap 0)
+SCPU1 () > Phase A done: recorded 13 txns on tap
+SCPU2 () > Phase A: init logging (tap 1)
+SCPU2 () > Phase A done: recorded 2 txns on tap
+SCPU3 () > Phase A: init logging (tap 2)
+SCPU3 () > Phase A done: recorded 2 txns on tap
+
+[2] Phase B - master waits init_done then injects targets
+SCPU0 (MSTR) > phase_release -> phase=1
+SCPU1 () > soft_reset phase=1 pc=0x00004000
+SCPU2 () > soft_reset phase=1 pc=0x00004000
+SCPU3 () > soft_reset phase=1 pc=0x00004000
+[Orch] phase_release phase=1 boot_fw=0x00004000
+SCPU0 (MSTR) > injecting per-slave verify targets (campaign_manifest.h)
+SCPU0 (MSTR) > hint slave=SFR tap=0 addr=0x40000000 expect=0x00000001 icode=check_sfr_ctrl
+SCPU0 (MSTR) > hint slave=SFR tap=0 addr=0x40000004 expect=0x000000ff icode=check_sfr_mask
+SCPU0 (MSTR) > hint slave=SRAM tap=1 addr=0x80000000 expect=0xdeadbeef icode=check_sram_marker
+SCPU0 (MSTR) > hint slave=SRAM tap=1 addr=0x80000004 expect=0xcafebabe icode=check_sram_aux
+SCPU0 (MSTR) > hint slave=UART tap=2 addr=0xc0000000 expect=0x00000080 icode=check_uart_baud
+SCPU0 (MSTR) > hint slave=UART tap=2 addr=0xc0000010 expect=0xdeaddead icode=check_uart_irq
+SCPU1 () > Phase B: collecting verification target addresses
+SCPU1 () >   slot[0] bus_addr=0x40000000
+SCPU1 () > Phase B done: 1 unique addresses
+SCPU2 () > Phase B: collecting verification target addresses
+SCPU2 () >   slot[0] bus_addr=0x80000000
+SCPU2 () > Phase B done: 1 unique addresses
+SCPU3 () > Phase B: collecting verification target addresses
+SCPU3 () >   slot[0] bus_addr=0xc0000000
+SCPU3 () > Phase B done: 1 unique addresses
+
+[3] Host bind - icode_ptr -> program store
+    CPU1 (SFR)  slot[0] icode_ptr=0x1000
+    CPU2 (SRAM) slot[0] icode_ptr=0x2000
+    CPU3 (UART) slot[0] icode_ptr=0x3000
+
+[4] Phase C - slave icode execution
+SCPU0 (MSTR) > phase_release -> phase=2
+SCPU3 () > soft_reset phase=2 pc=0x00008000
+SCPU2 () > soft_reset phase=2 pc=0x00008000
+SCPU1 () > soft_reset phase=2 pc=0x00008000
+[Orch] phase_release phase=2 boot_fw=0x00008000
+SCPU1 () > Phase C: dispatch verification icode
+SCPU1 () >   vexec slot[0] addr=0x40000000 icode_ptr=0x00001000
+SCPU1 () >     read 0x40000000 -> 0x00000001 (expect 0x00000001)
+SCPU1 () >   PASS
+SCPU1 () > Phase C done: pass=1 fail=0
+SCPU2 () > Phase C: dispatch verification icode
+SCPU2 () >   vexec slot[0] addr=0x80000000 icode_ptr=0x00002000
+SCPU2 () >     read 0x80000000 -> 0xdeadbeef (expect 0xdeadbeef)
+SCPU2 () >   PASS
+SCPU2 () > Phase C done: pass=1 fail=0
+SCPU3 () > Phase C: dispatch verification icode
+SCPU3 () >   vexec slot[0] addr=0xc0000000 icode_ptr=0x00003000
+SCPU3 () >     read 0xc0000000 -> 0x00000080 (expect 0x00000080)
+SCPU3 () >   PASS
+SCPU3 () > Phase C done: pass=1 fail=0
+
+========================================================================
+Campaign Report
+========================================================================
+  slave1 txns=16 slots=1 PASS=1 FAIL=0
+  slave2 txns=4 slots=1 PASS=1 FAIL=0
+  slave3 txns=4 slots=1 PASS=1 FAIL=0
+
+  TOTAL: PASS=3 FAIL=0
+========================================================================
+[SUCCESS] SoC verification campaign completed.
+tb/tb_soc_dut.v:151: $finish called at 27000 (1ps)
+
+========================================================================
+# tier=sim_burst
+
+========================================================================
+$ vvp sim_build/tb_soc_bus_all.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+VCD info: dumpfile sim_build/tb_soc_bus_all.vcd opened for output.
+tb_soc_bus_all: AMBA APB/AHB/AXI bridge smoke
+  [PASS] APB2
+  [PASS] APB3
+  [PASS] APB4
+  [PASS] APB5
+  [PASS] AHB-Lite
+  [PASS] AHB5-Lite
+  [PASS] AHB full
+  [PASS] AXI4-Lite
+  [PASS] AXI3 full
+  [PASS] AXI4 full
+  [PASS] AXI5 full
+Checklist: 11 passed / 0 failed
+[SUCCESS] All AMBA bridge variants OK
+tb/tb_soc_bus_all.v:216: $finish called at 445000 (1ps)
+
+========================================================================
+$ python3 tools/verify_amba_bus_vcd.py sim_build/tb_soc_bus_all.vcd
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+[vcd] sim_build/tb_soc_bus_all.vcd (39981 bytes)
+  [PASS] protocol + read-data checks (1160 VCD transitions)
+
+========================================================================
+# tier=sim_cpu_sync
+
+========================================================================
+$ vvp sim_build/tb_full_campaign.vvp
+(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
+exit=0
+
+========================================================================
+tb_full_campaign: iverilog authoritative verification + VCD
+========================================================================
+VCD info: dumpfile sim_build/tb_full_campaign.vcd opened for output.
+WARNING: rtl/verif_cpu_unified_pool.v:76: $readmemh(firmware/full_campaign_unified.hex): Not enough words in the file for the requested range [0:16383].
+[UnifiedPool] Loaded firmware (array) from firmware/full_campaign_unified.hex
+[UnifiedPool] Assigned CPU1 region: 0x00000000 ~ 0x00001fff
+[UnifiedPool] Assigned CPU2 region: 0x00002000 ~ 0x00003fff
+[UnifiedPool] Assigned CPU3 region: 0x00004000 ~ 0x00005fff
+[UnifiedPool] Assigned CPU4 region: 0x00006000 ~ 0x0000cfff
+  [PASS] Icode pool embedded (readmemh)
+SCPU1 > Firmware attached: offset=0x00000000, size=8192
+SCPU1 > Transaction recorder attached
+SCPU1 > WDT attached (timeout=100)
+SCPU1 > [Coverage] Collector attached
+SCPU1 > [Wave] WaveDumper attached
+SCPU1 > Sync manager attached
+SCPU1 > Hierarchy set to 0x00000010
+SCPU1 > Dedicated log opened: logs/full_campaign/SCPU1.log
+SCPU2 > Firmware attached: offset=0x00000800, size=8192
+SCPU2 > Transaction recorder attached
+SCPU2 > WDT attached (timeout=100)
+SCPU2 > [Coverage] Collector attached
+SCPU2 > [Wave] WaveDumper attached
+SCPU2 > Sync manager attached
+SCPU2 > Hierarchy set to 0x00000020
+SCPU2 > Dedicated log opened: logs/full_campaign/SCPU2.log
+SCPU3 > Firmware attached: offset=0x00001000, size=8192
+SCPU3 > Transaction recorder attached
+SCPU3 > WDT attached (timeout=100)
+SCPU3 > [Coverage] Collector attached
+SCPU3 > [Wave] WaveDumper attached
+SCPU3 > Sync manager attached
+SCPU3 > Hierarchy set to 0x00000030
+SCPU3 > Dedicated log opened: logs/full_campaign/SCPU3.log
+
+[1] Phase A — SoC init + VCPU + agent snoop
+SCPU3 (UART    ) > soft_reset phase=0 pc=0x00000000
+SCPU2 (SRAM    ) > soft_reset phase=0 pc=0x00000000
+SCPU1 (SFR     ) > soft_reset phase=0 pc=0x00000000
+[Orch] phase_release phase=0 boot_fw=0x00000000
+[SoC] init sequence start (17 steps from soc_init_seq.h)
+[SoC] init sequence done (17 steps)
+SCPU1 (SFR     ) > Phase A: init logging (tap 0)
+SCPU1 (SFR     ) > Phase A done: recorded 13 txns on tap
+SCPU2 (SRAM    ) > Phase A: init logging (tap 1)
+SCPU2 (SRAM    ) > Phase A done: recorded 2 txns on tap
+SCPU3 (UART    ) > Phase A: init logging (tap 2)
+SCPU3 (UART    ) > Phase A done: recorded 2 txns on tap
+SCPU1 > 0x00000000: custom0 sel=0x10
+SCPU1_FN >   func_16 enter
+SCPU1 > 0x00000004: addi x1,x0,500
+SCPU1 > 0x00000008: custom0 sel=0x01
+SCPU1 > WDT timeout set to 500
+SCPU1 > 0x0000000c: lui x10,0x40000
+SCPU1 > 0x00000010: addi x10,x10,0
+SCPU1 > 0x00000014: addi x11,x0,1
+SCPU1 > 0x00000018: sw x11,0x0(x10)
+SCPU1 > 0x0000001c: custom0 sel=0x12
+SCPU1 > [Trace] trace_msg_1
+SCPU1 > 0x00000020: custom0 sel=0x11
+SCPU1_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU1_FN > func_17 exit
+SCPU1 > 0x00000024: vstop (custom)
+SCPU1 > vstop executed - Simulation stop requested
+SCPU2 > 0x00000000: custom0 sel=0x10
+SCPU2_FN >   func_16 enter
+SCPU2 > 0x00000004: addi x1,x0,500
+SCPU2 > 0x00000008: custom0 sel=0x01
+SCPU2 > WDT timeout set to 500
+SCPU2 > 0x0000000c: lui x10,0x40000
+SCPU2 > 0x00000010: addi x10,x10,0
+SCPU2 > 0x00000014: addi x11,x0,1
+SCPU2 > 0x00000018: sw x11,0x0(x10)
+SCPU2 > 0x0000001c: custom0 sel=0x12
+SCPU2 > [Trace] trace_msg_1
+SCPU2 > 0x00000020: custom0 sel=0x11
+SCPU2_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU2_FN > func_17 exit
+SCPU2 > 0x00000024: vstop (custom)
+SCPU2 > vstop executed - Simulation stop requested
+SCPU3 > 0x00000000: custom0 sel=0x10
+SCPU3_FN >   func_16 enter
+SCPU3 > 0x00000004: addi x1,x0,500
+SCPU3 > 0x00000008: custom0 sel=0x01
+SCPU3 > WDT timeout set to 500
+SCPU3 > 0x0000000c: lui x10,0x40000
+SCPU3 > 0x00000010: addi x10,x10,0
+SCPU3 > 0x00000014: addi x11,x0,1
+SCPU3 > 0x00000018: sw x11,0x0(x10)
+SCPU3 > 0x0000001c: custom0 sel=0x12
+SCPU3 > [Trace] trace_msg_1
+SCPU3 > 0x00000020: custom0 sel=0x11
+SCPU3_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU3_FN > func_17 exit
+SCPU3 > 0x00000024: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+  [PASS] Phase A SoC init (17-step)
+  [PASS] Phase A bus txn (SFR)
+  [PASS] Phase A vwdt/vtrace steps
+  [PASS] Phase A agent snoop
+
+[2] Phase B — master hints + collect
+SCPU0 (MSTR) > polling init_done @0x40000018 mask=0x80000000 value=0x80000000
+SCPU0 (MSTR) > init_done met @ poll 0 (read=0x80000000)
+  [PASS] Master SoC init_done poll
+SCPU0 (MSTR) > phase_release -> phase=1
+SCPU1 (SFR     ) > soft_reset phase=1 pc=0x00000100
+SCPU2 (SRAM    ) > soft_reset phase=1 pc=0x00000100
+SCPU3 (UART    ) > soft_reset phase=1 pc=0x00000100
+[Orch] phase_release phase=1 boot_fw=0x00000100
+SCPU0 (MSTR) > injecting per-slave verify targets (campaign_manifest.h)
+SCPU0 (MSTR) > hint slave=SFR tap=0 addr=0x40000000 expect=0x00000001 icode=check_sfr_ctrl
+SCPU0 (MSTR) > hint slave=SFR tap=0 addr=0x40000004 expect=0x000000ff icode=check_sfr_mask
+SCPU0 (MSTR) > hint slave=SRAM tap=1 addr=0x80000000 expect=0xdeadbeef icode=check_sram_marker
+SCPU0 (MSTR) > hint slave=SRAM tap=1 addr=0x80000004 expect=0xcafebabe icode=check_sram_aux
+SCPU0 (MSTR) > hint slave=UART tap=2 addr=0xc0000000 expect=0x00000080 icode=check_uart_baud
+SCPU0 (MSTR) > hint slave=UART tap=2 addr=0xc0000010 expect=0xdeaddead icode=check_uart_irq
+SCPU1 (SFR     ) > Phase B: collecting verification target addresses
+SCPU1 (SFR     ) >   slot[0] bus_addr=0x40000000
+SCPU1 (SFR     ) >   slot[1] bus_addr=0x40000004
+SCPU1 (SFR     ) > Phase B done: 2 unique addresses
+SCPU2 (SRAM    ) > Phase B: collecting verification target addresses
+SCPU2 (SRAM    ) >   slot[0] bus_addr=0x80000000
+SCPU2 (SRAM    ) >   slot[1] bus_addr=0x80000004
+SCPU2 (SRAM    ) > Phase B done: 2 unique addresses
+SCPU3 (UART    ) > Phase B: collecting verification target addresses
+SCPU3 (UART    ) >   slot[0] bus_addr=0xc0000000
+SCPU3 (UART    ) >   slot[1] bus_addr=0xc0000010
+SCPU3 (UART    ) > Phase B done: 2 unique addresses
+SCPU1 > 0x00000100: custom0 sel=0x10
+SCPU1_FN >   func_16 enter
+SCPU1 > 0x00000104: lui x10,0x40000
+SCPU1 > 0x00000108: addi x10,x10,0
+SCPU1 > 0x0000010c: lw x11,0x0(x10)
+SCPU1 > 0x00000110: custom0 sel=0x12
+SCPU1 > [Trace] trace_msg_17
+SCPU1 > 0x00000114: custom0 sel=0x11
+SCPU1_FN > func_16 exit
+SCPU1 > 0x00000118: vstop (custom)
+SCPU1 > vstop executed - Simulation stop requested
+SCPU2 > 0x00000100: custom0 sel=0x10
+SCPU2_FN >   func_16 enter
+SCPU2 > 0x00000104: lui x10,0x40000
+SCPU2 > 0x00000108: addi x10,x10,0
+SCPU2 > 0x0000010c: lw x11,0x0(x10)
+SCPU2 > 0x00000110: custom0 sel=0x12
+SCPU2 > [Trace] trace_msg_17
+SCPU2 > 0x00000114: custom0 sel=0x11
+SCPU2_FN > func_16 exit
+SCPU2 > 0x00000118: vstop (custom)
+SCPU2 > vstop executed - Simulation stop requested
+SCPU3 > 0x00000100: custom0 sel=0x10
+SCPU3_FN >   func_16 enter
+SCPU3 > 0x00000104: lui x10,0x40000
+SCPU3 > 0x00000108: addi x10,x10,0
+SCPU3 > 0x0000010c: lw x11,0x0(x10)
+SCPU3 > 0x00000110: custom0 sel=0x12
+SCPU3 > [Trace] trace_msg_17
+SCPU3 > 0x00000114: custom0 sel=0x11
+SCPU3_FN > func_16 exit
+SCPU3 > 0x00000118: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+  [PASS] Phase B multi-slots (2 per agent)
+
+[3] Multi-CPU sync barrier + parallel bus (vsync firmware)
+[Sync] configure id=10 expect=0x7
+SCPU1 > 0x00000380: custom0 sel=0x10
+SCPU1_FN >   func_16 enter
+SCPU2 > 0x00000380: custom0 sel=0x10
+SCPU2_FN >   func_17 enter
+SCPU3 > 0x00000380: custom0 sel=0x10
+SCPU3_FN >   func_18 enter
+SCPU1 > 0x00000384: custom0 sel=0x13
+SCPU1 > [Sync] VSYNC arrive id=10 (arrived=0x1 expect=0x7)
+SCPU1 > [Sync] waiting id=10 gen=0
+SCPU2 > 0x00000384: custom0 sel=0x13
+SCPU2 > [Sync] VSYNC arrive id=10 (arrived=0x3 expect=0x7)
+SCPU2 > [Sync] waiting id=10 gen=0
+SCPU3 > 0x00000384: custom0 sel=0x13
+SCPU3 > [Sync] VSYNC arrive id=10 (arrived=0x7 expect=0x7)
+[Sync] barrier id=10 RELEASE gen=1
+SCPU1 > [Sync] resumed id=10
+SCPU1 > 0x00000388: lui x10,0x40000
+SCPU2 > [Sync] resumed id=10
+SCPU2 > 0x00000388: lui x10,0x80000
+SCPU3 > 0x00000388: lui x10,0xc0000
+SCPU1 > 0x0000038c: addi x10,x10,0
+SCPU2 > 0x0000038c: addi x10,x10,0
+SCPU3 > 0x0000038c: addi x10,x10,0
+SCPU1 > 0x00000390: lw x11,0x0(x10)
+SCPU2 > 0x00000390: lw x11,0x0(x10)
+SCPU3 > 0x00000390: lw x11,0x0(x10)
+SCPU1 > 0x00000394: addi x1,x0,1
+SCPU2 > 0x00000394: addi x1,x0,1
+SCPU3 > 0x00000394: addi x1,x0,1
+SCPU1 > 0x00000398: custom0 sel=0x14
+SCPU1 > [Assert] PASS (id=18)
+SCPU2 > 0x00000398: custom0 sel=0x14
+SCPU2 > [Assert] PASS (id=19)
+SCPU3 > 0x00000398: custom0 sel=0x14
+SCPU3 > [Assert] PASS (id=20)
+SCPU1 > 0x0000039c: custom0 sel=0x11
+SCPU1_FN > func_16 exit
+SCPU2 > 0x0000039c: custom0 sel=0x11
+SCPU2_FN > func_17 exit
+SCPU3 > 0x0000039c: custom0 sel=0x11
+SCPU3_FN > func_18 exit
+SCPU1 > 0x000003a0: vstop (custom)
+SCPU1 > vstop executed - Simulation stop requested
+SCPU2 > 0x000003a0: vstop (custom)
+SCPU2 > vstop executed - Simulation stop requested
+SCPU3 > 0x000003a0: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+  [PASS] Sync parallel barrier release
+  [PASS] Sync parallel firmware done
+  [PASS] Sync parallel bus SFR
+  [PASS] Sync parallel bus SRAM
+  [PASS] Sync parallel bus UART
+
+[3] Console stall / bus_write / resume
+SCPU1 > Stalled
+SCPU1 > [Console Bus Master] WRITE 0x40000008 <= 0x0000cafe (size=4) -> OK
+SCPU1 > Resumed
+  [PASS] Console stall/resume
+
+[4] Phase C — SFR full ISA + DEADDEAD + X/Z
+SCPU3 (UART    ) > soft_reset phase=2 pc=0x00000200
+SCPU2 (SRAM    ) > soft_reset phase=2 pc=0x00000200
+SCPU1 (SFR     ) > soft_reset phase=2 pc=0x00000200
+[Orch] phase_release phase=2 boot_fw=0x00000200
+SCPU1 > 0x00000200: custom0 sel=0x10
+SCPU1_FN >   func_16 enter
+SCPU1 > 0x00000204: addi x1,x0,-1096
+SCPU1 > 0x00000208: custom0 sel=0x01
+SCPU1 > WDT timeout set to 4294966200
+SCPU1 > 0x0000020c: custom0 sel=0x17
+SCPU1 > [Wave] Dumping started
+SCPU1 > 0x00000210: custom0 sel=0x17
+SCPU1 > [Wave] Active dump scope set to: Hier00
+SCPU1 > 0x00000214: custom0 sel=0x17
+SCPU1 > [Wave] Dumping ALL scopes
+SCPU1 > 0x00000218: addi x20,x0,1
+SCPU1 > 0x0000021c: addi x21,x0,85
+SCPU1 > 0x00000220: custom0 sel=0x15
+SCPU1 > [Force] x21 forced to 0x00000055
+SCPU1 > 0x00000224: custom0 sel=0x16
+SCPU1 > 0x00000228: vdummy_on (custom)
+SCPU1 > Entered DUMMY_MODE
+SCPU1 > Entered dummy data mode
+SCPU1 > 0x0000022c: addi x1,x0,17
+SCPU1 > 0x00000230: addi x2,x0,34
+SCPU1 > 0x00000234: add x3,x1,x2
+SCPU1 > 0x00000238: sub x4,x2,x1
+SCPU1 > 0x0000023c: and x5,x1,x2
+SCPU1 > 0x00000240: or x6,x1,x2
+SCPU1 > 0x00000244: xor x7,x1,x2
+SCPU1 > 0x00000248: andi x8,x1,0xf
+SCPU1 > 0x0000024c: ori x9,x1,0xf
+SCPU1 > 0x00000250: addi x12,x0,1
+SCPU1 > 0x00000254: addi x13,x0,1
+SCPU1 > 0x00000260: beq x12,x13,0x8
+SCPU1 > 0x00000260: lui x10,0x40000
+SCPU1 > 0x00000264: addi x10,x10,0
+SCPU1 > 0x00000268: lw x11,0x0(x10)
+SCPU1 > 0x0000026c: lui x12,0xdeadd
+SCPU1 > 0x00000270: addi x12,x12,-339
+SCPU1 > 0x00000274: xor x13,x11,x12
+SCPU1 > 0x00000278: addi x1,x0,0
+SCPU1 > 0x0000027c: beq x13,x1,0x8
+SCPU1 > 0x00000280: addi x1,x0,1
+SCPU1 > 0x00000284: custom0 sel=0x14
+SCPU1 > [Assert] PASS (id=8)
+SCPU1 > 0x00000288: custom0 sel=0x03
+SCPU1 > Exited DUMMY_MODE
+SCPU1 > 0x0000028c: lui x10,0x40000
+SCPU1 > 0x00000290: addi x10,x10,0
+SCPU1 > 0x00000294: addi x14,x0,16
+SCPU1 > 0x00000298: lui x16,0x5
+SCPU1 > 0x0000029c: custom0 sel=0x18
+[HWForce] set hier=0x00000010 addr=0x40000000 val=0x00005000 (active=1)
+SCPU1 > [HWForce] READ 0x40000000 => 0x00005000 (hier=0x00000010)
+SCPU1 > 0x000002a0: lw x11,0x0(x10)
+SCPU1 > 0x000002a4: lui x12,0x5
+SCPU1 > 0x000002a8: xor x13,x11,x12
+SCPU1 > 0x000002ac: addi x1,x0,0
+SCPU1 > 0x000002b8: beq x13,x1,0x8
+SCPU1 > 0x000002b8: custom0 sel=0x14
+SCPU1 > [Assert] PASS (id=11)
+SCPU1 > 0x000002bc: custom0 sel=0x19
+[HWForce] release hier=0x00000010 addr=0x40000000
+SCPU1 > 0x000002c0: lw x11,0x0(x10)
+SCPU1 > 0x000002c4: addi x1,x0,1
+SCPU1 > 0x000002c8: custom0 sel=0x14
+SCPU1 > [Assert] PASS (id=9)
+SCPU1 > 0x000002cc: lui x10,0x40000
+SCPU1 > 0x000002d0: addi x10,x10,252
+SCPU1 > [WARN] X/Z detected at bus_read data — replaced with 0xDEADDEAD
+SCPU1 > 0x000002d4: lw x11,0x0(x10)
+SCPU1 > 0x000002d8: lui x12,0xdeadd
+SCPU1 > 0x000002dc: addi x12,x12,-339
+SCPU1 > 0x000002e0: xor x13,x11,x12
+SCPU1 > 0x000002e4: addi x1,x0,0
+SCPU1 > 0x000002e8: beq x13,x1,0x8
+SCPU1 > 0x000002ec: addi x1,x0,1
+SCPU1 > 0x000002f0: custom0 sel=0x14
+SCPU1 > [Assert] PASS (id=10)
+SCPU1 > 0x000002f4: custom0 sel=0x04
+SCPU1 > WDT petted (count reset)
+SCPU1 > 0x000002f8: custom0 sel=0x13
+SCPU1 > [Sync] VSYNC solo id=1
+SCPU1 > 0x000002fc: custom0 sel=0x12
+SCPU1 > [Trace] trace_msg_2
+SCPU1 > 0x00000300: custom0 sel=0x17
+SCPU1 > [Wave] Dumping stopped
+SCPU1 > 0x00000304: custom0 sel=0x11
+SCPU1_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU1_FN > func_17 exit
+SCPU1 > 0x00000308: vstop (custom)
+SCPU1 > vstop executed - Simulation stop requested
+  [PASS] SFR assertions pass
+  [PASS] SFR bus activity
+  [PASS] SFR vwave dump
+  [PASS] SFR vforce/vdummy/vassert
+  [PASS] SFR vhw_force hier hit
+  [PASS] SFR hw_force table
+  [PASS] SFR vsync hits
+  [PASS] SFR PC coverage
+
+[5] Phase C — SRAM JAL/JALR
+SCPU2 > 0x00000200: custom0 sel=0x10
+SCPU2_FN >   func_16 enter
+SCPU2 > 0x00000204: lui x10,0x80000
+SCPU2 > 0x00000208: addi x10,x10,0
+SCPU2 > 0x0000020c: lw x11,0x0(x10)
+SCPU2 > 0x00000210: lui x12,0xdeadb
+SCPU2 > 0x00000214: ori x12,x12,0xfffffeef
+SCPU2 > 0x00000218: xor x13,x11,x12
+SCPU2 > 0x0000021c: addi x1,x0,0
+SCPU2 > 0x00000220: beq x13,x1,0x8
+SCPU2 > 0x00000224: addi x1,x0,1
+SCPU2 > 0x00000228: custom0 sel=0x14
+SCPU2 > [Assert] PASS (id=21)
+SCPU2 > 0x0000022c: custom0 sel=0x13
+SCPU2 > [Sync] VSYNC solo id=2
+SCPU2 > 0x00000238: jal x15,0x8
+SCPU2 > 0x00000238: addi x17,x0,205
+SCPU2 > 0x0000023c: addi x1,x0,580
+SCPU2 > 0x00000244: jalr x16,x1,0x0
+SCPU2 > 0x00000244: addi x18,x0,239
+SCPU2 > 0x00000248: custom0 sel=0x11
+SCPU2_FN > func_16 exit
+SCPU2 > 0x0000024c: vstop (custom)
+SCPU2 > vstop executed - Simulation stop requested
+  [PASS] SRAM assertions pass
+  [PASS] SRAM JAL/JALR steps
+  [PASS] SRAM vsync hits
+
+[6] Platform icode — RV32 pool exec + multi-slot dispatch + inter-reset
+[UnifiedPool] Assigned CPU1 region: 0x00006000 ~ 0x0000cfff
+SCPU1 > 0x00001000: lui x10,0x40000
+SCPU1 > 0x00001004: addi x10,x10,0
+SCPU1 > 0x00001008: lw x11,0x0(x10)
+SCPU1 > 0x0000100c: vstop (custom)
+SCPU1 > vstop executed - Simulation stop requested
+[UnifiedPool] Assigned CPU1 region: 0x00000000 ~ 0x00001fff
+  [PASS] Icode RV32 exec SFR slot0 (check_sfr_ctrl)
+[UnifiedPool] Assigned CPU2 region: 0x00006000 ~ 0x0000cfff
+SCPU2 > 0x00004000: lui x10,0x80000
+SCPU2 > 0x00004004: addi x10,x10,0
+SCPU2 > 0x00004008: lw x11,0x0(x10)
+SCPU2 > 0x0000400c: vstop (custom)
+SCPU2 > vstop executed - Simulation stop requested
+[UnifiedPool] Assigned CPU2 region: 0x00002000 ~ 0x00003fff
+  [PASS] Icode RV32 exec SRAM slot0 (check_sram_marker)
+[UnifiedPool] Assigned CPU3 region: 0x00006000 ~ 0x0000cfff
+SCPU3 > 0x00005000: lui x10,0xc0000
+SCPU3 > 0x00005004: addi x10,x10,0
+SCPU3 > 0x00005008: lw x11,0x0(x10)
+SCPU3 > 0x0000500c: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+[UnifiedPool] Assigned CPU3 region: 0x00004000 ~ 0x00005fff
+  [PASS] Icode RV32 exec UART slot0 (check_uart_baud)
+  [PASS] Icode map SFR_CTRL
+  [PASS] Icode map SFR_CFG
+  [PASS] Icode map SRAM_MARKER
+  [PASS] Icode map SRAM_AUX
+  [PASS] Icode map UART_BAUD
+  [PASS] Icode map UART_IRQ_HANG
+SCPU1 (SFR     ) >   vexec slot[0] addr=0x40000000 icode_ptr=0x00001000
+SCPU1 (SFR     ) >     read 0x40000000 -> 0x00000001 (expect 0x00000001)
+SCPU1 (SFR     ) >   PASS
+SCPU2 (SRAM    ) >   vexec slot[0] addr=0x80000000 icode_ptr=0x00004000
+SCPU2 (SRAM    ) >     read 0x80000000 -> 0xdeadbeef (expect 0xdeadbeef)
+SCPU2 (SRAM    ) >   PASS
+SCPU3 (UART    ) >   vexec slot[0] addr=0xc0000000 icode_ptr=0x00005000
+SCPU3 (UART    ) >     read 0xc0000000 -> 0x00000080 (expect 0x00000080)
+SCPU3 (UART    ) >   PASS
+  [PASS] Multi-icode round0 PASS=3
+SCPU1 (SFR     ) > soft_reset phase=2 pc=0x00000200
+SCPU2 (SRAM    ) > soft_reset phase=2 pc=0x00000200
+SCPU3 (UART    ) > soft_reset phase=2 pc=0x00000200
+[Orch] icode_inter_reset count=4
+  [PASS] Icode inter-reset pulse
+SCPU1 (SFR     ) >   vexec slot[1] addr=0x40000004 icode_ptr=0x00001000
+SCPU1 (SFR     ) >     read 0x40000004 -> 0x000000ff (expect 0x000000ff)
+SCPU1 (SFR     ) >   PASS
+SCPU2 (SRAM    ) >   vexec slot[1] addr=0x80000004 icode_ptr=0x00004000
+SCPU2 (SRAM    ) >     read 0x80000004 -> 0xcafebabe (expect 0xcafebabe)
+SCPU2 (SRAM    ) >   PASS
+SCPU3 (UART    ) >   vexec slot[1] addr=0xc0000010 icode_ptr=0x00005000
+SCPU3 (UART    ) >     read 0xc0000010 -> 0xdeaddead (expect 0xdeaddead)
+SCPU3 (UART    ) >   PASS
+  [PASS] Platform multi-icode PASS=6
+  [PASS] Orchestrator reset count
+
+[7] UART WDT hang → recovery → recover fw
+SCPU3 > 0x00000c00: addi x1,x0,8
+SCPU3 > 0x00000c04: custom0 sel=0x01
+SCPU3 > WDT timeout set to 8
+SCPU3 > 0x00000c08: addi x2,x0,0
+SCPU3 > 0x00000c0c: addi x2,x2,1
+SCPU3 > *** WDT TIMEOUT *** (8 cycles, limit=8)
+SCPU3 > WDT recovery triggered - reset + full transaction replay + continue own code
+SCPU3 > Reset
+SCPU3 > Replaying 4 recorded transactions...
+SCPU3 > [Replay] Write 0x40000000 <= 0x00000001
+SCPU3 > [Replay] Read  0x40000000 => 0x00000001
+SCPU3 > [Replay] Read  0xc0000000 => 0x00000080
+SCPU3 > [Replay] Read  0xc0000000 => 0x00000080
+SCPU3 > Transaction replay complete. Continuing own firmware...
+SCPU3 > Entered DUMMY_MODE
+SCPU3 > Entered dummy data mode
+SCPU3 > Entered dummy mode for suspect addrs
+SCPU3 > 0x00000000: custom0 sel=0x10
+SCPU3_FN >   func_16 enter
+SCPU3 > 0x00000004: addi x1,x0,500
+SCPU3 > 0x00000008: custom0 sel=0x01
+SCPU3 > WDT timeout set to 500
+SCPU3 > 0x0000000c: lui x10,0x40000
+SCPU3 > 0x00000010: addi x10,x10,0
+SCPU3 > 0x00000014: addi x11,x0,1
+SCPU3 > 0x00000018: sw x11,0x0(x10)
+SCPU3 > 0x0000001c: custom0 sel=0x12
+SCPU3 > [Trace] trace_msg_1
+SCPU3 > 0x00000020: custom0 sel=0x11
+SCPU3_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU3_FN > func_17 exit
+SCPU3 > 0x00000024: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+  [PASS] WDT hang recovery
+  [PASS] WDT fired on hang
+SCPU3 > 0x00000d00: custom0 sel=0x04
+SCPU3 > WDT petted (count reset)
+SCPU3 > 0x00000d04: custom0 sel=0x10
+SCPU3_FN >   func_16 enter
+SCPU3 > 0x00000d08: lui x10,0xc0000
+SCPU3 > 0x00000d0c: addi x10,x10,16
+SCPU3 > 0x00000d10: lw x11,0x0(x10)
+SCPU3 > 0x00000d14: lui x12,0xdeadd
+SCPU3 > 0x00000d18: addi x12,x12,-339
+SCPU3 > 0x00000d1c: xor x13,x11,x12
+SCPU3 > 0x00000d20: addi x1,x0,0
+SCPU3 > 0x00000d24: beq x13,x1,0x8
+SCPU3 > 0x00000d28: addi x1,x0,1
+SCPU3 > 0x00000d2c: custom0 sel=0x14
+SCPU3 > [Assert] PASS (id=30)
+SCPU3 > 0x00000d30: custom0 sel=0x03
+SCPU3 > 0x00000d34: custom0 sel=0x13
+SCPU3 > [Sync] VSYNC solo id=3
+SCPU3 > 0x00000d38: custom0 sel=0x11
+SCPU3_FN > [TRACER MISMATCH] expected exit 'func_16', got 'func_17'
+SCPU3_FN > func_17 exit
+SCPU3 > 0x00000d3c: vstop (custom)
+SCPU3 > vstop executed - Simulation stop requested
+  [PASS] UART recover assertions
+  [PASS] DEADDEAD recovery path
+  [PASS] UART vsync solo
+
+[8] VCD export
+SCPU1 > [Wave] Hierarchical VCD exported: logs/full_campaign/SCPU1.vcd (232 changes)
+SCPU2 > [Wave] No data to export.
+SCPU3 > [Wave] No data to export.
+  [PASS] Main VCD path set
+
+========================================================================
+CAMPAIGN REPORT (iverilog)
+========================================================================
+  SFR  steps=95 bus=8 assert_pass=5 fail=0
+  SRAM steps=49 bus=5 assert_pass=2 fail=0
+  UART steps=60 bus=6 recov=1 assert_pass=2 fail=0
+  Agents PASS=6 FAIL=0
+  Checklist: 43 passed / 0 failed
+  VCD: sim_build/tb_full_campaign.vcd
+========================================================================
+[SUCCESS] iverilog campaign passed — confirm via VCD: sim_build/tb_full_campaign.vcd
+tb/tb_full_campaign.v:136: $finish called at 56000 (1ps)

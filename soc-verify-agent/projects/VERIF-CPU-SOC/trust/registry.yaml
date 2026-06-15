@@ -1,0 +1,41 @@
+scripts:
+  c-compile.py:
+    script: c-compile.py
+    status: draft
+    trust_score: 0.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 0.0
+    last_tag: ''
+  rtl_sim.py:
+    script: rtl_sim.py
+    status: draft
+    trust_score: 0.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 0.0
+    last_tag: ''
+  coi_conn.py:
+    script: coi_conn.py
+    status: draft
+    trust_score: 0.0
+    version: 0.2.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 0.0
+    last_tag: ''
+  slave_rw.py:
+    script: slave_rw.py
+    status: draft
+    trust_score: 0.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 0.0
+    last_tag: ''

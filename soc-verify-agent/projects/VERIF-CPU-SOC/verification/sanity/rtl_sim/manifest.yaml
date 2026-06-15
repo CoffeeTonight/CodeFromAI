@@ -1,0 +1,7 @@
+stage: sanity
+group: rtl_sim
+milestone: M2
+schedule: tag_refresh
+depends_on: [c-compile]
+gates: [iverilog_sim, vcd_postcheck]
+owner: dv-team-a

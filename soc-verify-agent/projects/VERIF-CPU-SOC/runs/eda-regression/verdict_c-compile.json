@@ -1,0 +1,22 @@
+{
+  "gate": "c-compile",
+  "status": "PASS",
+  "exit_code": 0,
+  "evidence": [
+    "log scan: no error keywords, success markers present",
+    "artifact OK \u2192 /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp"
+  ],
+  "artifacts": {
+    "log": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/runs/eda-regression/c-compile.log",
+    "vvp": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog/sim_build/tb_full_campaign.vvp",
+    "rtl_root": "/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog"
+  },
+  "trust": {
+    "script": "c-compile.py",
+    "version": "0.3.1"
+  },
+  "log_scan": {
+    "ok": true,
+    "error_hits": []
+  }
+}

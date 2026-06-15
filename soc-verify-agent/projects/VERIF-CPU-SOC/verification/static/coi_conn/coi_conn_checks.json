@@ -1,0 +1,29 @@
+{
+  "top": "chip_top_example",
+  "filelist": "filelists/eda/test/chip_top_example/manifest.list",
+  "include_ff": false,
+  "connect_trace": true,
+  "checks": [
+    {
+      "id": "sfr_clk_to_sram_clk",
+      "a": "chip_top_example.u_periph_sfr.PCLK",
+      "b": "chip_top_example.u_periph_sram.HCLK",
+      "expected_connected": true,
+      "note": "공유 soc_clk — periphery 간 clock COI 연결"
+    },
+    {
+      "id": "sfr_paddr_to_sram_haddr",
+      "a": "chip_top_example.u_periph_sfr.PADDR",
+      "b": "chip_top_example.u_periph_sram.HADDR",
+      "expected_connected": false,
+      "note": "APB SFR vs AHB SRAM 주소망 — 의도적 비연결"
+    },
+    {
+      "id": "orch_to_pool",
+      "a": "chip_top_example.u_orch",
+      "b": "chip_top_example.u_pool",
+      "expected_connected": false,
+      "note": "제어 orchestrator vs unified pool — 직접 COI 없음"
+    }
+  ]
+}

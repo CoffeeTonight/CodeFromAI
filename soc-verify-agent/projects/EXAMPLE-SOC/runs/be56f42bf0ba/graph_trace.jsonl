@@ -1,0 +1,3 @@
+{"node": "load_context", "graph": "verify_group", "info_gap": false}
+{"node": "promote", "promoted": false, "crystallize": {"applied": false}}
+{"node": "finalize_reproduction", "validation_ok": false, "issues": ["verification_sequence.yaml missing step for simulation/gpio_ext", "missing scripts/README.md"]}

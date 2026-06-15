@@ -31,6 +31,17 @@ def test_jobs_field_takes_precedence_over_j():
     assert cfg.jobs == 8
 
 
+def test_ignore_filelist_hyphen_alias_in_json():
+    cfg = parse_run_request_json(
+        {
+            "filelist": "top.f",
+            "ignore-filelist": ["pcie_block.f", "phy_rtl.f"],
+        },
+        base_dir="/tmp",
+    )
+    assert cfg.ignore_filelist == ("pcie_block.f", "phy_rtl.f")
+
+
 def test_ignore_path_hyphen_alias_in_json():
     cfg = parse_run_request_json(
         {

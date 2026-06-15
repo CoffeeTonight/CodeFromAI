@@ -279,6 +279,13 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="MOD",
         help="mark module as ignorePath (repeatable; env: SCAN_INST_IGNORE_MODULE)",
     )
+    ign.add_argument(
+        "--ignore-filelist",
+        action="append",
+        default=[],
+        metavar="FL",
+        help="ignore RTL listed by matching .f (repeatable; env: SCAN_INST_IGNORE_FILELIST)",
+    )
 
     cache = ap.add_argument_group("cache and parallelism")
     cache.add_argument(
@@ -484,6 +491,7 @@ def main(argv=None) -> int:
             ignore_paths=list(cfg.ignore_path),
             ignore_path_files=list(cfg.ignore_path_file),
             ignore_modules=list(cfg.ignore_module),
+            ignore_filelists=list(cfg.ignore_filelist),
             jobs=cfg.jobs,
             use_cache=use_cache,
             refresh_cache=cfg.refresh_cache,

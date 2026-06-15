@@ -45,6 +45,7 @@ class RunConfig:
     ignore_path: Tuple[str, ...] = ()
     ignore_path_file: Tuple[str, ...] = ()
     ignore_module: Tuple[str, ...] = ()
+    ignore_filelist: Tuple[str, ...] = ()
     jobs: int = 0
     low_memory: bool = False
     cache_dir: Optional[str] = None
@@ -371,6 +372,12 @@ def parse_run_request_json(
                 field="ignore_module",
             )
         ),
+        ignore_filelist=tuple(
+            _parse_string_list(
+                data.get("ignore_filelist", data.get("ignore-filelist")),
+                field="ignore_filelist",
+            )
+        ),
         jobs=_jobs_from_document(data)[0],
         low_memory=bool(data.get("low_memory", False)),
         cache_dir=_resolve_path(base, data.get("cache_dir")),
@@ -428,6 +435,15 @@ def merge_options_from_connect_batch_json(
             )
             if ignore:
                 out = replace(out, ignore_path=ignore)
+
+    if not getattr(args, "ignore_filelist", None) and not out.ignore_filelist:
+        fl_raw = data.get("ignore_filelist", data.get("ignore-filelist"))
+        if fl_raw is not None:
+            ignore_fl = tuple(
+                _parse_string_list(fl_raw, field="ignore_filelist")
+            )
+            if ignore_fl:
+                out = replace(out, ignore_filelist=ignore_fl)
 
     if not args.no_cache and not out.no_cache and bool(data.get("no_cache")):
         out = replace(out, no_cache=True)
@@ -579,6 +595,8 @@ def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:
         payload["ignore_path_file"] = list(cfg.ignore_path_file)
     if cfg.ignore_module:
         payload["ignore_module"] = list(cfg.ignore_module)
+    if cfg.ignore_filelist:
+        payload["ignore_filelist"] = list(cfg.ignore_filelist)
     if cfg.cache_dir:
         payload["cache_dir"] = cfg.cache_dir
     if cfg.log_file:
@@ -698,6 +716,7 @@ def run_config_from_args(args: Any) -> RunConfig:
         ignore_path=tuple(args.ignore_path or ()),
         ignore_path_file=tuple(args.ignore_path_file or ()),
         ignore_module=tuple(args.ignore_module or ()),
+        ignore_filelist=tuple(getattr(args, "ignore_filelist", None) or ()),
         jobs=int(args.jobs),
         low_memory=bool(getattr(args, "low_memory", False)),
         cache_dir=args.cache_dir,
@@ -795,6 +814,8 @@ def merge_run_config(base: RunConfig, cli: RunConfig, args: Any) -> RunConfig:
         out = replace(out, ignore_path_file=cli.ignore_path_file)
     if args.ignore_module:
         out = replace(out, ignore_module=cli.ignore_module)
+    if getattr(args, "ignore_filelist", None):
+        out = replace(out, ignore_filelist=cli.ignore_filelist)
     if _field_overridden(args, "jobs", 0):
         out = replace(out, jobs=cli.jobs)
     if getattr(args, "low_memory", False):

@@ -144,6 +144,7 @@ def build_design_index(
     ignore_paths: Sequence[str],
     ignore_path_files: Sequence[str],
     ignore_modules: Sequence[str],
+    ignore_filelists: Sequence[str],
     jobs: int,
     low_memory: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
@@ -171,6 +172,7 @@ def build_design_index(
         ignore_paths=list(ignore_paths),
         ignore_path_files=list(ignore_path_files),
         ignore_modules=list(ignore_modules),
+        ignore_filelists=list(ignore_filelists),
         jobs=jobs,
         low_memory=low_memory,
         on_progress=on_progress,
@@ -193,6 +195,7 @@ def _incremental_update(
     ignore_paths: Sequence[str],
     ignore_path_files: Sequence[str],
     ignore_modules: Sequence[str],
+    ignore_filelists: Sequence[str],
     jobs: int,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> DesignIndex:
@@ -223,6 +226,7 @@ def load_or_build_index(
     ignore_paths: Sequence[str],
     ignore_path_files: Sequence[str],
     ignore_modules: Sequence[str],
+    ignore_filelists: Sequence[str],
     jobs: int,
     use_cache: bool,
     refresh_cache: bool,
@@ -243,6 +247,7 @@ def load_or_build_index(
         ignore_paths=ignore_paths,
         ignore_path_files=ignore_path_files,
         ignore_modules=ignore_modules,
+        ignore_filelists=ignore_filelists,
     )
     path = cache_path_for(cache_dir, config_key)
     manifest = build_source_manifest(fl, ignore_path_files=ignore_path_files)
@@ -276,6 +281,7 @@ def load_or_build_index(
                     ignore_paths=ignore_paths,
                     ignore_path_files=ignore_path_files,
                     ignore_modules=ignore_modules,
+                    ignore_filelists=ignore_filelists,
                     jobs=jobs,
                     on_progress=on_progress,
                 )
@@ -297,6 +303,7 @@ def load_or_build_index(
         ignore_paths=ignore_paths,
         ignore_path_files=ignore_path_files,
         ignore_modules=ignore_modules,
+        ignore_filelists=ignore_filelists,
         jobs=jobs,
         low_memory=low_memory,
         on_progress=on_progress,

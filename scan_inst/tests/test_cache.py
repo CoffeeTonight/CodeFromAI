@@ -44,7 +44,8 @@ module leaf; endmodule
 def test_cache_roundtrip_pickle(tmp_path):
     fl_path, rtl = _write_design(tmp_path)
     fl = parse_filelist(fl_path)
-    index = build_design_index(fl, ignore_paths=[], ignore_path_files=[], ignore_modules=[], jobs=1)
+    index = build_design_index(fl, ignore_paths=[], ignore_path_files=[], ignore_modules=[],
+            ignore_filelists=[], jobs=1)
     root, rows = elaborate(index, "top")
 
     cache_dir = tmp_path / "cache"
@@ -56,6 +57,7 @@ def test_cache_roundtrip_pickle(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
     )
     bundle = ScanInstCacheBundle(
         version=CACHE_VERSION,
@@ -100,6 +102,7 @@ def test_load_or_build_index_cache_hit(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
         jobs=1,
         use_cache=True,
         refresh_cache=False,
@@ -116,6 +119,7 @@ def test_load_or_build_index_cache_hit(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
         jobs=1,
         use_cache=True,
         refresh_cache=False,
@@ -138,6 +142,7 @@ def test_cache_incremental_on_rtl_change(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
         jobs=1,
         use_cache=True,
         refresh_cache=False,
@@ -157,6 +162,7 @@ def test_cache_incremental_on_rtl_change(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
         jobs=1,
         use_cache=True,
         refresh_cache=False,
@@ -179,6 +185,7 @@ def test_store_cached_elab_persists(tmp_path):
         ignore_paths=[],
         ignore_path_files=[],
         ignore_modules=[],
+            ignore_filelists=[],
         jobs=1,
         use_cache=True,
         refresh_cache=False,

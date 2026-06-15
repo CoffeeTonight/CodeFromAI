@@ -36,6 +36,7 @@ environment:
   SCAN_INST_CACHE_DIR         index/elab cache root
   SCAN_INST_IGNORE_PATH       default --ignore-path patterns (comma-separated)
   SCAN_INST_IGNORE_MODULE     default --ignore-module names (comma-separated)
+  SCAN_INST_IGNORE_FILELIST   default --ignore-filelist patterns (comma-separated)
   SCAN_INST_NO_INCLUDE_WARM   skip serial include warm before parallel preprocess
   SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 1000; 0 = no limit)
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
@@ -142,6 +143,7 @@ Ignore rules
   ignore-path (string | array)       RTL path globs (--ignore-path)
   ignore-path-file (string | array)  External ignore lists (--ignore-path-file)
   ignore-module (string | array)     Module names (--ignore-module)
+  ignore-filelist (string | array)   Listing .f names/paths (--ignore-filelist)
 
 Cache / parallelism
 -------------------
@@ -239,6 +241,8 @@ Options
   j / job / workers   Aliases for jobs
   ignore-path         RTL folder patterns; matched on resolved absolute paths
                       (filelist sources and every `include` target)
+  ignore-filelist     Listing .f patterns; RTL listed by a matching filelist is
+                      skipped (immediate listing + provenance chain)
   no-cache            Disable index/elab disk cache
   refresh-cache       Force index rebuild
   defines             Merged into compile defines (also used at index build

@@ -92,6 +92,7 @@ def _run_once(
             ignore_paths=[],
             ignore_path_files=[],
             ignore_modules=[],
+            ignore_filelists=[],
             jobs=jobs,
             low_memory=low_memory,
         )

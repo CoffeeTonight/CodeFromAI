@@ -120,6 +120,7 @@ def _inject_referenced_ignore_stubs(
     *,
     path_patterns: Sequence[str],
     module_patterns: Sequence[str],
+    filelist_patterns: Sequence[str] = (),
 ) -> None:
     """
     Add ignorePath stubs for instance targets not defined in parsed RTL.
@@ -127,7 +128,7 @@ def _inject_referenced_ignore_stubs(
     Avoids reading every file under ignore-path directories; hierarchy references
     alone determine which module names need a stop boundary.
     """
-    if not path_patterns and not module_patterns:
+    if not path_patterns and not module_patterns and not filelist_patterns:
         return
     referenced: set[str] = set()
     for rec in merged.values():
@@ -147,7 +148,7 @@ def _inject_referenced_ignore_stubs(
                 stop_reason="ignorePath",
                 is_blackbox=True,
             )
-        elif path_patterns:
+        elif path_patterns or filelist_patterns:
             merged[mod_name] = ModuleRecord(
                 module_name=mod_name,
                 file_path="",
@@ -416,6 +417,7 @@ class DesignIndex:
         *,
         ignore_path_patterns: Optional[List[str]] = None,
         ignore_module_patterns: Optional[List[str]] = None,
+        ignore_filelist_patterns: Optional[List[str]] = None,
         file_via_filelist: Optional[Mapping[str, str]] = None,
         file_filelist_chain: Optional[Mapping[str, str]] = None,
         filelist_info: Optional[Mapping[str, FilelistLinkInfo]] = None,
@@ -429,6 +431,7 @@ class DesignIndex:
         self.modules: Dict[str, ModuleRecord] = dict(modules)
         self.ignore_path_patterns: List[str] = list(ignore_path_patterns or [])
         self.ignore_module_patterns: List[str] = list(ignore_module_patterns or [])
+        self.ignore_filelist_patterns: List[str] = list(ignore_filelist_patterns or [])
         self.file_via_filelist: Dict[str, str] = dict(file_via_filelist or {})
         self.file_filelist_chain: Dict[str, str] = dict(file_filelist_chain or {})
         self.filelist_info: Dict[str, FilelistLinkInfo] = dict(filelist_info or {})
@@ -530,7 +533,13 @@ class DesignIndex:
         for name in list(self.modules):
             if self.modules[name].file_path in touched:
                 del self.modules[name]
-        parse_sources = list(changed_files)
+        parse_sources, _ = partition_sources(
+            list(changed_files),
+            self.ignore_path_patterns,
+            filelist_patterns=self.ignore_filelist_patterns,
+            file_via_filelist=self.file_via_filelist,
+            file_filelist_chain=self.file_filelist_chain,
+        )
         if parse_sources:
             merged = _build_merged_from_sources(
                 parse_sources,
@@ -556,6 +565,7 @@ class DesignIndex:
         *,
         path_patterns: List[str],
         module_patterns: List[str],
+        filelist_patterns: Optional[List[str]] = None,
         library_files: Optional[List[str]] = None,
         library_dirs: Optional[List[str]] = None,
         libexts: Optional[List[str]] = None,
@@ -590,6 +600,7 @@ class DesignIndex:
             merged,
             path_patterns=path_patterns,
             module_patterns=module_patterns,
+            filelist_patterns=list(filelist_patterns or ()),
         )
         if library_files is not None or library_dirs is not None:
             stubs = scan_library_modules(
@@ -610,6 +621,7 @@ class DesignIndex:
             merged,
             ignore_path_patterns=path_patterns,
             ignore_module_patterns=module_patterns,
+            ignore_filelist_patterns=list(filelist_patterns or ()),
             file_via_filelist=file_via_filelist,
             file_filelist_chain=file_filelist_chain,
             filelist_info=filelist_info,
@@ -636,6 +648,7 @@ class DesignIndex:
         ignore_paths: Optional[List[str]] = None,
         ignore_path_files: Optional[List[str]] = None,
         ignore_modules: Optional[List[str]] = None,
+        ignore_filelists: Optional[List[str]] = None,
         jobs: int = 0,
         low_memory: bool = False,
         on_progress: Optional[Callable[[str], None]] = None,
@@ -645,20 +658,33 @@ class DesignIndex:
         filelist_children: Optional[Mapping[str, List[str]]] = None,
         filelist_edges: Optional[List[tuple[str, str, str]]] = None,
     ) -> "DesignIndex":
-        path_patterns, module_patterns = resolve_ignore_path_patterns(
+        path_patterns, module_patterns, filelist_patterns = resolve_ignore_path_patterns(
             ignore_paths or (),
             ignore_path_files=ignore_path_files or (),
             ignore_modules=ignore_modules or (),
+            ignore_filelists=ignore_filelists or (),
         )
         src_list = sorted(
             {str(Path(s).resolve()) for s in sources},
             key=str,
         )
-        parse_sources, ignore_sources = partition_sources(src_list, path_patterns)
+        parse_sources, ignore_sources = partition_sources(
+            src_list,
+            path_patterns,
+            filelist_patterns=filelist_patterns,
+            file_via_filelist=file_via_filelist,
+            file_filelist_chain=file_filelist_chain,
+        )
         if on_progress and ignore_sources:
+            rule_bits: List[str] = []
+            if path_patterns:
+                rule_bits.append(f"{len(path_patterns)} path")
+            if filelist_patterns:
+                rule_bits.append(f"{len(filelist_patterns)} filelist")
+            rules = " + ".join(rule_bits) if rule_bits else "ignore"
             on_progress(
-                f"index: {len(ignore_sources)} sources in ignore-path "
-                f"({len(path_patterns)} patterns; skip file scan, stub on reference)"
+                f"index: {len(ignore_sources)} sources ignored "
+                f"({rules}; skip scan, stub on reference)"
             )
         merged = _build_merged_from_sources(
             parse_sources,
@@ -675,6 +701,7 @@ class DesignIndex:
             merged,
             path_patterns=path_patterns,
             module_patterns=module_patterns,
+            filelist_patterns=filelist_patterns,
             library_files=library_files,
             library_dirs=library_dirs,
             libexts=libexts,
@@ -700,6 +727,7 @@ class DesignIndex:
         ignore_paths: Optional[List[str]] = None,
         ignore_path_files: Optional[List[str]] = None,
         ignore_modules: Optional[List[str]] = None,
+        ignore_filelists: Optional[List[str]] = None,
         jobs: int = 0,
         on_progress: Optional[Callable[[str], None]] = None,
         file_via_filelist: Optional[Mapping[str, str]] = None,
@@ -708,13 +736,20 @@ class DesignIndex:
         filelist_children: Optional[Mapping[str, List[str]]] = None,
         filelist_edges: Optional[List[tuple[str, str, str]]] = None,
     ) -> DesignIndex:
-        path_patterns, module_patterns = resolve_ignore_path_patterns(
+        path_patterns, module_patterns, filelist_patterns = resolve_ignore_path_patterns(
             ignore_paths or (),
             ignore_path_files=ignore_path_files or (),
             ignore_modules=ignore_modules or (),
+            ignore_filelists=ignore_filelists or (),
         )
         sources = sorted(preprocessed.keys())
-        parse_sources, ignore_sources = partition_sources(sources, path_patterns)
+        parse_sources, ignore_sources = partition_sources(
+            sources,
+            path_patterns,
+            filelist_patterns=filelist_patterns,
+            file_via_filelist=file_via_filelist,
+            file_filelist_chain=file_filelist_chain,
+        )
         merged = _scan_sources(
             preprocessed,
             parse_sources,
@@ -726,6 +761,7 @@ class DesignIndex:
             merged,
             path_patterns=path_patterns,
             module_patterns=module_patterns,
+            filelist_patterns=filelist_patterns,
             library_files=library_files,
             library_dirs=library_dirs,
             libexts=libexts,

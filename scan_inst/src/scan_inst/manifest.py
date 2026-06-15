@@ -99,6 +99,7 @@ def config_cache_key(
     ignore_paths: Sequence[str],
     ignore_path_files: Sequence[str],
     ignore_modules: Sequence[str],
+    ignore_filelists: Sequence[str],
 ) -> str:
     """Stable cache filename key (no per-source stats)."""
     hasher = hashlib.sha256()
@@ -119,6 +120,7 @@ def config_cache_key(
     _feed_mapping(hasher, defines)
     _feed_patterns(hasher, ignore_paths)
     _feed_patterns(hasher, ignore_modules)
+    _feed_patterns(hasher, ignore_filelists)
     for ignore_file in sorted(ignore_path_files):
         ip = Path(ignore_file)
         _feed(hasher, str(ip.resolve()))

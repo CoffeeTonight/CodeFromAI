@@ -423,7 +423,7 @@ Commands:
   help             Show this message
 
 Options:
-  -o, --output DIR   Mirror gen/sim artifacts under DIR (see layout below)
+  -o, --output DIR   Mirror gen/sim artifacts under DIR (any position on the line)
                      Sim per-CPU logs go to DIR/logs/full_campaign during run.
 
 Environment:
@@ -446,7 +446,8 @@ Note: make/iverilog still build in the repo tree; -o collects a portable artifac
 Examples:
   ./example.py
   ./example.py -o /tmp/verif-out all
-  ./example.py -o ./artifacts gen 64
+  ./example.py gen --axi 0 -o ./artifacts
+  ./example.py all --axi 0 -o /tmp/verif-out
   ./example.py gen 64
   ./example.py gen --axi 62 --ahb 1 --apb 1
   ./example.py gen --apb 1 --axi 62 --ahb 1
@@ -459,19 +460,28 @@ Examples:
 """
 
 
+def extract_output_option(argv: list[str]) -> list[str]:
+    """Strip -o/--output DIR from anywhere; may appear multiple times (last wins)."""
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-o", "--output"):
+            if i + 1 >= len(argv):
+                die(f"expected directory after {a}")
+            configure_outdir(Path(argv[i + 1]))
+            i += 2
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="example.py",
         description="VerifCPU Verilog campaign runner (Python port of example.sh)",
         add_help=False,
-    )
-    p.add_argument(
-        "-o",
-        "--output",
-        metavar="DIR",
-        dest="output",
-        default=None,
-        help="mirror gen/sim artifacts under DIR",
     )
     p.add_argument(
         "command",
@@ -485,13 +495,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    raw = list(argv) if argv is not None else sys.argv[1:]
+    filtered = extract_output_option(raw)
+    args = build_parser().parse_args(filtered)
     if args.help:
         print(HELP_TEXT)
         return 0
-
-    if args.output is not None:
-        configure_outdir(Path(args.output))
 
     cmd = args.command
     rest = list(args.rest)

@@ -427,7 +427,7 @@ Commands:
   help             Show this message
 
 Options:
-  -o, --output DIR   Mirror gen/sim artifacts under DIR (see layout below)
+  -o, --output DIR   Mirror gen/sim artifacts under DIR (any position on the line)
                      Sim per-CPU logs go to DIR/logs/full_campaign during run.
 
 Environment:
@@ -450,7 +450,8 @@ Note: make/iverilog still build in the repo tree; -o collects a portable artifac
 Examples:
   ./example.sh
   ./example.sh -o /tmp/verif-out all
-  ./example.sh -o ./artifacts gen 64
+  ./example.sh gen --axi 0 -o ./artifacts
+  ./example.sh all --axi 0 -o /tmp/verif-out
   ./example.sh gen 64
   ./example.sh gen --axi 62 --ahb 1 --apb 1
   ./example.sh gen --apb 1 --axi 62 --ahb 1   # APB at SCPU1, then AXI, then AHB
@@ -463,20 +464,29 @@ Examples:
 EOF
 }
 
-main() {
-  local -a argv=("$@")
-  while (( ${#argv[@]} > 0 )); do
-    case "${argv[0]}" in
+extract_output_options() {
+  local -a src=("$@")
+  local -a out=()
+  local i=0
+  while (( i < ${#src[@]} )); do
+    case "${src[i]}" in
       -o|--output)
-        [[ ${#argv[@]} -ge 2 ]] || die "expected directory after ${argv[0]}"
-        configure_outdir "${argv[1]}"
-        argv=("${argv[@]:2}")
+        (( i + 1 < ${#src[@]} )) || die "expected directory after ${src[i]}"
+        configure_outdir "${src[i + 1]}"
+        i=$((i + 2))
         ;;
       *)
-        break
+        out+=("${src[i]}")
+        i=$((i + 1))
         ;;
     esac
   done
+  argv=("${out[@]}")
+}
+
+main() {
+  local -a argv=()
+  extract_output_options "$@"
 
   local cmd="${argv[0]:-all}"
   local -a rest=()

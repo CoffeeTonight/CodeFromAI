@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Tuple
 
 
 @dataclass
@@ -18,9 +18,37 @@ class ModuleRecord:
     body: str = ""
     raw_params: Dict[str, str] = field(default_factory=dict)
     instances: List[InstanceEdge] = field(default_factory=list)
+    needs_generate_fold: bool = False
     is_blackbox: bool = False
     is_interface: bool = False
     stop_reason: str = ""
+
+
+@dataclass
+class ElabIndex:
+    """Pre-built hierarchy lookups for connectivity / cone (built once per elab)."""
+
+    rows: List[FlatRow]
+    rows_by_path: Dict[str, FlatRow]
+    child_by_parent_leaf: Dict[Tuple[str, str], str]
+    depth_by_path: Dict[str, int]
+
+    @classmethod
+    def from_rows(cls, rows: Sequence[FlatRow]) -> "ElabIndex":
+        rows_list = list(rows)
+        rows_by_path = {r.full_path: r for r in rows_list}
+        child_by_parent_leaf: Dict[Tuple[str, str], str] = {}
+        depth_by_path: Dict[str, int] = {}
+        for row in rows_list:
+            depth_by_path[row.full_path] = row.depth
+            if row.parent_path:
+                child_by_parent_leaf[(row.parent_path, row.inst_leaf)] = row.full_path
+        return cls(
+            rows=rows_list,
+            rows_by_path=rows_by_path,
+            child_by_parent_leaf=child_by_parent_leaf,
+            depth_by_path=depth_by_path,
+        )
 
 
 @dataclass

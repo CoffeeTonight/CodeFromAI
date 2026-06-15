@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Mapping, Optional, Sequence
 
-from scan_inst.generate_fold import fold_generate_regions
+from scan_inst.generate_fold import prepare_body_for_instance_scan
 from scan_inst.index import DesignIndex
 from scan_inst.inst_scan import _MODULE_BLOCK_RE, scan_hierarchy_instances
 from scan_inst.models import InstanceEdge
@@ -178,7 +178,7 @@ def find_child_instance(
         return None
     raw = dict(scoped_params or index.get_module(parent_mod).raw_params if index.get_module(parent_mod) else {})
     pmap = resolve_param_map(raw, parent=parent_ctx)
-    folded = fold_generate_regions(body, pmap)
+    folded = prepare_body_for_instance_scan(body, pmap)
     for edge in scan_hierarchy_instances(folded, param_map=pmap):
         if edge.inst_name.lower() == inst_leaf.lower():
             return edge

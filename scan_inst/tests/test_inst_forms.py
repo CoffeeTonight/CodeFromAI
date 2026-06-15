@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from scan_inst.index import DesignIndex
 from scan_inst.inst_scan import scan_hierarchy_instances
 from scan_inst.preprocess import preprocess_file
+from scan_inst.generate_fold import needs_generate_fold, prepare_body_for_instance_scan
 from scan_inst.scan import flatten, scan_preprocessed
+
+
+def _index_instances(text: str, rtl_path, mod_name: str = "top"):
+    index = DesignIndex.build({str(rtl_path): text})
+    return index.instances_for(mod_name, {}, {})
 
 
 def test_param_before_inst():
@@ -33,6 +40,41 @@ def test_comma_separated_instances():
     edges = scan_hierarchy_instances(body)
     assert len(edges) == 2
     assert {e.inst_name for e in edges} == {"u1", "u2"}
+
+
+def test_needs_generate_fold_skips_plain_modules():
+    plain = "  child u0 ( );\n  assign x = y;\n"
+    assert not needs_generate_fold(plain)
+    assert prepare_body_for_instance_scan(plain, {}) is plain
+
+
+def test_index_defers_generate_fold_to_instances_for(tmp_path):
+    rtl = tmp_path / "g.v"
+    rtl.write_text(
+        """
+module top;
+  generate
+    for (genvar i=0; i<2; i++) begin : g
+      child u_c ( );
+    end
+  endgenerate
+endmodule
+module child; endmodule
+""",
+        encoding="utf-8",
+    )
+    text = preprocess_file(rtl, [], {})
+    mods = scan_preprocessed(text, str(rtl))
+    assert mods["top"].needs_generate_fold
+    assert mods["top"].instances == []
+    from scan_inst.elab import elaborate
+
+    index = DesignIndex.build({str(rtl): text})
+    assert index.modules["top"].needs_generate_fold
+    edges = index.instances_for("top", {}, {})
+    assert len(edges) == 2
+    _, rows = elaborate(index, "top")
+    assert any(r.full_path.startswith("top.g[") for r in rows)
 
 
 def test_generate_block_instances(tmp_path):
@@ -105,7 +147,8 @@ module b_mod; endmodule
     )
     text = preprocess_file(rtl, [], {})
     mods = scan_preprocessed(text, str(rtl))
-    insts = mods["top"].instances
+    assert mods["top"].needs_generate_fold
+    insts = _index_instances(text, rtl)
     assert any(e.child_module == "a_mod" for e in insts)
     assert not any(e.child_module == "b_mod" for e in insts)
 
@@ -127,7 +170,8 @@ module leaf; endmodule
     )
     text = preprocess_file(rtl, [], {})
     mods = scan_preprocessed(text, str(rtl))
-    names = sorted(e.inst_name for e in mods["top"].instances)
+    assert mods["top"].needs_generate_fold
+    names = sorted(e.inst_name for e in _index_instances(text, rtl))
     assert names == ["u_arr[0]", "u_arr[1]", "u_arr[2]"]
 
 
@@ -148,7 +192,8 @@ module mem; endmodule
     )
     text = preprocess_file(rtl, [], {})
     mods = scan_preprocessed(text, str(rtl))
-    names = [e.inst_name for e in mods["top"].instances]
+    assert mods["top"].needs_generate_fold
+    names = [e.inst_name for e in _index_instances(text, rtl)]
     assert names == ["u_arr[0]", "u_arr[1]"]
 
 
@@ -175,8 +220,10 @@ module stub; endmodule
     )
     text = preprocess_file(rtl, [], {"GEN_PCIE": "1"})
     mods = scan_preprocessed(text, str(rtl))
-    assert any(e.child_module == "pcie" for e in mods["top"].instances)
-    assert not any(e.child_module == "usb" for e in mods["top"].instances)
+    assert mods["top"].needs_generate_fold
+    insts = _index_instances(text, rtl)
+    assert any(e.child_module == "pcie" for e in insts)
+    assert not any(e.child_module == "usb" for e in insts)
 
 
 def test_localparam_drives_generate_for(tmp_path):
@@ -198,7 +245,8 @@ module leaf; endmodule
     )
     text = preprocess_file(rtl, [], {})
     mods = scan_preprocessed(text, str(rtl))
-    names = sorted(e.inst_name for e in mods["top"].instances)
+    assert mods["top"].needs_generate_fold
+    names = sorted(e.inst_name for e in _index_instances(text, rtl))
     assert names == ["u_arr[0]", "u_arr[1]", "u_arr[2]", "u_arr[3]"]
 
 

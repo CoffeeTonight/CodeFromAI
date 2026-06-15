@@ -129,6 +129,51 @@ module:secret_mod
     assert not any(r.full_path.startswith("top.u.u") for r in rows)
 
 
+def test_build_from_sources_default_is_two_pass(tmp_path):
+    rtl = tmp_path / "d.v"
+    rtl.write_text(
+        """
+module top;
+  child u0 ( );
+endmodule
+module child;
+  leaf u_l ( );
+endmodule
+module leaf; endmodule
+""",
+        encoding="utf-8",
+    )
+    sources = [str(rtl)]
+    index = DesignIndex.build_from_sources(sources, include_dirs=[], defines={}, jobs=1)
+    assert set(index.modules) == {"top", "child", "leaf"}
+    assert index.low_memory is False
+    assert not index._preprocessed_sources
+
+
+def test_build_from_sources_low_memory_matches_two_pass(tmp_path):
+    rtl = tmp_path / "d.v"
+    rtl.write_text(
+        """
+module top;
+  child u0 ( );
+endmodule
+module child; endmodule
+""",
+        encoding="utf-8",
+    )
+    sources = [str(rtl)]
+    normal = DesignIndex.build_from_sources(
+        sources, include_dirs=[], defines={}, jobs=1, low_memory=False
+    )
+    fused = DesignIndex.build_from_sources(
+        sources, include_dirs=[], defines={}, jobs=1, low_memory=True
+    )
+    assert set(normal.modules) == set(fused.modules)
+    assert fused.low_memory is True
+    for name in normal.modules:
+        assert normal.modules[name].instances == fused.modules[name].instances
+
+
 def test_parallel_index_matches_serial(tmp_path):
     rtl = tmp_path / "d.v"
     rtl.write_text(

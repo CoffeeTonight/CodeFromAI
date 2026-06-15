@@ -45,6 +45,7 @@ class RunConfig:
     ignore_path_file: Tuple[str, ...] = ()
     ignore_module: Tuple[str, ...] = ()
     jobs: int = 0
+    low_memory: bool = False
     cache_dir: Optional[str] = None
     no_cache: bool = False
     refresh_cache: bool = False
@@ -283,6 +284,7 @@ def parse_run_request_json(
             _parse_string_list(data.get("ignore_module"), field="ignore_module")
         ),
         jobs=int(data.get("jobs", 0)),
+        low_memory=bool(data.get("low_memory", False)),
         cache_dir=_resolve_path(base, data.get("cache_dir")),
         no_cache=bool(data.get("no_cache", False)),
         refresh_cache=bool(data.get("refresh_cache", False)),
@@ -304,6 +306,7 @@ def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:
         "output": cfg.output,
         "defines": dict(cfg.defines),
         "jobs": cfg.jobs,
+        "low_memory": cfg.low_memory,
         "no_cache": cfg.no_cache,
         "refresh_cache": cfg.refresh_cache,
         "quiet": cfg.quiet,
@@ -482,6 +485,7 @@ def run_config_from_args(args: Any) -> RunConfig:
         ignore_path_file=tuple(args.ignore_path_file or ()),
         ignore_module=tuple(args.ignore_module or ()),
         jobs=int(args.jobs),
+        low_memory=bool(getattr(args, "low_memory", False)),
         cache_dir=args.cache_dir,
         no_cache=bool(args.no_cache),
         refresh_cache=bool(args.refresh_cache),
@@ -579,6 +583,8 @@ def merge_run_config(base: RunConfig, cli: RunConfig, args: Any) -> RunConfig:
         out = replace(out, ignore_module=cli.ignore_module)
     if _field_overridden(args, "jobs", 0):
         out = replace(out, jobs=cli.jobs)
+    if getattr(args, "low_memory", False):
+        out = replace(out, low_memory=True)
     if _field_overridden(args, "cache_dir", None):
         out = replace(out, cache_dir=cli.cache_dir)
     if args.no_cache:

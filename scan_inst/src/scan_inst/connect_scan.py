@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
-from scan_inst.generate_fold import fold_generate_regions
+from scan_inst.generate_fold import fold_generate_regions, prepare_body_for_instance_scan
 from scan_inst.params import (
     _find_top_level_op,
     _param_int,
@@ -261,7 +261,8 @@ def _canonicalize_connect_node(
                 return base
             parts.append(f"[{idx}]")
         else:
-            parts.append(f"[{re.sub(r'\\s+', '', inner)}]")
+            inner_clean = re.sub(r"\s+", "", inner)
+            parts.append(f"[{inner_clean}]")
     return "".join(parts)
 
 
@@ -1608,7 +1609,7 @@ def prepare_connect_body(
     text = _collect_define_undef(body, pmap)
     text = _expand_macros(text, pmap)
     text = apply_ifdef_filter(text, pmap)
-    return fold_generate_regions(
+    return prepare_body_for_instance_scan(
         text,
         dict(param_map or {}),
         over_approximate_if=over_approximate_if,

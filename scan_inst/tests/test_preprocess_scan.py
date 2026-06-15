@@ -5,7 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from scan_inst.filelist import parse_filelist
-from scan_inst.preprocess import apply_ifdef_filter, preprocess_file, strip_comments
+from scan_inst.preprocess import (
+    _INCLUDE_UNIT_CACHE,
+    apply_ifdef_filter,
+    clear_include_unit_cache,
+    preprocess_file,
+    preprocess_sources,
+    strip_comments,
+)
 from scan_inst.scan import flatten, scan_preprocessed
 
 
@@ -34,6 +41,19 @@ def test_ifdef_filter():
     assert "u_a" in on and "u_b" not in on
     off = apply_ifdef_filter(src, {"USE_A": "0"})
     assert "u_b" in off and "u_a" not in off
+
+
+def test_preprocess_warms_shared_includes(tmp_path: Path):
+    inc = tmp_path / "shared.vh"
+    inc.write_text("`define SHARED_FLAG 1\n", encoding="utf-8")
+    sources = []
+    for i in range(8):
+        p = tmp_path / f"m_{i}.v"
+        p.write_text(f'`include "shared.vh"\nmodule m_{i}; endmodule\n', encoding="utf-8")
+        sources.append(str(p))
+    clear_include_unit_cache()
+    preprocess_sources(sources, [tmp_path], {}, jobs=1)
+    assert any("shared.vh" in k[0] for k in _INCLUDE_UNIT_CACHE)
 
 
 def test_include_and_define(tmp_path: Path):

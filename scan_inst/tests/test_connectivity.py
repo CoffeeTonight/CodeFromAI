@@ -18,6 +18,7 @@ from scan_inst.connect_scan import (
     split_statements,
 )
 from scan_inst.generate_fold import fold_generate_regions
+from scan_inst import connect_endpoints as endpoints_mod
 from scan_inst import connectivity as connectivity_mod
 from scan_inst.connect_request import (
     ConnectivityCheck,
@@ -1253,13 +1254,13 @@ def test_connectivity_session_reuses_mod_cache(tmp_path: Path):
     session = ConnectivitySession(rows=rows, index=index, top="top")
 
     build_calls: list[int] = []
-    orig = connectivity_mod.build_module_connect_index
+    orig = endpoints_mod.build_module_connect_index
 
     def counting_build(*args, **kwargs):
         build_calls.append(1)
         return orig(*args, **kwargs)
 
-    connectivity_mod.build_module_connect_index = counting_build
+    endpoints_mod.build_module_connect_index = counting_build
     try:
         r0 = session.check("top.s0", "top.d0")
         r1 = session.check("top.s1", "top.d1")
@@ -1269,11 +1270,11 @@ def test_connectivity_session_reuses_mod_cache(tmp_path: Path):
             isolated_calls.append(1)
             return orig(*args, **kwargs)
 
-        connectivity_mod.build_module_connect_index = isolated_build
+        endpoints_mod.build_module_connect_index = isolated_build
         check_connectivity("top.s0", "top.d0", rows=rows, index=index, top="top")
         check_connectivity("top.s1", "top.d1", rows=rows, index=index, top="top")
     finally:
-        connectivity_mod.build_module_connect_index = orig
+        endpoints_mod.build_module_connect_index = orig
 
     assert r0.connected and r1.connected
     assert session.modules_cached >= 1

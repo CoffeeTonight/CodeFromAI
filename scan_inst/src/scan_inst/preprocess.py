@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
 import os
-from concurrent.futures import ProcessPoolExecutor
+import re
+import sys
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
 from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
 _IFDEF_RE = re.compile(
@@ -28,26 +30,36 @@ _INCLUDE_RE = re.compile(
 )
 _MACRO_USE_RE = re.compile(r"`([A-Za-z_]\w*)")
 _BIND_LINE_RE = re.compile(r"^\s*bind\b", re.IGNORECASE | re.MULTILINE)
+_INCLUDE_LINE_RE = re.compile(r"^\s*`include\b", re.IGNORECASE)
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+
+# Per-process include unit cache: (path, mtime_ns, size) -> (text, define ops).
+_IncludeCacheKey = Tuple[str, int, int]
+_DefineOp = Tuple[str, str, str]  # ("set"|"undef", name, value)
+_INCLUDE_UNIT_CACHE: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]] = {}
+
+
+def clear_include_unit_cache() -> None:
+    """Drop cached include expansions (tests / long-lived workers)."""
+    _INCLUDE_UNIT_CACHE.clear()
+
+
+def _snapshot_include_cache() -> Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]]:
+    return dict(_INCLUDE_UNIT_CACHE)
+
+
+def _install_include_cache_snapshot(
+    snapshot: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]],
+) -> None:
+    """Seed worker-local include cache (required when start method is ``spawn``)."""
+    _INCLUDE_UNIT_CACHE.clear()
+    _INCLUDE_UNIT_CACHE.update(snapshot)
 
 
 def strip_comments(text: str) -> str:
-    out: List[str] = []
-    i, n = 0, len(text)
-    while i < n:
-        if text.startswith("//", i):
-            i += 2
-            while i < n and text[i] not in "\r\n":
-                i += 1
-            continue
-        if text.startswith("/*", i):
-            i += 2
-            while i < n - 1 and text[i : i + 2] != "*/":
-                i += 1
-            i = min(n, i + 2)
-            continue
-        out.append(text[i])
-        i += 1
-    return "".join(out)
+    text = _BLOCK_COMMENT_RE.sub("", text)
+    return _LINE_COMMENT_RE.sub("", text)
 
 
 def _define_active(name: str, defines: Mapping[str, str]) -> bool:
@@ -157,26 +169,47 @@ def _resolve_include(
     return None
 
 
+def _apply_define_ops(
+    defines: MutableMapping[str, str],
+    ops: Sequence[_DefineOp],
+) -> None:
+    for kind, name, val in ops:
+        if kind == "set":
+            defines[name] = val
+        else:
+            defines.pop(name, None)
+
+
+def _collect_define_undef_ops(
+    text: str,
+) -> Tuple[str, Tuple[_DefineOp, ...]]:
+    """Strip `` `define `` / `` `undef `` / `` `include `` lines; record define ops."""
+    lines: List[str] = []
+    ops: List[_DefineOp] = []
+    for line in text.splitlines():
+        dm = _DEFINE_LINE_RE.match(line)
+        if dm:
+            name = dm.group(1)
+            val = (dm.group(2) or "1").strip()
+            ops.append(("set", name, val))
+            continue
+        um = _UNDEF_LINE_RE.match(line)
+        if um:
+            ops.append(("undef", um.group(1), ""))
+            continue
+        if _INCLUDE_LINE_RE.match(line):
+            continue
+        lines.append(line)
+    return "\n".join(lines), tuple(ops)
+
+
 def _collect_define_undef(
     text: str, defines: MutableMapping[str, str]
 ) -> str:
     """Apply in-file `` `define `` / `` `undef `` directives; strip those lines."""
-    lines: List[str] = []
-    for line in text.splitlines():
-        dm = re.match(r"^\s*`define\s+([A-Za-z_]\w*)(?:\s+(.*))?$", line, re.I)
-        if dm:
-            name = dm.group(1)
-            val = (dm.group(2) or "1").strip()
-            defines[name] = val
-            continue
-        um = re.match(r"^\s*`undef\s+([A-Za-z_]\w*)\s*$", line, re.I)
-        if um:
-            defines.pop(um.group(1), None)
-            continue
-        if re.match(r"^\s*`include\b", line, re.I):
-            continue
-        lines.append(line)
-    return "\n".join(lines)
+    cleaned, ops = _collect_define_undef_ops(text)
+    _apply_define_ops(defines, ops)
+    return cleaned
 
 
 def _expand_macros(text: str, defines: Mapping[str, str]) -> str:
@@ -228,6 +261,29 @@ def _expand_includes_once(
     return "".join(out)
 
 
+def _include_cache_key(path: Path) -> Optional[_IncludeCacheKey]:
+    try:
+        st = path.stat()
+        return str(path.resolve()), st.st_mtime_ns, st.st_size
+    except OSError:
+        return None
+
+
+def _expand_include_text(
+    text: str,
+    path: Path,
+    include_dirs: Sequence[Path],
+    defines: MutableMapping[str, str],
+    visiting: Set[Path],
+) -> str:
+    for _ in range(32):
+        expanded = _expand_includes_once(text, path, include_dirs, defines, visiting)
+        if expanded == text:
+            break
+        text = expanded
+    return text
+
+
 def _preprocess_include_unit(
     path: Path,
     include_dirs: Sequence[Path],
@@ -239,17 +295,31 @@ def _preprocess_include_unit(
     if key in visiting:
         return f"/* scan_inst: include cycle {path} */"
     visiting.add(key)
+
+    cache_key = _include_cache_key(key)
+    if cache_key is not None:
+        hit = _INCLUDE_UNIT_CACHE.get(cache_key)
+        if hit is not None:
+            cleaned, ops = hit
+            _apply_define_ops(defines, ops)
+            return cleaned
+
     try:
         raw = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
-    text = strip_comments(raw)
-    for _ in range(32):
-        expanded = _expand_includes_once(text, path, include_dirs, defines, visiting)
-        if expanded == text:
-            break
-        text = expanded
-    return _collect_define_undef(text, defines)
+    text = _expand_include_text(
+        strip_comments(raw),
+        path,
+        include_dirs,
+        defines,
+        visiting,
+    )
+    cleaned, ops = _collect_define_undef_ops(text)
+    if cache_key is not None:
+        _INCLUDE_UNIT_CACHE[cache_key] = (cleaned, ops)
+    _apply_define_ops(defines, ops)
+    return cleaned
 
 
 def preprocess_file(
@@ -286,6 +356,91 @@ def _preprocess_file_task(
     return str(sp.resolve()), preprocess_file(sp, inc, defs, set())
 
 
+def _includes_in_text(text: str, source_file: Path, include_dirs: Sequence[Path]) -> List[Path]:
+    found: List[Path] = []
+    for m in _INCLUDE_RE.finditer(strip_comments(text)):
+        inc_path = _resolve_include(m.group(2).strip(), m.group(1), source_file, include_dirs)
+        if inc_path is not None:
+            found.append(inc_path)
+    return found
+
+
+def _collect_include_closure(
+    sources: Sequence[str | Path],
+    include_dirs: Sequence[Path],
+) -> List[Path]:
+    """Discover unique `` `include `` files reachable from RTL sources (light read)."""
+    seen: Set[Path] = set()
+    queue: List[Path] = []
+    for src in sources:
+        sp = Path(src)
+        try:
+            raw = sp.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for inc_path in _includes_in_text(raw, sp, include_dirs):
+            key = inc_path.resolve()
+            if key not in seen:
+                seen.add(key)
+                queue.append(key)
+    idx = 0
+    while idx < len(queue):
+        path = queue[idx]
+        idx += 1
+        try:
+            raw = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for inc_path in _includes_in_text(raw, path, include_dirs):
+            key = inc_path.resolve()
+            if key not in seen:
+                seen.add(key)
+                queue.append(key)
+    return queue
+
+
+def _warm_include_cache_for_sources(
+    sources: Sequence[str | Path],
+    include_dirs: Sequence[Path],
+    base_defines: Mapping[str, str],
+    *,
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> int:
+    """
+    Pre-expand shared includes once in the parent process.
+
+    Workers receive this cache via pool initializer (``spawn``) or ``fork`` COW.
+    """
+    closure = _collect_include_closure(sources, include_dirs)
+    if not closure:
+        return 0
+    if on_progress:
+        on_progress(f"preprocess: warming {len(closure)} shared include(s)")
+    warm_defs: Dict[str, str] = dict(base_defines)
+    for path in closure:
+        _preprocess_include_unit(path, include_dirs, warm_defs, set())
+    return len(closure)
+
+
+def _run_preprocess_tasks_serial(
+    tasks: List[Tuple[str, Tuple[str, ...], Tuple[Tuple[str, str], ...]]],
+    *,
+    on_progress: Optional[Callable[[str], None]] = None,
+    progress_every: int = 500,
+) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    total = len(tasks)
+    for i, task in enumerate(tasks, start=1):
+        key, text = _preprocess_file_task(task)
+        out[key] = text
+        if on_progress and (i == total or i % progress_every == 0):
+            from scan_inst.progress import format_work_location
+
+            loc = format_work_location(task[0], index=i, total=total)
+            on_progress(f"preprocess: {i}/{total} sources — {loc}")
+    return out
+
+
 def preprocess_sources(
     sources: Sequence[str | Path],
     include_dirs: Sequence[str | Path],
@@ -296,42 +451,93 @@ def preprocess_sources(
     progress_every: int = 500,
 ) -> Dict[str, str]:
     """Return map of source path → preprocessed text."""
+    t0 = time.perf_counter()
     inc = [Path(p) for p in include_dirs]
     define_items = tuple(sorted(base_defines.items()))
     inc_dirs = tuple(str(p) for p in inc)
     src_list = [str(Path(s)) for s in sources]
     total = len(src_list)
+    workers = _resolve_preprocess_jobs(jobs, total)
     if on_progress and total:
-        workers = _resolve_preprocess_jobs(jobs, total)
         on_progress(f"preprocess: 0/{total} sources ({workers} workers)")
 
+    _warm_include_cache_for_sources(
+        src_list,
+        inc,
+        base_defines,
+        on_progress=on_progress,
+    )
+
     tasks = [(src, inc_dirs, define_items) for src in src_list]
-    out: Dict[str, str] = {}
-    workers = _resolve_preprocess_jobs(jobs, total)
     if workers == 1 or total <= 1:
-        for i, task in enumerate(tasks, start=1):
-            key, text = _preprocess_file_task(task)
-            out[key] = text
-            if on_progress and (i == total or i % progress_every == 0):
-                on_progress(f"preprocess: {i}/{total} sources")
-        return out
+        out = _run_preprocess_tasks_serial(
+            tasks,
+            on_progress=on_progress,
+            progress_every=progress_every,
+        )
+    else:
+        out = {}
+        try:
+            from scan_inst.manifest import scan_chunksize
 
-    try:
-        from scan_inst.manifest import scan_chunksize
+            chunk = scan_chunksize(total, workers)
+            cache_snapshot = _snapshot_include_cache()
+            with ProcessPoolExecutor(
+                max_workers=workers,
+                initializer=_install_include_cache_snapshot,
+                initargs=(cache_snapshot,),
+            ) as pool:
+                for i, (key, text) in enumerate(
+                    pool.map(_preprocess_file_task, tasks, chunksize=chunk),
+                    start=1,
+                ):
+                    out[key] = text
+                    if on_progress and (i == total or i % progress_every == 0):
+                        from scan_inst.progress import format_work_location
 
-        chunk = scan_chunksize(total, workers)
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            for i, (key, text) in enumerate(
-                pool.map(_preprocess_file_task, tasks, chunksize=chunk),
-                start=1,
-            ):
-                out[key] = text
-                if on_progress and (i == total or i % progress_every == 0):
-                    on_progress(f"preprocess: {i}/{total} sources")
-    except (OSError, PermissionError, RuntimeError):
-        for i, task in enumerate(tasks, start=1):
-            key, text = _preprocess_file_task(task)
-            out[key] = text
-            if on_progress and (i == total or i % progress_every == 0):
-                on_progress(f"preprocess: {i}/{total} sources")
+                        loc = format_work_location(key, index=i, total=total)
+                        on_progress(f"preprocess: {i}/{total} sources — {loc}")
+        except (OSError, PermissionError, RuntimeError) as exc:
+            msg = (
+                f"preprocess: parallel workers failed ({exc!r}); "
+                "retrying with thread pool"
+            )
+            if on_progress:
+                on_progress(msg)
+            else:
+                print(f"[scan-inst] {msg}", file=sys.stderr, flush=True)
+            try:
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    for i, (key, text) in enumerate(
+                        pool.map(_preprocess_file_task, tasks),
+                        start=1,
+                    ):
+                        out[key] = text
+                        if on_progress and (i == total or i % progress_every == 0):
+                            from scan_inst.progress import format_work_location
+
+                            loc = format_work_location(key, index=i, total=total)
+                            on_progress(f"preprocess: {i}/{total} sources — {loc}")
+            except (OSError, PermissionError, RuntimeError) as exc2:
+                msg2 = (
+                    f"preprocess: thread pool failed ({exc2!r}); "
+                    "falling back to serial"
+                )
+                if on_progress:
+                    on_progress(msg2)
+                else:
+                    print(f"[scan-inst] {msg2}", file=sys.stderr, flush=True)
+                out = _run_preprocess_tasks_serial(
+                    tasks,
+                    on_progress=on_progress,
+                    progress_every=progress_every,
+                )
+
+    elapsed = time.perf_counter() - t0
+    if on_progress and total:
+        rate = total / elapsed if elapsed > 0 else 0.0
+        on_progress(
+            f"preprocess: done {total} sources in {elapsed:.1f}s "
+            f"({rate:.1f} files/s, {workers} workers)"
+        )
     return out

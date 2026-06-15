@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Mapping, Optional, Tuple
 
 from scan_inst.params import expr_is_true, parse_bound_token
@@ -48,6 +49,12 @@ _IF_STMT_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _BEGIN_END_KW = re.compile(r"\b(begin|end)\b", re.IGNORECASE)
+_GENERATE_FOLD_HINT = re.compile(r"\bgenerate\b|\bgenvar\b", re.IGNORECASE)
+
+
+def needs_generate_fold(body: str) -> bool:
+    """True when body may contain generate / genvar constructs worth folding."""
+    return bool(_GENERATE_FOLD_HINT.search(body))
 
 
 @dataclass(frozen=True)
@@ -335,6 +342,8 @@ def fold_generate_regions(
     over_approximate_if: bool = False,
 ) -> str:
     """Inline generate blocks with literal/param for-loops and folded if-generate."""
+    if not needs_generate_fold(body):
+        return body
 
     def repl(m: re.Match[str]) -> str:
         return _fold_generate_inner(
@@ -344,3 +353,29 @@ def fold_generate_regions(
         )
 
     return _GEN_BLOCK_RE.sub(repl, body)
+
+
+@lru_cache(maxsize=4096)
+def _fold_body_cached(
+    body: str,
+    param_items: Tuple[Tuple[str, str], ...],
+    over_approximate_if: bool,
+) -> str:
+    return fold_generate_regions(
+        body,
+        dict(param_items),
+        over_approximate_if=over_approximate_if,
+    )
+
+
+def prepare_body_for_instance_scan(
+    body: str,
+    param_map: Mapping[str, str],
+    *,
+    over_approximate_if: bool = False,
+) -> str:
+    """Lazy generate fold before instance scan (skip + cache when no generate)."""
+    if not needs_generate_fold(body):
+        return body
+    items = tuple(sorted(param_map.items()))
+    return _fold_body_cached(body, items, over_approximate_if)

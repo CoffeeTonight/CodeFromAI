@@ -2,7 +2,67 @@
 
 from __future__ import annotations
 
+import io
+
 from scan_inst.filelist import parse_filelist
+from scan_inst.progress import (
+    ProgressHeartbeat,
+    ProgressReporter,
+    format_work_location,
+    split_progress_detail,
+)
+
+
+def test_format_work_location_shortens_long_paths():
+    loc = format_work_location(
+        "/eda/soc/rtl/cpu/alu/foo.v",
+        index=12,
+        total=12000,
+    )
+    assert "folder: cpu/alu" in loc
+    assert "file: foo.v" in loc
+    assert "(12/12000)" in loc
+
+
+def test_progress_reporter_detail_for_heartbeat():
+    reporter = ProgressReporter(stream=io.StringIO(), enabled=True)
+    reporter.set_filelist("/proj/design/filelist.f")
+    reporter.absorb_progress(
+        "index: scanning 500/12000 files — "
+        "folder: rtl/cpu | file: alu.v (500/12000)"
+    )
+    assert reporter.get_detail() == (
+        "filelist: filelist.f | folder: rtl/cpu | file: alu.v (500/12000)"
+    )
+
+
+def test_progress_heartbeat_includes_detail():
+    buf = io.StringIO()
+    reporter = ProgressReporter(stream=buf, enabled=True)
+    reporter.set_filelist("top.f")
+    reporter.set_location("folder: dv | file: tb.v (1/100)")
+    hb = ProgressHeartbeat(
+        reporter.phase,
+        "index",
+        interval_sec=0.01,
+        enabled=True,
+        get_detail=reporter.get_detail,
+    )
+    with hb:
+        import time
+
+        time.sleep(0.05)
+    text = buf.getvalue()
+    assert "still running" in text
+    assert "filelist: top.f" in text
+    assert "folder: dv" in text
+
+
+def test_split_progress_detail():
+    assert split_progress_detail("index: 1/2 — folder: a | file: b.v") == (
+        "folder: a | file: b.v"
+    )
+    assert split_progress_detail("cache: hit") is None
 
 
 def test_filelist_progress_messages(tmp_path):

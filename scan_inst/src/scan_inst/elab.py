@@ -110,7 +110,6 @@ def elaborate(
         return node
 
     root = stitch(top, top, top, 0, None, {}, {})
-    rows.sort(key=lambda r: r.full_path)
     return root, rows
 
 

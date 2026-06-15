@@ -295,6 +295,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="ignore cached index and rebuild (still writes unless --no-cache)",
     )
+    cache.add_argument(
+        "--low-memory",
+        action="store_true",
+        help="fused per-file index build (less RAM, slower cold build; default is 2-pass)",
+    )
     return ap
 
 
@@ -349,6 +354,7 @@ def main(argv=None) -> int:
     cache_dir = default_cache_dir() if cfg.cache_dir is None else Path(cfg.cache_dir)
     use_cache = not cfg.no_cache
     reporter = ProgressReporter(enabled=not cfg.quiet)
+    reporter.set_filelist(cfg.filelist)
     on_progress = progress_callback(reporter)
     log_path: Path | None = None
     if not cfg.no_log_file:
@@ -372,6 +378,7 @@ def main(argv=None) -> int:
         reporter.phase,
         "index",
         enabled=not cfg.quiet and len(fl.source_files) >= 500,
+        get_detail=reporter.get_detail,
     )
     with heartbeat:
         index, bundle, index_cache_hit, index_rebuilt, index_incremental, cache_path = (
@@ -386,6 +393,7 @@ def main(argv=None) -> int:
             jobs=cfg.jobs,
             use_cache=use_cache,
             refresh_cache=cfg.refresh_cache,
+            low_memory=cfg.low_memory,
             on_progress=on_progress,
             )
         )

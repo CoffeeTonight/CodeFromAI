@@ -365,34 +365,77 @@ def _build_port_index(infos: List[PortInfo]) -> Dict[str, PortInfo]:
 
 
 @lru_cache(maxsize=4096)
-def _cached_port_index(
-    file_path: str,
+def _cached_port_index_from_text(
+    module_text: str,
     module_name: str,
     ctx_key: str,
     param_items: Tuple[Tuple[str, str], ...],
 ) -> Dict[str, PortInfo]:
     ctx = dict(param_items)
+    infos = scan_ports_detail_from_module_text(
+        module_text,
+        module_name,
+        param_ctx=ctx,
+    )
+    return _build_port_index(infos)
+
+
+@lru_cache(maxsize=512)
+def _read_source_text(file_path: str) -> str:
     path = Path(file_path)
     if not path.is_file():
-        return {}
+        return ""
     try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        return path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
+        return ""
+
+
+@lru_cache(maxsize=4096)
+def _cached_port_index_from_file(
+    file_path: str,
+    module_name: str,
+    ctx_key: str,
+    param_items: Tuple[Tuple[str, str], ...],
+) -> Dict[str, PortInfo]:
+    text = _read_source_text(file_path)
+    if not text:
         return {}
-    infos = scan_ports_detail_from_module_text(text, module_name, param_ctx=ctx)
-    return _build_port_index(infos)
+    return _cached_port_index_from_text(text, module_name, ctx_key, param_items)
 
 
 def port_index_for_module(
     file_path: str,
     module_name: str,
     param_ctx: Optional[Mapping[str, str]] = None,
+    *,
+    module_text: Optional[str] = None,
 ) -> Dict[str, PortInfo]:
-    if not file_path:
+    if not file_path and not module_text:
         return {}
     ctx = dict(param_ctx or {})
     items = tuple(sorted(ctx.items()))
-    return dict(_cached_port_index(file_path, module_name, _param_ctx_key(ctx), items))
+    key = _param_ctx_key(ctx)
+    if module_text is not None:
+        return dict(
+            _cached_port_index_from_text(module_text, module_name, key, items)
+        )
+    return dict(_cached_port_index_from_file(file_path, module_name, key, items))
+
+
+def port_index_for_design_module(
+    index: object,
+    module_name: str,
+    param_ctx: Optional[Mapping[str, str]] = None,
+) -> Dict[str, PortInfo]:
+    """Port index resolved via :class:`DesignIndex` (one disk read per RTL file)."""
+    get_module = getattr(index, "get_module", None)
+    if not callable(get_module):
+        return {}
+    rec = get_module(module_name)
+    if rec is None:
+        return {}
+    return port_index_for_module(rec.file_path, module_name, param_ctx)
 
 
 def ports_for_module(

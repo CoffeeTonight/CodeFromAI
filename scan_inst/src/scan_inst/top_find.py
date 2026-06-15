@@ -30,7 +30,11 @@ def find_top_modules(index: DesignIndex) -> List[str]:
     """
     instantiated: set[str] = set()
     for rec in index.modules.values():
-        for edge in rec.instances:
+        if rec.needs_generate_fold:
+            edges = index.instances_for(rec.module_name, {}, {})
+        else:
+            edges = rec.instances
+        for edge in edges:
             instantiated.add(edge.child_module)
 
     candidates = [

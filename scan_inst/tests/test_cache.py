@@ -66,8 +66,17 @@ def test_cache_roundtrip_pickle(tmp_path):
     )
     path = cache_path_for(cache_dir, cfg)
     save_cache(path, bundle)
+    store_cached_elab(
+        bundle,
+        "top",
+        None,
+        root,
+        rows,
+        cache_dir=cache_dir,
+        use_cache=True,
+    )
 
-    loaded = load_cache(path)
+    loaded = load_cache(path, cache_dir=cache_dir)
     assert loaded is not None
     assert loaded.config_key == cfg
     assert set(loaded.index.modules) == {"top", "mid", "leaf"}
@@ -186,6 +195,6 @@ def test_store_cached_elab_persists(tmp_path):
     )
 
     path = cache_path_for(cache_dir, bundle.config_key)
-    loaded = load_cache(path)
+    loaded = load_cache(path, cache_dir=cache_dir)
     assert loaded is not None
     assert elab_cache_key("top", None) in loaded.elab

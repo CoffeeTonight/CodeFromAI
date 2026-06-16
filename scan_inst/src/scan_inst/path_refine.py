@@ -73,19 +73,27 @@ def _params_in_text(text: str) -> Dict[str, str]:
 
 def _inst_matches_target(inst: str, dims: str, target: str) -> bool:
     """Match instance names the same way as :func:`scan_hierarchy_instances`."""
-    from scan_inst.inst_scan import expand_inst_names
+    from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
 
     if not inst:
         return False
-    want = target.lower()
+    target_inst, _ = _read_hier_inst_path(target, 0)
+    want = (target_inst or target).lower()
+    want_leaf = want.rsplit(".", 1)[-1]
+    inst_path, _ = _read_hier_inst_path(inst, 0)
+    if inst_path:
+        if inst_path.lower() == want:
+            return True
+        if inst_path.rsplit(".", 1)[-1].lower() == want_leaf:
+            return True
     if inst.lower() == want:
         return True
-    if inst.rsplit(".", 1)[-1].lower() == want:
+    if inst.rsplit(".", 1)[-1].lower() == want_leaf:
         return True
     for leaf in expand_inst_names(inst, dims, {}):
         if leaf.lower() == want:
             return True
-        if leaf.rsplit(".", 1)[-1].lower() == want:
+        if leaf.rsplit(".", 1)[-1].lower() == want_leaf:
             return True
     return False
 
@@ -116,16 +124,27 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
         while pos < n and clean[pos].isspace():
             pos += 1
         if pos >= n or clean[pos] != "(":
-            return start
+            return pos
         return _skip_balanced(clean, pos, "(", ")")
 
-    def read_inst_tail(start: int) -> tuple[str, str, int]:
-        k = start
+    while i < n:
+        decl_start = i
+        while i < n and clean[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        cell, j = _read_ident(clean, i)
+        if not cell:
+            i += 1
+            continue
+        if cell.lower() in _KEYWORDS:
+            i = j
+            continue
+        k = j
         while k < n and clean[k].isspace():
             k += 1
         k = _skip_sv_attributes(clean, k)
         inst = ""
-        dims = ""
         if k < n and clean[k] == "#":
             k = consume_hash(k)
             while k < n and clean[k].isspace():
@@ -140,31 +159,17 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
                 if k < n and clean[k] == "#":
                     k = consume_hash(k)
         if not inst:
-            return "", "", start
+            i += 1
+            continue
         while k < n and clean[k].isspace():
             k += 1
+        dims = ""
         while k < n and clean[k] == "[":
             end = _skip_balanced(clean, k, "[", "]")
             dims += clean[k:end]
             k = end
             while k < n and clean[k].isspace():
                 k += 1
-        return inst, dims, k
-
-    while i < n:
-        decl_start = i
-        while i < n and clean[i].isspace():
-            i += 1
-        if i >= n:
-            break
-        cell, j = _read_ident(clean, i)
-        if not cell or cell.lower() in _KEYWORDS:
-            i = j if j > i else i + 1
-            continue
-        inst, dims, k = read_inst_tail(j)
-        if not inst:
-            i += 1
-            continue
         if k >= n or clean[k] not in "(;":
             i += 1
             continue
@@ -174,19 +179,29 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
             k = _skip_balanced(clean, k, "(", ")")
         while k < n and clean[k].isspace():
             k += 1
-        while k < n and clean[k] == ",":
+        if k < n and clean[k] == ",":
             k += 1
-            inst2, dims2, k2 = read_inst_tail(k)
-            if inst2 and _inst_matches_target(inst2, dims2, target):
-                return clean[:decl_start]
+            while k < n and clean[k].isspace():
+                k += 1
+            inst2, k2 = _read_hier_inst_path(clean, k)
             if inst2:
                 k = k2
-                if k < n and clean[k] == "(":
-                    k = _skip_balanced(clean, k, "(", ")")
                 while k < n and clean[k].isspace():
                     k += 1
-            else:
-                break
+                dims2 = ""
+                while k < n and clean[k] == "[":
+                    end = _skip_balanced(clean, k, "[", "]")
+                    dims2 += clean[k:end]
+                    k = end
+                    while k < n and clean[k].isspace():
+                        k += 1
+                if k < n and clean[k] in "(;":
+                    if _inst_matches_target(inst2, dims2, target):
+                        return clean[:decl_start]
+                    if clean[k] == "(":
+                        k = _skip_balanced(clean, k, "(", ")")
+            i = k2
+            continue
         i = k
     return clean
 

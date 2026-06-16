@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
+from scan_inst.enable_diagnostics import resolve_block_enabled
 from scan_inst.run_request import (
     RUN_CONN_CHECK,
     RUN_CONE_TRACE,
@@ -84,6 +85,7 @@ class RunTestSuite:
     tests: Tuple[RunTestEntry, ...]
     full_index_spec: Optional[Mapping[str, Any]] = None
     full_index_enabled: bool = False
+    enable_warnings: Tuple[str, ...] = ()
 
 
 def _first_ci(data: Mapping[str, Any], *keys: str) -> Any:
@@ -170,14 +172,22 @@ def exec_mode_for_verification(kind: str, index_mode: str) -> str:
 
 def _full_index_enable_state(
     data: Mapping[str, Any],
-) -> tuple[Optional[Mapping[str, Any]], bool]:
-    """Return ``(spec, enabled)`` for the run_on_full_index / run_on_full_db block."""
+    *,
+    raw_text: Optional[str] = None,
+) -> tuple[Optional[Mapping[str, Any]], bool, Tuple[str, ...]]:
+    """Return ``(spec, enabled, warnings)`` for run_on_full_index / run_on_full_db."""
     key = _full_index_block_key(data)
     if key is None:
-        return None, False
+        return None, False, ()
     spec = _spec_block(data, key)
-    enabled = block_enabled(spec, default=True)
-    return spec, enabled
+    enabled, warnings = resolve_block_enabled(
+        spec,
+        default=True,
+        document=data,
+        block_key=key,
+        raw_text=raw_text,
+    )
+    return spec, enabled, warnings
 
 
 def resolve_verification_index_strategy(
@@ -396,6 +406,8 @@ def run_config_for_full_index(
         inst_trace=None,
         fanin_cone=None,
         fanout_cone=None,
+        flat_suite_step=True,
+        full_index_step=True,
     )
 
 
@@ -490,6 +502,7 @@ def run_config_for_test(
             include_ff=include_ff,
             strict_generate=strict_generate,
             over_approximate_if=over_approx,
+            flat_suite_step=True,
         )
 
     if entry.kind == RUN_IO_TRACE:
@@ -511,6 +524,7 @@ def run_config_for_test(
             fanin_cone=None,
             fanout_cone=None,
             over_approximate_if=over_approx,
+            flat_suite_step=True,
         )
 
     fanin = str(_first_ci(spec, "fanin_cone", "fanin-cone", "endpoint") or "").strip() or None
@@ -531,6 +545,7 @@ def run_config_for_test(
         check_connect_batch=None,
         connect_inline=None,
         over_approximate_if=over_approx,
+        flat_suite_step=True,
     )
 
 
@@ -538,6 +553,7 @@ def parse_flat_run_suite(
     data: Mapping[str, Any],
     *,
     base_dir: Optional[Any] = None,
+    raw_text: Optional[str] = None,
 ) -> RunTestSuite:
     """
     Parse flat run JSON with sibling blocks at the top level.
@@ -596,8 +612,12 @@ def parse_flat_run_suite(
         ignore_filelist=(),
     )
 
-    full_index_spec, full_index_enabled = _full_index_enable_state(data)
+    full_index_spec, full_index_enabled, full_index_warnings = _full_index_enable_state(
+        data,
+        raw_text=raw_text,
+    )
     full_index_key = _full_index_block_key(data)
+    enable_warnings: list[str] = list(full_index_warnings)
 
     entries: list[RunTestEntry] = []
     index = 0
@@ -606,13 +626,25 @@ def parse_flat_run_suite(
             if full_index_key is None:
                 continue
             spec_raw = _mapping_get_ci(data, full_index_key)
+            block_label = full_index_key
         else:
             spec_raw = _mapping_get_ci(data, kind)
+            block_label = kind
         if spec_raw is None:
             continue
         if not isinstance(spec_raw, Mapping):
             raise ValueError(f"{kind!r} must be an object")
-        enabled = block_enabled(spec_raw, default=True)
+        if kind == RUN_ON_FULL_INDEX:
+            enabled = full_index_enabled
+        else:
+            enabled, step_warnings = resolve_block_enabled(
+                spec_raw,
+                default=True,
+                document=data,
+                block_key=block_label,
+                raw_text=raw_text,
+            )
+            enable_warnings.extend(step_warnings)
         if not enabled:
             continue
         label = kind
@@ -634,6 +666,7 @@ def parse_flat_run_suite(
         tests=tuple(entries),
         full_index_spec=full_index_spec,
         full_index_enabled=full_index_enabled,
+        enable_warnings=tuple(enable_warnings),
     )
 
 
@@ -685,6 +718,8 @@ def format_suite_enable_trace(
     document: Mapping[str, Any],
     suite: RunTestSuite,
     plan: Sequence[Tuple[RunTestEntry, RunConfig]],
+    *,
+    raw_text: Optional[str] = None,
 ) -> Tuple[str, ...]:
     """
     Human-readable enable path from JSON blocks → suite.tests → RunConfig → execute_run.
@@ -715,7 +750,13 @@ def format_suite_enable_trace(
             )
             continue
         raw_enable = block_enable_raw(spec_raw)
-        parsed = block_enabled(spec_raw, default=True)
+        parsed, _ = resolve_block_enabled(
+            spec_raw,
+            default=True,
+            document=document,
+            block_key=block_key,
+            raw_text=raw_text,
+        )
         if raw_enable is None and parsed:
             default_note = "enable/enabled missing, default=1"
         else:
@@ -764,7 +805,11 @@ def format_suite_enable_trace(
     return tuple(lines)
 
 
-def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
+def list_disabled_suite_blocks(
+    data: Mapping[str, Any],
+    *,
+    raw_text: Optional[str] = None,
+) -> Tuple[str, ...]:
     """Return suite block names present in JSON but skipped via ``enable: 0``."""
     disabled: list[str] = []
     if "tests" in data:
@@ -801,7 +846,14 @@ def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
             continue
         if not isinstance(spec_raw, Mapping):
             continue
-        if not block_enabled(spec_raw, default=True):
+        enabled, _ = resolve_block_enabled(
+            spec_raw,
+            default=True,
+            document=data,
+            block_key=block_label,
+            raw_text=raw_text,
+        )
+        if not enabled:
             disabled.append(block_label)
     return tuple(disabled)
 
@@ -810,6 +862,7 @@ def parse_legacy_tests_array_suite(
     data: Mapping[str, Any],
     *,
     base_dir: Optional[Any] = None,
+    raw_text: Optional[str] = None,
 ) -> RunTestSuite:
     """Legacy ``tests`` array format (backward compatible)."""
     tests_raw = data.get("tests")
@@ -859,13 +912,17 @@ def parse_legacy_tests_array_suite(
     if not entries:
         raise ValueError("no enabled steps in tests array")
 
-    full_index_spec, full_index_enabled = _full_index_enable_state(data)
+    full_index_spec, full_index_enabled, full_index_warnings = _full_index_enable_state(
+        data,
+        raw_text=raw_text,
+    )
 
     return RunTestSuite(
         shared=shared,
         tests=tuple(entries),
         full_index_spec=full_index_spec,
         full_index_enabled=full_index_enabled,
+        enable_warnings=full_index_warnings,
     )
 
 
@@ -873,16 +930,22 @@ def parse_run_test_suite(
     data: Mapping[str, Any],
     *,
     base_dir: Optional[Any] = None,
+    raw_text: Optional[str] = None,
 ) -> RunTestSuite:
     if "tests" in data:
-        return parse_legacy_tests_array_suite(data, base_dir=base_dir)
-    return parse_flat_run_suite(data, base_dir=base_dir)
+        return parse_legacy_tests_array_suite(
+            data,
+            base_dir=base_dir,
+            raw_text=raw_text,
+        )
+    return parse_flat_run_suite(data, base_dir=base_dir, raw_text=raw_text)
 
 
 def try_parse_run_test_suite(
     data: Any,
     *,
     base_dir: Optional[Any] = None,
+    raw_text: Optional[str] = None,
 ) -> Optional[RunTestSuite]:
     if not isinstance(data, Mapping):
         return None
@@ -892,7 +955,7 @@ def try_parse_run_test_suite(
     has_legacy = "tests" in data
     if not has_flat and not has_legacy:
         return None
-    return parse_run_test_suite(data, base_dir=base_dir)
+    return parse_run_test_suite(data, base_dir=base_dir, raw_text=raw_text)
 
 
 def spec_for_test_entry(

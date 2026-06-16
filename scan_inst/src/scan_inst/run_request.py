@@ -46,8 +46,27 @@ def strip_jsonc_line_comments(text: str) -> str:
     return "\n".join(out)
 
 
-def loads_json_document(text: str) -> Any:
-    return json.loads(strip_jsonc_line_comments(text))
+def loads_json_document(text: str, *, audit: Optional[List[str]] = None) -> Any:
+    """
+    Parse JSON/JSONC. When ``audit`` is a list, append duplicate-key warnings
+    (stdlib ``json`` keeps the **last** value for repeated keys).
+    """
+    stripped = strip_jsonc_line_comments(text)
+
+    def _object_pairs_hook(pairs: Sequence[Tuple[str, Any]]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        seen: set[str] = set()
+        for key, value in pairs:
+            if key in seen and audit is not None:
+                audit.append(
+                    f"duplicate JSON key {key!r} in same object — "
+                    f"parser keeps the last value only"
+                )
+            seen.add(key)
+            out[key] = value
+        return out
+
+    return json.loads(stripped, object_pairs_hook=_object_pairs_hook)
 
 
 def read_json_document(path: Union[str, Path]) -> Any:
@@ -203,6 +222,8 @@ class RunConfig:
     no_log_file: bool = False
     mode: Optional[str] = None
     index_strategy: str = "full-index"
+    flat_suite_step: bool = False
+    full_index_step: bool = False
 
     @property
     def defines_map(self) -> Dict[str, str]:
@@ -337,10 +358,19 @@ def _jobs_from_document(data: Mapping[str, Any]) -> tuple[int, Optional[str]]:
     full_index_key = _full_index_block_key(data)
     if full_index_key is not None:
         sub = _mapping_get_ci(data, full_index_key)
-        if isinstance(sub, Mapping) and block_enabled(sub, default=True):
-            nested_jobs, nested_src = _jobs_from_mapping(sub)
-            if nested_src is not None:
-                return nested_jobs, f"{full_index_key}.{nested_src}"
+        if isinstance(sub, Mapping):
+            from scan_inst.enable_diagnostics import resolve_block_enabled
+
+            enabled, _ = resolve_block_enabled(
+                sub,
+                default=True,
+                document=data,
+                block_key=full_index_key,
+            )
+            if enabled:
+                nested_jobs, nested_src = _jobs_from_mapping(sub)
+                if nested_src is not None:
+                    return nested_jobs, f"{full_index_key}.{nested_src}"
     for nest in ("run", "index", "execution", "config"):
         sub = data.get(nest)
         if isinstance(sub, Mapping):

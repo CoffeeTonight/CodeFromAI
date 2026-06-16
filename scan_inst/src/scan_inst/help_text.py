@@ -223,9 +223,11 @@ Flat run suite (one JSON, sibling blocks, sequential run)
   The step kind is the block name (run_conn_check, run_io_trace, run_cone_trace).
   Legacy values (check-connect-batch, inst-trace, fanout-cone, …) map to full-index.
 
-  run_on_full_index.enable (0|1) is the master switch for that block:
+  run_on_full_index.enable (0|1) is independent from verification block enable flags.
     1 — run the hierarchy/search/find-top step; settings merge into verification steps
     0 — block fully inactive: no step, no settings merge, no jobs/no_cache from block
+    (omitted) — defaults to 0 when run_conn_check / run_io_trace / run_cone_trace exist,
+                else 1. Per-step enable on verification blocks does NOT disable this block.
   When enable is 0, verification blocks cannot use full-index strategy either (forced
   path-walk even if mode says full-index or a legacy alias like hierarchy).
   Put per-step ignores/jobs/cache on each verification block when full-index is off.

@@ -93,6 +93,21 @@ def execute_run(cfg: RunConfig, ap) -> int:
     if cone_mode and not (cfg.fanin_cone or cfg.fanout_cone):
         ap.error("cone mode requires fanin_cone or fanout_cone in JSON")
 
+    if effective_mode in ("hierarchy", "search", "find-top"):
+        if cfg.flat_suite_step and not cfg.full_index_step:
+            ap.error(
+                "run_on_full_index hierarchy blocked: this step was not scheduled "
+                "by the flat-suite enable gate (run_on_full_index enable must be 1)"
+            )
+        if not cfg.quiet:
+            print(
+                f"run: enable-gate: hierarchy allowed="
+                f"{int(cfg.full_index_step or not cfg.flat_suite_step)} "
+                f"flat_suite_step={int(cfg.flat_suite_step)} "
+                f"full_index_step={int(cfg.full_index_step)}",
+                file=sys.stderr,
+            )
+
     t0 = time.perf_counter()
     extra_defines = dict(cfg.defines_map)
     if connect_request is not None:

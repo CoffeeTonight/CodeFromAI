@@ -43,19 +43,26 @@ from scan_inst.connectivity import (
     run_connectivity_request,
 )
 from scan_inst.path_walk import run_path_walk_connect
+from scan_inst.enable_diagnostics import (
+    audit_run_on_full_index_enable_lines,
+    find_nested_full_index_blocks,
+    format_enable_root_cause_hint,
+    resolve_block_enabled,
+)
 from scan_inst.run_request import (
     RUN_ON_FULL_INDEX,
     _full_index_block_key,
+    _jobs_from_document,
     _mapping_get_ci,
-    block_enabled,
+    apply_config_env_from_document,
     is_run_test_suite_document,
     jobs_from_env,
     jobs_hint_from_config_text,
     load_run_request_with_jobs_source,
+    loads_json_document,
     merge_options_from_connect_batch_json,
     merge_run_config,
     normalize_run_mode,
-    read_json_document,
     resolve_connectivity_request,
     resolve_effective_run_mode,
     resolve_jobs_after_merge,
@@ -407,10 +414,68 @@ def main(argv=None) -> int:
     cli_cfg = run_config_from_args(args)
     config_path: Optional[Path] = None
     json_jobs_source: Optional[str] = None
+    config_text: Optional[str] = None
+    test_document: Optional[dict] = None
+    test_plan: list[tuple[RunTestEntry | None, object]] = []
+    saw_suite_enable_trace = False
+    saw_hierarchy_execute = False
+    saw_full_index_step = False
+    parsed_suite = None
+
     config_arg = args.config or os.environ.get("SCAN_INST_CONFIG")
     if config_arg:
         config_path = Path(config_arg)
-        base_cfg, json_jobs_source = load_run_request_with_jobs_source(config_path)
+        try:
+            config_text = config_path.read_text(encoding="utf-8-sig")
+        except OSError:
+            config_text = None
+        raw_doc = None
+        json_audit: list[str] = []
+        if config_text is not None:
+            try:
+                raw_doc = loads_json_document(config_text, audit=json_audit)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                raw_doc = None
+        if isinstance(raw_doc, dict):
+            test_document = raw_doc
+            apply_config_env_from_document(raw_doc)
+            if not args.quiet:
+                pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
+                emit_startup_banner(
+                    version=scan_inst.__version__,
+                    pkg_dir=pkg_dir,
+                    stream=sys.stderr,
+                )
+                for line in audit_run_on_full_index_enable_lines(
+                    raw_doc,
+                    raw_text=config_text,
+                ):
+                    print(f"run: {line}", file=sys.stderr)
+                for note in json_audit:
+                    print(f"run: WARNING {note}", file=sys.stderr)
+            parsed_suite = try_parse_run_test_suite(
+                raw_doc,
+                base_dir=config_path.parent,
+                raw_text=config_text,
+            )
+            if parsed_suite is not None:
+                test_plan = list(
+                    build_test_run_configs(
+                        parsed_suite,
+                        raw_doc,
+                        base_dir=config_path.parent,
+                    )
+                )
+                base_cfg = parsed_suite.shared
+                _, json_jobs_source = _jobs_from_document(raw_doc)
+            else:
+                base_cfg, json_jobs_source = load_run_request_with_jobs_source(
+                    config_path
+                )
+        else:
+            base_cfg, json_jobs_source = load_run_request_with_jobs_source(
+                config_path
+            )
         cfg = merge_run_config(base_cfg, cli_cfg, args)
     elif args.filelist:
         auto = try_load_run_request_from_path(args.filelist)
@@ -453,12 +518,13 @@ def main(argv=None) -> int:
     )
 
     if not cfg.quiet:
-        pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
-        emit_startup_banner(
-            version=scan_inst.__version__,
-            pkg_dir=pkg_dir,
-            stream=sys.stderr,
-        )
+        if config_path is None or test_document is None:
+            pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
+            emit_startup_banner(
+                version=scan_inst.__version__,
+                pkg_dir=pkg_dir,
+                stream=sys.stderr,
+            )
         if config_path is not None:
             print(
                 f"run: config={config_path.resolve()} jobs={jobs_res.note} "
@@ -498,44 +564,41 @@ def main(argv=None) -> int:
                     file=sys.stderr,
                 )
 
-    test_document = None
-    test_plan: list[tuple[RunTestEntry | None, object]] = []
-    if config_path is not None:
-        try:
-            raw_doc = read_json_document(config_path)
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-            raw_doc = None
-        if isinstance(raw_doc, dict):
-            test_document = raw_doc
-            suite = try_parse_run_test_suite(raw_doc, base_dir=config_path.parent)
-            if suite is not None:
-                test_plan = list(
-                    build_test_run_configs(
-                        suite,
-                        raw_doc,
-                        base_dir=config_path.parent,
-                    )
-                )
-                if not cfg.quiet:
-                    print(
-                        f"run: test-suite {len(test_plan)} step(s) from "
-                        f"{config_path.resolve()}",
-                        file=sys.stderr,
-                    )
-                    for typo in detect_enable_key_typos(raw_doc):
-                        print(
-                            f"run: WARNING unknown block {typo!r} — "
-                            f"enable is not read; use run_on_full_index "
-                            f"(or legacy run_on_full_db)",
-                            file=sys.stderr,
-                        )
-                    for skipped in list_disabled_suite_blocks(raw_doc):
-                        print(
-                            f"run: inactive {skipped} (enable: 0; step and settings ignored)",
-                            file=sys.stderr,
-                        )
-                    for line in format_suite_enable_trace(raw_doc, suite, test_plan):
-                        print(f"run: {line}", file=sys.stderr)
+    if (
+        parsed_suite is not None
+        and test_plan
+        and not cfg.quiet
+    ):
+        print(
+            f"run: test-suite {len(test_plan)} step(s) from "
+            f"{config_path.resolve()}",
+            file=sys.stderr,
+        )
+        for warn in parsed_suite.enable_warnings:
+            print(f"run: WARNING {warn}", file=sys.stderr)
+        for typo in detect_enable_key_typos(test_document):
+            print(
+                f"run: WARNING unknown block {typo!r} — "
+                f"enable is not read; use run_on_full_index "
+                f"(or legacy run_on_full_db)",
+                file=sys.stderr,
+            )
+        for skipped in list_disabled_suite_blocks(
+            test_document,
+            raw_text=config_text,
+        ):
+            print(
+                f"run: inactive {skipped} (enable: 0; step and settings ignored)",
+                file=sys.stderr,
+            )
+        for line in format_suite_enable_trace(
+            test_document,
+            parsed_suite,
+            test_plan,
+            raw_text=config_text,
+        ):
+            print(f"run: {line}", file=sys.stderr)
+        saw_suite_enable_trace = True
     if not test_plan:
         if test_document is not None and is_run_test_suite_document(test_document):
             ap.error(
@@ -554,25 +617,50 @@ def main(argv=None) -> int:
                 full_key = _full_index_block_key(test_document)
                 if full_key is not None:
                     spec = _mapping_get_ci(test_document, full_key)
-                    if isinstance(spec, Mapping) and not block_enabled(
-                        spec, default=True
-                    ):
-                        ap.error(
-                            f"{full_key} is disabled (enable/enabled: 0) but a "
-                            f"{eff} run was scheduled — JSON was not executed as a "
-                            "flat suite (check block key spelling, enable vs enabled, "
-                            "and that verification blocks are siblings at top level)"
+                    if isinstance(spec, Mapping):
+                        enabled, _ = resolve_block_enabled(
+                            spec,
+                            default=True,
+                            document=test_document,
+                            block_key=full_key,
+                            raw_text=config_text,
                         )
+                        if not enabled:
+                            ap.error(
+                                f"{full_key} is disabled (enable/enabled: 0) but a "
+                                f"{eff} run was scheduled — JSON was not executed as a "
+                                "flat suite (check block key spelling, enable vs enabled, "
+                                "and that verification blocks are siblings at top level)"
+                            )
+                nested = find_nested_full_index_blocks(test_document)
+                if nested:
+                    paths = ", ".join(path for path, _ in nested)
+                    ap.error(
+                        f"found nested full-index block at {paths} — "
+                        "run_on_full_index must be a top-level sibling of "
+                        "run_conn_check / run_io_trace / run_cone_trace, not nested "
+                        "under run/config/scan"
+                    )
         if (
             test_document is not None
             and test_entry is not None
             and test_entry.kind == RUN_ON_FULL_INDEX
         ):
             spec = spec_for_test_entry(test_document, test_entry)
-            if not block_enabled(spec, default=True):
+            enabled, _ = resolve_block_enabled(
+                spec,
+                default=True,
+                document=test_document,
+                block_key=RUN_ON_FULL_INDEX,
+                raw_text=config_text,
+            )
+            if not enabled:
                 ap.error(
                     "internal error: run_on_full_index scheduled despite enable/enabled: 0"
                 )
+        if test_entry is not None:
+            if test_entry.kind == RUN_ON_FULL_INDEX:
+                saw_full_index_step = True
         if test_entry is not None and not run_cfg.quiet:
             label = test_entry.name or f"{test_entry.kind}[{test_entry.index}]"
             index_note = run_cfg.index_strategy
@@ -592,8 +680,23 @@ def main(argv=None) -> int:
                 file=sys.stderr,
             )
         step_rc = execute_run(run_cfg, ap)
+        if not run_cfg.quiet:
+            connect_req = resolve_connectivity_request(run_cfg)
+            eff = resolve_effective_run_mode(run_cfg, connect_req)
+            index_note = normalize_run_mode(run_cfg.index_strategy or "full-index")
+            if eff == "hierarchy" and index_note == "full-index":
+                saw_hierarchy_execute = True
         if step_rc != 0:
             exit_code = step_rc
+    if not cfg.quiet:
+        hint = format_enable_root_cause_hint(
+            saw_suite_trace=saw_suite_enable_trace,
+            saw_hierarchy_execute=saw_hierarchy_execute,
+            saw_full_index_step=saw_full_index_step,
+            version=scan_inst.__version__,
+        )
+        if hint is not None:
+            print(f"run: {hint}", file=sys.stderr)
     return exit_code
 
 

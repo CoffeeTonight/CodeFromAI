@@ -265,6 +265,27 @@ def format_path_walk_spine_lines(
     return lines
 
 
+def path_walk_trace_show_message(message: str) -> bool:
+    """
+    Whether a path-walk trace line should be emitted.
+
+    Search steps (tier0/tier1 scans, candidate tries, expands) are suppressed;
+    resolved nodes and pw-db hits are kept. Miss lines are kept on failure.
+    """
+    msg = message.strip()
+    if not msg:
+        return False
+    if msg.startswith("walk target="):
+        return False
+    if msg.startswith("pw-db v"):
+        return False
+    if msg.startswith("pw-db "):
+        if " load failed " in msg:
+            return True
+        return " edge hit " in msg or msg.startswith("pw-db   hit ")
+    return True
+
+
 def open_path_walk_trace_log(log_path: Path) -> TextIO:
     """Append path-walk trace section to the run log file."""
     log_path.parent.mkdir(parents=True, exist_ok=True)

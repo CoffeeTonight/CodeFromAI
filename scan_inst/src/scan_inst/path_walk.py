@@ -28,6 +28,7 @@ from scan_inst.hierarchy_log import (
     emit_path_walk_spine_log,
     format_path_walk_miss_line,
     open_path_walk_trace_log,
+    path_walk_trace_show_message,
 )
 from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
 from scan_inst.top_find import resolve_top_modules
@@ -130,7 +131,7 @@ class PathWalkState:
         return bool(self._trace_streams()) or self.on_progress is not None
 
     def _emit_walk(self, message: str) -> None:
-        if not message:
+        if not message or not path_walk_trace_show_message(message):
             return
         streams = self._trace_streams()
         if streams:
@@ -341,8 +342,6 @@ class PathWalkState:
         if path in self.rows_by_path:
             return True
         self.ensure_root()
-        if self._walk_trace_enabled():
-            self._emit_walk(f"walk target={path}")
         parts = path.split(".")
         cur = parts[0]
         for seg in parts[1:]:
@@ -356,16 +355,27 @@ class PathWalkState:
                 parent_mod = row.module if row else "?"
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 cand = "; ".join(Path(f).name for f in snap[:8])
+                have = ""
+                parent_rec = self.index.get_module(parent_mod) if parent_mod else None
+                if parent_rec is not None and parent_rec.instances:
+                    have = "; ".join(
+                        f"{e.inst_name}->{e.child_module}"
+                        for e in parent_rec.instances[:8]
+                    )
                 self._emit_walk_miss(
                     cur,
                     seg,
                     reason=(
                         "instance edge not found in parent module"
-                        + (f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}" if parent_mod else "")
+                        + (f"; have: {have}" if have else "")
+                        + (
+                            f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}"
+                            if parent_mod
+                            else ""
+                        )
                     ),
                     target_path=path,
                 )
-                self._emit_walk(self.mod_db.format_status_line())
                 self.mod_db.write_module_index_snapshot()
                 return False
             attached = self._attach_child(cur, seg, edge)
@@ -443,7 +453,7 @@ def _path_walk_trace_emit(
     trace_log_fh: Optional[TextIO] = None,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> None:
-    if not message:
+    if not message or not path_walk_trace_show_message(message):
         return
     streams: List[TextIO] = []
     if trace_stream is not None:
@@ -458,14 +468,7 @@ def _path_walk_trace_emit(
 
 
 def _wire_db_trace_to_state(mod_db: PathWalkModuleDb, state: PathWalkState) -> None:
-    prev = mod_db._on_trace
-
-    def _combined(msg: str) -> None:
-        if prev is not None:
-            prev(msg)
-        state._emit_walk(msg)
-
-    mod_db._on_trace = _combined
+    mod_db._on_trace = state._emit_walk
 
 
 def build_path_walk_state_from_specs(

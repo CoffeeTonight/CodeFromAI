@@ -27,7 +27,7 @@ from scan_inst.manifest import path_stat
 from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
-PATH_WALK_DB_VERSION = 3
+PATH_WALK_DB_VERSION = 5
 
 _MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|interface|program)\s+([A-Za-z_]\w*)\b",
@@ -446,22 +446,46 @@ class PathWalkModuleDb:
         inst_leaf: str,
         param_map: Mapping[str, str],
     ) -> Optional[InstanceEdge]:
+        """Match path segment to synthesizable instance names only (not module types)."""
+        if not edges or not inst_leaf:
+            return None
+
+        def _expanded(edge: InstanceEdge) -> List[str]:
+            return expand_inst_names(edge.inst_name, "", param_map)
+
         for edge in edges:
             if edge.inst_name == inst_leaf:
                 return edge
-            expanded = expand_inst_names(edge.inst_name, "", param_map)
-            if inst_leaf in expanded:
+        for edge in edges:
+            if inst_leaf in _expanded(edge):
+                return edge
+
+        leaf_lower = inst_leaf.lower()
+        for edge in edges:
+            if edge.inst_name.lower() == leaf_lower:
+                return edge
+        for edge in edges:
+            if any(name.lower() == leaf_lower for name in _expanded(edge)):
                 return edge
         return None
 
     def _apply_file_modules(self, path: str, modules: Mapping[str, ModuleRecord]) -> None:
-        self._index.patch_files(
-            [path],
-            [],
-            include_dirs=[str(p) for p in self._include_dirs],
-            defines=self._defines,
-            jobs=1,
-        )
+        key = str(Path(path).resolve())
+        for name, rec in modules.items():
+            self._index.modules[name] = ModuleRecord(
+                module_name=name,
+                file_path=key,
+                body="",
+                raw_params=dict(rec.raw_params),
+                instances=list(rec.instances),
+                needs_generate_fold=rec.needs_generate_fold,
+                is_blackbox=rec.is_blackbox,
+                is_interface=rec.is_interface,
+                stop_reason=rec.stop_reason,
+            )
+        self._index._rebuild_file_modules()
+        self._index._instance_cache.clear()
+        self._index._rebuild_default_ctx()
 
     def _index_has_resolved_module(
         self,
@@ -622,11 +646,13 @@ class PathWalkModuleDb:
                     )
                     self.write_module_index_snapshot()
                     return edge
-                insts = ", ".join(e.inst_name for e in hit.instances[:12])
-                self._trace(
-                    f"pw-db   edge miss {Path(fpath).name}: "
-                    f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
-                )
+                    insts = ", ".join(
+                        f"{e.inst_name}->{e.child_module}" for e in hit.instances[:12]
+                    )
+                    self._trace(
+                        f"pw-db   edge miss {Path(fpath).name}: "
+                        f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
+                    )
             if pass_full_tier0:
                 break
             pending = self._scan_remaining_sources_tier0()

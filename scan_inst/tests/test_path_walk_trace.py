@@ -6,7 +6,7 @@ import io
 from pathlib import Path
 
 from scan_inst.filelist import parse_filelist
-from scan_inst.hierarchy_log import format_path_walk_spine_lines
+from scan_inst.hierarchy_log import format_path_walk_spine_lines, path_walk_trace_show_message
 from scan_inst.models import FlatRow
 from scan_inst.path_walk import build_path_walk_state_from_specs
 
@@ -23,6 +23,20 @@ def _row(path: str, *, file: str, via: str, chain: str) -> FlatRow:
         via_filelist=via,
         filelist_chain=chain,
     )
+
+
+def test_path_walk_trace_filter_hides_search_keeps_hits():
+    assert not path_walk_trace_show_message("walk target=top.u_a")
+    assert not path_walk_trace_show_message("pw-db tier0 scan a.v -> A")
+    assert not path_walk_trace_show_message("pw-db tier1 scan a.v -> A(1inst)")
+    assert not path_walk_trace_show_message("pw-db edge B.C candidates=2")
+    assert not path_walk_trace_show_message("pw-db   edge miss b.v: no inst 'C'")
+    assert not path_walk_trace_show_message("pw-db tier0 expand edge B.C +1 file(s)")
+    assert not path_walk_trace_show_message("pw-db v3 root=/cache module_map=3")
+    assert path_walk_trace_show_message("ok top.u_a  module=mid  rtl=/rtl/mid.v")
+    assert path_walk_trace_show_message("pw-db   hit b.v for module 'B'")
+    assert path_walk_trace_show_message("pw-db   edge hit B.C via b.v -> child 'C'")
+    assert path_walk_trace_show_message("miss inst=C under A.B (instance edge not found)")
 
 
 def test_path_walk_spine_lines_include_filelist():
@@ -70,7 +84,8 @@ def test_path_walk_trace_logs_nodes_and_miss(tmp_path: Path):
     )
     text = buf.getvalue()
     assert "[scan-inst path-walk]" in text
-    assert "walk target=top.u_missing" in text
+    assert "walk target=" not in text
+    assert "pw-db tier0" not in text
     assert "ok top" in text
     assert "rtl=" in text
     assert "via_filelist=" in text
@@ -103,7 +118,9 @@ def test_path_walk_connect_trace_writes_pw_db_to_run_log(tmp_path: Path):
     )
     text = log_path.read_text(encoding="utf-8")
     assert "# path-walk trace" in text
-    assert "pw-db tier0" in text
+    assert "pw-db tier0" not in text
+    assert "pw-db tier1" not in text
+    assert "ok A" in text
     assert "[scan-inst path-walk]" in text
 
 

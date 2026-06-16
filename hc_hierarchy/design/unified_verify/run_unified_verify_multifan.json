@@ -1,0 +1,144 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "tests": [
+    {
+      "name": "fanout_top_clk_fullindex",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanout_cone": "hc_verify_top.clk",
+        "output": "out_multifan_fanout_top_clk.tsv"
+      }
+    },
+    {
+      "name": "fanin_top_clk_fullindex",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.clk",
+        "output": "out_multifan_fanin_top_clk.tsv"
+      }
+    },
+    {
+      "name": "fanin_gen_soc_clk_fullindex",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_gen_soc.clk",
+        "output": "out_multifan_fanin_gen_soc_clk.tsv"
+      }
+    },
+    {
+      "name": "fanout_cell_done_fullindex",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanout_cone": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done",
+        "output": "out_multifan_fanout_cell_done.tsv"
+      }
+    },
+    {
+      "name": "fanin_cell_done_fullindex",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done",
+        "output": "out_multifan_fanin_cell_done.tsv"
+      }
+    },
+    {
+      "name": "io_driver_gen_soc_fullindex",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_multifan_io_gen_soc_driver.tsv"
+      }
+    },
+    {
+      "name": "io_sinker_gen_soc_fullindex",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc",
+        "direction": "sinker",
+        "path_kind": "comb",
+        "output": "out_multifan_io_gen_soc_sinker.tsv"
+      }
+    },
+    {
+      "name": "pw_fanin_gen_soc_clk",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_gen_soc.clk",
+        "output": "out_pw_multifan_fanin_gen_soc_clk.tsv"
+      }
+    },
+    {
+      "name": "pw_fanin_gen_cell_clk",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk",
+        "output": "out_pw_multifan_fanin_gen_cell_clk.tsv"
+      }
+    },
+    {
+      "name": "pw_fanout_gen_if_done",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "fanout_cone": "hc_verify_top.u_gen_if.gen_on.u_on.done",
+        "output": "out_pw_multifan_fanout_gen_if_done.tsv"
+      }
+    },
+    {
+      "name": "pw_io_driver_gen_soc",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_pw_multifan_io_gen_soc_driver.tsv"
+      }
+    },
+    {
+      "name": "pw_conn_gen_clk_port",
+      "run_conn_check": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "include_ff": true,
+        "checks": [
+          {
+            "id": "pw_deep_gen_clk_port",
+            "a": "hc_verify_top.clk",
+            "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk"
+          },
+          {
+            "id": "pw_deep_gen_if_cell",
+            "a": "hc_verify_top.u_gen_if.gen_on.u_on",
+            "b": "hc_verify_top.u_gen_if.gen_on.u_on"
+          }
+        ],
+        "output": "out_pw_multifan_gen_conn.tsv"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+done	sinker	blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine
+done	sinker	port-out	hc_verify_top.u_gen_if.gen_on.u_on	done	leaf_cell	module output port in leaf_cell
+done	sinker	port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module output port in leaf_cell
+done	sinker	port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell	done	leaf_cell	module output port in leaf_cell
+done	sinker	port-out	hc_verify_top.u_gen_soc.u_alt	done	leaf_cell	module output port in leaf_cell
+done	sinker	port-out	hc_verify_top.u_gen_soc	status[0]	mid_gen_soc	module output port in mid_gen_soc
+# instance	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell
+# module	leaf_cell
+# direction	sinker
+# path_kind	comb
+# port_traces	1

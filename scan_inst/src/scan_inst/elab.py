@@ -41,6 +41,7 @@ def elaborate(
         depth: int,
         parent: Optional[str],
         *,
+        inst_leaf: str,
         file_path: str,
         stop_reason: str,
         via_filelist: str = "",
@@ -53,7 +54,7 @@ def elaborate(
         rows.append(
             FlatRow(
                 full_path=path,
-                inst_leaf=path.rsplit(".", 1)[-1],
+                inst_leaf=inst_leaf,
                 module=mod,
                 depth=depth,
                 parent_path=parent,
@@ -95,6 +96,7 @@ def elaborate(
             full_path,
             depth,
             parent_path,
+            inst_leaf=inst_leaf,
             file_path=node.file_path,
             stop_reason=stop,
             via_filelist=index.filelist_for(node.file_path),

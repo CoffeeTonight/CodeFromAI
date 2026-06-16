@@ -1,0 +1,11 @@
+{
+  "filelist": "filelist_top_module.f",
+  "top": "top_module",
+  "mode": "inst-trace",
+  "inst_trace": {
+    "instance": "top_module.u_middle_0",
+    "direction": "both",
+    "path_kind": "comb"
+  },
+  "output": "out_verify_hfa_io_middle_comb.tsv"
+}

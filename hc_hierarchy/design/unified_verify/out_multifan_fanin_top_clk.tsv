@@ -1,0 +1,15 @@
+kind	scope	net	module	detail
+blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine
+port-in	hc_verify_top.u_gen_if	clk	mid_gen_if	module input port in mid_gen_if
+port-in	hc_verify_top.u_gen_if	rst_n	mid_gen_if	module input port in mid_gen_if
+port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
+port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
+port-in	hc_verify_top.u_ifdef	clk	mid_ifdef	module input port in mid_ifdef
+port-in	hc_verify_top.u_ifdef	rst_n	mid_ifdef	module input port in mid_ifdef
+port-in	hc_verify_top	and_y	hc_verify_top	module input port in hc_verify_top
+# origin	hc_verify_top.clk
+# direction	fanin
+# nets_visited	4
+# ff_count	0
+# port_count	7
+# blackbox_count	1

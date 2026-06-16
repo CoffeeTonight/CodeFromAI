@@ -1747,9 +1747,11 @@ def prepare_connect_body(
     text = _collect_define_undef(body, pmap)
     text = _expand_macros(text, pmap)
     text = apply_ifdef_filter(text, pmap)
+    fold_ctx = dict(defines or {})
+    fold_ctx.update(param_map or {})
     return prepare_body_for_instance_scan(
         text,
-        dict(param_map or {}),
+        fold_ctx,
         over_approximate_if=over_approximate_if,
     )
 
@@ -2519,13 +2521,29 @@ def scan_instance_port_maps(
     return out
 
 
+def _array_bundle_port_expr(inst_leaf: str, port_expr: str) -> str:
+    """
+    ``cell arr[i][j] (... .p(net));`` connects each ``p`` to ``net[i][j]`` when *net*
+    is an unindexed bundle identifier (e.g. ``leaf_out``), not a shared scalar.
+    """
+    expr = port_expr.strip()
+    if not expr or "[" in expr:
+        return expr
+    lb = inst_leaf.find("[")
+    if lb < 0:
+        return expr
+    if expr in ("clk", "rst_n", "probe_in"):
+        return expr
+    return expr + inst_leaf[lb:]
+
+
 def _parse_instance_stmts_comma_chain(
     stmt: str,
     out: Dict[str, List[Tuple[str, str]]],
     pmap: Mapping[str, str],
 ) -> None:
     """``cell u0 (...), u1 (...);`` within one statement."""
-    from scan_inst.inst_scan import expand_inst_names
+    from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
 
     pos = _skip_ws(stmt, 0)
     cell, pos = _read_ident(stmt, pos)
@@ -2540,19 +2558,25 @@ def _parse_instance_stmts_comma_chain(
         pos = _skip_ws(stmt, pos)
 
     while pos < len(stmt):
-        inst, nxt = _read_ident(stmt, pos)
+        inst, nxt = _read_hier_inst_path(stmt, pos)
         if not inst:
             break
         nxt = _skip_ws(stmt, nxt)
+        dims = ""
         while nxt < len(stmt) and stmt[nxt] == "[":
-            nxt = _skip_balanced(stmt, nxt, "[", "]")
+            end = _skip_balanced(stmt, nxt, "[", "]")
+            dims += stmt[nxt:end]
+            nxt = end
             nxt = _skip_ws(stmt, nxt)
         if nxt >= len(stmt) or stmt[nxt] != "(":
             break
         ports, nxt = _parse_port_list(stmt, nxt)
-        for leaf in expand_inst_names(inst, "", pmap):
+        for leaf in expand_inst_names(inst, dims, pmap):
             if ports:
-                out[leaf] = list(ports)
+                out[leaf] = [
+                    (port, _array_bundle_port_expr(leaf, expr))
+                    for port, expr in ports
+                ]
         nxt = _skip_ws(stmt, nxt)
         if nxt < len(stmt) and stmt[nxt] == ",":
             pos = _skip_ws(stmt, nxt + 1)

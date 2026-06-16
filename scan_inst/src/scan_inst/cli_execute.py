@@ -199,6 +199,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
             trace_stream=sys.stderr if not cfg.quiet else None,
             trace_log_path=log_path,
         )
+        compile_defines = dict(fl.defines)
+        compile_defines.update(extra_defines)
         elapsed = time.perf_counter() - t0
 
         if inst_trace_mode:
@@ -220,7 +222,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 rows=pw_state.rows(),
                 index=index,
                 top=top_name,
-                defines=extra_defines,
+                defines=compile_defines,
             )
             record_verification_item(
                 cfg.inst_trace.instance,
@@ -276,7 +278,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     rows=pw_state.rows(),
                     index=index,
                     top=top_name,
-                    defines=extra_defines,
+                    defines=compile_defines,
                     over_approximate_if=over_approx,
                 )
                 report_mode = "fanout-cone"
@@ -287,7 +289,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     rows=pw_state.rows(),
                     index=index,
                     top=top_name,
-                    defines=extra_defines,
+                    defines=compile_defines,
                     over_approximate_if=over_approx,
                 )
                 report_mode = "fanin-cone"

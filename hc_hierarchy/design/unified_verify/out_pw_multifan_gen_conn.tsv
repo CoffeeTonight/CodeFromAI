@@ -1,0 +1,4 @@
+check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops
+pw_deep_gen_clk_port	hc_verify_top.clk	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk	True	port-port	connected; 4 module(s)		[coi] structural COI path
+pw_deep_gen_if_cell	hc_verify_top.u_gen_if.gen_on.u_on	hc_verify_top.u_gen_if.gen_on.u_on	True	hierarchy-hierarchy	same or ancestor/descendant (no port trace)		
+# modules_cached	4

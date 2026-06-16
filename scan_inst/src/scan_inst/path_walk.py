@@ -246,6 +246,9 @@ class PathWalkState:
         for miss in pending:
             if miss.target_path in self.rows_by_path:
                 continue
+            resolved = _walk_target_from_spec(miss.target_path, self)
+            if resolved and resolved in self.rows_by_path:
+                continue
             self._emit_walk_miss(
                 miss.parent_path,
                 miss.inst_leaf,
@@ -272,6 +275,7 @@ class PathWalkState:
         depth: int,
         parent: Optional[str],
         *,
+        inst_leaf: str,
         file_path: str,
         stop_reason: str,
         param_ctx: Mapping[str, str],
@@ -280,7 +284,7 @@ class PathWalkState:
             return
         self.rows_by_path[path] = FlatRow(
             full_path=path,
-            inst_leaf=path.rsplit(".", 1)[-1],
+            inst_leaf=inst_leaf,
             module=mod,
             depth=depth,
             parent_path=parent,
@@ -304,6 +308,7 @@ class PathWalkState:
             self.top,
             0,
             None,
+            inst_leaf=self.top,
             file_path=rec.file_path,
             stop_reason=stop,
             param_ctx=resolve_param_map(rec.raw_params),
@@ -380,55 +385,100 @@ class PathWalkState:
             child_path,
             parent.depth + 1,
             parent_path,
+            inst_leaf=inst_leaf,
             file_path=rec.file_path,
             stop_reason=stop,
             param_ctx=pmap,
         )
         return child_path
 
+    def _resolve_child_step(
+        self,
+        parent_path: str,
+        remainder: str,
+    ) -> Tuple[str, Optional[InstanceEdge]]:
+        """Match longest folded instance name at start of *remainder*."""
+        row = self.rows_by_path.get(parent_path)
+        if row is None or not remainder:
+            return "", None
+        rec = self.index.get_module(row.module)
+        if rec is None:
+            return "", None
+        pmap = resolve_param_map(rec.raw_params, parent=row.param_ctx)
+        edges = self.index.instances_for(row.module, row.param_ctx, {})
+        best_name = ""
+        best_edge: Optional[InstanceEdge] = None
+        for edge in edges:
+            for name in expand_inst_names(edge.inst_name, "", pmap):
+                if remainder == name or remainder.startswith(name + "."):
+                    if len(name) > len(best_name):
+                        best_name = name
+                        best_edge = edge
+        if best_edge is not None:
+            return best_name, best_edge
+        seg = remainder.split(".", 1)[0]
+        if not seg:
+            return "", None
+        edge = self._child_edge(parent_path, seg)
+        if edge is not None:
+            return seg, edge
+        return "", None
+
     def ensure_path(self, instance_path: str) -> bool:
         """Walk ``top.u_child...`` loading RTL files on demand."""
         path = instance_path.strip()
-        if not path or not path.startswith(self.top):
+        if not path:
+            return False
+        if path != self.top and not path.startswith(self.top + "."):
             return False
         self.mod_db._set_phase("searching", detail=path)
         if path in self.rows_by_path:
             self._clear_pending_misses(path)
             return True
         self.ensure_root()
-        parts = path.split(".")
-        cur = parts[0]
-        for seg in parts[1:]:
-            nxt = f"{cur}.{seg}"
+        if path == self.top:
+            self._clear_pending_misses(path)
+            return True
+        cur = self.top
+        remainder = path[len(self.top) + 1 :] if len(path) > len(self.top) else ""
+        while remainder:
+            nxt = f"{cur}.{remainder}"
             if nxt in self.rows_by_path:
                 cur = nxt
-                continue
-            edge = self._child_edge(cur, seg)
-            if edge is None:
+                remainder = ""
+                break
+            inst_name, edge = self._resolve_child_step(cur, remainder)
+            if edge is None or not inst_name:
                 row = self.rows_by_path.get(cur)
                 parent_mod = row.module if row else "?"
+                miss_leaf = remainder.split(".", 1)[0]
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 cand = "; ".join(Path(f).name for f in snap[:8])
                 have = ""
                 type_hint = ""
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
-                if parent_rec is not None and parent_rec.instances:
-                    have = "; ".join(
-                        f"{e.inst_name}->{e.child_module}"
-                        for e in parent_rec.instances[:8]
+                if parent_rec is not None:
+                    edges = self.index.instances_for(
+                        parent_mod,
+                        row.param_ctx if row else {},
+                        {},
                     )
-                    seg_lower = seg.lower()
-                    for edge in parent_rec.instances:
-                        if edge.child_module.lower() == seg_lower:
+                    if edges:
+                        have = "; ".join(
+                            f"{e.inst_name}->{e.child_module}" for e in edges[:8]
+                        )
+                    miss_lower = miss_leaf.lower()
+                    for inst_edge in edges:
+                        if inst_edge.child_module.lower() == miss_lower:
                             type_hint = (
-                                f"; hint: {seg!r} is module type — "
-                                f"use inst name {edge.inst_name!r} "
+                                f"; hint: {miss_leaf!r} is module type — "
+                                f"use inst name {inst_edge.inst_name!r} "
                                 f"(path-walk uses instance names, not module types)"
                             )
                             break
                 self._queue_walk_miss(
                     cur,
-                    seg,
+                    miss_leaf,
                     reason=(
                         "instance edge not found in parent module"
                         + (f"; have: {have}" if have else "")
@@ -443,17 +493,18 @@ class PathWalkState:
                 )
                 self.mod_db.write_module_index_snapshot()
                 return False
-            attached = self._attach_child(cur, seg, edge)
+            attached = self._attach_child(cur, inst_name, edge)
             if attached is None:
                 child_mod = edge.child_module or "?"
                 self._queue_walk_miss(
                     cur,
-                    seg,
+                    inst_name,
                     reason=f"child module {child_mod!r} not loaded",
                     target_path=path,
                 )
                 return False
             cur = attached
+            remainder = remainder[len(inst_name) :].lstrip(".")
         self.stats.paths_walked += 1
         ok = path in self.rows_by_path
         if ok:
@@ -492,7 +543,6 @@ class PathWalkState:
         self.ensure_path(path_b)
         if lca not in self.rows_by_path:
             self.ensure_path(lca)
-        self.stats.subtrees_expanded += 1
 
 
 def _walk_target_from_spec(spec: str, state: PathWalkState) -> str:

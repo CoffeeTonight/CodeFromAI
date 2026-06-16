@@ -1,0 +1,12 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+clk	driver	port-in	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module input port in leaf_cell
+clk	driver	port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
+clk	driver	port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
+rst_n	driver	port-in	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module input port in leaf_cell
+rst_n	driver	port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
+rst_n	driver	port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
+# instance	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell
+# module	leaf_cell
+# direction	driver
+# path_kind	ff
+# port_traces	2

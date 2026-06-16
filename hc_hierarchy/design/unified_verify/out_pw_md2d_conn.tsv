@@ -1,0 +1,7 @@
+check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops
+pw_md2d_hier	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	True	hierarchy-hierarchy	same or ancestor/descendant (no port trace)		
+pw_md2d_clk	hc_verify_top.clk	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk	True	port-port	connected; 10 module(s)		[coi] structural COI path
+pw_md2d_branch_link	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out	hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_in	True	port-port	connected; 15 module(s)		[coi] structural COI path
+pw_md2d_src_to_a	hc_verify_top.data[0]	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_in	True	port-port	connected; 15 module(s)		[coi] structural COI path
+pw_md2d_b_to_sink	hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_out	hc_verify_top.status[0]	True	port-port	connected; 15 module(s)		[coi] structural COI path
+# modules_cached	15

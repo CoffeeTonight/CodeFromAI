@@ -300,6 +300,8 @@ def _fold_if_generate(
                 over_approximate_if=over_approximate,
                 scope_prefix=child_scope,
             )
+            if block_label:
+                repl = _prefix_instance_names(repl, child_scope)
         else:
             repl = else_body
         out = out[: m.start] + repl + out[m.end :]

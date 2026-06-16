@@ -1,0 +1,9 @@
+kind	scope	net	module	detail
+port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
+port-in	hc_verify_top	and_y	hc_verify_top	module input port in hc_verify_top
+# origin	hc_verify_top.u_gen_soc.clk
+# direction	fanin
+# nets_visited	1
+# ff_count	0
+# port_count	2
+# blackbox_count	0

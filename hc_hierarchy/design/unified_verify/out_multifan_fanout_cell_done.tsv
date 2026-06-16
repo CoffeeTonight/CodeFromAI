@@ -1,0 +1,13 @@
+kind	scope	net	module	detail
+blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine
+port-out	hc_verify_top.u_gen_if.gen_on.u_on	done	leaf_cell	module output port in leaf_cell
+port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module output port in leaf_cell
+port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell	done	leaf_cell	module output port in leaf_cell
+port-out	hc_verify_top.u_gen_soc.u_alt	done	leaf_cell	module output port in leaf_cell
+port-out	hc_verify_top.u_gen_soc	status[0]	mid_gen_soc	module output port in mid_gen_soc
+# origin	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done
+# direction	fanout
+# nets_visited	11
+# ff_count	0
+# port_count	5
+# blackbox_count	1

@@ -1,0 +1,10 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+clk	driver	port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	clk	md2d_leaf	module input port in md2d_leaf
+clk	driver	port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]	clk	md2d_g_wrap_a	module input port in md2d_g_wrap_a
+probe_in	driver	port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	probe_out	md2d_leaf	module input port in md2d_leaf
+probe_in	driver	port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]	probe_in	md2d_g_wrap_a	module input port in md2d_g_wrap_a
+# instance	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]
+# module	md2d_leaf
+# direction	driver
+# path_kind	comb
+# port_traces	2

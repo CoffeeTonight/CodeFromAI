@@ -1,0 +1,4 @@
+check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops
+deep_gen_clk	hc_verify_top.clk	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk	False	unknown		hierarchy not found: 'hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk' — path stops at 'hc_verify_top.u_gen_soc' (module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f) | unresolved suffix: 'gen_blk.gen_loop[0].u_cell.clk'	
+deep_arr_port	hc_verify_top.data	hc_verify_top.u_arr.b[1].c[0].int[6][1:0]	False	port-port	no path; 3 module(s)		
+# modules_cached	3

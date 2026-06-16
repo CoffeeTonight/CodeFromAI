@@ -1,0 +1,7 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+# instance	top_module.u_middle_0
+# module	middle_module
+# direction	both
+# path_kind	comb
+# port_traces	0
+# errors	no ports match direction='both' on top_module.u_middle_0

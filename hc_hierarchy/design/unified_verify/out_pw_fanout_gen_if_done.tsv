@@ -1,0 +1,8 @@
+kind	scope	net	module	detail
+# origin	hc_verify_top.u_gen_if.gen_on.u_on.done
+# direction	fanout
+# nets_visited	0
+# ff_count	0
+# port_count	0
+# blackbox_count	0
+# errors	hierarchy not found: 'hc_verify_top.u_gen_if.gen_on.u_on.done' — path stops at 'hc_verify_top.u_gen_if' (module=mid_gen_if  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_if.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f) | unresolved suffix: 'gen_on.u_on.done'

@@ -1,0 +1,39 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_on_full_index": {
+    "enable": 1,
+    "mode": "hierarchy",
+    "no_cache": true,
+    "output": "out_fullindex_instances.tsv"
+  },
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "full-index",
+    "no_cache": true,
+    "include_ff": true,
+    "checks": [
+      {
+        "id": "clk_reach_gen_soc",
+        "a": "hc_verify_top.clk",
+        "b": "hc_verify_top.u_gen_soc"
+      },
+      {
+        "id": "deep_gen_cell_hier",
+        "a": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell",
+        "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell"
+      },
+      {
+        "id": "deep_gen_clk_port",
+        "a": "hc_verify_top.clk",
+        "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk"
+      },
+      {
+        "id": "deep_gen_if_cell",
+        "a": "hc_verify_top.u_gen_if.gen_on.u_on",
+        "b": "hc_verify_top.u_gen_if.gen_on.u_on"
+      }
+    ],
+    "output": "out_fullindex_gen_conn.tsv"
+  }
+}

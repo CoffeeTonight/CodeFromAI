@@ -1,0 +1,10 @@
+kind	scope	net	module	detail
+port-in	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module input port in leaf_cell
+port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
+port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
+# origin	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk
+# direction	fanin
+# nets_visited	3
+# ff_count	0
+# port_count	3
+# blackbox_count	0

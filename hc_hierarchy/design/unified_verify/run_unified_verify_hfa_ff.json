@@ -1,0 +1,40 @@
+{
+  "filelist": "filelist_top_module.f",
+  "top": "top_module",
+  "tests": [
+    {
+      "name": "fanin_middle_out_ff",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanin_cone": "top_module.u_middle_0.out",
+        "output": "out_verify_hfa_fanin_ff.tsv"
+      }
+    },
+    {
+      "name": "io_trace_sub_ff",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "top_module.u_middle_0.u_subTop_0",
+        "direction": "both",
+        "path_kind": "ff",
+        "output": "out_verify_hfa_io_ff.tsv"
+      }
+    },
+    {
+      "name": "io_trace_sub_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "top_module.u_middle_0.u_subTop_0",
+        "direction": "both",
+        "path_kind": "comb",
+        "output": "out_verify_hfa_io_comb.tsv"
+      }
+    }
+  ]
+}

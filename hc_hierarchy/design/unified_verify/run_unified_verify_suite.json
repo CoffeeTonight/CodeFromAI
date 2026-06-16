@@ -1,0 +1,122 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_on_full_index": {
+    "enable": 1,
+    "mode": "hierarchy",
+    "no_cache": true,
+    "output": "out_verify_instances.tsv"
+  },
+  "tests": [
+    {
+      "name": "deep_anchor_pathwalk",
+      "run_conn_check": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "checks": [
+          {
+            "id": "anchor_flat_deep",
+            "a": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3",
+            "b": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3.u_l"
+          },
+          {
+            "id": "anchor_nested_deep",
+            "a": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2",
+            "b": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2.u_d3"
+          }
+        ],
+        "output": "out_verify_anchor_pw.tsv"
+      }
+    },
+    {
+      "name": "deep_hier_gen_fullindex",
+      "run_conn_check": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "include_ff": true,
+        "connect_trace": true,
+        "checks": [
+          {
+            "id": "deep_gen_clk_port",
+            "a": "hc_verify_top.clk",
+            "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk"
+          },
+          {
+            "id": "deep_gen_if_cell",
+            "a": "hc_verify_top.u_gen_if.gen_on.u_on",
+            "b": "hc_verify_top.u_gen_if.gen_on.u_on"
+          },
+          {
+            "id": "anchor_flat_deep",
+            "a": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3",
+            "b": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3.u_l"
+          },
+          {
+            "id": "anchor_nested_deep",
+            "a": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2",
+            "b": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2.u_d3"
+          }
+        ],
+        "output": "out_verify_deep_conn.tsv"
+      }
+    },
+    {
+      "name": "fanout_clk_comb",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanout_cone": "hc_verify_top.clk",
+        "output": "out_verify_fanout_clk.tsv"
+      }
+    },
+    {
+      "name": "fanin_deep_clk_comb",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk",
+        "output": "out_verify_fanin_cell_clk.tsv"
+      }
+    },
+    {
+      "name": "io_trace_gen_soc_driver_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_verify_io_gen_soc_driver.tsv"
+      }
+    },
+    {
+      "name": "io_trace_gen_cell_sinker_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell",
+        "direction": "sinker",
+        "path_kind": "comb",
+        "output": "out_verify_io_cell_sink.tsv"
+      }
+    },
+    {
+      "name": "io_trace_gen_cell_driver_ff",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "full-index",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell",
+        "direction": "driver",
+        "path_kind": "ff",
+        "output": "out_verify_io_cell_driver_ff.tsv"
+      }
+    }
+  ]
+}

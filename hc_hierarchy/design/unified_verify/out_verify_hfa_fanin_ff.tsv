@@ -1,0 +1,8 @@
+kind	scope	net	module	detail
+ff-driver	top_module.u_middle_0.u_sub_1	out	sub_module	always_ff Q output in sub_module
+# origin	top_module.u_middle_0.out
+# direction	fanin
+# nets_visited	3
+# ff_count	1
+# port_count	0
+# blackbox_count	0

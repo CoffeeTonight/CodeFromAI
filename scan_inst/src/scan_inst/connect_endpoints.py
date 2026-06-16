@@ -64,10 +64,6 @@ def parse_connect_endpoint(
     if text in rows_by_path:
         return text, None
     parts = text.split(".")
-    for i in range(1, len(parts)):
-        prefix = ".".join(parts[:i])
-        if prefix not in rows_by_path:
-            return prefix, None
     for i in range(len(parts) - 1, 0, -1):
         hier = ".".join(parts[:i])
         row = rows_by_path.get(hier)
@@ -76,9 +72,13 @@ def parse_connect_endpoint(
         tail = ".".join(parts[i:])
         if not tail:
             return hier, None
-        if index is not None and _port_exists(index, row, tail, top=top):
+        if index is not None:
+            if _port_exists(index, row, tail, top=top):
+                return hier, tail
+            if _net_exists_in_module(index, row, tail, top=top):
+                return hier, tail
+        if "." not in tail:
             return hier, tail
-        return hier, tail
     return text, None
 
 

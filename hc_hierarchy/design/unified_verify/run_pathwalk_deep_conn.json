@@ -1,0 +1,23 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "path-walk",
+    "no_cache": true,
+    "include_ff": true,
+    "checks": [
+      {
+        "id": "deep_gen_clk",
+        "a": "hc_verify_top.clk",
+        "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk"
+      },
+      {
+        "id": "deep_arr_port",
+        "a": "hc_verify_top.data",
+        "b": "hc_verify_top.u_arr.b[1].c[0].int[6][1:0]"
+      }
+    ],
+    "output": "out_pathwalk_deep_conn.tsv"
+  }
+}

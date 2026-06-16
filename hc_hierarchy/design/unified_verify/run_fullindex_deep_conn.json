@@ -1,0 +1,39 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "full-index",
+    "no_cache": true,
+    "include_ff": true,
+    "strict_generate": true,
+    "checks": [
+      {
+        "id": "deep_gen_clk",
+        "a": "hc_verify_top.clk",
+        "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk"
+      },
+      {
+        "id": "deep_gen_rst",
+        "a": "hc_verify_top.rst_n",
+        "b": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell.rst_n"
+      },
+      {
+        "id": "deep_gen_if_clk",
+        "a": "hc_verify_top.clk",
+        "b": "hc_verify_top.u_gen_if.gen_on.u_on.clk"
+      },
+      {
+        "id": "anchor_flat_deep",
+        "a": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3",
+        "b": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3.u_l"
+      },
+      {
+        "id": "anchor_nested_deep",
+        "a": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2",
+        "b": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2.u_d3"
+      }
+    ],
+    "output": "out_fullindex_deep_conn.tsv"
+  }
+}

@@ -21,6 +21,9 @@ module hc_verify_top (
     mid_gen_soc u_gen_soc (.clk(clk), .rst_n(rst_n), .status(status));
     mid_gen_if u_gen_if (.clk(clk), .rst_n(rst_n));
     mid_arr u_arr ();
+    wire md2d_probe_sink;
+    mid_md2d u_md2d (.clk(clk), .probe_src(data[0]), .probe_sink(md2d_probe_sink));
+    assign status[0] = md2d_probe_sink;
     mid_param #(.DEPTH(2)) u_param_gen ();
     defparam_top u_defparam ();
     param_child #(.W(8)) u_child_n8 ();

@@ -1,0 +1,4 @@
+check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops
+anchor_flat_deep	hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3	hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3.u_l	True	hierarchy-hierarchy	same or ancestor/descendant (no port trace)		
+anchor_nested_deep	hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2	hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2.u_d3	True	hierarchy-hierarchy	same or ancestor/descendant (no port trace)		
+# modules_cached	0

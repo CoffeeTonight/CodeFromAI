@@ -1,0 +1,22 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "path-walk",
+    "no_cache": true,
+    "checks": [
+      {
+        "id": "anchor_flat_deep",
+        "a": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3",
+        "b": "hc_verify_top.u_anchor_flat.u_chain.u_d2.u_d3.u_l"
+      },
+      {
+        "id": "anchor_nested_deep",
+        "a": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2",
+        "b": "hc_verify_top.u_anchor_nested.u_inner.u_chain.u_d2.u_d3"
+      }
+    ],
+    "output": "out_pathwalk_anchor_chains.tsv"
+  }
+}

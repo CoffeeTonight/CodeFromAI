@@ -50,10 +50,13 @@ def _scan_module_body(
     *,
     parent_ctx: Optional[Mapping[str, str]] = None,
     overrides: Optional[Mapping[str, str]] = None,
+    compile_defines: Optional[Mapping[str, str]] = None,
 ) -> List[InstanceEdge]:
     pmap = resolve_param_map(raw_params, overrides=overrides, parent=parent_ctx)
-    folded = prepare_body_for_instance_scan(body, pmap)
-    return scan_hierarchy_instances(folded, param_map=pmap)
+    fold_ctx = dict(compile_defines or {})
+    fold_ctx.update(pmap)
+    folded = prepare_body_for_instance_scan(body, fold_ctx)
+    return scan_hierarchy_instances(folded, param_map=fold_ctx)
 
 
 def _ctx_key(pmap: Mapping[str, str]) -> str:
@@ -1031,7 +1034,9 @@ class DesignIndex:
             overrides=overrides,
             parent=parent_ctx,
         )
-        ctx_key = _ctx_key(pmap)
+        fold_ctx = dict(self._preprocess_defines)
+        fold_ctx.update(pmap)
+        ctx_key = _ctx_key(fold_ctx)
         if not overrides and ctx_key == self._default_ctx.get(mod_name):
             return rec.instances
 
@@ -1046,6 +1051,7 @@ class DesignIndex:
             raw_params,
             parent_ctx=parent_ctx,
             overrides=overrides,
+            compile_defines=self._preprocess_defines,
         )
         with self._instance_cache_lock:
             hit = self._instance_cache.get(cache_key)

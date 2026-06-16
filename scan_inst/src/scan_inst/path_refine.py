@@ -71,12 +71,19 @@ def _params_in_text(text: str) -> Dict[str, str]:
     return out
 
 
-def _inst_matches_target(inst: str, dims: str, target: str) -> bool:
+def _inst_matches_target(
+    inst: str,
+    dims: str,
+    target: str,
+    *,
+    param_map: Optional[Mapping[str, str]] = None,
+) -> bool:
     """Match instance names the same way as :func:`scan_hierarchy_instances`."""
     from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
 
     if not inst:
         return False
+    pmap = dict(param_map or {})
     target_inst, _ = _read_hier_inst_path(target, 0)
     want = (target_inst or target).lower()
     want_leaf = want.rsplit(".", 1)[-1]
@@ -90,7 +97,7 @@ def _inst_matches_target(inst: str, dims: str, target: str) -> bool:
         return True
     if inst.rsplit(".", 1)[-1].lower() == want_leaf:
         return True
-    for leaf in expand_inst_names(inst, dims, {}):
+    for leaf in expand_inst_names(inst, dims, pmap):
         if leaf.lower() == want:
             return True
         if leaf.rsplit(".", 1)[-1].lower() == want_leaf:
@@ -98,7 +105,12 @@ def _inst_matches_target(inst: str, dims: str, target: str) -> bool:
     return False
 
 
-def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
+def _body_prefix_before_instance(
+    body: str,
+    inst_leaf: str,
+    *,
+    param_map: Optional[Mapping[str, str]] = None,
+) -> str:
     """Return module body text that appears before ``inst_leaf`` declaration."""
     from scan_inst.inst_scan import (
         _ATTR_RE,
@@ -115,6 +127,7 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
     n = len(clean)
     i = 0
     target = inst_leaf
+    base_params = dict(param_map or {})
 
     def consume_hash(start: int) -> int:
         pos = start
@@ -173,7 +186,9 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
         if k >= n or clean[k] not in "(;":
             i += 1
             continue
-        if _inst_matches_target(inst, dims, target):
+        site_params = dict(base_params)
+        site_params.update(_params_in_text(clean[:decl_start]))
+        if _inst_matches_target(inst, dims, target, param_map=site_params):
             return clean[:decl_start]
         if clean[k] == "(":
             k = _skip_balanced(clean, k, "(", ")")
@@ -196,7 +211,7 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
                     while k < n and clean[k].isspace():
                         k += 1
                 if k < n and clean[k] in "(;":
-                    if _inst_matches_target(inst2, dims2, target):
+                    if _inst_matches_target(inst2, dims2, target, param_map=site_params):
                         return clean[:decl_start]
                     if clean[k] == "(":
                         k = _skip_balanced(clean, k, "(", ")")
@@ -215,7 +230,7 @@ def scoped_module_params(
     _path, header, body = _module_chunk(index, mod_name)
     params = dict(_header_params(header))
     if body:
-        prefix = _body_prefix_before_instance(body, inst_leaf)
+        prefix = _body_prefix_before_instance(body, inst_leaf, param_map=params)
         params.update(_params_in_text(prefix))
         return params
     rec = index.get_module(mod_name)

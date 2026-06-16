@@ -1,0 +1,65 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "tests": [
+    {
+      "name": "pw_md2d_hier_connect",
+      "run_conn_check": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "include_ff": true,
+        "checks": [
+          {
+            "id": "pw_md2d_hier",
+            "a": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]",
+            "b": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]"
+          },
+          {
+            "id": "pw_md2d_clk",
+            "a": "hc_verify_top.clk",
+            "b": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk"
+          },
+          {
+            "id": "pw_md2d_branch_link",
+            "a": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out",
+            "b": "hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_in"
+          },
+          {
+            "id": "pw_md2d_src_to_a",
+            "a": "hc_verify_top.data[0]",
+            "b": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_in"
+          },
+          {
+            "id": "pw_md2d_b_to_sink",
+            "a": "hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_out",
+            "b": "hc_verify_top.status[0]"
+          }
+        ],
+        "output": "out_pw_md2d_conn.tsv"
+      }
+    },
+    {
+      "name": "pw_md2d_fanin_leaf_clk",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "fanin_cone": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk",
+        "output": "out_pw_md2d_fanin_clk.tsv"
+      }
+    },
+    {
+      "name": "pw_md2d_io_driver",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_pw_md2d_io_driver.tsv"
+      }
+    }
+  ]
+}

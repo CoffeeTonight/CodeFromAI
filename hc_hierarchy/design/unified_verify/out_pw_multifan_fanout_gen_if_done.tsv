@@ -1,0 +1,8 @@
+kind	scope	net	module	detail
+port-out	hc_verify_top.u_gen_if.gen_on.u_on	done	leaf_cell	module output port in leaf_cell
+# origin	hc_verify_top.u_gen_if.gen_on.u_on.done
+# direction	fanout
+# nets_visited	4
+# ff_count	0
+# port_count	1
+# blackbox_count	0

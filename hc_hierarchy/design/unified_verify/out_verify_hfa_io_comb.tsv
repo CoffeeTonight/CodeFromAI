@@ -1,0 +1,7 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+# instance	top_module.u_middle_0.u_subTop_0
+# module	sub_module
+# direction	both
+# path_kind	comb
+# port_traces	0
+# errors	no ports parsed for instance top_module.u_middle_0.u_subTop_0 (module sub_module)

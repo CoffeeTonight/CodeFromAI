@@ -1,0 +1,1 @@
+{"filelist": "filelist.f", "top": "hc_verify_top", "tests": [{"name": "pw_fanin_gen_cell_clk", "run_cone_trace": {"enable": 1, "mode": "path-walk", "no_cache": true, "fanin_cone": "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk", "output": "out_pw_fanin_gen_cell_clk.tsv"}}]}

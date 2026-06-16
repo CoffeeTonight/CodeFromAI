@@ -73,6 +73,34 @@ def test_scan_assign_and_port_maps():
     )
 
 
+def test_parse_endpoint_generate_dotted_inst_leaf(tmp_path: Path):
+    v = """
+    module top(input logic clk);
+      soc u_soc();
+    endmodule
+    module soc(input logic clk);
+      generate
+        if (1) begin : gen_blk
+          for (genvar gi = 0; gi < 2; gi++) begin : gen_loop
+            leaf u_cell(.clk(clk));
+          end
+        end
+      endgenerate
+    endmodule
+    module leaf(input logic clk); endmodule
+    """
+    index, rows = _index_and_rows(v, tmp_path)
+    rows_by_path = {r.full_path: r for r in rows}
+    inst, port = parse_connect_endpoint(
+        "top.u_soc.gen_blk.gen_loop[0].u_cell.clk",
+        rows_by_path,
+        index=index,
+        top="top",
+    )
+    assert inst == "top.u_soc.gen_blk.gen_loop[0].u_cell"
+    assert port == "clk"
+
+
 def test_parse_endpoint_longest_match(tmp_path: Path):
     v = """
     module top(input logic p);
@@ -482,6 +510,28 @@ def test_empty_module_port_passthrough(tmp_path):
     assert check_connectivity(
         "top.src", "top.dst", rows=rows, index=index, top="top"
     ).connected
+
+
+def test_scan_instance_port_maps_multi_dim_array():
+    from scan_inst.connect_scan import scan_instance_port_maps
+
+    body = """
+    md2d_leaf g[0:1][0:2] (.clk(clk), .probe_in(probe_in), .probe_out(leaf_out));
+    """
+    ports = scan_instance_port_maps(body, param_map={})
+    assert set(ports) == {
+        "g[0][0]",
+        "g[0][1]",
+        "g[0][2]",
+        "g[1][0]",
+        "g[1][1]",
+        "g[1][2]",
+    }
+    assert ports["g[0][2]"] == [
+        ("clk", "clk"),
+        ("probe_in", "probe_in"),
+        ("probe_out", "leaf_out[0][2]"),
+    ]
 
 
 def test_nested_bracket_select_token_parse():

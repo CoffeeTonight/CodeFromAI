@@ -7,8 +7,14 @@ from pathlib import Path
 import pytest
 
 from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
+from scan_inst.cone import fanout_cone
 from scan_inst.filelist import parse_filelist
-from scan_inst.path_walk import build_path_walk_state_from_specs, create_path_walk_index, run_path_walk_connect
+from scan_inst.path_walk import (
+    build_path_walk_state_from_specs,
+    create_path_walk_index,
+    run_path_walk_connect,
+    run_path_walk_index,
+)
 
 _CANDIDATE_ROOTS = (
     Path("/home/user/tools/__CFI/hc_hierarchy/design/unified_verify"),
@@ -65,3 +71,59 @@ def test_unified_verify_idx_connect_path_walk():
     )
     assert batch.results[0].connected is True
     assert f"{TOP}.u_ecc_engine_00" in state.rows_by_path
+
+
+@pytest.mark.skipif(FILELIST is None, reason="unified_verify corpus not available")
+def test_unified_verify_generate_fanout_cone_path_walk():
+    """if-generate instance (gen_on.u_on) needs filelist +define+ENABLE for cone fold."""
+    fl = parse_filelist(str(FILELIST), index_cwd=str(UNIFIED_VERIFY))
+    endpoint = f"{TOP}.u_gen_if.gen_on.u_on.done"
+    index, state, top = run_path_walk_index(
+        fl,
+        [endpoint],
+        top=TOP,
+        no_cache=True,
+    )
+    result = fanout_cone(
+        endpoint,
+        rows=state.rows(),
+        index=index,
+        top=top,
+        defines=dict(fl.defines),
+    )
+    assert not result.errors
+    scopes = [b.scope for b in result.boundaries]
+    assert any("gen_on.u_on" in s for s in scopes), scopes
+
+
+@pytest.mark.skipif(FILELIST is None, reason="unified_verify corpus not available")
+def test_unified_verify_md2d_deep_path_walk():
+    """Multi-dim arrays: two branches cross-linked via probe_out/probe_in."""
+    fl = parse_filelist(str(FILELIST), index_cwd=str(UNIFIED_VERIFY))
+    deep_a = f"{TOP}.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]"
+    deep_b = f"{TOP}.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1]"
+    index, state, top = run_path_walk_index(
+        fl,
+        [deep_a, deep_b, f"{deep_a}.clk", f"{TOP}.clk"],
+        top=TOP,
+        no_cache=True,
+    )
+    assert deep_a in state.rows_by_path
+    assert deep_b in state.rows_by_path
+    assert state.rows_by_path[deep_a].inst_leaf == "g[0][2]"
+    assert state.rows_by_path[deep_b].inst_leaf == "g[1][1]"
+    request = ConnectivityRequest(
+        checks=(
+            ConnectivityCheck(f"{TOP}.clk", f"{deep_a}.clk", check_id="md2d_clk"),
+            ConnectivityCheck(
+                f"{deep_a}.probe_out",
+                f"{deep_b}.probe_in",
+                check_id="md2d_branch_link",
+            ),
+        ),
+        top=TOP,
+    )
+    batch, _idx2, _st2 = run_path_walk_connect(request, fl, top=TOP, no_cache=True)
+    by_id = {r.check_id: r for r in batch.results}
+    assert by_id["md2d_clk"].connected is True
+    assert by_id["md2d_branch_link"].connected is True

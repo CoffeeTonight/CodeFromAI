@@ -29,10 +29,16 @@ def _child_port_rep_matches(
     mod_idx: ModuleConnectIndex,
     port_name: str,
     rep: str,
+    *,
+    child_net: str = "",
 ) -> bool:
-    if net_representative(mod_idx, port_name) == rep:
+    """Match parent inst-port *port_name* to the child net being traced."""
+    if child_net:
+        if child_net != port_name and not child_net.startswith(port_name + "["):
+            return False
+    elif rep.startswith(port_name + "["):
         return True
-    return rep.startswith(port_name + "[")
+    return net_representative(mod_idx, port_name) == rep
 
 
 def _parent_port_map_roots(
@@ -336,7 +342,9 @@ def _expand_state(
                 ff_barrier=ctx.ff_barrier,
             )
             for port_name, expr in parent_idx.inst_ports.get(row.inst_leaf, ()):
-                if not _child_port_rep_matches(mod_idx, port_name, rep):
+                if not _child_port_rep_matches(
+                    mod_idx, port_name, rep, child_net=net
+                ):
                     continue
                 roots = _parent_port_map_roots(
                     port_name,
@@ -375,7 +383,9 @@ def _expand_state(
             for (inst_leaf, port), parent_reps in parent_idx.hier_ref_targets.items():
                 if inst_leaf != row.inst_leaf:
                     continue
-                if not _child_port_rep_matches(mod_idx, port, rep):
+                if not _child_port_rep_matches(
+                    mod_idx, port, rep, child_net=net
+                ):
                     continue
                 if skip_iface_hier:
                     continue

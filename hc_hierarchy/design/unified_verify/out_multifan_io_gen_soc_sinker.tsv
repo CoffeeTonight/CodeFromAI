@@ -1,0 +1,10 @@
+origin_port	trace_direction	boundary_kind	scope	net	module	detail
+status	sinker	port-out	hc_verify_top	status	hc_verify_top	module output port in hc_verify_top
+status[0]	sinker	port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module output port in leaf_cell
+status[1]	sinker	port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell	done	leaf_cell	module output port in leaf_cell
+status[2]	sinker	port-out	hc_verify_top.u_gen_soc.u_alt	done	leaf_cell	module output port in leaf_cell
+# instance	hc_verify_top.u_gen_soc
+# module	mid_gen_soc
+# direction	sinker
+# path_kind	comb
+# port_traces	6

@@ -188,6 +188,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
             cache_dir=cache_dir,
             no_cache=not use_cache,
             on_progress=on_progress,
+            trace_stream=sys.stderr if not cfg.quiet else None,
         )
         elapsed = time.perf_counter() - t0
 

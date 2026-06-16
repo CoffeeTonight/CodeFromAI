@@ -8,6 +8,7 @@ from typing import IO, List, Mapping, Optional, Sequence, TextIO
 from scan_inst.models import ConnectEndpoint, ConnectHop, FlatRow, PathChainLink
 
 _PREFIX = "[scan-inst hierarchy]"
+_PATH_WALK_PREFIX = "[scan-inst path-walk]"
 
 
 def format_row_provenance(row: FlatRow, *, compact: bool = False) -> str:
@@ -217,6 +218,109 @@ def emit_scopes_provenance_log(
         print(f"{prefix}   {title}", file=stream, flush=True)
     for line in format_scopes_provenance_lines(scopes, rows_by_path, indent=indent):
         print(f"{prefix}   {line}", file=stream, flush=True)
+
+
+def path_spine_prefixes(path: str) -> List[str]:
+    """Ordered instance paths from root down to *path* (inclusive)."""
+    parts = path.split(".")
+    return [".".join(parts[: depth + 1]) for depth in range(len(parts))]
+
+
+def format_path_walk_node_line(
+    path: str,
+    row: FlatRow,
+    *,
+    action: str = "ok",
+) -> str:
+    return f"{action} {path}  {format_row_provenance(row)}"
+
+
+def format_path_walk_miss_line(
+    parent_path: str,
+    parent_row: FlatRow,
+    inst_leaf: str,
+    *,
+    reason: str,
+) -> str:
+    return (
+        f"miss inst={inst_leaf} under {parent_path} ({reason})  "
+        f"parent {format_row_provenance(parent_row)}"
+    )
+
+
+def format_path_walk_spine_lines(
+    path: str,
+    rows_by_path: Mapping[str, FlatRow],
+    *,
+    indent: str = "  ",
+) -> List[str]:
+    lines: List[str] = []
+    for prefix in path_spine_prefixes(path):
+        row = rows_by_path.get(prefix)
+        if row is None:
+            lines.append(f"{indent}{prefix}  (no elaboration row)")
+            break
+        lines.append(f"{indent}{format_path_walk_node_line(prefix, row)}")
+    return lines
+
+
+def emit_path_walk_log(
+    message: str,
+    *,
+    stream: TextIO,
+    prefix: str = _PATH_WALK_PREFIX,
+) -> None:
+    if not message:
+        return
+    print(f"{prefix} {message}", file=stream, flush=True)
+
+
+def emit_path_walk_node_log(
+    path: str,
+    row: FlatRow,
+    *,
+    stream: TextIO,
+    action: str = "ok",
+    prefix: str = _PATH_WALK_PREFIX,
+) -> None:
+    emit_path_walk_log(
+        format_path_walk_node_line(path, row, action=action),
+        stream=stream,
+        prefix=prefix,
+    )
+
+
+def emit_path_walk_miss_log(
+    parent_path: str,
+    parent_row: FlatRow,
+    inst_leaf: str,
+    *,
+    stream: TextIO,
+    reason: str,
+    prefix: str = _PATH_WALK_PREFIX,
+) -> None:
+    emit_path_walk_log(
+        format_path_walk_miss_line(parent_path, parent_row, inst_leaf, reason=reason),
+        stream=stream,
+        prefix=prefix,
+    )
+    for line in format_path_walk_spine_lines(parent_path, {parent_path: parent_row}):
+        print(f"{prefix} {line}", file=stream, flush=True)
+
+
+def emit_path_walk_spine_log(
+    path: str,
+    rows_by_path: Mapping[str, FlatRow],
+    *,
+    stream: TextIO,
+    title: str = "spine",
+    prefix: str = _PATH_WALK_PREFIX,
+) -> None:
+    if not path:
+        return
+    emit_path_walk_log(f"{title} -> {path}", stream=stream, prefix=prefix)
+    for line in format_path_walk_spine_lines(path, rows_by_path):
+        print(f"{prefix} {line}", file=stream, flush=True)
 
 
 def format_path_link_provenance(link: PathChainLink) -> str:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, TextIO, Tuple
 
 from scan_inst.connect_endpoints import _lca, resolve_endpoint
 from scan_inst.connect_request import ConnectivityRequest
@@ -23,6 +23,11 @@ from scan_inst.lazy_scope import endpoint_specs_from_request, hierarchy_prefixes
 from scan_inst.library_scan import scan_library_modules
 from scan_inst.models import FlatRow, InstanceEdge
 from scan_inst.params import resolve_param_map
+from scan_inst.hierarchy_log import (
+    emit_path_walk_log,
+    emit_path_walk_spine_log,
+    format_path_walk_miss_line,
+)
 from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
 from scan_inst.top_find import resolve_top_modules
 
@@ -108,6 +113,72 @@ class PathWalkState:
     mod_db: PathWalkModuleDb
     rows_by_path: Dict[str, FlatRow] = field(default_factory=dict)
     stats: PathWalkStats = field(default_factory=PathWalkStats)
+    on_progress: Optional[Callable[[str], None]] = None
+    trace_stream: Optional[TextIO] = None
+
+    def _walk_trace_enabled(self) -> bool:
+        return self.on_progress is not None or self.trace_stream is not None
+
+    def _emit_walk(self, message: str) -> None:
+        if not message:
+            return
+        if self.trace_stream is not None:
+            emit_path_walk_log(message, stream=self.trace_stream)
+        elif self.on_progress is not None:
+            self.on_progress(f"path-walk: {message}")
+
+    def _emit_walk_node(self, path: str, *, action: str = "ok") -> None:
+        row = self.rows_by_path.get(path)
+        if row is None or not self._walk_trace_enabled():
+            return
+        message = f"{action} {path}  module={row.module}"
+        if row.file:
+            message += f"  rtl={row.file}"
+        if row.via_filelist:
+            message += f"  via_filelist={row.via_filelist}"
+        if row.filelist_chain:
+            message += f"  filelist_chain={row.filelist_chain}"
+        if row.stop_reason:
+            message += f"  stop={row.stop_reason}"
+        self._emit_walk(message)
+
+    def _emit_walk_miss(
+        self,
+        parent_path: str,
+        inst_leaf: str,
+        *,
+        reason: str,
+        target_path: str = "",
+    ) -> None:
+        if not self._walk_trace_enabled():
+            return
+        parent = self.rows_by_path.get(parent_path)
+        if parent is None:
+            self._emit_walk(
+                f"miss inst={inst_leaf} under {parent_path} ({reason})  "
+                f"(no parent elaboration row)"
+            )
+            return
+        self._emit_walk(
+            format_path_walk_miss_line(
+                parent_path,
+                parent,
+                inst_leaf,
+                reason=reason,
+            )
+        )
+        spine_end = parent_path
+        if self.trace_stream is not None:
+            emit_path_walk_spine_log(
+                spine_end,
+                self.rows_by_path,
+                stream=self.trace_stream,
+                title=f"walked (target {target_path} stopped)" if target_path else "walked",
+            )
+        elif target_path:
+            self._emit_walk(
+                f"walked spine -> {spine_end} (target {target_path} stopped)"
+            )
 
     def _sync_db_stats(self) -> None:
         self.stats.files_regex_scanned = self.mod_db.files_regex_scanned
@@ -146,6 +217,7 @@ class PathWalkState:
             filelist_chain=self.index.filelist_chain_for(file_path),
             param_ctx=dict(param_ctx),
         )
+        self._emit_walk_node(path)
 
     def ensure_root(self) -> None:
         if self.top in self.rows_by_path:
@@ -229,6 +301,8 @@ class PathWalkState:
         if path in self.rows_by_path:
             return True
         self.ensure_root()
+        if self._walk_trace_enabled():
+            self._emit_walk(f"walk target={path}")
         parts = path.split(".")
         cur = parts[0]
         for seg in parts[1:]:
@@ -238,9 +312,22 @@ class PathWalkState:
                 continue
             edge = self._child_edge(cur, seg)
             if edge is None:
+                self._emit_walk_miss(
+                    cur,
+                    seg,
+                    reason="instance edge not found in parent module",
+                    target_path=path,
+                )
                 return False
             attached = self._attach_child(cur, seg, edge)
             if attached is None:
+                child_mod = edge.child_module or "?"
+                self._emit_walk_miss(
+                    cur,
+                    seg,
+                    reason=f"child module {child_mod!r} not loaded",
+                    target_path=path,
+                )
                 return False
             cur = attached
         self.stats.paths_walked += 1
@@ -308,9 +395,16 @@ def build_path_walk_state_from_specs(
     *,
     expand_subtrees: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
+    trace_stream: Optional[TextIO] = None,
 ) -> PathWalkState:
     """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
-    state = PathWalkState(index=index, top=top, mod_db=mod_db)
+    state = PathWalkState(
+        index=index,
+        top=top,
+        mod_db=mod_db,
+        on_progress=on_progress,
+        trace_stream=trace_stream,
+    )
     state.ensure_root()
     spec_list = [str(s).strip() for s in specs if str(s).strip()]
     if on_progress:
@@ -338,8 +432,15 @@ def build_path_walk_state(
     mod_db: PathWalkModuleDb,
     *,
     on_progress: Optional[Callable[[str], None]] = None,
+    trace_stream: Optional[TextIO] = None,
 ) -> PathWalkState:
-    state = PathWalkState(index=index, top=top, mod_db=mod_db)
+    state = PathWalkState(
+        index=index,
+        top=top,
+        mod_db=mod_db,
+        on_progress=on_progress,
+        trace_stream=trace_stream,
+    )
     state.ensure_root()
     specs = endpoint_specs_from_request(request)
     if on_progress:
@@ -372,6 +473,7 @@ def run_path_walk_index(
     cache_dir: Optional[Path] = None,
     no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
+    trace_stream: Optional[TextIO] = None,
 ) -> Tuple[DesignIndex, PathWalkState, str]:
     """On-demand index + hierarchy rows for arbitrary endpoint specs."""
     defines = dict(fl.defines)
@@ -396,6 +498,7 @@ def run_path_walk_index(
         specs,
         mod_db,
         on_progress=on_progress,
+        trace_stream=trace_stream,
     )
     extra_roots = list(expand_subtrees)
     for spec in specs:
@@ -507,6 +610,7 @@ def run_path_walk_connect(
     cache_dir: Optional[Path] = None,
     no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
+    trace_stream: Optional[TextIO] = None,
 ) -> Tuple[ConnectivityBatchResult, DesignIndex, PathWalkState]:
     """
     Path-walk batch connectivity: on-demand RTL + shared :class:`ConnectivitySession`.
@@ -538,6 +642,7 @@ def run_path_walk_connect(
         request,
         mod_db,
         on_progress=on_progress,
+        trace_stream=trace_stream,
     )
     state._sync_db_stats()
     if on_progress:

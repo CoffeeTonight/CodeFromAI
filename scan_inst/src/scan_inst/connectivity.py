@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, IO, List, Mapping, Optional, Sequence, Tuple, Union
@@ -406,7 +407,8 @@ class ConnectivitySession:
         trace: bool = False,
         check_id: str = "",
     ) -> ConnectResult:
-        return _connect_pair(
+        t0 = time.perf_counter()
+        result = _connect_pair(
             endpoint_a,
             endpoint_b,
             rows=self.rows,
@@ -423,6 +425,15 @@ class ConnectivitySession:
             elab_index=self.elab_index,
             rows_by_path=self.rows_by_path,
         )
+        from scan_inst.verification_timing import record_connect_check
+
+        record_connect_check(
+            check_id=check_id,
+            endpoint_a=endpoint_a,
+            endpoint_b=endpoint_b,
+            elapsed_sec=time.perf_counter() - t0,
+        )
+        return result
 
     def check_many(
         self,

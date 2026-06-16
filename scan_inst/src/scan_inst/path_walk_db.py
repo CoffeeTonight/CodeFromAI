@@ -27,7 +27,7 @@ from scan_inst.manifest import path_stat
 from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
-PATH_WALK_DB_VERSION = 5
+PATH_WALK_DB_VERSION = 6
 
 _MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|interface|program)\s+([A-Za-z_]\w*)\b",
@@ -147,6 +147,9 @@ class PathWalkModuleDb:
         cache_key: Optional[str] = None,
         no_cache: bool = False,
         on_trace: Optional[Callable[[str], None]] = None,
+        on_progress: Optional[Callable[[str], None]] = None,
+        file_via_filelist: Optional[Mapping[str, str]] = None,
+        filelist_children: Optional[Mapping[str, Sequence[str]]] = None,
     ) -> None:
         self._sources = [str(Path(s).resolve()) for s in sources]
         self._index = index
@@ -156,6 +159,13 @@ class PathWalkModuleDb:
         self._no_cache = no_cache
         self._defines_digest = _defines_digest(self._defines)
         self._on_trace = on_trace
+        self._on_progress = on_progress
+        self._file_via_filelist: Dict[str, str] = dict(file_via_filelist or {})
+        self._filelist_children: Dict[str, List[str]] = {
+            str(Path(k).resolve()): [str(Path(c).resolve()) for c in v]
+            for k, v in (filelist_children or {}).items()
+        }
+        self._phase = "ready"
 
         base = cache_dir
         if base is None and not no_cache:
@@ -184,6 +194,20 @@ class PathWalkModuleDb:
     def _trace(self, message: str) -> None:
         if self._on_trace is not None and message:
             self._on_trace(message)
+
+    def _set_phase(self, phase: str, *, detail: str = "") -> None:
+        if not phase or phase == self._phase:
+            return
+        self._phase = phase
+        if self._on_progress is None:
+            return
+        msg = f"path-walk: {phase}"
+        if detail:
+            msg += f" — {detail}"
+        self._on_progress(msg)
+
+    def heartbeat_detail(self) -> str:
+        return self._phase
 
     def format_status_line(self) -> str:
         root = str(self._cache_root) if self._cache_root else "(memory only)"
@@ -313,10 +337,55 @@ class PathWalkModuleDb:
             if key not in files:
                 files.append(key)
 
+    def _scoped_sources_for_rtl(self, rtl_file: str) -> List[str]:
+        """
+        RTL sources reachable from the filelist subtree that lists *rtl_file*.
+
+        Search starts here (not the whole design) so duplicate module decls in
+        unrelated filelists are not preferred over the parent's listing chain.
+        """
+        if not rtl_file:
+            return list(self._sources)
+        anchor = str(Path(rtl_file).resolve())
+        listing = self._file_via_filelist.get(anchor, "")
+        if not listing:
+            listing = self._index.filelist_for(anchor)
+        if not listing:
+            return [anchor] if anchor in self._sources else list(self._sources)
+
+        reachable: Set[str] = {listing}
+        queue = [listing]
+        while queue:
+            fl = queue.pop()
+            for child in self._filelist_children.get(fl, ()):
+                if child not in reachable:
+                    reachable.add(child)
+                    queue.append(child)
+
+        scoped: List[str] = []
+        for src in self._sources:
+            key = str(Path(src).resolve())
+            via = self._file_via_filelist.get(key, "") or self._index.filelist_for(key)
+            if via in reachable:
+                scoped.append(key)
+        if anchor not in scoped and anchor in self._sources:
+            scoped.insert(0, anchor)
+        return scoped or list(self._sources)
+
+    def _tier0_scan_sources(self, sources: Sequence[str]) -> int:
+        added = 0
+        for src in sources:
+            key = str(Path(src).resolve())
+            if key not in self._regex_scanned:
+                self._tier0_scan_file(key)
+                added += 1
+        return added
+
     def _tier0_scan_file(self, path: str) -> List[str]:
         key = str(Path(path).resolve())
         if key in self._regex_scanned:
             return list(self._file_to_modules.get(key, []))
+        self._set_phase("mapping", detail=Path(key).name)
         self._regex_scanned.add(key)
         if self._skip and source_path_matches(key, self._skip):
             self.files_regex_scanned += 1
@@ -349,16 +418,59 @@ class PathWalkModuleDb:
         )
         return names
 
-    def _scan_remaining_sources_tier0(self) -> int:
-        """Tier-0 scan any filelist sources not yet regex-indexed."""
-        added = 0
-        for src in self._sources:
-            if src not in self._regex_scanned:
-                self._tier0_scan_file(src)
-                added += 1
-        return added
+    def _scan_remaining_sources_tier0(
+        self,
+        sources: Optional[Sequence[str]] = None,
+    ) -> int:
+        """Tier-0 scan sources not yet regex-indexed (scoped pool or full design)."""
+        pool = (
+            [str(Path(s).resolve()) for s in sources]
+            if sources is not None
+            else list(self._sources)
+        )
+        return self._tier0_scan_sources(pool)
 
-    def _ensure_regex_candidates(self, module_name: str) -> List[str]:
+    def _sort_module_files(
+        self,
+        module_name: str,
+        files: Sequence[str],
+        *,
+        scope_anchor: str = "",
+    ) -> List[str]:
+        ordered = list(dict.fromkeys(str(Path(f).resolve()) for f in files))
+        preferred = self._prefer_file.get(module_name)
+        if preferred and preferred in ordered:
+            ordered = [preferred] + [f for f in ordered if f != preferred]
+        if scope_anchor:
+            scoped = set(self._scoped_sources_for_rtl(scope_anchor))
+            in_scope = [f for f in ordered if f in scoped]
+            out_scope = [f for f in ordered if f not in scoped]
+            ordered = in_scope + out_scope
+        return ordered
+
+    def _ensure_regex_candidates(
+        self,
+        module_name: str,
+        *,
+        scope_anchor: str = "",
+    ) -> List[str]:
+        scoped_pool: Optional[List[str]] = None
+        if scope_anchor:
+            scoped_pool = self._scoped_sources_for_rtl(scope_anchor)
+            if scoped_pool:
+                self._tier0_scan_sources(scoped_pool)
+                scoped_hits = [
+                    f
+                    for f in self._module_to_files.get(module_name, [])
+                    if f in scoped_pool
+                ]
+                if scoped_hits:
+                    return self._sort_module_files(
+                        module_name,
+                        scoped_hits,
+                        scope_anchor=scope_anchor,
+                    )
+
         if not self._regex_queue:
             self._regex_queue = [s for s in self._sources if s not in self._regex_scanned]
 
@@ -374,18 +486,27 @@ class PathWalkModuleDb:
                     break
 
         files = list(self._module_to_files.get(module_name, []))
-        preferred = self._prefer_file.get(module_name)
-        if preferred and preferred in files:
-            files = [preferred] + [f for f in files if f != preferred]
-        return files
+        if scoped_pool:
+            in_scope = [f for f in files if f in scoped_pool]
+            if in_scope:
+                files = in_scope
+        return self._sort_module_files(
+            module_name,
+            files,
+            scope_anchor=scope_anchor,
+        )
 
     def _order_candidate_files(
         self,
         module_name: str,
         *,
         avoid_file: str = "",
+        scope_anchor: str = "",
     ) -> List[str]:
-        candidates = self._ensure_regex_candidates(module_name)
+        candidates = self._ensure_regex_candidates(
+            module_name,
+            scope_anchor=scope_anchor,
+        )
         if not candidates:
             return []
         avoid = str(Path(avoid_file).resolve()) if avoid_file else ""
@@ -399,6 +520,7 @@ class PathWalkModuleDb:
     def tier1_scan_file(self, path: str) -> Dict[str, ModuleRecord]:
         """Light preprocess + instance scan for one translation unit."""
         key = str(Path(path).resolve())
+        self._set_phase("parsing", detail=Path(key).name)
         mem = self._validated_memory.get(key)
         if mem is not None:
             return mem
@@ -518,6 +640,7 @@ class PathWalkModuleDb:
         *,
         expect_inst: Optional[Tuple[str, str]] = None,
         parent_ctx: Optional[Mapping[str, str]] = None,
+        scope_anchor: str = "",
     ) -> bool:
         """
         Load *module_name* into the shared index from the best candidate file.
@@ -537,13 +660,26 @@ class PathWalkModuleDb:
         if rec is not None and rec.file_path and not _is_placeholder_module(rec):
             avoid = str(Path(rec.file_path).resolve())
 
-        candidates = self._order_candidate_files(module_name, avoid_file=avoid)
+        candidates = self._order_candidate_files(
+            module_name,
+            avoid_file=avoid,
+            scope_anchor=scope_anchor,
+        )
+        scope_note = ""
+        if scope_anchor:
+            scope_note = (
+                f" scope={len(self._scoped_sources_for_rtl(scope_anchor))} src(s)"
+            )
         self._trace(
             f"pw-db resolve module={module_name} candidates={len(candidates)}"
             + (f" expect_inst={expect_inst[1]!r}" if expect_inst else "")
+            + scope_note
         )
         tried: Set[str] = set()
-        for pass_full_tier0 in (False, True):
+        scoped_pool = (
+            self._scoped_sources_for_rtl(scope_anchor) if scope_anchor else None
+        )
+        for pass_idx in range(3):
             for fpath in candidates:
                 if fpath in tried:
                     continue
@@ -573,16 +709,38 @@ class PathWalkModuleDb:
                 if self._index.get_module(module_name) is not None:
                     self.write_module_index_snapshot()
                     return True
-            if pass_full_tier0:
-                break
-            pending = self._scan_remaining_sources_tier0()
-            if pending <= 0:
-                break
-            self._trace(
-                f"pw-db tier0 expand module={module_name} "
-                f"+{pending} file(s) -> {len(self._module_to_files.get(module_name, []))} candidate(s)"
-            )
-            candidates = self._order_candidate_files(module_name, avoid_file=avoid)
+            if pass_idx == 0:
+                if scoped_pool:
+                    pending = self._scan_remaining_sources_tier0(scoped_pool)
+                    if pending > 0:
+                        self._trace(
+                            f"pw-db tier0 expand module={module_name} "
+                            f"scoped +{pending} file(s) -> "
+                            f"{len(self._module_to_files.get(module_name, []))} candidate(s)"
+                        )
+                        candidates = self._order_candidate_files(
+                            module_name,
+                            avoid_file=avoid,
+                            scope_anchor=scope_anchor,
+                        )
+                        continue
+                continue
+            if pass_idx == 1:
+                pending = self._scan_remaining_sources_tier0()
+                if pending <= 0:
+                    break
+                self._trace(
+                    f"pw-db tier0 expand module={module_name} "
+                    f"global +{pending} file(s) -> "
+                    f"{len(self._module_to_files.get(module_name, []))} candidate(s)"
+                )
+                candidates = self._order_candidate_files(
+                    module_name,
+                    avoid_file=avoid,
+                    scope_anchor=scope_anchor,
+                )
+                continue
+            break
 
         if expect_inst is not None:
             return False
@@ -620,13 +778,26 @@ class PathWalkModuleDb:
                         )
                     return edge
 
-        candidates = self._order_candidate_files(parent_module, avoid_file=avoid)
+        scope_anchor = avoid
+        candidates = self._order_candidate_files(
+            parent_module,
+            avoid_file=avoid,
+            scope_anchor=scope_anchor,
+        )
+        scope_note = ""
+        if scope_anchor:
+            scope_note = (
+                f" scope={len(self._scoped_sources_for_rtl(scope_anchor))} src(s)"
+            )
         self._trace(
             f"pw-db edge {parent_module}.{inst_leaf} "
-            f"candidates={len(candidates)}"
+            f"candidates={len(candidates)}{scope_note}"
         )
         tried: Set[str] = set()
-        for pass_full_tier0 in (False, True):
+        scoped_pool = (
+            self._scoped_sources_for_rtl(scope_anchor) if scope_anchor else None
+        )
+        for pass_idx in range(3):
             for fpath in candidates:
                 if fpath in tried:
                     continue
@@ -634,6 +805,10 @@ class PathWalkModuleDb:
                 modules = self.tier1_scan_file(fpath)
                 hit = modules.get(parent_module)
                 if hit is None:
+                    self._trace(
+                        f"pw-db   edge miss {Path(fpath).name}: "
+                        f"no module {parent_module!r} after tier1"
+                    )
                     continue
                 pmap = resolve_param_map(hit.raw_params, parent=parent_ctx)
                 edge = self._edge_matches(hit.instances, inst_leaf, pmap)
@@ -646,23 +821,45 @@ class PathWalkModuleDb:
                     )
                     self.write_module_index_snapshot()
                     return edge
-                    insts = ", ".join(
-                        f"{e.inst_name}->{e.child_module}" for e in hit.instances[:12]
-                    )
-                    self._trace(
-                        f"pw-db   edge miss {Path(fpath).name}: "
-                        f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
-                    )
-            if pass_full_tier0:
-                break
-            pending = self._scan_remaining_sources_tier0()
-            if pending <= 0:
-                break
-            self._trace(
-                f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
-                f"+{pending} file(s) -> {len(self._module_to_files.get(parent_module, []))} candidate(s)"
-            )
-            candidates = self._order_candidate_files(parent_module, avoid_file=avoid)
+                insts = ", ".join(
+                    f"{e.inst_name}->{e.child_module}" for e in hit.instances[:12]
+                )
+                self._trace(
+                    f"pw-db   edge miss {Path(fpath).name}: "
+                    f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
+                )
+            if pass_idx == 0:
+                if scoped_pool:
+                    pending = self._scan_remaining_sources_tier0(scoped_pool)
+                    if pending > 0:
+                        self._trace(
+                            f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
+                            f"scoped +{pending} file(s) -> "
+                            f"{len(self._module_to_files.get(parent_module, []))} candidate(s)"
+                        )
+                        candidates = self._order_candidate_files(
+                            parent_module,
+                            avoid_file=avoid,
+                            scope_anchor=scope_anchor,
+                        )
+                        continue
+                continue
+            if pass_idx == 1:
+                pending = self._scan_remaining_sources_tier0()
+                if pending <= 0:
+                    break
+                self._trace(
+                    f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
+                    f"global +{pending} file(s) -> "
+                    f"{len(self._module_to_files.get(parent_module, []))} candidate(s)"
+                )
+                candidates = self._order_candidate_files(
+                    parent_module,
+                    avoid_file=avoid,
+                    scope_anchor=scope_anchor,
+                )
+                continue
+            break
         return None
 
     def find_module_decl_file(self, module_name: str) -> Optional[str]:

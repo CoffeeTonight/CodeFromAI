@@ -503,6 +503,8 @@ def run_config_for_test(
             strict_generate=strict_generate,
             over_approximate_if=over_approx,
             flat_suite_step=True,
+            verification_step_kind=entry.kind,
+            verification_step_name=entry.name or f"{entry.kind}[{entry.index}]",
         )
 
     if entry.kind == RUN_IO_TRACE:
@@ -525,6 +527,8 @@ def run_config_for_test(
             fanout_cone=None,
             over_approximate_if=over_approx,
             flat_suite_step=True,
+            verification_step_kind=entry.kind,
+            verification_step_name=entry.name or f"{entry.kind}[{entry.index}]",
         )
 
     fanin = str(_first_ci(spec, "fanin_cone", "fanin-cone", "endpoint") or "").strip() or None
@@ -546,6 +550,8 @@ def run_config_for_test(
         connect_inline=None,
         over_approximate_if=over_approx,
         flat_suite_step=True,
+        verification_step_kind=entry.kind,
+        verification_step_name=entry.name or f"{entry.kind}[{entry.index}]",
     )
 
 

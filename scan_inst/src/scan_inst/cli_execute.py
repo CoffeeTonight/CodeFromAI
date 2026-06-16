@@ -60,6 +60,11 @@ from scan_inst.inst_trace import (
 from scan_inst.search import normalize_search_patterns, search
 from scan_inst.top_find import find_top_modules, resolve_top_modules
 from scan_inst.run_request import RunConfig
+from scan_inst.verification_timing import (
+    get_active_recorder,
+    record_connect_check,
+    record_verification_item,
+)
 
 
 def execute_run(cfg: RunConfig, ap) -> int:
@@ -129,6 +134,9 @@ def execute_run(cfg: RunConfig, ap) -> int:
             if cfg.log_file
             else default_log_path(cfg.filelist, cfg.output)
         )
+    timing_rec = get_active_recorder()
+    if timing_rec is not None:
+        timing_rec.register_log_path(log_path)
 
     lazy = lazy_processing_enabled()
     if lazy and on_progress:
@@ -206,12 +214,17 @@ def execute_run(cfg: RunConfig, ap) -> int:
             except ValueError as exc:
                 print(str(exc), file=sys.stderr)
                 return 2
+            _item_t0 = time.perf_counter()
             trace_result = run_inst_trace(
                 cfg.inst_trace,
                 rows=pw_state.rows(),
                 index=index,
                 top=top_name,
                 defines=extra_defines,
+            )
+            record_verification_item(
+                cfg.inst_trace.instance,
+                time.perf_counter() - _item_t0,
             )
             if not cfg.quiet:
                 emit_path_provenance_log(
@@ -256,6 +269,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 if cfg.over_approximate_if is not None
                 else True
             )
+            _item_t0 = time.perf_counter()
             if cfg.fanout_cone:
                 cone_result = fanout_cone(
                     cfg.fanout_cone,
@@ -277,6 +291,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     over_approximate_if=over_approx,
                 )
                 report_mode = "fanin-cone"
+            record_verification_item(cone_label, time.perf_counter() - _item_t0)
             if not cfg.quiet:
                 emit_path_provenance_log(
                     cone_result.origin_scope,
@@ -574,12 +589,17 @@ def execute_run(cfg: RunConfig, ap) -> int:
         )
         compile_defines = dict(fl.defines)
         compile_defines.update(extra_defines)
+        _item_t0 = time.perf_counter()
         trace_result = run_inst_trace(
             cfg.inst_trace,
             rows=rows,
             index=index,
             top=top_name,
             defines=compile_defines,
+        )
+        record_verification_item(
+            cfg.inst_trace.instance,
+            time.perf_counter() - _item_t0,
         )
         if not cfg.quiet:
             emit_path_provenance_log(
@@ -640,6 +660,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
             if cfg.over_approximate_if is not None
             else True
         )
+        cone_label = cfg.fanout_cone or cfg.fanin_cone or ""
+        _item_t0 = time.perf_counter()
         if cfg.fanout_cone:
             cone_result = fanout_cone(
                 cfg.fanout_cone,
@@ -649,7 +671,6 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 defines=compile_defines,
                 over_approximate_if=over_approx,
             )
-            cone_label = cfg.fanout_cone
             mode_name = "fanout-cone"
         else:
             assert cfg.fanin_cone is not None
@@ -661,8 +682,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 defines=compile_defines,
                 over_approximate_if=over_approx,
             )
-            cone_label = cfg.fanin_cone
             mode_name = "fanin-cone"
+        record_verification_item(cone_label, time.perf_counter() - _item_t0)
         if not cfg.quiet:
             emit_path_provenance_log(
                 cone_result.origin_scope,
@@ -756,6 +777,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
             )
         else:
             assert cfg.check_connect is not None
+            _item_t0 = time.perf_counter()
             result = check_connectivity(
                 cfg.check_connect[0],
                 cfg.check_connect[1],
@@ -768,10 +790,16 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 strict_generate=cfg.strict_generate,
                 over_approximate_if=cfg.over_approximate_if,
             )
+            record_connect_check(
+                check_id="",
+                endpoint_a=cfg.check_connect[0],
+                endpoint_b=cfg.check_connect[1],
+                elapsed_sec=time.perf_counter() - _item_t0,
+            )
             connect_results = [result]
             body = format_connect_results_tsv(connect_results)
+        endpoint_rows = rows_lookup(rows)
         if not cfg.quiet:
-            endpoint_rows = rows_lookup(rows)
             for result in connect_results:
                 emit_connect_trace_log(
                     result,

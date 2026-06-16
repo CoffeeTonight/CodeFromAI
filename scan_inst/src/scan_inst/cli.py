@@ -72,6 +72,7 @@ from scan_inst.run_request import (
 )
 from scan_inst.startup import emit_startup_banner
 from scan_inst.run_tests import (
+    VERIFICATION_KINDS,
     RunTestEntry,
     RunTestSuite,
     build_test_run_configs,
@@ -80,6 +81,14 @@ from scan_inst.run_tests import (
     list_disabled_suite_blocks,
     spec_for_test_entry,
     try_parse_run_test_suite,
+)
+from scan_inst.verification_timing import (
+    VerificationTimingRecorder,
+    bind_suite_recorder,
+    is_verification_run_config,
+    suite_recorder,
+    verification_step,
+    verification_step_label,
 )
 from scan_inst.cli_execute import execute_run
 from scan_inst.config_env_audit import emit_config_env_audit
@@ -659,6 +668,19 @@ def main(argv=None) -> int:
             )
         test_plan = [(None, cfg)]
 
+    has_verification = any(
+        entry is not None and entry.kind in VERIFICATION_KINDS
+        for entry, _ in test_plan
+    ) or (
+        len(test_plan) == 1
+        and test_plan[0][0] is None
+        and is_verification_run_config(test_plan[0][1])
+    )
+    timing_rec: Optional[VerificationTimingRecorder] = None
+    if has_verification:
+        timing_rec = VerificationTimingRecorder(quiet=cfg.quiet)
+        bind_suite_recorder(timing_rec)
+
     exit_code = 0
     for test_entry, run_cfg in test_plan:
         if test_document is not None and test_entry is None:
@@ -730,7 +752,20 @@ def main(argv=None) -> int:
                 f"index={index_note} output={run_cfg.output}",
                 file=sys.stderr,
             )
-        step_rc = execute_run(run_cfg, ap)
+        step_label = verification_step_label(run_cfg)
+        if step_label is not None:
+            kind, name = step_label
+            if test_entry is not None:
+                kind = test_entry.kind
+                name = test_entry.name or f"{test_entry.kind}[{test_entry.index}]"
+            with verification_step(
+                kind=kind,
+                name=name,
+                recorder=suite_recorder(),
+            ):
+                step_rc = execute_run(run_cfg, ap)
+        else:
+            step_rc = execute_run(run_cfg, ap)
         if not run_cfg.quiet:
             connect_req = resolve_connectivity_request(run_cfg)
             eff = resolve_effective_run_mode(run_cfg, connect_req)
@@ -739,6 +774,9 @@ def main(argv=None) -> int:
                 saw_hierarchy_execute = True
         if step_rc != 0:
             exit_code = step_rc
+    if timing_rec is not None:
+        timing_rec.emit_summary()
+    bind_suite_recorder(None)
     if not cfg.quiet:
         hint = format_enable_root_cause_hint(
             saw_suite_trace=saw_suite_enable_trace,

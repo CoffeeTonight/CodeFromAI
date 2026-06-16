@@ -315,12 +315,14 @@ class PathWalkState:
         *,
         expect_inst: Optional[Tuple[str, str]] = None,
         parent_ctx: Optional[Mapping[str, str]] = None,
+        scope_anchor: str = "",
     ) -> bool:
         had = self.index.get_module(module_name)
         if not self.mod_db.ensure_module_in_index(
             module_name,
             expect_inst=expect_inst,
             parent_ctx=parent_ctx,
+            scope_anchor=scope_anchor,
         ):
             self._sync_db_stats()
             self._emit_walk(
@@ -362,7 +364,7 @@ class PathWalkState:
         child_path = f"{parent_path}.{inst_leaf}"
         if child_path in self.rows_by_path:
             return child_path
-        if not self._load_module(edge.child_module):
+        if not self._load_module(edge.child_module, scope_anchor=parent.file):
             return None
         rec = self.index.get_module(edge.child_module)
         if rec is None:
@@ -389,6 +391,7 @@ class PathWalkState:
         path = instance_path.strip()
         if not path or not path.startswith(self.top):
             return False
+        self.mod_db._set_phase("searching", detail=path)
         if path in self.rows_by_path:
             self._clear_pending_misses(path)
             return True
@@ -794,6 +797,9 @@ def create_path_walk_index(
             on_progress=on_progress,
         )
 
+    from scan_inst.filelist import filelist_provenance_maps
+
+    via_map, _chain_map = filelist_provenance_maps(fl)
     mod_db = PathWalkModuleDb(
         sources,
         index,
@@ -804,17 +810,31 @@ def create_path_walk_index(
         cache_key=cache_key,
         no_cache=no_cache,
         on_trace=_db_trace,
+        on_progress=on_progress,
+        file_via_filelist=via_map,
+        filelist_children={
+            str(k): list(v) for k, v in (fl.filelist_children or {}).items()
+        },
     )
-    mod_db.remember_index_modules()
-    if on_progress:
-        on_progress(mod_db.format_status_line())
-    top_file = mod_db.find_module_decl_file(top)
-    if not top_file:
-        raise ValueError(f"top module {top!r} not found in filelist sources")
-    if on_progress:
-        on_progress(f"path-walk: seed top {top} ({Path(top_file).name})")
-    if not mod_db.ensure_module_in_index(top):
-        raise ValueError(f"top module {top!r} could not be loaded from {top_file}")
+    from scan_inst.progress import ProgressHeartbeat
+
+    with ProgressHeartbeat(
+        on_progress or (lambda _msg: None),
+        "path-walk",
+        enabled=on_progress is not None,
+        get_detail=mod_db.heartbeat_detail,
+    ):
+        mod_db.remember_index_modules()
+        if on_progress:
+            on_progress(mod_db.format_status_line())
+        mod_db._set_phase("mapping", detail=f"top {top}")
+        top_file = mod_db.find_module_decl_file(top)
+        if not top_file:
+            raise ValueError(f"top module {top!r} not found in filelist sources")
+        if on_progress:
+            on_progress(f"path-walk: seed top {top} ({Path(top_file).name})")
+        if not mod_db.ensure_module_in_index(top, scope_anchor=top_file):
+            raise ValueError(f"top module {top!r} could not be loaded from {top_file}")
     return index, mod_db
 
 

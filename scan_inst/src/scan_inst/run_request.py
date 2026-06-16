@@ -224,6 +224,8 @@ class RunConfig:
     index_strategy: str = "full-index"
     flat_suite_step: bool = False
     full_index_step: bool = False
+    verification_step_kind: str = ""
+    verification_step_name: str = ""
 
     @property
     def defines_map(self) -> Dict[str, str]:

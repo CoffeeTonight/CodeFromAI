@@ -92,7 +92,7 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         metavar="FILELIST.f",
-        help="top Verilog filelist; optional with --config (see also JSON field filelist)",
+        help="Verilog FILELIST.f, or RUN.json (auto-detected); omit when using -c/--config",
     )
 
     cfg = ap.add_argument_group("config")
@@ -371,8 +371,15 @@ def main(argv=None) -> int:
     if args.help_inst_trace:
         print(INST_TRACE_HELP, end="" if INST_TRACE_HELP.endswith("\n") else "\n")
         return 0
-    if not args.config and not args.filelist:
-        ap.error("filelist or --config is required")
+    if (
+        not args.config
+        and not args.filelist
+        and not args.check_connect_batch
+    ):
+        ap.error(
+            "pass --config RUN.json, --check-connect-batch BATCH.json "
+            "(filelist inside JSON is enough), or a Verilog FILELIST.f path"
+        )
     if args.check_connect and args.check_connect_batch:
         ap.error("use either --check-connect or --check-connect-batch, not both")
     if args.fanin_cone and args.fanout_cone:
@@ -395,8 +402,6 @@ def main(argv=None) -> int:
             cfg = cli_cfg
     else:
         cfg = cli_cfg
-    if not cfg.filelist:
-        ap.error("filelist is required (positional or in --config JSON)")
 
     connect_batch_jobs_source: Optional[str] = None
     connect_batch_path: Optional[Path] = None
@@ -406,6 +411,12 @@ def main(argv=None) -> int:
             cfg,
             connect_batch_path,
             args,
+        )
+
+    if not cfg.filelist:
+        ap.error(
+            "no filelist resolved: add top-level \"filelist\" to --config or "
+            "--check-connect-batch JSON, or pass a Verilog FILELIST.f path"
         )
 
     env_jobs_source: Optional[str] = None

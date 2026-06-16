@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from scan_inst.cli import _build_parser
@@ -129,6 +130,29 @@ def test_jobs_workers_alias():
         base_dir="/tmp",
     )
     assert cfg.jobs == 12
+
+
+def test_filelist_from_check_connect_batch_json(tmp_path: Path):
+    fl = tmp_path / "design.f"
+    fl.write_text("/dummy.v\n", encoding="utf-8")
+    batch = tmp_path / "checks.json"
+    batch.write_text(
+        json.dumps(
+            {
+                "filelist": "design.f",
+                "top": "top",
+                "checks": [{"id": "a", "a": "top.a", "b": "top.b"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ap = _build_parser()
+    args = ap.parse_args(["--check-connect-batch", str(batch)])
+    cli = run_config_from_args(args)
+    assert cli.filelist == ""
+    merged, _src = merge_options_from_connect_batch_json(cli, batch, args)
+    assert merged.filelist == str(fl.resolve())
+    assert merged.top == "top"
 
 
 def test_jobs_from_check_connect_batch_json(tmp_path: Path):

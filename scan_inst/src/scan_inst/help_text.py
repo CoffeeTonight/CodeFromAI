@@ -196,7 +196,8 @@ Connectivity — batch
   connect / check-connect-batch object fields:
       checks (array)          Required. Items: [a,b] or {"id","a","b"}
       pairs, connections      Aliases for checks
-      top, defines            Per-batch overrides (merged with run-level)
+      filelist (string)       Top .f path (use without --config; resolved vs batch JSON dir)
+      top, defines, output, mode, inst_trace, jobs, ignore-path, …
       include-ff, connect-trace, trace, strict-generate, over-approximate-if
 
   Batch output TSV columns:

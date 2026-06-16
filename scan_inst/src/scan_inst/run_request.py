@@ -507,6 +507,37 @@ def merge_options_from_connect_batch_json(
 
     out = cfg
     jobs_source: Optional[str] = None
+    base_dir = p.parent
+
+    if not out.filelist:
+        fl_raw = str(data.get("filelist") or "").strip()
+        if fl_raw:
+            resolved = _resolve_path(base_dir, fl_raw)
+            if resolved:
+                out = replace(out, filelist=resolved)
+
+    if not _field_overridden(args, "output", "-") and out.output == "-":
+        out_raw = data.get("output")
+        if out_raw is not None and str(out_raw).strip():
+            out = replace(
+                out,
+                output=_resolve_path(base_dir, str(out_raw).strip()) or "-",
+            )
+
+    if not out.mode:
+        mode_raw = normalize_run_mode(str(data.get("mode") or ""))
+        if mode_raw:
+            out = replace(out, mode=mode_raw)
+
+    if not out.defines and data.get("defines"):
+        batch_defines = _parse_defines(data.get("defines"))
+        if batch_defines:
+            out = replace(out, defines=tuple(batch_defines.items()))
+
+    if not _field_overridden(args, "index_cwd", None) and not out.index_cwd:
+        cwd_raw = data.get("index_cwd", data.get("index-cwd"))
+        if cwd_raw:
+            out = replace(out, index_cwd=_resolve_path(base_dir, str(cwd_raw)))
 
     if not _field_overridden(args, "jobs", 0) and out.jobs == 0:
         jobs, src = _jobs_from_document(data)
@@ -546,6 +577,44 @@ def merge_options_from_connect_batch_json(
         top = str(_mapping_get_ci(data, "top") or "").strip()
         if top:
             out = replace(out, top=top)
+
+    if not out.include_ff and bool(data.get("include_ff", False)):
+        out = replace(out, include_ff=True)
+    if "ff_barrier" in data and not out.include_ff:
+        out = replace(out, include_ff=not bool(data["ff_barrier"]))
+
+    if out.over_approximate_if is None and "over_approximate_if" in data:
+        over_approx = data.get("over_approximate_if")
+        if over_approx is None or isinstance(over_approx, bool):
+            out = replace(out, over_approximate_if=over_approx)
+
+    if not out.strict_generate and bool(data.get("strict_generate", False)):
+        out = replace(out, strict_generate=True)
+
+    if out.inst_trace is None:
+        inst_raw = data.get("inst_trace", data.get("inst-trace"))
+        if inst_raw is not None:
+            out = replace(
+                out,
+                inst_trace=parse_inst_trace_json(
+                    inst_raw,
+                    top=out.top or "",
+                    defines=dict(out.defines_map),
+                ),
+            )
+
+    if not out.fanin_cone:
+        fanin = data.get("fanin_cone", data.get("fanin-cone"))
+        if fanin:
+            out = replace(out, fanin_cone=str(fanin).strip())
+    if not out.fanout_cone:
+        fanout = data.get("fanout_cone", data.get("fanout-cone"))
+        if fanout:
+            out = replace(out, fanout_cone=str(fanout).strip())
+    if not out.cone_graph:
+        graph = data.get("cone_graph", data.get("cone-graph"))
+        if graph:
+            out = replace(out, cone_graph=_resolve_path(base_dir, str(graph)))
 
     return out, jobs_source
 

@@ -74,6 +74,29 @@ def strip_comments(text: str) -> str:
     return "".join(out)
 
 
+def _skip_sv_attributes(text: str, start: int) -> int:
+    """Skip ``(* ... *)`` attribute regions (may be nested)."""
+    pos = start
+    n = len(text)
+    while pos < n:
+        while pos < n and text[pos].isspace():
+            pos += 1
+        if pos + 1 >= n or text[pos : pos + 2] != "(*":
+            break
+        pos += 2
+        depth = 1
+        while pos < n and depth:
+            if pos + 1 < n and text[pos : pos + 2] == "(*":
+                depth += 1
+                pos += 2
+            elif pos + 1 < n and text[pos : pos + 2] == "*)":
+                depth -= 1
+                pos += 2
+            else:
+                pos += 1
+    return pos
+
+
 def _skip_balanced(text: str, start: int, open_ch: str, close_ch: str) -> int:
     if start >= len(text) or text[start] != open_ch:
         return start
@@ -360,12 +383,14 @@ def scan_hierarchy_instances(
         k = j
         while k < n and clean[k].isspace():
             k += 1
+        k = _skip_sv_attributes(clean, k)
         overrides: Dict[str, str] = {}
         inst = ""
         if k < n and clean[k] == "#":
             overrides, k = consume_hash(k)
             while k < n and clean[k].isspace():
                 k += 1
+            k = _skip_sv_attributes(clean, k)
             inst, k = _read_hier_inst_path(clean, k)
         else:
             inst, k = _read_hier_inst_path(clean, k)

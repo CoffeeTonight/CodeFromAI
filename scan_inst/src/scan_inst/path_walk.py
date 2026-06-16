@@ -410,18 +410,29 @@ class PathWalkState:
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 cand = "; ".join(Path(f).name for f in snap[:8])
                 have = ""
+                type_hint = ""
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
                 if parent_rec is not None and parent_rec.instances:
                     have = "; ".join(
                         f"{e.inst_name}->{e.child_module}"
                         for e in parent_rec.instances[:8]
                     )
+                    seg_lower = seg.lower()
+                    for edge in parent_rec.instances:
+                        if edge.child_module.lower() == seg_lower:
+                            type_hint = (
+                                f"; hint: {seg!r} is module type — "
+                                f"use inst name {edge.inst_name!r} "
+                                f"(path-walk uses instance names, not module types)"
+                            )
+                            break
                 self._queue_walk_miss(
                     cur,
                     seg,
                     reason=(
                         "instance edge not found in parent module"
                         + (f"; have: {have}" if have else "")
+                        + type_hint
                         + (
                             f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}"
                             if parent_mod

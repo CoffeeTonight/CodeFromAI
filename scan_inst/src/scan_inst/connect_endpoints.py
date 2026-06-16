@@ -73,9 +73,12 @@ def parse_connect_endpoint(
         row = rows_by_path.get(hier)
         if row is None:
             continue
-        port = ".".join(parts[i:])
-        if index is not None and _port_exists(index, row, port, top=top):
-            return hier, port
+        tail = ".".join(parts[i:])
+        if not tail:
+            return hier, None
+        if index is not None and _port_exists(index, row, tail, top=top):
+            return hier, tail
+        return hier, tail
     return text, None
 
 
@@ -208,6 +211,50 @@ def _explain_hierarchy_miss(
     return errors
 
 
+def _module_body_for_row(index: DesignIndex, row: FlatRow) -> str:
+    rec = index.get_module(row.module)
+    if rec is None:
+        return ""
+    if rec.body:
+        return rec.body
+    if rec.file_path:
+        try:
+            return Path(rec.file_path).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return ""
+    return ""
+
+
+def _net_exists_in_module(
+    index: DesignIndex,
+    row: FlatRow,
+    net_name: str,
+    *,
+    top: str,
+) -> bool:
+    """True when *net_name* is a declared/used port or internal wire/reg in *row*."""
+    if not net_name:
+        return False
+    if _port_exists(index, row, net_name, top=top):
+        return True
+    ctx = _port_param_ctx(index, row, top)
+    body = _module_body_for_row(index, row)
+    if not body:
+        return False
+    decl_widths = _port_decl_bit_indices(index, row.module, ctx)
+    mod_idx = build_module_connect_index(
+        body,
+        param_map=ctx,
+        port_decl_widths=decl_widths,
+    )
+    if net_name in mod_idx.net_rep:
+        return True
+    base = net_name.split("[", 1)[0].split(".", 1)[0]
+    if base in mod_idx.net_rep:
+        return True
+    return False
+
+
 def _explain_port_miss(
     inst_path: str,
     port_name: str,
@@ -218,8 +265,10 @@ def _explain_port_miss(
 ) -> List[str]:
     ctx = _port_param_ctx(index, row, top)
     ports = sorted(ports_for_module(row.file, row.module, ctx))
+    if _net_exists_in_module(index, row, port_name, top=top):
+        return []
     errors = [
-        f"port not found: '{inst_path}.{port_name}' on module {row.module} "
+        f"signal/port not found: '{inst_path}.{port_name}' on module {row.module} "
         f"({row.file})"
     ]
     if ports:
@@ -276,26 +325,6 @@ def resolve_endpoint(
             port_found=False,
         ), errors
 
-    if port_name is None and text not in lookup:
-        suffix = text[len(inst_path) + 1 :] if text.startswith(inst_path + ".") else ""
-        if suffix:
-            errors.extend(
-                _explain_hierarchy_miss(
-                    text,
-                    lookup,
-                    index=index,
-                    top=top,
-                    broken_prefix=inst_path,
-                )
-            )
-            return ConnectEndpoint(
-                spec=text,
-                inst_path=inst_path,
-                port_name="",
-                module=row.module,
-                port_found=False,
-            ), errors
-
     ep = ConnectEndpoint(
         spec=text,
         inst_path=inst_path,
@@ -307,10 +336,10 @@ def resolve_endpoint(
         if require_port:
             errors.append(f"port required but not given: {spec}")
         return ep, errors
-    if _port_exists(index, row, port_name, top=top):
+    if _net_exists_in_module(index, row, port_name, top=top):
         ep.port_found = True
-    else:
-        errors.extend(_explain_port_miss(inst_path, port_name, row, index=index, top=top))
+        return ep, errors
+    errors.extend(_explain_port_miss(inst_path, port_name, row, index=index, top=top))
     return ep, errors
 
 

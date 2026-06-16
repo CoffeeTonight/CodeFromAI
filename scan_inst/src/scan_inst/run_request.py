@@ -12,6 +12,7 @@ from scan_inst.connect_request import (
     ConnectivityRequest,
     load_connect_request,
     parse_connect_request_json,
+    try_parse_connect_request_json,
 )
 from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
 
@@ -250,8 +251,48 @@ def normalize_run_mode(mode: str) -> str:
     return str(mode or "").strip().replace("_", "-")
 
 
+def _document_has_key(data: Mapping[str, Any], *keys: str) -> bool:
+    for key in keys:
+        if _mapping_get_ci(data, key) is not None:
+            return True
+    return False
+
+
+def resolve_effective_run_mode(
+    cfg: RunConfig,
+    connect_request: Optional[ConnectivityRequest] = None,
+) -> str:
+    """Resolve the run mode after config + batch JSON + CLI merges."""
+    explicit = normalize_run_mode(cfg.mode or "")
+    if explicit:
+        return explicit
+    if cfg.find_top:
+        return "find-top"
+    if cfg.inst_trace is not None:
+        return "inst-trace"
+    if cfg.fanin_cone or cfg.fanout_cone:
+        return "cone"
+    if cfg.search or cfg.search_path:
+        return "search"
+    if cfg.check_connect:
+        return "check-connect"
+    if connect_request is not None:
+        return "check-connect-batch"
+    return "hierarchy"
+
+
+def _explicit_mode_from_document(data: Mapping[str, Any]) -> str:
+    """Read an explicit ``mode`` from run/connect JSON (top-level or under ``connect``)."""
+    raw = _mapping_get_ci(data, "mode")
+    if raw is None:
+        connect = data.get("connect")
+        if isinstance(connect, Mapping):
+            raw = _mapping_get_ci(connect, "mode")
+    return normalize_run_mode(str(raw or ""))
+
+
 def _infer_mode(data: Mapping[str, Any]) -> str:
-    explicit = normalize_run_mode(str(data.get("mode") or ""))
+    explicit = _explicit_mode_from_document(data)
     if explicit:
         return explicit
     if data.get("find_top"):
@@ -480,6 +521,253 @@ def load_run_request(path: Union[str, Path]) -> RunConfig:
     return parse_run_request_json(data, base_dir=p.parent)
 
 
+def _apply_run_document_fields(
+    cfg: RunConfig,
+    data: Mapping[str, Any],
+    *,
+    base_dir: Path,
+    args: Any,
+    jobs_source_prefix: str = "connect-batch",
+) -> tuple[RunConfig, Optional[str]]:
+    """Merge run-level JSON fields into ``cfg`` (batch JSON has ``--config`` parity)."""
+    out = cfg
+    jobs_source: Optional[str] = None
+
+    if _document_has_key(data, "filelist") and not args.filelist:
+        fl_raw = str(_mapping_get_ci(data, "filelist") or "").strip()
+        if fl_raw:
+            resolved = _resolve_path(base_dir, fl_raw)
+            if resolved:
+                out = replace(out, filelist=resolved)
+
+    if _document_has_key(data, "output") and not _field_overridden(args, "output", "-"):
+        out_raw = _mapping_get_ci(data, "output")
+        if out_raw is not None and str(out_raw).strip():
+            out = replace(
+                out,
+                output=_resolve_path(base_dir, str(out_raw).strip()) or "-",
+            )
+
+    if not _field_overridden(args, "mode", None):
+        batch_mode = _explicit_mode_from_document(data)
+        if batch_mode:
+            out = replace(out, mode=batch_mode)
+        elif bool(_mapping_get_ci(data, "find_top")):
+            out = replace(out, mode="find-top", find_top=True)
+
+    if _document_has_key(data, "defines") and not args.define:
+        batch_defines = _parse_defines(_mapping_get_ci(data, "defines"))
+        if batch_defines:
+            merged = dict(out.defines_map)
+            merged.update(batch_defines)
+            out = replace(out, defines=tuple(merged.items()))
+
+    if _document_has_key(data, "index_cwd", "index-cwd") and not _field_overridden(
+        args, "index_cwd", None
+    ):
+        cwd_raw = _mapping_get_ci(data, "index_cwd") or _mapping_get_ci(data, "index-cwd")
+        if cwd_raw:
+            out = replace(out, index_cwd=_resolve_path(base_dir, str(cwd_raw)))
+
+    if not _field_overridden(args, "jobs", 0):
+        jobs, src = _jobs_from_document(data)
+        if src is not None:
+            out = replace(out, jobs=jobs)
+            jobs_source = f"{jobs_source_prefix}:{src}"
+
+    if _document_has_key(data, "top") and not _field_overridden(args, "top", None):
+        top = str(_mapping_get_ci(data, "top") or "").strip()
+        if top:
+            out = replace(out, top=top)
+
+    if _document_has_key(data, "find_top") and not args.find_top:
+        if bool(_mapping_get_ci(data, "find_top")):
+            out = replace(out, find_top=True)
+
+    if _document_has_key(data, "all_tops") and not args.all_tops:
+        if bool(_mapping_get_ci(data, "all_tops")):
+            out = replace(out, all_tops=True)
+
+    if _document_has_key(data, "max_depth") and not _field_overridden(args, "max_depth", None):
+        raw_depth = _mapping_get_ci(data, "max_depth")
+        if raw_depth is not None:
+            out = replace(out, max_depth=int(raw_depth))
+
+    if _document_has_key(data, "search") and not _field_overridden(args, "search", None):
+        search = str(_mapping_get_ci(data, "search") or "").strip()
+        if search:
+            out = replace(out, search=search)
+
+    if _document_has_key(data, "search_subtree") and not args.search_subtree:
+        if bool(_mapping_get_ci(data, "search_subtree")):
+            out = replace(out, search_subtree=True)
+
+    if _document_has_key(data, "search_path") and not _field_overridden(
+        args, "search_path", None
+    ):
+        search_path = str(_mapping_get_ci(data, "search_path") or "").strip()
+        if search_path:
+            out = replace(out, search_path=search_path)
+
+    if _document_has_key(data, "search_module") and not args.search_module:
+        if bool(_mapping_get_ci(data, "search_module")):
+            out = replace(out, search_module=True)
+
+    if _document_has_key(data, "check_connect") and not args.check_connect:
+        parsed = _parse_check_connect(_mapping_get_ci(data, "check_connect"))
+        if parsed is not None:
+            out = replace(out, check_connect=parsed)
+
+    if _document_has_key(data, "connect_trace", "trace") and not args.connect_trace:
+        if bool(
+            _mapping_get_ci(data, "connect_trace")
+            or _mapping_get_ci(data, "trace")
+        ):
+            out = replace(out, connect_trace=True)
+
+    if _document_has_key(data, "connect_log") and not getattr(args, "connect_log", False):
+        if bool(_mapping_get_ci(data, "connect_log")):
+            out = replace(out, connect_log=True)
+
+    if _document_has_key(data, "include_ff") and not args.include_ff:
+        if bool(_mapping_get_ci(data, "include_ff")):
+            out = replace(out, include_ff=True)
+    if _document_has_key(data, "ff_barrier") and not args.include_ff:
+        out = replace(out, include_ff=not bool(_mapping_get_ci(data, "ff_barrier")))
+
+    if _document_has_key(data, "over_approximate_if"):
+        over_approx = _mapping_get_ci(data, "over_approximate_if")
+        if over_approx is None or isinstance(over_approx, bool):
+            out = replace(out, over_approximate_if=over_approx)
+
+    if _document_has_key(data, "strict_generate") and not getattr(
+        args, "strict_generate", False
+    ):
+        if bool(_mapping_get_ci(data, "strict_generate")):
+            out = replace(out, strict_generate=True)
+
+    if _document_has_key(data, "ignore_path", "ignore-path") and not args.ignore_path:
+        ignore_raw = _mapping_get_ci(data, "ignore_path") or _mapping_get_ci(
+            data, "ignore-path"
+        )
+        if ignore_raw is not None:
+            out = replace(
+                out,
+                ignore_path=tuple(_parse_string_list(ignore_raw, field="ignore_path")),
+            )
+
+    if _document_has_key(data, "ignore_path_file", "ignore-path-file") and not args.ignore_path_file:
+        ignore_raw = _mapping_get_ci(data, "ignore_path_file") or _mapping_get_ci(
+            data, "ignore-path-file"
+        )
+        if ignore_raw is not None:
+            out = replace(
+                out,
+                ignore_path_file=tuple(
+                    _resolve_path(base_dir, p) or p
+                    for p in _parse_string_list(
+                        ignore_raw,
+                        field="ignore_path_file",
+                    )
+                ),
+            )
+
+    if _document_has_key(data, "ignore_module", "ignore-module") and not args.ignore_module:
+        ignore_raw = _mapping_get_ci(data, "ignore_module") or _mapping_get_ci(
+            data, "ignore-module"
+        )
+        if ignore_raw is not None:
+            out = replace(
+                out,
+                ignore_module=tuple(
+                    _parse_string_list(ignore_raw, field="ignore_module")
+                ),
+            )
+
+    if _document_has_key(data, "ignore_filelist", "ignore-filelist") and not getattr(
+        args, "ignore_filelist", None
+    ):
+        ignore_raw = _mapping_get_ci(data, "ignore_filelist") or _mapping_get_ci(
+            data, "ignore-filelist"
+        )
+        if ignore_raw is not None:
+            out = replace(
+                out,
+                ignore_filelist=tuple(
+                    _parse_string_list(ignore_raw, field="ignore_filelist")
+                ),
+            )
+
+    if _document_has_key(data, "no_cache") and not args.no_cache:
+        if bool(_mapping_get_ci(data, "no_cache")):
+            out = replace(out, no_cache=True)
+
+    if _document_has_key(data, "refresh_cache") and not args.refresh_cache:
+        if bool(_mapping_get_ci(data, "refresh_cache")):
+            out = replace(out, refresh_cache=True)
+
+    if _document_has_key(data, "low_memory") and not getattr(args, "low_memory", False):
+        if bool(_mapping_get_ci(data, "low_memory")):
+            out = replace(out, low_memory=True)
+
+    if _document_has_key(data, "cache_dir") and not _field_overridden(args, "cache_dir", None):
+        cache_dir = _mapping_get_ci(data, "cache_dir")
+        if cache_dir:
+            out = replace(out, cache_dir=_resolve_path(base_dir, str(cache_dir)))
+
+    if _document_has_key(data, "quiet") and not args.quiet:
+        if bool(_mapping_get_ci(data, "quiet")):
+            out = replace(out, quiet=True)
+
+    if _document_has_key(data, "log_file") and not _field_overridden(args, "log_file", None):
+        log_file = _mapping_get_ci(data, "log_file")
+        if log_file:
+            out = replace(out, log_file=_resolve_path(base_dir, str(log_file)))
+
+    if _document_has_key(data, "no_log_file") and not args.no_log_file:
+        if bool(_mapping_get_ci(data, "no_log_file")):
+            out = replace(out, no_log_file=True)
+
+    if _document_has_key(data, "inst_trace", "inst-trace"):
+        inst_raw = _mapping_get_ci(data, "inst_trace") or _mapping_get_ci(
+            data, "inst-trace"
+        )
+        if inst_raw is not None:
+            out = replace(
+                out,
+                inst_trace=parse_inst_trace_json(
+                    inst_raw,
+                    top=out.top or str(_mapping_get_ci(data, "top") or "").strip(),
+                    defines=dict(out.defines_map),
+                ),
+            )
+
+    if _document_has_key(data, "fanin_cone", "fanin-cone") and not getattr(
+        args, "fanin_cone", None
+    ):
+        fanin = _mapping_get_ci(data, "fanin_cone") or _mapping_get_ci(data, "fanin-cone")
+        if fanin:
+            out = replace(out, fanin_cone=str(fanin).strip())
+
+    if _document_has_key(data, "fanout_cone", "fanout-cone") and not getattr(
+        args, "fanout_cone", None
+    ):
+        fanout = _mapping_get_ci(data, "fanout_cone") or _mapping_get_ci(
+            data, "fanout-cone"
+        )
+        if fanout:
+            out = replace(out, fanout_cone=str(fanout).strip())
+
+    if _document_has_key(data, "cone_graph", "cone-graph") and not getattr(
+        args, "cone_graph", None
+    ):
+        graph = _mapping_get_ci(data, "cone_graph") or _mapping_get_ci(data, "cone-graph")
+        if graph:
+            out = replace(out, cone_graph=_resolve_path(base_dir, str(graph)))
+
+    return out, jobs_source
+
+
 def merge_options_from_connect_batch_json(
     cfg: RunConfig,
     batch_path: Union[str, Path],
@@ -488,8 +776,7 @@ def merge_options_from_connect_batch_json(
     """
     Apply run-level fields from ``--check-connect-batch`` JSON.
 
-    Connectivity batch files often carry ``jobs``, ``ignore-path``, etc. alongside
-    ``checks`` when users do not use a separate ``-c`` run JSON.
+    Batch JSON has the same run-level field surface as ``--config`` run JSON.
     """
     if not batch_path:
         return cfg, None
@@ -504,119 +791,12 @@ def merge_options_from_connect_batch_json(
         return cfg, None
 
     apply_config_env_from_document(data)
-
-    out = cfg
-    jobs_source: Optional[str] = None
-    base_dir = p.parent
-
-    if not out.filelist:
-        fl_raw = str(data.get("filelist") or "").strip()
-        if fl_raw:
-            resolved = _resolve_path(base_dir, fl_raw)
-            if resolved:
-                out = replace(out, filelist=resolved)
-
-    if not _field_overridden(args, "output", "-") and out.output == "-":
-        out_raw = data.get("output")
-        if out_raw is not None and str(out_raw).strip():
-            out = replace(
-                out,
-                output=_resolve_path(base_dir, str(out_raw).strip()) or "-",
-            )
-
-    if not out.mode:
-        mode_raw = normalize_run_mode(str(data.get("mode") or ""))
-        if mode_raw:
-            out = replace(out, mode=mode_raw)
-
-    if not out.defines and data.get("defines"):
-        batch_defines = _parse_defines(data.get("defines"))
-        if batch_defines:
-            out = replace(out, defines=tuple(batch_defines.items()))
-
-    if not _field_overridden(args, "index_cwd", None) and not out.index_cwd:
-        cwd_raw = data.get("index_cwd", data.get("index-cwd"))
-        if cwd_raw:
-            out = replace(out, index_cwd=_resolve_path(base_dir, str(cwd_raw)))
-
-    if not _field_overridden(args, "jobs", 0) and out.jobs == 0:
-        jobs, src = _jobs_from_document(data)
-        if src is not None:
-            out = replace(out, jobs=jobs)
-            jobs_source = f"connect-batch:{src}"
-
-    if not args.ignore_path and not out.ignore_path:
-        ignore_raw = data.get("ignore_path", data.get("ignore-path"))
-        if ignore_raw is not None:
-            ignore = tuple(
-                _parse_string_list(ignore_raw, field="ignore_path")
-            )
-            if ignore:
-                out = replace(out, ignore_path=ignore)
-
-    if not getattr(args, "ignore_filelist", None) and not out.ignore_filelist:
-        fl_raw = data.get("ignore_filelist", data.get("ignore-filelist"))
-        if fl_raw is not None:
-            ignore_fl = tuple(
-                _parse_string_list(fl_raw, field="ignore_filelist")
-            )
-            if ignore_fl:
-                out = replace(out, ignore_filelist=ignore_fl)
-
-    if not args.no_cache and not out.no_cache and bool(data.get("no_cache")):
-        out = replace(out, no_cache=True)
-
-    if (
-        not args.refresh_cache
-        and not out.refresh_cache
-        and bool(data.get("refresh_cache"))
-    ):
-        out = replace(out, refresh_cache=True)
-
-    if not _field_overridden(args, "top", None) and not out.top:
-        top = str(_mapping_get_ci(data, "top") or "").strip()
-        if top:
-            out = replace(out, top=top)
-
-    if not out.include_ff and bool(data.get("include_ff", False)):
-        out = replace(out, include_ff=True)
-    if "ff_barrier" in data and not out.include_ff:
-        out = replace(out, include_ff=not bool(data["ff_barrier"]))
-
-    if out.over_approximate_if is None and "over_approximate_if" in data:
-        over_approx = data.get("over_approximate_if")
-        if over_approx is None or isinstance(over_approx, bool):
-            out = replace(out, over_approximate_if=over_approx)
-
-    if not out.strict_generate and bool(data.get("strict_generate", False)):
-        out = replace(out, strict_generate=True)
-
-    if out.inst_trace is None:
-        inst_raw = data.get("inst_trace", data.get("inst-trace"))
-        if inst_raw is not None:
-            out = replace(
-                out,
-                inst_trace=parse_inst_trace_json(
-                    inst_raw,
-                    top=out.top or "",
-                    defines=dict(out.defines_map),
-                ),
-            )
-
-    if not out.fanin_cone:
-        fanin = data.get("fanin_cone", data.get("fanin-cone"))
-        if fanin:
-            out = replace(out, fanin_cone=str(fanin).strip())
-    if not out.fanout_cone:
-        fanout = data.get("fanout_cone", data.get("fanout-cone"))
-        if fanout:
-            out = replace(out, fanout_cone=str(fanout).strip())
-    if not out.cone_graph:
-        graph = data.get("cone_graph", data.get("cone-graph"))
-        if graph:
-            out = replace(out, cone_graph=_resolve_path(base_dir, str(graph)))
-
-    return out, jobs_source
+    return _apply_run_document_fields(
+        cfg,
+        data,
+        base_dir=p.parent,
+        args=args,
+    )
 
 
 def resolve_jobs_after_merge(
@@ -803,6 +983,14 @@ def resolve_connectivity_request(cfg: RunConfig) -> Optional[ConnectivityRequest
             req = _merge_connect_run_options(req, cfg)
         return req
     if cfg.check_connect_batch:
+        p = Path(cfg.check_connect_batch)
+        text = p.read_text(encoding="utf-8-sig").lstrip()
+        if p.suffix.lower() == ".json" or text.startswith(("{", "[")):
+            data = json.loads(text)
+            req = try_parse_connect_request_json(data)
+            if req is not None:
+                return _merge_connect_run_options(req, cfg)
+            return None
         req = load_connect_request(cfg.check_connect_batch)
         return _merge_connect_run_options(req, cfg)
     return None

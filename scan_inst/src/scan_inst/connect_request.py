@@ -145,6 +145,25 @@ def parse_connect_request_json(data: Any) -> ConnectivityRequest:
     return ConnectivityRequest(checks=checks, **opts)
 
 
+def try_parse_connect_request_json(data: Any) -> Optional[ConnectivityRequest]:
+    """Parse a connect document when ``checks``/``pairs`` are present; else ``None``."""
+    if isinstance(data, list):
+        if not data:
+            return None
+        try:
+            return parse_connect_request_json(data)
+        except ValueError:
+            return None
+    if not isinstance(data, dict):
+        return None
+    if not any(key in data for key in ("checks", "pairs", "connections")):
+        return None
+    try:
+        return parse_connect_request_json(data)
+    except ValueError:
+        return None
+
+
 def load_connect_request(path: Union[str, Path]) -> ConnectivityRequest:
     p = Path(path)
     text = p.read_text(encoding="utf-8").lstrip()

@@ -50,6 +50,7 @@ from scan_inst.run_request import (
     merge_run_config,
     normalize_run_mode,
     resolve_connectivity_request,
+    resolve_effective_run_mode,
     resolve_jobs_after_merge,
     run_config_from_args,
     try_load_run_request_from_path,
@@ -451,6 +452,8 @@ def main(argv=None) -> int:
                 f"(source={jobs_res.source})",
                 file=sys.stderr,
             )
+        if cfg.mode:
+            print(f"run: mode={cfg.mode}", file=sys.stderr)
         else:
             print(
                 f"run: no config loaded jobs={jobs_res.note} "
@@ -476,42 +479,38 @@ def main(argv=None) -> int:
                     file=sys.stderr,
                 )
 
-    batch_mode = bool(cfg.check_connect_batch or cfg.connect_inline)
-    cone_mode = bool(cfg.fanin_cone or cfg.fanout_cone)
-    inst_trace_mode = bool(cfg.inst_trace)
-    if cfg.check_connect and batch_mode:
+    connect_request: Optional[ConnectivityRequest] = None
+    if cfg.check_connect_batch or cfg.connect_inline:
+        connect_request = resolve_connectivity_request(cfg)
+
+    effective_mode = resolve_effective_run_mode(cfg, connect_request)
+    path_walk_mode = effective_mode == "path-walk"
+    cone_mode = effective_mode == "cone"
+    inst_trace_mode = effective_mode == "inst-trace"
+    connect_run_mode = effective_mode in (
+        "check-connect",
+        "check-connect-batch",
+        "path-walk",
+    )
+    if cfg.check_connect and connect_request is not None:
         ap.error("use either check_connect or check_connect_batch/connect, not both")
-    if cone_mode and (
-        cfg.check_connect
-        or batch_mode
-        or cfg.search
-        or cfg.search_path
-        or inst_trace_mode
-    ):
-        ap.error("cone mode is exclusive with search/connect/inst-trace modes")
-    if inst_trace_mode and (
-        cfg.check_connect or batch_mode or cfg.search or cfg.search_path or cone_mode
-    ):
-        ap.error("inst-trace mode is exclusive with search/connect/cone modes")
     if cfg.fanin_cone and cfg.fanout_cone:
         ap.error("use either fanin_cone or fanout_cone, not both")
-
-    path_walk_mode = normalize_run_mode(cfg.mode or "") == "path-walk"
-    if path_walk_mode and (
-        cone_mode or cfg.search or cfg.search_path or cfg.find_top
-    ):
-        ap.error("path-walk mode supports connect checks only")
-    if path_walk_mode and not batch_mode and not cfg.check_connect:
-        ap.error("path-walk requires connect batch or --check-connect")
+    if path_walk_mode and connect_request is None:
+        ap.error("path-walk requires checks in batch JSON or --check-connect")
+    if effective_mode == "check-connect-batch" and connect_request is None:
+        ap.error(
+            "check-connect-batch mode requires checks/pairs in batch JSON "
+            "or a pairs text file"
+        )
+    if inst_trace_mode and cfg.inst_trace is None:
+        ap.error("inst-trace mode requires inst_trace in JSON")
+    if cone_mode and not (cfg.fanin_cone or cfg.fanout_cone):
+        ap.error("cone mode requires fanin_cone or fanout_cone in JSON")
 
     t0 = time.perf_counter()
     extra_defines = dict(cfg.defines_map)
-    connect_request: Optional[ConnectivityRequest] = None
-    if batch_mode:
-        connect_request = resolve_connectivity_request(cfg)
-        if connect_request is None:
-            print("missing connectivity request", file=sys.stderr)
-            return 1
+    if connect_request is not None:
         extra_defines.update(connect_request.defines)
     cache_dir = default_cache_dir() if cfg.cache_dir is None else Path(cfg.cache_dir)
     use_cache = not cfg.no_cache
@@ -549,7 +548,7 @@ def main(argv=None) -> int:
     if path_walk_mode:
         if on_progress:
             on_progress("path-walk: on-demand index (endpoint paths only)")
-        if cfg.check_connect and not batch_mode:
+        if cfg.check_connect and connect_request is None:
             connect_request = ConnectivityRequest(
                 checks=(
                     ConnectivityCheck(
@@ -714,8 +713,9 @@ def main(argv=None) -> int:
     elab_scope = None
     use_scoped_elab = (
         lazy_scoped_connect_elab()
-        and (batch_mode or cfg.check_connect)
+        and connect_run_mode
         and not cone_mode
+        and not inst_trace_mode
     )
     if use_scoped_elab:
         pair = tuple(cfg.check_connect) if cfg.check_connect else None
@@ -885,12 +885,12 @@ def main(argv=None) -> int:
             ),
             log_path=log_path,
         )
-    elif cfg.check_connect or batch_mode:
+    elif connect_run_mode:
         top_name = tops[0] if tops else ""
         compile_defines = dict(fl.defines)
         compile_defines.update(extra_defines)
         use_trace = cfg.connect_trace or cfg.connect_log
-        if batch_mode:
+        if effective_mode in ("check-connect-batch", "path-walk"):
             request = connect_request
             assert request is not None
             trace_on = request.trace or use_trace
@@ -969,7 +969,7 @@ def main(argv=None) -> int:
                 elab_tops=tops,
                 elab_cache_hits=elab_cache_hits,
                 instance_rows=len(rows),
-                mode=("check-connect-batch" if batch_mode else "check-connect"),
+                mode=effective_mode,
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
                 coverage=coverage,

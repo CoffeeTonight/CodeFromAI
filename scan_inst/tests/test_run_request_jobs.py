@@ -132,6 +132,43 @@ def test_jobs_workers_alias():
     assert cfg.jobs == 12
 
 
+def test_path_walk_mode_from_batch_overrides_run_config(tmp_path: Path):
+    fl = tmp_path / "design.f"
+    fl.write_text("/dummy.v\n", encoding="utf-8")
+    batch = tmp_path / "batch.json"
+    batch.write_text(
+        json.dumps(
+            {
+                "mode": "path-walk",
+                "top": "top",
+                "checks": [{"id": "a", "a": "top.a", "b": "top.b"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_json = tmp_path / "run.json"
+    run_json.write_text(
+        json.dumps(
+            {
+                "filelist": "design.f",
+                "top": "top",
+                "check_connect_batch": "batch.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    from scan_inst.run_request import load_run_request, merge_run_config
+
+    base = load_run_request(run_json)
+    assert base.mode == "check-connect-batch"
+    ap = _build_parser()
+    args = ap.parse_args(["--config", str(run_json)])
+    cli = run_config_from_args(args)
+    merged = merge_run_config(base, cli, args)
+    final, _src = merge_options_from_connect_batch_json(merged, batch, args)
+    assert final.mode == "path-walk"
+
+
 def test_filelist_from_check_connect_batch_json(tmp_path: Path):
     fl = tmp_path / "design.f"
     fl.write_text("/dummy.v\n", encoding="utf-8")

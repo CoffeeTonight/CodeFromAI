@@ -194,10 +194,10 @@ Connectivity — batch
       Path to pairs/checks file, OR inline same shape as connect
 
   connect / check-connect-batch object fields:
-      checks (array)          Required. Items: [a,b] or {"id","a","b"}
+      checks (array)          Required for connect/path-walk; omit for inst-trace/cone/search
       pairs, connections      Aliases for checks
-      filelist (string)       Top .f path (use without --config; resolved vs batch JSON dir)
-      top, defines, output, mode, inst_trace, jobs, ignore-path, …
+      All run JSON fields     Same surface as --config (filelist, mode, top, output,
+                              inst_trace, fanin_cone, search, ignore-*, cache, jobs, …)
       include-ff, connect-trace, trace, strict-generate, over-approximate-if
 
   Batch output TSV columns:

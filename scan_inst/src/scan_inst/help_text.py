@@ -225,6 +225,9 @@ Flat run suite (one JSON, sibling blocks, sequential run)
 
   run_on_full_index settings (ignores, jobs, cache, …) merge into every enabled
   verification step even when run_on_full_index.enable is 0.
+  When run_on_full_index.enable is 0, the hierarchy/search/find-top step is skipped
+  and verification blocks cannot use full-index strategy (they run path-walk instead,
+  even if mode says full-index or a legacy alias like hierarchy).
   Legacy key run_on_full_db is still accepted.
 
 Example (flat)

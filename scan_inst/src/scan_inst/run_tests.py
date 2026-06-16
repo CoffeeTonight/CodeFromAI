@@ -81,6 +81,7 @@ class RunTestSuite:
     shared: RunConfig
     tests: Tuple[RunTestEntry, ...]
     full_index_spec: Optional[Mapping[str, Any]] = None
+    full_index_enabled: bool = False
 
 
 def _first_ci(data: Mapping[str, Any], *keys: str) -> Any:
@@ -163,6 +164,40 @@ def exec_mode_for_verification(kind: str, index_mode: str) -> str:
     if kind == RUN_IO_TRACE:
         return "inst-trace"
     return "cone"
+
+
+def _full_index_enable_state(
+    data: Mapping[str, Any],
+) -> tuple[Optional[Mapping[str, Any]], bool]:
+    """Return ``(spec, enabled)`` for the run_on_full_index / run_on_full_db block."""
+    key = _full_index_block_key(data)
+    if key is None:
+        return None, False
+    spec = _spec_block(data, key)
+    enabled = parse_enable(_mapping_get_ci(spec, "enable"), default=True)
+    return spec, enabled
+
+
+def resolve_verification_index_strategy(
+    entry_mode: str,
+    *,
+    full_index_spec: Optional[Mapping[str, Any]],
+    full_index_enabled: bool,
+) -> str:
+    """
+    Apply run_on_full_index.enable to verification index strategy.
+
+    When the full-index block exists with ``enable: 0``, verification steps cannot
+    use the full-filelist index strategy even if their block says ``full-index``
+    (or a legacy alias such as ``hierarchy`` / ``check-connect-batch``).
+    """
+    if (
+        full_index_spec is not None
+        and not full_index_enabled
+        and entry_mode == "full-index"
+    ):
+        return "path-walk"
+    return entry_mode
 
 
 def _validate_full_index_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
@@ -369,6 +404,7 @@ def run_config_for_test(
     *,
     base_dir: Optional[Any] = None,
     full_index_spec: Optional[Mapping[str, Any]] = None,
+    full_index_enabled: bool = False,
 ) -> RunConfig:
     """Merge shared + run_on_full_index + one verification block into RunConfig."""
     from pathlib import Path
@@ -377,6 +413,12 @@ def run_config_for_test(
     cfg = shared
     if full_index_spec is not None:
         cfg = _merge_full_index_fields(cfg, full_index_spec, base_dir=base)
+
+    index_strategy = resolve_verification_index_strategy(
+        entry.mode,
+        full_index_spec=full_index_spec,
+        full_index_enabled=full_index_enabled,
+    )
 
     out_raw = _mapping_get_ci(spec, "output")
     output = (
@@ -433,7 +475,7 @@ def run_config_for_test(
         return replace(
             cfg,
             mode=exec_mode,
-            index_strategy=entry.mode,
+            index_strategy=index_strategy,
             output=output or "-",
             check_connect=check_connect,
             connect_inline=connect_inline,
@@ -458,7 +500,7 @@ def run_config_for_test(
         return replace(
             cfg,
             mode=exec_mode,
-            index_strategy=entry.mode,
+            index_strategy=index_strategy,
             output=output or "-",
             inst_trace=inst_req,
             check_connect=None,
@@ -477,7 +519,7 @@ def run_config_for_test(
     return replace(
         cfg,
         mode=exec_mode,
-        index_strategy=entry.mode,
+        index_strategy=index_strategy,
         output=output or "-",
         fanin_cone=fanin,
         fanout_cone=fanout,
@@ -552,10 +594,8 @@ def parse_flat_run_suite(
         ignore_filelist=(),
     )
 
-    full_index_spec: Optional[Mapping[str, Any]] = None
+    full_index_spec, full_index_enabled = _full_index_enable_state(data)
     full_index_key = _full_index_block_key(data)
-    if full_index_key is not None:
-        full_index_spec = _spec_block(data, full_index_key)
 
     entries: list[RunTestEntry] = []
     index = 0
@@ -591,6 +631,7 @@ def parse_flat_run_suite(
         shared=shared,
         tests=tuple(entries),
         full_index_spec=full_index_spec,
+        full_index_enabled=full_index_enabled,
     )
 
 
@@ -693,19 +734,13 @@ def parse_legacy_tests_array_suite(
     if not entries:
         raise ValueError("no enabled steps in tests array")
 
-    full_index_key = _full_index_block_key(data)
-    full_index_spec = (
-        _mapping_get_ci(data, full_index_key) if full_index_key is not None else None
-    )
-    if full_index_spec is not None and not isinstance(full_index_spec, Mapping):
-        raise ValueError("run_on_full_index must be an object")
+    full_index_spec, full_index_enabled = _full_index_enable_state(data)
 
     return RunTestSuite(
         shared=shared,
         tests=tuple(entries),
-        full_index_spec=(
-            full_index_spec if isinstance(full_index_spec, Mapping) else None
-        ),
+        full_index_spec=full_index_spec,
+        full_index_enabled=full_index_enabled,
     )
 
 
@@ -791,6 +826,7 @@ def build_test_run_configs(
                 spec,
                 base_dir=base_dir,
                 full_index_spec=suite.full_index_spec,
+                full_index_enabled=suite.full_index_enabled,
             )
         out.append((entry, cfg))
     return tuple(out)

@@ -21,6 +21,7 @@ from scan_inst.run_tests import (
     parse_enable,
     parse_flat_run_suite,
     parse_run_test_suite,
+    resolve_verification_index_strategy,
     run_config_for_test,
     spec_for_test_entry,
 )
@@ -197,6 +198,32 @@ def test_legacy_verification_modes_map_to_full_index():
     assert cfg.mode == "check-connect-batch"
 
 
+def test_disabled_full_index_blocks_verification_full_index_strategy():
+    doc = {
+        "filelist": "fl.f",
+        "top": "top",
+        "run_on_full_index": {"enable": 0, "mode": "hierarchy"},
+        "run_conn_check": {
+            "enable": 1,
+            "mode": "full-index",
+            "checks": [{"id": "t", "a": "top.a", "b": "top.z"}],
+        },
+    }
+    suite = parse_flat_run_suite(doc)
+    assert suite.full_index_enabled is False
+    assert suite.tests[0].mode == "full-index"
+    _, cfg = build_test_run_configs(suite, doc)[0]
+    assert cfg.index_strategy == "path-walk"
+    assert (
+        resolve_verification_index_strategy(
+            "full-index",
+            full_index_spec=suite.full_index_spec,
+            full_index_enabled=False,
+        )
+        == "path-walk"
+    )
+
+
 def test_run_conn_check_path_walk_inherits_full_db():
     doc = {
         "filelist": "fl.f",
@@ -219,6 +246,7 @@ def test_run_conn_check_path_walk_inherits_full_db():
         entry,
         spec,
         full_index_spec=suite.full_index_spec,
+        full_index_enabled=suite.full_index_enabled,
     )
     assert cfg.mode == "check-connect-batch"
     assert cfg.index_strategy == "path-walk"
@@ -285,6 +313,7 @@ def test_cli_runs_flat_suite(tmp_path: Path):
     assert "test-suite 3 step(s)" in proc.stderr
     assert "skip run_on_full_index (enable: 0)" in proc.stderr
     assert "run: mode=hierarchy" not in proc.stderr
+    assert "index: building from" not in proc.stderr
     assert "kind=run_conn_check" in proc.stderr
     assert "mode=path-walk" in proc.stderr
     assert "kind=run_io_trace" in proc.stderr

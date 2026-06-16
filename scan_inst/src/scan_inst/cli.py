@@ -526,9 +526,20 @@ def main(argv=None) -> int:
     for test_entry, run_cfg in test_plan:
         if test_entry is not None and not run_cfg.quiet:
             label = test_entry.name or f"{test_entry.kind}[{test_entry.index}]"
+            index_note = run_cfg.index_strategy
+            if (
+                test_entry.kind != "run_on_full_index"
+                and test_entry.mode == "full-index"
+                and run_cfg.index_strategy == "path-walk"
+            ):
+                print(
+                    f"run: note {test_entry.kind} requested full-index but "
+                    f"run_on_full_index.enable is 0 — using path-walk",
+                    file=sys.stderr,
+                )
             print(
                 f"run: test {label} kind={test_entry.kind} mode={test_entry.mode} "
-                f"output={run_cfg.output}",
+                f"index={index_note} output={run_cfg.output}",
                 file=sys.stderr,
             )
         step_rc = execute_run(run_cfg, ap)

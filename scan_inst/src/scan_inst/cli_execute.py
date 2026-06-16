@@ -185,6 +185,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
             ignore_path_files=list(cfg.ignore_path_file),
             ignore_modules=list(cfg.ignore_module),
             ignore_filelists=list(cfg.ignore_filelist),
+            cache_dir=cache_dir,
+            no_cache=not use_cache,
             on_progress=on_progress,
         )
         elapsed = time.perf_counter() - t0

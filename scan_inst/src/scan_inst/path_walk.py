@@ -23,6 +23,7 @@ from scan_inst.lazy_scope import endpoint_specs_from_request, hierarchy_prefixes
 from scan_inst.library_scan import scan_library_modules
 from scan_inst.models import FlatRow, InstanceEdge
 from scan_inst.params import resolve_param_map
+from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
 from scan_inst.top_find import resolve_top_modules
 
 _MODULE_DEF_RE = re.compile(
@@ -35,6 +36,10 @@ _MODULE_DEF_RE = re.compile(
 class PathWalkStats:
     modules_loaded: int = 0
     files_scanned: int = 0
+    files_regex_scanned: int = 0
+    files_validated: int = 0
+    cache_regex_hits: int = 0
+    cache_validated_hits: int = 0
     paths_walked: int = 0
     subtrees_expanded: int = 0
     checks_run: int = 0
@@ -100,9 +105,18 @@ class PathWalkState:
 
     index: DesignIndex
     top: str
-    resolver: ModuleFileResolver
+    mod_db: PathWalkModuleDb
     rows_by_path: Dict[str, FlatRow] = field(default_factory=dict)
     stats: PathWalkStats = field(default_factory=PathWalkStats)
+
+    def _sync_db_stats(self) -> None:
+        self.stats.files_regex_scanned = self.mod_db.files_regex_scanned
+        self.stats.files_validated = self.mod_db.files_validated
+        self.stats.cache_regex_hits = self.mod_db.cache_regex_hits
+        self.stats.cache_validated_hits = self.mod_db.cache_validated_hits
+        self.stats.files_scanned = (
+            self.mod_db.files_regex_scanned + self.mod_db.files_validated
+        )
 
     def rows(self) -> List[FlatRow]:
         return list(self.rows_by_path.values())
@@ -153,41 +167,25 @@ class PathWalkState:
     def _load_module(self, module_name: str) -> bool:
         if self.index.get_module(module_name) is not None:
             return True
-        fpath = self.resolver.find_file(module_name)
-        if not fpath:
+        if not self.mod_db.ensure_module_in_index(module_name):
+            self._sync_db_stats()
             return False
-        self.index.patch_files(
-            [fpath],
-            [],
-            include_dirs=self.index._preprocess_include_dirs,
-            defines=self.index._preprocess_defines,
-            jobs=1,
-        )
-        self.resolver.seed_index(self.index)
         self.stats.modules_loaded += 1
-        self.stats.files_scanned = self.resolver.files_scanned
+        self._sync_db_stats()
         return self.index.get_module(module_name) is not None
 
     def _child_edge(self, parent_path: str, inst_leaf: str) -> Optional[InstanceEdge]:
         row = self.rows_by_path.get(parent_path)
         if row is None:
             return None
-        rec = self.index.get_module(row.module)
-        if rec is None:
-            return None
-        pmap = resolve_param_map(
-            rec.raw_params,
-            parent=row.param_ctx,
+        edge = self.mod_db.resolve_child_edge(
+            row.module,
+            row.param_ctx,
+            inst_leaf,
+            current_file=row.file,
         )
-        edges = self.index.instances_for(row.module, row.param_ctx, {})
-        target = inst_leaf
-        for edge in edges:
-            if edge.inst_name == target:
-                return edge
-            expanded = expand_inst_names(edge.inst_name, "", pmap)
-            if target in expanded:
-                return edge
-        return None
+        self._sync_db_stats()
+        return edge
 
     def _attach_child(
         self,
@@ -306,13 +304,13 @@ def build_path_walk_state_from_specs(
     index: DesignIndex,
     top: str,
     specs: Sequence[str],
-    resolver: ModuleFileResolver,
+    mod_db: PathWalkModuleDb,
     *,
     expand_subtrees: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> PathWalkState:
     """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
-    state = PathWalkState(index=index, top=top, resolver=resolver)
+    state = PathWalkState(index=index, top=top, mod_db=mod_db)
     state.ensure_root()
     spec_list = [str(s).strip() for s in specs if str(s).strip()]
     if on_progress:
@@ -337,11 +335,11 @@ def build_path_walk_state(
     index: DesignIndex,
     top: str,
     request: ConnectivityRequest,
-    resolver: ModuleFileResolver,
+    mod_db: PathWalkModuleDb,
     *,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> PathWalkState:
-    state = PathWalkState(index=index, top=top, resolver=resolver)
+    state = PathWalkState(index=index, top=top, mod_db=mod_db)
     state.ensure_root()
     specs = endpoint_specs_from_request(request)
     if on_progress:
@@ -371,12 +369,14 @@ def run_path_walk_index(
     ignore_path_files: Sequence[str] = (),
     ignore_modules: Sequence[str] = (),
     ignore_filelists: Sequence[str] = (),
+    cache_dir: Optional[Path] = None,
+    no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> Tuple[DesignIndex, PathWalkState, str]:
     """On-demand index + hierarchy rows for arbitrary endpoint specs."""
     defines = dict(fl.defines)
     defines.update(extra_defines or {})
-    index, resolver = create_path_walk_index(
+    index, mod_db = create_path_walk_index(
         fl,
         top,
         defines=defines,
@@ -384,6 +384,8 @@ def run_path_walk_index(
         ignore_path_files=ignore_path_files,
         ignore_modules=ignore_modules,
         ignore_filelists=ignore_filelists,
+        cache_dir=cache_dir,
+        no_cache=no_cache,
         on_progress=on_progress,
     )
     tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
@@ -392,7 +394,7 @@ def run_path_walk_index(
         index,
         top_name,
         specs,
-        resolver,
+        mod_db,
         on_progress=on_progress,
     )
     extra_roots = list(expand_subtrees)
@@ -407,10 +409,13 @@ def run_path_walk_index(
         if state.ensure_path(root):
             state._expand_subtree(root)
             state.stats.subtrees_expanded += 1
+    state._sync_db_stats()
     if on_progress:
         on_progress(
             f"path-walk: {len(state.rows_by_path)} instance row(s), "
-            f"{state.stats.modules_loaded} module(s) loaded"
+            f"{state.stats.modules_loaded} module(s) loaded, "
+            f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
+            f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
         )
     return index, state, top_name
 
@@ -424,8 +429,10 @@ def create_path_walk_index(
     ignore_path_files: Sequence[str] = (),
     ignore_modules: Sequence[str] = (),
     ignore_filelists: Sequence[str] = (),
+    cache_dir: Optional[Path] = None,
+    no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
-) -> Tuple[DesignIndex, ModuleFileResolver]:
+) -> Tuple[DesignIndex, PathWalkModuleDb]:
     path_patterns, module_patterns, filelist_patterns = resolve_ignore_path_patterns(
         ignore_paths,
         ignore_path_files=ignore_path_files,
@@ -459,26 +466,32 @@ def create_path_walk_index(
         preprocess_include_dirs=[str(p) for p in fl.include_dirs],
         preprocess_defines=dict(defines),
     )
-    resolver = ModuleFileResolver(
-        [str(p) for p in fl.source_files],
+    sources = [str(p) for p in fl.source_files]
+    cache_key = path_walk_db_cache_key(
+        sources,
+        defines=defines,
+        include_dirs=[str(p) for p in fl.include_dirs],
         skip_path_patterns=path_patterns,
     )
-    resolver.seed_index(index)
-    top_file = resolver.find_file(top)
+    mod_db = PathWalkModuleDb(
+        sources,
+        index,
+        include_dirs=[str(p) for p in fl.include_dirs],
+        defines=dict(defines),
+        skip_path_patterns=path_patterns,
+        cache_dir=cache_dir,
+        cache_key=cache_key,
+        no_cache=no_cache,
+    )
+    mod_db.remember_index_modules()
+    top_file = mod_db.find_module_decl_file(top)
     if not top_file:
         raise ValueError(f"top module {top!r} not found in filelist sources")
     if on_progress:
         on_progress(f"path-walk: seed top {top} ({Path(top_file).name})")
-    index.patch_files(
-        [top_file],
-        [],
-        include_dirs=[str(p) for p in fl.include_dirs],
-        defines=dict(defines),
-        jobs=1,
-        on_progress=on_progress,
-    )
-    resolver.seed_index(index)
-    return index, resolver
+    if not mod_db.ensure_module_in_index(top):
+        raise ValueError(f"top module {top!r} could not be loaded from {top_file}")
+    return index, mod_db
 
 
 def run_path_walk_connect(
@@ -491,6 +504,8 @@ def run_path_walk_connect(
     ignore_path_files: Sequence[str] = (),
     ignore_modules: Sequence[str] = (),
     ignore_filelists: Sequence[str] = (),
+    cache_dir: Optional[Path] = None,
+    no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> Tuple[ConnectivityBatchResult, DesignIndex, PathWalkState]:
     """
@@ -502,7 +517,7 @@ def run_path_walk_connect(
     defines.update(extra_defines or {})
     defines.update(request.defines)
 
-    index, resolver = create_path_walk_index(
+    index, mod_db = create_path_walk_index(
         fl,
         top,
         defines=defines,
@@ -510,6 +525,8 @@ def run_path_walk_connect(
         ignore_path_files=ignore_path_files,
         ignore_modules=ignore_modules,
         ignore_filelists=ignore_filelists,
+        cache_dir=cache_dir,
+        no_cache=no_cache,
         on_progress=on_progress,
     )
     tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
@@ -519,13 +536,16 @@ def run_path_walk_connect(
         index,
         top_name,
         request,
-        resolver,
+        mod_db,
         on_progress=on_progress,
     )
+    state._sync_db_stats()
     if on_progress:
         on_progress(
             f"path-walk: {len(state.rows_by_path)} instance row(s), "
-            f"{state.stats.modules_loaded} module(s) loaded"
+            f"{state.stats.modules_loaded} module(s) loaded, "
+            f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
+            f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
         )
 
     session = ConnectivitySession(

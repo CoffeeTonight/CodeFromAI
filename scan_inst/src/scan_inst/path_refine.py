@@ -174,13 +174,19 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
             k = _skip_balanced(clean, k, "(", ")")
         while k < n and clean[k].isspace():
             k += 1
-        if k < n and clean[k] == ",":
+        while k < n and clean[k] == ",":
             k += 1
             inst2, dims2, k2 = read_inst_tail(k)
             if inst2 and _inst_matches_target(inst2, dims2, target):
                 return clean[:decl_start]
-            i = k
-            continue
+            if inst2:
+                k = k2
+                if k < n and clean[k] == "(":
+                    k = _skip_balanced(clean, k, "(", ")")
+                while k < n and clean[k].isspace():
+                    k += 1
+            else:
+                break
         i = k
     return clean
 
@@ -212,7 +218,11 @@ def find_child_instance(
     body = index.module_body(parent_mod)
     if not body:
         return None
-    raw = dict(scoped_params or index.get_module(parent_mod).raw_params if index.get_module(parent_mod) else {})
+    if scoped_params is not None:
+        raw = dict(scoped_params)
+    else:
+        rec = index.get_module(parent_mod)
+        raw = dict(rec.raw_params) if rec else {}
     pmap = resolve_param_map(raw, parent=parent_ctx)
     folded = prepare_body_for_instance_scan(body, pmap)
     for edge in scan_hierarchy_instances(folded, param_map=pmap):

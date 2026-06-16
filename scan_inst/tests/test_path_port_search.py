@@ -22,6 +22,29 @@ def test_parse_hierarchy_port_pattern():
     assert parse_hierarchy_port_pattern("top.u_*.clk") == ("top.u_*", "clk")
 
 
+def test_parse_hierarchy_port_pattern_keeps_deep_instance_path(tmp_path):
+    from scan_inst.models import FlatRow
+
+    rows = [
+        FlatRow(
+            full_path="top.u_mid.u_leaf",
+            inst_leaf="u_leaf",
+            module="leaf",
+            depth=2,
+            parent_path="top.u_mid",
+            file="a.v",
+        ),
+    ]
+    assert parse_hierarchy_port_pattern("top.u_mid.u_leaf", rows) == (
+        "top.u_mid.u_leaf",
+        None,
+    )
+    assert parse_hierarchy_port_pattern("top.u_mid.u_leaf") == (
+        "top.u_mid",
+        "u_leaf",
+    )
+
+
 def test_port_scan_and_path_search(tmp_path):
     rtl = tmp_path / "d.v"
     rtl.write_text(

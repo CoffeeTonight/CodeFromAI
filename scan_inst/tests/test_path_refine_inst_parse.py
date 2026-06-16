@@ -31,6 +31,40 @@ def test_body_prefix_matches_hierarchical_inst_leaf(tmp_path: Path):
     assert "W_LATE" not in prefix
 
 
+def test_body_prefix_skips_comma_separated_inst_before_target():
+    body = """
+      localparam W_EARLY = 4;
+      child u_first (), u_target ();
+      localparam W_LATE = 32;
+    """
+    prefix = _body_prefix_before_instance(body, "u_target")
+    assert "W_EARLY" in prefix
+    assert "W_LATE" not in prefix
+
+
+def test_find_child_instance_honors_empty_scoped_params(tmp_path: Path):
+    from scan_inst.path_refine import find_child_instance
+
+    rtl = tmp_path / "empty_scope.v"
+    rtl.write_text(
+        """
+        module top #(
+            parameter int P = 99
+        );
+          child u0 ();
+        endmodule
+        module child;
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    text = preprocess_file(rtl, [], {})
+    index = DesignIndex.build({str(rtl): text})
+    edge = find_child_instance(index, "top", "u0", {}, scoped_params={})
+    assert edge is not None
+    assert edge.inst_name == "u0"
+
+
 def test_refine_param_ctx_for_array_inst(tmp_path: Path):
     rtl = tmp_path / "arr.v"
     rtl.write_text(

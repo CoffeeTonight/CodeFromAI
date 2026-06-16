@@ -320,7 +320,9 @@ def _jobs_from_document(data: Mapping[str, Any]) -> tuple[int, Optional[str]]:
     full_index_key = _full_index_block_key(data)
     if full_index_key is not None:
         sub = _mapping_get_ci(data, full_index_key)
-        if isinstance(sub, Mapping):
+        if isinstance(sub, Mapping) and parse_enable(
+            _mapping_get_ci(sub, "enable"), default=True
+        ):
             nested_jobs, nested_src = _jobs_from_mapping(sub)
             if nested_src is not None:
                 return nested_jobs, f"{full_index_key}.{nested_src}"

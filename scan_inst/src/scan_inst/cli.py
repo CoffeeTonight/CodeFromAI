@@ -516,7 +516,7 @@ def main(argv=None) -> int:
                     )
                     for skipped in list_disabled_suite_blocks(raw_doc):
                         print(
-                            f"run: skip {skipped} (enable: 0)",
+                            f"run: inactive {skipped} (enable: 0; step and settings ignored)",
                             file=sys.stderr,
                         )
     if not test_plan:

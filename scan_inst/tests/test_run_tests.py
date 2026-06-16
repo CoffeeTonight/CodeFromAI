@@ -86,8 +86,8 @@ def test_suite_loader_does_not_infer_hierarchy_when_full_index_disabled(tmp_path
     run_json.write_text(json.dumps(doc), encoding="utf-8")
     cfg, jobs_src = load_run_request_with_jobs_source(run_json)
     assert cfg.mode is None
-    assert jobs_src == "run_on_full_index.jobs"
-    assert cfg.jobs == 4
+    assert jobs_src is None
+    assert cfg.jobs == 0
     suite = parse_flat_run_suite(doc)
     assert len(suite.tests) == 1
     assert suite.tests[0].kind == RUN_CONN_CHECK
@@ -140,8 +140,10 @@ def test_parse_flat_suite_with_full_db_and_three_tests():
     assert conn_entry.mode == "path-walk"
     assert conn_cfg.mode == "check-connect-batch"
     assert conn_cfg.index_strategy == "path-walk"
-    assert conn_cfg.ignore_path == ("pcielinktop",)
-    assert conn_cfg.jobs == 4
+    assert conn_cfg.ignore_path == ()
+    assert conn_cfg.jobs == 0
+    _, trace_cfg = plans[1]
+    assert trace_cfg.index_strategy == "path-walk"
     req = resolve_connectivity_request(conn_cfg)
     assert req is not None
     assert req.checks[0].check_id == "a"
@@ -224,13 +226,15 @@ def test_disabled_full_index_blocks_verification_full_index_strategy():
     )
 
 
-def test_run_conn_check_path_walk_inherits_full_db():
+def test_disabled_full_index_does_not_merge_settings():
     doc = {
         "filelist": "fl.f",
         "top": "top",
         "run_on_full_index": {
             "enable": 0,
             "ignore_path": ["skip_me"],
+            "jobs": 8,
+            "no_cache": True,
         },
         "run_conn_check": {
             "enable": 1,
@@ -239,18 +243,35 @@ def test_run_conn_check_path_walk_inherits_full_db():
         },
     }
     suite = parse_flat_run_suite(doc)
-    entry = suite.tests[0]
-    spec = spec_for_test_entry(doc, entry)
-    cfg = run_config_for_test(
-        suite.shared,
-        entry,
-        spec,
-        full_index_spec=suite.full_index_spec,
-        full_index_enabled=suite.full_index_enabled,
-    )
-    assert cfg.mode == "check-connect-batch"
-    assert cfg.index_strategy == "path-walk"
+    _, cfg = build_test_run_configs(suite, doc)[0]
+    assert cfg.ignore_path == ()
+    assert cfg.jobs == 0
+    assert cfg.no_cache is False
+
+
+def test_enabled_full_index_settings_merge_into_verification():
+    doc = {
+        "filelist": "fl.f",
+        "top": "top",
+        "run_on_full_index": {
+            "enable": 1,
+            "mode": "hierarchy",
+            "ignore_path": ["skip_me"],
+            "jobs": 8,
+            "output": "inst.tsv",
+        },
+        "run_conn_check": {
+            "enable": 1,
+            "mode": "path-walk",
+            "checks": [{"id": "t", "a": "top.a", "b": "top.z"}],
+        },
+    }
+    suite = parse_flat_run_suite(doc)
+    assert len(suite.tests) == 2
+    conn_plan = build_test_run_configs(suite, doc)[1]
+    _, cfg = conn_plan
     assert cfg.ignore_path == ("skip_me",)
+    assert cfg.jobs == 8
 
 
 def test_legacy_tests_array_still_works():
@@ -311,7 +332,7 @@ def test_cli_runs_flat_suite(tmp_path: Path):
         check=True,
     )
     assert "test-suite 3 step(s)" in proc.stderr
-    assert "skip run_on_full_index (enable: 0)" in proc.stderr
+    assert "inactive run_on_full_index (enable: 0" in proc.stderr
     assert "run: mode=hierarchy" not in proc.stderr
     assert "index: building from" not in proc.stderr
     assert "kind=run_conn_check" in proc.stderr

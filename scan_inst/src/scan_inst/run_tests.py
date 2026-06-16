@@ -411,7 +411,7 @@ def run_config_for_test(
 
     base = base_dir or Path.cwd()
     cfg = shared
-    if full_index_spec is not None:
+    if full_index_spec is not None and full_index_enabled:
         cfg = _merge_full_index_fields(cfg, full_index_spec, base_dir=base)
 
     index_strategy = resolve_verification_index_strategy(

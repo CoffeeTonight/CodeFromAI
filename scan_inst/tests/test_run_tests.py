@@ -6,13 +6,18 @@ import json
 import subprocess
 from pathlib import Path
 
-from scan_inst.run_request import loads_json_document, resolve_connectivity_request
+from scan_inst.run_request import (
+    load_run_request_with_jobs_source,
+    loads_json_document,
+    resolve_connectivity_request,
+)
 from scan_inst.run_tests import (
     RUN_CONN_CHECK,
     RUN_CONE_TRACE,
     RUN_IO_TRACE,
     RUN_ON_FULL_INDEX,
     build_test_run_configs,
+    list_disabled_suite_blocks,
     parse_enable,
     parse_flat_run_suite,
     parse_run_test_suite,
@@ -59,6 +64,33 @@ def test_parse_enable_accepts_one_zero():
     assert parse_enable(0) is False
     assert parse_enable("1") is True
     assert parse_enable("0") is False
+
+
+def test_suite_loader_does_not_infer_hierarchy_when_full_index_disabled(tmp_path):
+    doc = {
+        "filelist": "design.f",
+        "top": "top",
+        "run_on_full_index": {
+            "enable": 0,
+            "mode": "hierarchy",
+            "jobs": 4,
+        },
+        "run_conn_check": {
+            "enable": 1,
+            "mode": "path-walk",
+            "checks": [{"id": "a", "a": "top.a", "b": "top.z"}],
+        },
+    }
+    run_json = tmp_path / "suite.json"
+    run_json.write_text(json.dumps(doc), encoding="utf-8")
+    cfg, jobs_src = load_run_request_with_jobs_source(run_json)
+    assert cfg.mode is None
+    assert jobs_src == "run_on_full_index.jobs"
+    assert cfg.jobs == 4
+    suite = parse_flat_run_suite(doc)
+    assert len(suite.tests) == 1
+    assert suite.tests[0].kind == RUN_CONN_CHECK
+    assert list_disabled_suite_blocks(doc) == ("run_on_full_index",)
 
 
 def test_parse_flat_suite_with_full_db_and_three_tests():
@@ -251,6 +283,8 @@ def test_cli_runs_flat_suite(tmp_path: Path):
         check=True,
     )
     assert "test-suite 3 step(s)" in proc.stderr
+    assert "skip run_on_full_index (enable: 0)" in proc.stderr
+    assert "run: mode=hierarchy" not in proc.stderr
     assert "kind=run_conn_check" in proc.stderr
     assert "mode=path-walk" in proc.stderr
     assert "kind=run_io_trace" in proc.stderr

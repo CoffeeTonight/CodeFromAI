@@ -57,9 +57,11 @@ from scan_inst.run_request import (
     run_config_from_args,
     try_load_run_request_from_path,
 )
+from scan_inst.startup import emit_startup_banner
 from scan_inst.run_tests import (
     RunTestEntry,
     build_test_run_configs,
+    list_disabled_suite_blocks,
     try_parse_run_test_suite,
 )
 from scan_inst.cli_execute import execute_run
@@ -443,10 +445,11 @@ def main(argv=None) -> int:
     )
 
     if not cfg.quiet:
-        pkg_dir = Path(scan_inst.__file__).resolve().parent
-        print(
-            f"run: scan-inst {scan_inst.__version__} ({pkg_dir})",
-            file=sys.stderr,
+        pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
+        emit_startup_banner(
+            version=scan_inst.__version__,
+            pkg_dir=pkg_dir,
+            stream=sys.stderr,
         )
         if config_path is not None:
             print(
@@ -462,7 +465,7 @@ def main(argv=None) -> int:
             )
         if cfg.mode:
             print(f"run: mode={cfg.mode}", file=sys.stderr)
-        else:
+        elif config_path is None and connect_batch_path is None:
             print(
                 f"run: no config loaded jobs={jobs_res.note} "
                 f"(source={jobs_res.source}; use -c run.json, "
@@ -511,6 +514,11 @@ def main(argv=None) -> int:
                         f"{config_path.resolve()}",
                         file=sys.stderr,
                     )
+                    for skipped in list_disabled_suite_blocks(raw_doc):
+                        print(
+                            f"run: skip {skipped} (enable: 0)",
+                            file=sys.stderr,
+                        )
     if not test_plan:
         test_plan = [(None, cfg)]
 

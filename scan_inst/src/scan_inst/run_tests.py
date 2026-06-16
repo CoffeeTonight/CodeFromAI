@@ -7,21 +7,22 @@ from typing import Any, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
 from scan_inst.run_request import (
+    RUN_CONN_CHECK,
+    RUN_CONE_TRACE,
+    RUN_IO_TRACE,
+    RUN_ON_FULL_DB_LEGACY,
+    RUN_ON_FULL_INDEX,
     RunConfig,
+    _full_index_block_key,
     _mapping_get_ci,
     _parse_check_connect,
     _parse_jobs,
     _parse_string_list,
     _resolve_path,
     normalize_run_mode,
-    parse_run_request_json,
+    parse_enable,
+    parse_shared_run_request_json,
 )
-
-RUN_ON_FULL_INDEX = "run_on_full_index"
-RUN_ON_FULL_DB_LEGACY = "run_on_full_db"
-RUN_CONN_CHECK = "run_conn_check"
-RUN_IO_TRACE = "run_io_trace"
-RUN_CONE_TRACE = "run_cone_trace"
 
 TEST_KINDS: Tuple[str, ...] = (
     RUN_ON_FULL_INDEX,
@@ -88,24 +89,6 @@ def _first_ci(data: Mapping[str, Any], *keys: str) -> Any:
         if hit is not None:
             return hit
     return None
-
-
-def parse_enable(raw: Any, *, default: bool = True) -> bool:
-    """Parse ``enable`` as 1/0 (also true/false, yes/no)."""
-    if raw is None:
-        return default
-    if isinstance(raw, bool):
-        return raw
-    if isinstance(raw, (int, float)):
-        return int(raw) != 0
-    if isinstance(raw, str):
-        key = raw.strip().lower()
-        if key in ("0", "false", "no", "off"):
-            return False
-        if key in ("1", "true", "yes", "on"):
-            return True
-        raise ValueError(f"enable must be 0 or 1, got {raw!r}")
-    raise ValueError(f"enable must be 0 or 1, got {raw!r}")
 
 
 def _spec_block(data: Mapping[str, Any], kind: str) -> Mapping[str, Any]:
@@ -182,14 +165,6 @@ def exec_mode_for_verification(kind: str, index_mode: str) -> str:
     return "cone"
 
 
-def _full_index_block_key(data: Mapping[str, Any]) -> Optional[str]:
-    if _mapping_get_ci(data, RUN_ON_FULL_INDEX) is not None:
-        return RUN_ON_FULL_INDEX
-    if _mapping_get_ci(data, RUN_ON_FULL_DB_LEGACY) is not None:
-        return RUN_ON_FULL_DB_LEGACY
-    return None
-
-
 def _validate_full_index_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
     if mode not in _FULL_DB_MODES:
         raise ValueError(
@@ -242,47 +217,6 @@ def _parse_test_entry_from_spec(
         name=entry_name,
         index=index,
     )
-
-
-def _strip_suite_blocks(data: Mapping[str, Any]) -> dict[str, Any]:
-    shared_data = dict(data)
-    shared_data.pop("tests", None)
-    for key in TEST_KINDS:
-        shared_data.pop(key, None)
-    shared_data.pop(RUN_ON_FULL_DB_LEGACY, None)
-    for key in (
-        "mode",
-        "connect",
-        "check_connect",
-        "check_connect_batch",
-        "inst_trace",
-        "inst-trace",
-        "fanin_cone",
-        "fanin-cone",
-        "fanout_cone",
-        "fanout-cone",
-        "ignore_path",
-        "ignore-path",
-        "ignore_path_file",
-        "ignore-path-file",
-        "ignore_module",
-        "ignore-module",
-        "ignore_filelist",
-        "ignore-filelist",
-        "jobs",
-        "j",
-        "job",
-        "workers",
-        "low_memory",
-        "cache_dir",
-        "no_cache",
-        "refresh_cache",
-        "max_depth",
-        "index_cwd",
-        "index-cwd",
-    ):
-        shared_data.pop(key, None)
-    return shared_data
 
 
 def _merge_full_index_fields(
@@ -602,7 +536,7 @@ def parse_flat_run_suite(
             + ", ".join(TEST_KINDS)
         )
 
-    shared = parse_run_request_json(_strip_suite_blocks(data), base_dir=base_dir)
+    shared = parse_shared_run_request_json(data, base_dir=base_dir)
     shared = replace(
         shared,
         mode=None,
@@ -664,6 +598,48 @@ def _kinds_in_item(item: Mapping[str, Any]) -> list[str]:
     return [k for k in VERIFICATION_KINDS if _mapping_get_ci(item, k) is not None]
 
 
+def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
+    """Return suite block names present in JSON but skipped via ``enable: 0``."""
+    disabled: list[str] = []
+    if "tests" in data:
+        tests_raw = data.get("tests")
+        if isinstance(tests_raw, list):
+            for i, item in enumerate(tests_raw):
+                if not isinstance(item, Mapping):
+                    continue
+                kinds = _kinds_in_item(item)
+                if len(kinds) != 1:
+                    continue
+                kind = kinds[0]
+                spec = _spec_block(item, kind)
+                if not parse_enable(_mapping_get_ci(spec, "enable"), default=True):
+                    label = str(
+                        _mapping_get_ci(item, "name")
+                        or _mapping_get_ci(item, "id")
+                        or f"tests[{i}]"
+                    ).strip()
+                    disabled.append(label or kind)
+        return tuple(disabled)
+
+    for kind in TEST_KINDS:
+        if kind == RUN_ON_FULL_INDEX:
+            key = _full_index_block_key(data)
+            if key is None:
+                continue
+            spec_raw = _mapping_get_ci(data, key)
+            block_label = key
+        else:
+            spec_raw = _mapping_get_ci(data, kind)
+            block_label = kind
+        if spec_raw is None:
+            continue
+        if not isinstance(spec_raw, Mapping):
+            continue
+        if not parse_enable(_mapping_get_ci(spec_raw, "enable"), default=True):
+            disabled.append(block_label)
+    return tuple(disabled)
+
+
 def parse_legacy_tests_array_suite(
     data: Mapping[str, Any],
     *,
@@ -676,7 +652,7 @@ def parse_legacy_tests_array_suite(
     if not isinstance(tests_raw, list) or not tests_raw:
         raise ValueError("'tests' must be a non-empty JSON array")
 
-    shared = parse_run_request_json(_strip_suite_blocks(data), base_dir=base_dir)
+    shared = parse_shared_run_request_json(data, base_dir=base_dir)
     shared = replace(
         shared,
         mode=None,

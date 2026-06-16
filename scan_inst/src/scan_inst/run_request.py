@@ -54,6 +54,96 @@ def read_json_document(path: Union[str, Path]) -> Any:
     return loads_json_document(Path(path).read_text(encoding="utf-8-sig"))
 
 
+RUN_ON_FULL_INDEX = "run_on_full_index"
+RUN_ON_FULL_DB_LEGACY = "run_on_full_db"
+RUN_CONN_CHECK = "run_conn_check"
+RUN_IO_TRACE = "run_io_trace"
+RUN_CONE_TRACE = "run_cone_trace"
+RUN_TEST_SUITE_KINDS: Tuple[str, ...] = (
+    RUN_ON_FULL_INDEX,
+    RUN_CONN_CHECK,
+    RUN_IO_TRACE,
+    RUN_CONE_TRACE,
+)
+
+
+def _full_index_block_key(data: Mapping[str, Any]) -> Optional[str]:
+    if _mapping_get_ci(data, RUN_ON_FULL_INDEX) is not None:
+        return RUN_ON_FULL_INDEX
+    if _mapping_get_ci(data, RUN_ON_FULL_DB_LEGACY) is not None:
+        return RUN_ON_FULL_DB_LEGACY
+    return None
+
+
+def is_run_test_suite_document(data: Mapping[str, Any]) -> bool:
+    """True when JSON uses flat suite blocks or a legacy ``tests`` array."""
+    if "tests" in data:
+        return True
+    if _full_index_block_key(data) is not None:
+        return True
+    return any(_mapping_get_ci(data, k) is not None for k in RUN_TEST_SUITE_KINDS[1:])
+
+
+def parse_enable(raw: Any, *, default: bool = True) -> bool:
+    """Parse ``enable`` as 1/0 (also true/false, yes/no)."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return int(raw) != 0
+    if isinstance(raw, str):
+        key = raw.strip().lower()
+        if key in ("0", "false", "no", "off"):
+            return False
+        if key in ("1", "true", "yes", "on"):
+            return True
+        raise ValueError(f"enable must be 0 or 1, got {raw!r}")
+    raise ValueError(f"enable must be 0 or 1, got {raw!r}")
+
+
+def strip_run_suite_blocks(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop per-step suite blocks so only shared run fields remain."""
+    shared_data = dict(data)
+    shared_data.pop("tests", None)
+    for key in RUN_TEST_SUITE_KINDS:
+        shared_data.pop(key, None)
+    shared_data.pop(RUN_ON_FULL_DB_LEGACY, None)
+    for key in (
+        "mode",
+        "connect",
+        "check_connect",
+        "check_connect_batch",
+        "inst_trace",
+        "inst-trace",
+        "fanin_cone",
+        "fanin-cone",
+        "fanout_cone",
+        "fanout-cone",
+        "ignore_path",
+        "ignore-path",
+        "ignore_path_file",
+        "ignore-path-file",
+        "ignore_module",
+        "ignore-module",
+        "ignore_filelist",
+        "ignore-filelist",
+        "jobs",
+        "j",
+        "job",
+        "workers",
+        "low_memory",
+        "cache_dir",
+        "no_cache",
+        "refresh_cache",
+        "max_depth",
+        "index_cwd",
+        "index-cwd",
+    ):
+        shared_data.pop(key, None)
+    return shared_data
+
+
 @dataclass(frozen=True)
 class RunConfig:
     """All options needed to run scan-inst (CLI-equivalent)."""
@@ -227,6 +317,13 @@ def _jobs_from_document(data: Mapping[str, Any]) -> tuple[int, Optional[str]]:
     jobs, src = _jobs_from_mapping(data)
     if src is not None:
         return jobs, src
+    full_index_key = _full_index_block_key(data)
+    if full_index_key is not None:
+        sub = _mapping_get_ci(data, full_index_key)
+        if isinstance(sub, Mapping):
+            nested_jobs, nested_src = _jobs_from_mapping(sub)
+            if nested_src is not None:
+                return nested_jobs, f"{full_index_key}.{nested_src}"
     for nest in ("run", "index", "execution", "config"):
         sub = data.get(nest)
         if isinstance(sub, Mapping):
@@ -551,12 +648,50 @@ def parse_run_request_json(
     )
 
 
+def parse_shared_run_request_json(
+    data: Any,
+    *,
+    base_dir: Optional[Path] = None,
+) -> RunConfig:
+    """
+    Parse shared run fields from a JSON document.
+
+    Flat/legacy suite JSON keeps only top-level ``filelist``, ``top``, ``defines``,
+    etc. Step blocks (``run_on_full_index``, ``run_conn_check``, …) and their
+    ``mode``/``enable`` do not set a global execution mode.
+    """
+    if not isinstance(data, Mapping):
+        raise ValueError("run request JSON must be an object")
+
+    parse_data: Mapping[str, Any] = (
+        strip_run_suite_blocks(data) if is_run_test_suite_document(data) else data
+    )
+    cfg = parse_run_request_json(parse_data, base_dir=base_dir)
+    if not is_run_test_suite_document(data):
+        return cfg
+    return replace(
+        cfg,
+        mode=None,
+        check_connect=None,
+        check_connect_batch=None,
+        connect_inline=None,
+        inst_trace=None,
+        fanin_cone=None,
+        fanout_cone=None,
+        ignore_path=(),
+        ignore_path_file=(),
+        ignore_module=(),
+        ignore_filelist=(),
+        jobs=_jobs_from_document(data)[0],
+    )
+
+
 def load_run_request(path: Union[str, Path]) -> RunConfig:
     p = Path(path)
     data = read_json_document(p)
     if isinstance(data, Mapping):
         apply_config_env_from_document(data)
-    return parse_run_request_json(data, base_dir=p.parent)
+    return parse_shared_run_request_json(data, base_dir=p.parent)
 
 
 def _apply_run_document_fields(
@@ -887,7 +1022,7 @@ def try_load_run_request_from_path(
         return None
     try:
         apply_config_env_from_document(data)
-        cfg = parse_run_request_json(data, base_dir=p.parent)
+        cfg = parse_shared_run_request_json(data, base_dir=p.parent)
         _, src = _jobs_from_document(data)
         return p, cfg, src
     except ValueError:
@@ -901,7 +1036,7 @@ def load_run_request_with_jobs_source(
     data = read_json_document(p)
     if isinstance(data, Mapping):
         apply_config_env_from_document(data)
-    cfg = parse_run_request_json(data, base_dir=p.parent)
+    cfg = parse_shared_run_request_json(data, base_dir=p.parent)
     _, src = _jobs_from_document(data)
     return cfg, src
 

@@ -258,9 +258,19 @@ class PathWalkState:
             param_ctx=resolve_param_map(rec.raw_params),
         )
 
-    def _load_module(self, module_name: str) -> bool:
+    def _load_module(
+        self,
+        module_name: str,
+        *,
+        expect_inst: Optional[Tuple[str, str]] = None,
+        parent_ctx: Optional[Mapping[str, str]] = None,
+    ) -> bool:
         had = self.index.get_module(module_name)
-        if not self.mod_db.ensure_module_in_index(module_name):
+        if not self.mod_db.ensure_module_in_index(
+            module_name,
+            expect_inst=expect_inst,
+            parent_ctx=parent_ctx,
+        ):
             self._sync_db_stats()
             self._emit_walk(
                 f"pw-db load failed module={module_name!r} "
@@ -426,6 +436,27 @@ def _sorted_prefixes(specs: Sequence[str]) -> List[str]:
     return sorted(prefixes, key=lambda p: (p.count("."), p))
 
 
+def _path_walk_trace_emit(
+    message: str,
+    *,
+    trace_stream: Optional[TextIO] = None,
+    trace_log_fh: Optional[TextIO] = None,
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> None:
+    if not message:
+        return
+    streams: List[TextIO] = []
+    if trace_stream is not None:
+        streams.append(trace_stream)
+    if trace_log_fh is not None:
+        streams.append(trace_log_fh)
+    if streams:
+        for stream in streams:
+            emit_path_walk_log(message, stream=stream)
+    elif on_progress is not None:
+        on_progress(f"path-walk: {message}")
+
+
 def _wire_db_trace_to_state(mod_db: PathWalkModuleDb, state: PathWalkState) -> None:
     prev = mod_db._on_trace
 
@@ -447,11 +478,14 @@ def build_path_walk_state_from_specs(
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
     trace_log_path: Optional[Path] = None,
+    trace_log_fh: Optional[TextIO] = None,
+    close_trace_log: bool = True,
 ) -> PathWalkState:
     """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
-    trace_log_fh: Optional[TextIO] = None
-    if trace_log_path is not None:
+    opened_log = False
+    if trace_log_fh is None and trace_log_path is not None:
         trace_log_fh = open_path_walk_trace_log(trace_log_path)
+        opened_log = True
     try:
         state = PathWalkState(
             index=index,
@@ -481,7 +515,7 @@ def build_path_walk_state_from_specs(
                 state.stats.subtrees_expanded += 1
         return state
     finally:
-        if trace_log_fh is not None:
+        if opened_log and close_trace_log and trace_log_fh is not None:
             trace_log_fh.close()
 
 
@@ -494,10 +528,13 @@ def build_path_walk_state(
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
     trace_log_path: Optional[Path] = None,
+    trace_log_fh: Optional[TextIO] = None,
+    close_trace_log: bool = True,
 ) -> PathWalkState:
-    trace_log_fh: Optional[TextIO] = None
-    if trace_log_path is not None:
+    opened_log = False
+    if trace_log_fh is None and trace_log_path is not None:
         trace_log_fh = open_path_walk_trace_log(trace_log_path)
+        opened_log = True
     try:
         state = PathWalkState(
             index=index,
@@ -525,7 +562,7 @@ def build_path_walk_state(
             state.ensure_lca_subtree(a, b)
         return state
     finally:
-        if trace_log_fh is not None:
+        if opened_log and close_trace_log and trace_log_fh is not None:
             trace_log_fh.close()
 
 
@@ -549,50 +586,62 @@ def run_path_walk_index(
     """On-demand index + hierarchy rows for arbitrary endpoint specs."""
     defines = dict(fl.defines)
     defines.update(extra_defines or {})
-    index, mod_db = create_path_walk_index(
-        fl,
-        top,
-        defines=defines,
-        ignore_paths=ignore_paths,
-        ignore_path_files=ignore_path_files,
-        ignore_modules=ignore_modules,
-        ignore_filelists=ignore_filelists,
-        cache_dir=cache_dir,
-        no_cache=no_cache,
-        on_progress=on_progress,
-    )
-    tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
-    top_name = tops[0]
-    state = build_path_walk_state_from_specs(
-        index,
-        top_name,
-        specs,
-        mod_db,
-        on_progress=on_progress,
-        trace_stream=trace_stream,
-        trace_log_path=trace_log_path,
-    )
-    extra_roots = list(expand_subtrees)
-    for spec in specs:
-        inst = _inst_path_from_spec(spec, state)
-        if inst and inst not in extra_roots:
-            extra_roots.append(inst)
-    for subtree_root in extra_roots:
-        root = str(subtree_root).strip()
-        if not root:
-            continue
-        if state.ensure_path(root):
-            state._expand_subtree(root)
-            state.stats.subtrees_expanded += 1
-    state._sync_db_stats()
-    if on_progress:
-        on_progress(
-            f"path-walk: {len(state.rows_by_path)} instance row(s), "
-            f"{state.stats.modules_loaded} module(s) loaded, "
-            f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
-            f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
+    trace_log_fh: Optional[TextIO] = None
+    opened_log = False
+    if trace_log_path is not None:
+        trace_log_fh = open_path_walk_trace_log(trace_log_path)
+        opened_log = True
+    try:
+        index, mod_db = create_path_walk_index(
+            fl,
+            top,
+            defines=defines,
+            ignore_paths=ignore_paths,
+            ignore_path_files=ignore_path_files,
+            ignore_modules=ignore_modules,
+            ignore_filelists=ignore_filelists,
+            cache_dir=cache_dir,
+            no_cache=no_cache,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            trace_log_fh=trace_log_fh,
         )
-    return index, state, top_name
+        tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
+        top_name = tops[0]
+        state = build_path_walk_state_from_specs(
+            index,
+            top_name,
+            specs,
+            mod_db,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            trace_log_fh=trace_log_fh,
+            close_trace_log=False,
+        )
+        extra_roots = list(expand_subtrees)
+        for spec in specs:
+            inst = _inst_path_from_spec(spec, state)
+            if inst and inst not in extra_roots:
+                extra_roots.append(inst)
+        for subtree_root in extra_roots:
+            root = str(subtree_root).strip()
+            if not root:
+                continue
+            if state.ensure_path(root):
+                state._expand_subtree(root)
+                state.stats.subtrees_expanded += 1
+        state._sync_db_stats()
+        if on_progress:
+            on_progress(
+                f"path-walk: {len(state.rows_by_path)} instance row(s), "
+                f"{state.stats.modules_loaded} module(s) loaded, "
+                f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
+                f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
+            )
+        return index, state, top_name
+    finally:
+        if opened_log and trace_log_fh is not None:
+            trace_log_fh.close()
 
 
 def create_path_walk_index(
@@ -607,6 +656,8 @@ def create_path_walk_index(
     cache_dir: Optional[Path] = None,
     no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
+    trace_stream: Optional[TextIO] = None,
+    trace_log_fh: Optional[TextIO] = None,
 ) -> Tuple[DesignIndex, PathWalkModuleDb]:
     path_patterns, module_patterns, filelist_patterns = resolve_ignore_path_patterns(
         ignore_paths,
@@ -649,8 +700,12 @@ def create_path_walk_index(
         skip_path_patterns=path_patterns,
     )
     def _db_trace(msg: str) -> None:
-        if on_progress:
-            on_progress(msg)
+        _path_walk_trace_emit(
+            msg,
+            trace_stream=trace_stream,
+            trace_log_fh=trace_log_fh,
+            on_progress=on_progress,
+        )
 
     mod_db = PathWalkModuleDb(
         sources,
@@ -701,48 +756,60 @@ def run_path_walk_connect(
     defines.update(extra_defines or {})
     defines.update(request.defines)
 
-    index, mod_db = create_path_walk_index(
-        fl,
-        top,
-        defines=defines,
-        ignore_paths=ignore_paths,
-        ignore_path_files=ignore_path_files,
-        ignore_modules=ignore_modules,
-        ignore_filelists=ignore_filelists,
-        cache_dir=cache_dir,
-        no_cache=no_cache,
-        on_progress=on_progress,
-    )
-    tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
-    top_name = tops[0]
-
-    state = build_path_walk_state(
-        index,
-        top_name,
-        request,
-        mod_db,
-        on_progress=on_progress,
-        trace_stream=trace_stream,
-        trace_log_path=trace_log_path,
-    )
-    state._sync_db_stats()
-    if on_progress:
-        on_progress(
-            f"path-walk: {len(state.rows_by_path)} instance row(s), "
-            f"{state.stats.modules_loaded} module(s) loaded, "
-            f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
-            f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
+    trace_log_fh: Optional[TextIO] = None
+    opened_log = False
+    if trace_log_path is not None:
+        trace_log_fh = open_path_walk_trace_log(trace_log_path)
+        opened_log = True
+    try:
+        index, mod_db = create_path_walk_index(
+            fl,
+            top,
+            defines=defines,
+            ignore_paths=ignore_paths,
+            ignore_path_files=ignore_path_files,
+            ignore_modules=ignore_modules,
+            ignore_filelists=ignore_filelists,
+            cache_dir=cache_dir,
+            no_cache=no_cache,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            trace_log_fh=trace_log_fh,
         )
+        tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
+        top_name = tops[0]
 
-    session = ConnectivitySession(
-        rows=state.rows(),
-        index=index,
-        top=top_name,
-        defines=defines,
-        strict_generate=request.strict_generate,
-        ff_barrier=not request.include_ff,
-        over_approximate_if=request.over_approximate_if,
-    )
-    batch = session.run_request(request, jobs=1)
-    state.stats.checks_run = len(batch.results)
-    return batch, index, state
+        state = build_path_walk_state(
+            index,
+            top_name,
+            request,
+            mod_db,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            trace_log_fh=trace_log_fh,
+            close_trace_log=False,
+        )
+        state._sync_db_stats()
+        if on_progress:
+            on_progress(
+                f"path-walk: {len(state.rows_by_path)} instance row(s), "
+                f"{state.stats.modules_loaded} module(s) loaded, "
+                f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
+                f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
+            )
+
+        session = ConnectivitySession(
+            rows=state.rows(),
+            index=index,
+            top=top_name,
+            defines=defines,
+            strict_generate=request.strict_generate,
+            ff_barrier=not request.include_ff,
+            over_approximate_if=request.over_approximate_if,
+        )
+        batch = session.run_request(request, jobs=1)
+        state.stats.checks_run = len(batch.results)
+        return batch, index, state
+    finally:
+        if opened_log and trace_log_fh is not None:
+            trace_log_fh.close()

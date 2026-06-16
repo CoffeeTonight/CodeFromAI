@@ -92,6 +92,41 @@ def test_path_walk_abcd_chain(tmp_path: Path):
     assert index.get_module("D") is not None
 
 
+def test_path_walk_abcd_duplicate_parent_module(tmp_path: Path):
+    """First B decl may be a stub; path-walk must try later decl files for inst C."""
+    a_v = tmp_path / "a.v"
+    a_v.write_text("module A; B B (); endmodule\n", encoding="utf-8")
+    b_stub = tmp_path / "b_stub.v"
+    b_stub.write_text("module B; endmodule\n", encoding="utf-8")
+    b_real = tmp_path / "b_real.v"
+    b_real.write_text("module B; C C (); endmodule\n", encoding="utf-8")
+    c_v = tmp_path / "c.v"
+    c_v.write_text("module C; D D (); endmodule\n", encoding="utf-8")
+    d_v = tmp_path / "d.v"
+    d_v.write_text("module D; endmodule\n", encoding="utf-8")
+    fl = tmp_path / "design.f"
+    fl.write_text(
+        "\n".join(str(p.resolve()) for p in (a_v, b_stub, b_real, c_v, d_v)) + "\n",
+        encoding="utf-8",
+    )
+    flr = parse_filelist(str(fl), index_cwd=str(tmp_path))
+    request = ConnectivityRequest(
+        checks=(ConnectivityCheck("A.B.C.D", "A.B.C.D"),),
+        top="A",
+    )
+    batch, index, state = run_path_walk_connect(
+        request,
+        flr,
+        top="A",
+        no_cache=True,
+    )
+    assert "A.B.C.D" in state.rows_by_path
+    assert batch.results[0].connected is True
+    b_rec = index.get_module("B")
+    assert b_rec is not None
+    assert Path(b_rec.file_path).name == "b_real.v"
+
+
 def test_path_walk_abcd_with_library_stub(tmp_path: Path):
     fl_path = _write_abcd_design(tmp_path, with_lib_stub=True)
     fl = parse_filelist(str(fl_path), index_cwd=str(tmp_path))

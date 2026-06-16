@@ -78,6 +78,35 @@ def test_path_walk_trace_logs_nodes_and_miss(tmp_path: Path):
     assert "walked" in text
 
 
+def test_path_walk_connect_trace_writes_pw_db_to_run_log(tmp_path: Path):
+    a_v = tmp_path / "a.v"
+    a_v.write_text("module A; B B (); endmodule\n", encoding="utf-8")
+    b_v = tmp_path / "b.v"
+    b_v.write_text("module B; endmodule\n", encoding="utf-8")
+    fl_path = tmp_path / "design.f"
+    fl_path.write_text(f"{a_v.resolve()}\n{b_v.resolve()}\n", encoding="utf-8")
+    fl = parse_filelist(str(fl_path), index_cwd=str(tmp_path))
+    from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
+    from scan_inst.path_walk import run_path_walk_connect
+
+    log_path = tmp_path / "out.tsv.scan-inst.log"
+    request = ConnectivityRequest(
+        checks=(ConnectivityCheck("A.B", "A.B"),),
+        top="A",
+    )
+    run_path_walk_connect(
+        request,
+        fl,
+        top="A",
+        no_cache=True,
+        trace_log_path=log_path,
+    )
+    text = log_path.read_text(encoding="utf-8")
+    assert "# path-walk trace" in text
+    assert "pw-db tier0" in text
+    assert "[scan-inst path-walk]" in text
+
+
 def test_path_walk_trace_writes_run_log(tmp_path: Path):
     top_v = tmp_path / "top.v"
     top_v.write_text(

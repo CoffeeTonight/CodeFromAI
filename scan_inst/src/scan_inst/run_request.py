@@ -992,31 +992,32 @@ def merge_options_from_connect_batch_json(
     cfg: RunConfig,
     batch_path: Union[str, Path],
     args: Any,
-) -> tuple[RunConfig, Optional[str]]:
+) -> tuple[RunConfig, Optional[str], List[str], Optional[dict]]:
     """
     Apply run-level fields from ``--check-connect-batch`` JSON.
 
     Batch JSON has the same run-level field surface as run JSON.
     """
     if not batch_path:
-        return cfg, None
+        return cfg, None, [], None
     p = Path(batch_path)
     if not p.is_file():
-        return cfg, None
+        return cfg, None, [], None
     try:
         data = read_json_document(p)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        return cfg, None
+        return cfg, None, [], None
     if not isinstance(data, Mapping):
-        return cfg, None
+        return cfg, None, [], None
 
-    apply_config_env_from_document(data)
-    return _apply_run_document_fields(
+    json_env_applied = apply_config_env_from_document(data)
+    merged, jobs_src = _apply_run_document_fields(
         cfg,
         data,
         base_dir=p.parent,
         args=args,
     )
+    return merged, jobs_src, json_env_applied, dict(data)
 
 
 def resolve_jobs_after_merge(

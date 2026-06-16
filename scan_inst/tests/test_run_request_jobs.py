@@ -179,7 +179,7 @@ def test_path_walk_mode_from_batch_overrides_run_config(tmp_path: Path):
     args = ap.parse_args([str(run_json)])
     cli = run_config_from_args(args)
     merged = merge_run_config(base, cli, args)
-    final, _src = merge_options_from_connect_batch_json(merged, batch, args)
+    final, _src, _, _ = merge_options_from_connect_batch_json(merged, batch, args)
     assert final.mode == "path-walk"
 
 
@@ -201,7 +201,7 @@ def test_filelist_from_check_connect_batch_json(tmp_path: Path):
     args = ap.parse_args(["--check-connect-batch", str(batch)])
     cli = run_config_from_args(args)
     assert cli.filelist == ""
-    merged, _src = merge_options_from_connect_batch_json(cli, batch, args)
+    merged, _src, _, _ = merge_options_from_connect_batch_json(cli, batch, args)
     assert merged.filelist == str(fl.resolve())
     assert merged.top == "top"
 
@@ -224,7 +224,7 @@ def test_jobs_from_check_connect_batch_json(tmp_path: Path):
         ["top.f", "--check-connect-batch", str(batch)],
     )
     cli = run_config_from_args(args)
-    merged, src = merge_options_from_connect_batch_json(cli, batch, args)
+    merged, src, _, _ = merge_options_from_connect_batch_json(cli, batch, args)
     assert merged.jobs == 16
     assert src == "connect-batch:jobs"
     assert merged.ignore_path == ("pcielinktop",)

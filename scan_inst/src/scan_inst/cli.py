@@ -82,6 +82,7 @@ from scan_inst.run_tests import (
     try_parse_run_test_suite,
 )
 from scan_inst.cli_execute import execute_run
+from scan_inst.config_env_audit import emit_config_env_audit
 from scan_inst.cone import (
     fanin_cone,
     fanout_cone,
@@ -119,6 +120,7 @@ def _bootstrap_flat_suite_config(
     RunConfig,
     Optional[str],
     list[str],
+    list[str],
 ]:
     """
     Read run JSON, apply enable gate, build flat-suite test_plan.
@@ -129,20 +131,20 @@ def _bootstrap_flat_suite_config(
         config_text = config_path.read_text(encoding="utf-8-sig")
     except OSError:
         base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
-        return None, None, None, [], base_cfg, jobs_src, []
+        return None, None, None, [], base_cfg, jobs_src, [], []
 
     json_audit: list[str] = []
     try:
         raw_doc = loads_json_document(config_text, audit=json_audit)
     except (json.JSONDecodeError, UnicodeDecodeError):
         base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
-        return None, config_text, None, [], base_cfg, jobs_src, json_audit
+        return None, config_text, None, [], base_cfg, jobs_src, json_audit, []
 
     if not isinstance(raw_doc, dict):
         base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
-        return None, config_text, None, [], base_cfg, jobs_src, json_audit
+        return None, config_text, None, [], base_cfg, jobs_src, json_audit, []
 
-    apply_config_env_from_document(raw_doc)
+    json_env_applied = apply_config_env_from_document(raw_doc)
     if not quiet:
         pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
         emit_startup_banner(
@@ -180,10 +182,11 @@ def _bootstrap_flat_suite_config(
             parsed_suite.shared,
             jobs_src,
             json_audit,
+            json_env_applied,
         )
 
     base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
-    return raw_doc, config_text, None, [], base_cfg, jobs_src, json_audit
+    return raw_doc, config_text, None, [], base_cfg, jobs_src, json_audit, json_env_applied
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -492,6 +495,8 @@ def main(argv=None) -> int:
     saw_hierarchy_execute = False
     saw_full_index_step = False
     parsed_suite = None
+    json_env_applied: list[str] = []
+    config_env_document: Optional[dict] = None
 
     cfg = cli_cfg
     if args.filelist:
@@ -511,20 +516,30 @@ def main(argv=None) -> int:
             base_cfg,
             json_jobs_source,
             _json_audit,
+            json_env_applied,
         ) = _bootstrap_flat_suite_config(config_path, quiet=args.quiet)
         if suite_plan:
             test_plan = [(entry, run_cfg) for entry, run_cfg in suite_plan]
         cfg = merge_run_config(base_cfg, cli_cfg, args)
+        config_env_document = test_document
 
     connect_batch_jobs_source: Optional[str] = None
     connect_batch_path: Optional[Path] = None
     if cfg.check_connect_batch:
         connect_batch_path = Path(cfg.check_connect_batch)
-        cfg, connect_batch_jobs_source = merge_options_from_connect_batch_json(
+        (
+            cfg,
+            connect_batch_jobs_source,
+            batch_env_applied,
+            batch_document,
+        ) = merge_options_from_connect_batch_json(
             cfg,
             connect_batch_path,
             args,
         )
+        json_env_applied.extend(batch_env_applied)
+        if config_env_document is None:
+            config_env_document = batch_document
 
     if not cfg.filelist:
         ap.error(
@@ -545,6 +560,13 @@ def main(argv=None) -> int:
         connect_batch_jobs_source=connect_batch_jobs_source,
         env_jobs_source=env_jobs_source,
     )
+
+    if not cfg.quiet and config_env_document is not None:
+        emit_config_env_audit(
+            config_env_document,
+            json_env_applied=json_env_applied,
+            stream=sys.stderr,
+        )
 
     if not cfg.quiet:
         if config_path is None or test_document is None:

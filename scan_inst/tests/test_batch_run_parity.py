@@ -52,7 +52,7 @@ def test_batch_json_applies_ignore_module_and_max_depth(tmp_path: Path):
     ap = _build_parser()
     args = ap.parse_args(["--check-connect-batch", str(batch)])
     cli = run_config_from_args(args)
-    merged, _src = merge_options_from_connect_batch_json(cli, batch, args)
+    merged, _src, _, _ = merge_options_from_connect_batch_json(cli, batch, args)
     assert merged.filelist.endswith("design.f")
     assert merged.mode == "hierarchy"
     assert merged.ignore_module == ("bb_mod",)

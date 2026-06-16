@@ -455,10 +455,12 @@ def preprocess_file_for_index(
     skip_path_patterns: Sequence[str] = (),
 ) -> str:
     """
-    Light preprocess for index/instance scan: includes, optional ``ifdef``.
+    Light preprocess for index/instance scan: includes, macro expand, optional ``ifdef``.
 
-    Macro expand and bind stripping are deferred to connect/elab.
-    With lazy on, ``ifdef`` is also deferred unless ``SCAN_INST_LAZY_IFDEF=1``.
+    In-file / filelist `` `define `` names are expanded so instance scan can see
+    `` `CELL u`` pairs under `` `ifndef ``. Bind stripping stays deferred to
+    connect/elab. With lazy on, ``ifdef`` is also deferred unless
+    ``SCAN_INST_LAZY_IFDEF=1``.
     """
     if _should_skip_preprocess_path(path, skip_path_patterns):
         return _IGNORE_PATH_STUB
@@ -481,6 +483,7 @@ def preprocess_file_for_index(
         visiting,
         skip_path_patterns=skip_path_patterns,
     )
+    text = _expand_macros(text, defines)
     if lazy_index_ifdef():
         text = apply_ifdef_filter(text, defines)
     if cache_key is not None:

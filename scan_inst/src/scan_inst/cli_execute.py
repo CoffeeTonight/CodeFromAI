@@ -93,18 +93,23 @@ def execute_run(cfg: RunConfig, ap) -> int:
     if cone_mode and not (cfg.fanin_cone or cfg.fanout_cone):
         ap.error("cone mode requires fanin_cone or fanout_cone in JSON")
 
-    if effective_mode in ("hierarchy", "search", "find-top"):
-        if cfg.flat_suite_step and not cfg.full_index_step:
+    _full_index_modes = ("hierarchy", "search", "find-top")
+    if effective_mode in _full_index_modes:
+        explicit_mode = normalize_run_mode(cfg.mode or "")
+        hierarchy_allowed = cfg.full_index_step or explicit_mode in _full_index_modes
+        if not hierarchy_allowed:
             ap.error(
-                "run_on_full_index hierarchy blocked: this step was not scheduled "
-                "by the flat-suite enable gate (run_on_full_index enable must be 1)"
+                "hierarchy/search/find-top blocked: flat-suite JSON did not schedule "
+                "an enabled run_on_full_index step (enable: 1 required). "
+                "Inferred legacy hierarchy from shared cfg.mode=None is not allowed. "
+                "Pass RUN.json as the positional argument (not a legacy -c flag)."
             )
         if not cfg.quiet:
             print(
-                f"run: enable-gate: hierarchy allowed="
-                f"{int(cfg.full_index_step or not cfg.flat_suite_step)} "
+                f"run: enable-gate: hierarchy allowed={int(hierarchy_allowed)} "
                 f"flat_suite_step={int(cfg.flat_suite_step)} "
-                f"full_index_step={int(cfg.full_index_step)}",
+                f"full_index_step={int(cfg.full_index_step)} "
+                f"cfg.mode={explicit_mode or '(none)'}",
                 file=sys.stderr,
             )
 

@@ -749,7 +749,7 @@ def _apply_run_document_fields(
     args: Any,
     jobs_source_prefix: str = "connect-batch",
 ) -> tuple[RunConfig, Optional[str]]:
-    """Merge run-level JSON fields into ``cfg`` (batch JSON has ``--config`` parity)."""
+    """Merge run-level JSON fields into ``cfg`` (batch JSON has run JSON parity)."""
     out = cfg
     jobs_source: Optional[str] = None
 
@@ -996,7 +996,7 @@ def merge_options_from_connect_batch_json(
     """
     Apply run-level fields from ``--check-connect-batch`` JSON.
 
-    Batch JSON has the same run-level field surface as ``--config`` run JSON.
+    Batch JSON has the same run-level field surface as run JSON.
     """
     if not batch_path:
         return cfg, None
@@ -1056,7 +1056,7 @@ def try_load_run_request_from_path(
     """
     If *path* is a run-spec JSON (object with ``filelist``), return ``(path, cfg)``.
 
-    Used when users pass ``scan-inst run.json`` without ``--config``.
+    Used when users pass ``scan-inst run.json`` as the positional argument.
     """
     p = Path(path)
     if p.suffix.lower() != ".json" or not p.is_file():
@@ -1306,7 +1306,7 @@ def _field_overridden(args: Any, name: str, default: Any) -> bool:
 def merge_run_config(base: RunConfig, cli: RunConfig, args: Any) -> RunConfig:
     """Apply CLI overrides on top of a JSON-loaded RunConfig."""
     out = base
-    if args.filelist:
+    if args.filelist and try_load_run_request_from_path(args.filelist) is None:
         out = replace(out, filelist=cli.filelist)
     if _field_overridden(args, "top", None):
         out = replace(out, top=cli.top)

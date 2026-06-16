@@ -14,7 +14,7 @@ Modes (pick one; default is hierarchy dump):
   fanin-cone / fanout-cone  COI cone debug (FF/port/blackbox boundaries)
   inst-trace             Driver/sinker trace from one instance path (JSON)
 
-Use --config RUN.json to supply all options from one file. CLI flags override JSON.
+Pass RUN.json as the first argument to supply all options from one file. CLI flags override JSON.
 See --help-config, --help-connect, --help-cone, and --help-inst-trace."""
 
 HELP_EPILOG = """\
@@ -24,11 +24,11 @@ examples:
   scan-inst design.f --top top --search "u_ecc*,idx" -o hits.tsv
   scan-inst design.f --top top --check-connect top.clk top.u0.clk
   scan-inst design.f --top top --check-connect-batch checks.json -o conn.tsv
-  scan-inst --config run.json -o out.tsv
-  scan-inst --config run.json --no-cache --define DEBUG=1
+  scan-inst run.json -o out.tsv
+  scan-inst run.json --no-cache --define DEBUG=1
 
 JSON help:
-  scan-inst --help-config     full run JSON (--config)
+  scan-inst --help-config     full run JSON field reference
   scan-inst --help-connect    connectivity batch JSON only
   scan-inst --help-cone       fanin/fanout cone mode
   scan-inst --help-stress     random RTL connectivity stress / pytest
@@ -50,7 +50,7 @@ environment:
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
 
 CONFIG_HELP = """\
-scan-inst run JSON (--config / -c)
+scan-inst run JSON (positional RUN.json)
 ==================================
 
 All CLI options can be expressed in one JSON object. Relative paths are resolved
@@ -170,7 +170,7 @@ Path-walk connect (on-demand index)
 
   Stress corpus (4 sets × 10-deep zigzag × 10-bit array):
     python -m scan_inst.path_walk_stress_gen --out-dir DIR
-    scan-inst --config DIR/pw_stress.run.json -o connect.tsv
+    scan-inst DIR/pw_stress.run.json -o connect.tsv
     pytest tests/test_path_walk_stress.py -q
 
   Example (array bit × driver matrix):
@@ -277,7 +277,7 @@ Bundled examples (run from examples/stress_seed42):
   stress_42_d8.suite.json (all steps enabled)
 
   cd examples/stress_seed42
-  scan-inst --config flat_run_example.json
+  scan-inst flat_run_example.json
 
 Connectivity — batch (single-test / legacy)
 -------------------------------------------
@@ -288,7 +288,7 @@ Connectivity — batch (single-test / legacy)
   connect / check-connect-batch object fields:
       checks (array)          Required for connect/path-walk; omit for inst-trace/cone/search
       pairs, connections      Aliases for checks
-      All run JSON fields     Same surface as --config (filelist, mode, top, output,
+      All run JSON fields     Same surface as RUN.json (filelist, mode, top, output,
                               inst_trace, fanin_cone, search, ignore-*, cache, jobs, …)
       include-ff, connect-trace, trace, strict-generate, over-approximate-if
 
@@ -324,7 +324,7 @@ Cache / parallelism
 
 CLI override rule
 -----------------
-When both --config and CLI flags are present, explicit CLI flags win over JSON.
+When both RUN.json and CLI flags are present, explicit CLI flags win over JSON.
 
 Example (hierarchy)
 -------------------
@@ -413,7 +413,7 @@ Options
   no-cache            Disable index/elab disk cache
   refresh-cache       Force index rebuild
   defines             Merged into compile defines (also used at index build
-                      when loaded via --config)
+                      when loaded via RUN.json)
   include-ff (bool)   Allow paths through always_ff (default: comb-only)
   ff-barrier (bool)   Shorthand for include_ff = !ff_barrier
   connect-trace       TSV hops + readable path report on terminal (alias: trace)
@@ -463,7 +463,7 @@ CLI
   scan-inst design.f --top top --fanin-cone top.u_mid.qout -o cone.tsv
   scan-inst design.f --top top --fanout-cone top.sig --cone-graph cone.dot
 
-Run JSON (--config)
+Run JSON (positional)
 -------------------
 {
   "filelist": "design.f",
@@ -513,7 +513,7 @@ Generate RTL + JSON artifacts (one seed)
 
 Run scan-inst on generated artifacts
 ------------------------------------
-  scan-inst --config DIR/stress_42_d8.run.json -o connect.tsv
+  scan-inst DIR/stress_42_d8.run.json -o connect.tsv
   # or
   scan-inst DIR/filelist.f --check-connect-batch DIR/stress_42_d8.connect.json
 
@@ -557,7 +557,7 @@ scan-inst inst-trace mode
 Trace drivers (fanin) and/or sinkers (fanout) from every port on one instance.
 No per-port endpoint list required — supply the instance path only.
 
-Run JSON (--config)
+Run JSON (positional)
 -------------------
 {
   "filelist": "design.f",

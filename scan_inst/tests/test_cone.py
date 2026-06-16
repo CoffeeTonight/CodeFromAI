@@ -117,7 +117,7 @@ def test_cli_fanout_cone_smoke(tmp_path: Path):
         encoding="utf-8",
     )
     proc = subprocess.run(
-        ["scan-inst", "--config", str(run_json)],
+        ["scan-inst", str(run_json)],
         capture_output=True,
         text=True,
         check=True,

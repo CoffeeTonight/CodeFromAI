@@ -7,7 +7,7 @@
   },
 
   // Runnable example in this file: run_conn_check only (path-walk connect).
-  // Run: scan-inst --config flat_run_example.json  (from this directory)
+  // Run: scan-inst flat_run_example.json  (from this directory)
 
   // --- run_on_full_index: full filelist index + elaboration dump ---
   // "run_on_full_index": {

@@ -7,7 +7,7 @@
   },
 
   // Runnable example: run_conn_check only. Run from examples/:
-  //   scan-inst --config flat_run_example.json
+  //   scan-inst flat_run_example.json
 
   // --- run_on_full_index ---
   // "run_on_full_index": {

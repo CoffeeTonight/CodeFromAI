@@ -51,6 +51,7 @@ from scan_inst.enable_diagnostics import (
 )
 from scan_inst.run_request import (
     RUN_ON_FULL_INDEX,
+    RunConfig,
     _full_index_block_key,
     _jobs_from_document,
     _mapping_get_ci,
@@ -72,6 +73,7 @@ from scan_inst.run_request import (
 from scan_inst.startup import emit_startup_banner
 from scan_inst.run_tests import (
     RunTestEntry,
+    RunTestSuite,
     build_test_run_configs,
     detect_enable_key_typos,
     format_suite_enable_trace,
@@ -105,6 +107,85 @@ from scan_inst.search import normalize_search_patterns, search
 from scan_inst.top_find import find_top_modules, resolve_top_modules
 
 
+def _bootstrap_flat_suite_config(
+    config_path: Path,
+    *,
+    quiet: bool,
+) -> tuple[
+    Optional[dict],
+    Optional[str],
+    Optional[RunTestSuite],
+    list[tuple[RunTestEntry, RunConfig]],
+    RunConfig,
+    Optional[str],
+    list[str],
+]:
+    """
+    Read run JSON, apply enable gate, build flat-suite test_plan.
+
+    Must run for every run JSON path (positional RUN.json or SCAN_INST_CONFIG).
+    """
+    try:
+        config_text = config_path.read_text(encoding="utf-8-sig")
+    except OSError:
+        base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
+        return None, None, None, [], base_cfg, jobs_src, []
+
+    json_audit: list[str] = []
+    try:
+        raw_doc = loads_json_document(config_text, audit=json_audit)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
+        return None, config_text, None, [], base_cfg, jobs_src, json_audit
+
+    if not isinstance(raw_doc, dict):
+        base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
+        return None, config_text, None, [], base_cfg, jobs_src, json_audit
+
+    apply_config_env_from_document(raw_doc)
+    if not quiet:
+        pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
+        emit_startup_banner(
+            version=scan_inst.__version__,
+            pkg_dir=pkg_dir,
+            stream=sys.stderr,
+        )
+        for line in audit_run_on_full_index_enable_lines(
+            raw_doc,
+            raw_text=config_text,
+        ):
+            print(f"run: {line}", file=sys.stderr)
+        for note in json_audit:
+            print(f"run: WARNING {note}", file=sys.stderr)
+
+    parsed_suite = try_parse_run_test_suite(
+        raw_doc,
+        base_dir=config_path.parent,
+        raw_text=config_text,
+    )
+    if parsed_suite is not None:
+        test_plan = list(
+            build_test_run_configs(
+                parsed_suite,
+                raw_doc,
+                base_dir=config_path.parent,
+            )
+        )
+        _, jobs_src = _jobs_from_document(raw_doc)
+        return (
+            raw_doc,
+            config_text,
+            parsed_suite,
+            test_plan,
+            parsed_suite.shared,
+            jobs_src,
+            json_audit,
+        )
+
+    base_cfg, jobs_src = load_run_request_with_jobs_source(config_path)
+    return raw_doc, config_text, None, [], base_cfg, jobs_src, json_audit
+
+
 def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="scan-inst",
@@ -117,18 +198,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "filelist",
         nargs="?",
         default=None,
-        metavar="FILELIST.f",
-        help="Verilog FILELIST.f, or RUN.json (auto-detected); omit when using -c/--config",
+        metavar="FILELIST.f|RUN.json",
+        help="Verilog FILELIST.f, or run-spec RUN.json (auto-detected); or set SCAN_INST_CONFIG",
     )
 
     cfg = ap.add_argument_group("config")
-    cfg.add_argument(
-        "-c",
-        "--config",
-        default=None,
-        metavar="RUN.json",
-        help="run spec JSON: filelist, mode, search/connect, cache, ignore, output",
-    )
     cfg.add_argument(
         "--help-config",
         action="store_true",
@@ -397,14 +471,11 @@ def main(argv=None) -> int:
     if args.help_inst_trace:
         print(INST_TRACE_HELP, end="" if INST_TRACE_HELP.endswith("\n") else "\n")
         return 0
-    if (
-        not args.config
-        and not args.filelist
-        and not args.check_connect_batch
-    ):
+    run_json_arg = args.filelist or os.environ.get("SCAN_INST_CONFIG")
+    if not run_json_arg and not args.check_connect_batch:
         ap.error(
-            "pass --config RUN.json, --check-connect-batch BATCH.json "
-            "(filelist inside JSON is enough), or a Verilog FILELIST.f path"
+            "pass RUN.json or FILELIST.f (or set SCAN_INST_CONFIG), "
+            "or --check-connect-batch BATCH.json"
         )
     if args.check_connect and args.check_connect_batch:
         ap.error("use either --check-connect or --check-connect-batch, not both")
@@ -422,70 +493,28 @@ def main(argv=None) -> int:
     saw_full_index_step = False
     parsed_suite = None
 
-    config_arg = args.config or os.environ.get("SCAN_INST_CONFIG")
-    if config_arg:
-        config_path = Path(config_arg)
-        try:
-            config_text = config_path.read_text(encoding="utf-8-sig")
-        except OSError:
-            config_text = None
-        raw_doc = None
-        json_audit: list[str] = []
-        if config_text is not None:
-            try:
-                raw_doc = loads_json_document(config_text, audit=json_audit)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                raw_doc = None
-        if isinstance(raw_doc, dict):
-            test_document = raw_doc
-            apply_config_env_from_document(raw_doc)
-            if not args.quiet:
-                pkg_dir = str(Path(scan_inst.__file__).resolve().parent)
-                emit_startup_banner(
-                    version=scan_inst.__version__,
-                    pkg_dir=pkg_dir,
-                    stream=sys.stderr,
-                )
-                for line in audit_run_on_full_index_enable_lines(
-                    raw_doc,
-                    raw_text=config_text,
-                ):
-                    print(f"run: {line}", file=sys.stderr)
-                for note in json_audit:
-                    print(f"run: WARNING {note}", file=sys.stderr)
-            parsed_suite = try_parse_run_test_suite(
-                raw_doc,
-                base_dir=config_path.parent,
-                raw_text=config_text,
-            )
-            if parsed_suite is not None:
-                test_plan = list(
-                    build_test_run_configs(
-                        parsed_suite,
-                        raw_doc,
-                        base_dir=config_path.parent,
-                    )
-                )
-                base_cfg = parsed_suite.shared
-                _, json_jobs_source = _jobs_from_document(raw_doc)
-            else:
-                base_cfg, json_jobs_source = load_run_request_with_jobs_source(
-                    config_path
-                )
-        else:
-            base_cfg, json_jobs_source = load_run_request_with_jobs_source(
-                config_path
-            )
-        cfg = merge_run_config(base_cfg, cli_cfg, args)
-    elif args.filelist:
+    cfg = cli_cfg
+    if args.filelist:
         auto = try_load_run_request_from_path(args.filelist)
         if auto is not None:
             config_path, base_cfg, json_jobs_source = auto
             cfg = merge_run_config(base_cfg, cli_cfg, args)
-        else:
-            cfg = cli_cfg
-    else:
-        cfg = cli_cfg
+    elif os.environ.get("SCAN_INST_CONFIG"):
+        config_path = Path(os.environ["SCAN_INST_CONFIG"])
+
+    if config_path is not None:
+        (
+            test_document,
+            config_text,
+            parsed_suite,
+            suite_plan,
+            base_cfg,
+            json_jobs_source,
+            _json_audit,
+        ) = _bootstrap_flat_suite_config(config_path, quiet=args.quiet)
+        if suite_plan:
+            test_plan = [(entry, run_cfg) for entry, run_cfg in suite_plan]
+        cfg = merge_run_config(base_cfg, cli_cfg, args)
 
     connect_batch_jobs_source: Optional[str] = None
     connect_batch_path: Optional[Path] = None
@@ -499,8 +528,8 @@ def main(argv=None) -> int:
 
     if not cfg.filelist:
         ap.error(
-            "no filelist resolved: add top-level \"filelist\" to --config or "
-            "--check-connect-batch JSON, or pass a Verilog FILELIST.f path"
+            "no filelist resolved: add top-level \"filelist\" to RUN.json, "
+            "pass FILELIST.f, or use --check-connect-batch JSON with filelist"
         )
 
     env_jobs_source: Optional[str] = None
@@ -542,8 +571,8 @@ def main(argv=None) -> int:
         elif config_path is None and connect_batch_path is None:
             print(
                 f"run: no config loaded jobs={jobs_res.note} "
-                f"(source={jobs_res.source}; use -c run.json, "
-                f"jobs in --check-connect-batch JSON, or SCAN_INST_CONFIG)",
+                f"(source={jobs_res.source}; pass run.json, "
+                f"SCAN_INST_CONFIG, or jobs in --check-connect-batch JSON)",
                 file=sys.stderr,
             )
         if (

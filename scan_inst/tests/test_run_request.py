@@ -1,4 +1,4 @@
-"""Run configuration JSON parsing and CLI --config."""
+"""Run configuration JSON parsing and CLI RUN.json positional."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_cli_config_only_stress_run(tmp_path: Path):
     assert cfg.connect_inline is not None
 
     proc = subprocess.run(
-        ["scan-inst", "--config", str(run_json)],
+        ["scan-inst", str(run_json)],
         capture_output=True,
         text=True,
         check=True,
@@ -128,6 +128,16 @@ def test_cli_help_config_and_connect():
         assert needle.lower() in proc.stdout.lower()
 
 
+def test_cli_rejects_removed_config_flag():
+    proc = subprocess.run(
+        ["scan-inst", "--config", "run.json"],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "unrecognized arguments: --config" in proc.stderr
+
+
 def test_cli_help_lists_config_flags():
     proc = subprocess.run(
         ["scan-inst", "--help"],
@@ -135,7 +145,7 @@ def test_cli_help_lists_config_flags():
         text=True,
         check=True,
     )
-    assert "--config" in proc.stdout
+    assert "RUN.json" in proc.stdout
     assert "--help-config" in proc.stdout
     assert "--help-connect" in proc.stdout
     assert "--help-stress" in proc.stdout

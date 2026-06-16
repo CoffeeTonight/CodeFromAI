@@ -8,6 +8,7 @@ from pathlib import Path
 
 from scan_inst.cli import _build_parser
 from scan_inst.run_request import (
+    load_run_request,
     merge_options_from_connect_batch_json,
     merge_run_config,
     parse_run_request_json,
@@ -73,16 +74,29 @@ def test_jobs_string_value_in_json():
 def test_merge_keeps_json_jobs_when_cli_jobs_default():
     base = parse_run_request_json({"filelist": "top.f", "jobs": 16})
     ap = _build_parser()
-    args = ap.parse_args(["-c", "run.json"])
+    args = ap.parse_args(["run.json"])
     cli = run_config_from_args(args)
     merged = merge_run_config(base, cli, args)
     assert merged.jobs == 16
 
 
+def test_merge_keeps_json_filelist_when_positional_is_run_json(tmp_path: Path):
+    fl = tmp_path / "top.f"
+    fl.write_text("/dummy.v\n", encoding="utf-8")
+    run_json = tmp_path / "run.json"
+    run_json.write_text('{"filelist": "top.f", "jobs": 16}', encoding="utf-8")
+    base = load_run_request(run_json)
+    ap = _build_parser()
+    args = ap.parse_args([str(run_json)])
+    cli = run_config_from_args(args)
+    merged = merge_run_config(base, cli, args)
+    assert merged.filelist == str(fl.resolve())
+
+
 def test_merge_cli_jobs_overrides_json():
     base = parse_run_request_json({"filelist": "top.f", "jobs": 16})
     ap = _build_parser()
-    args = ap.parse_args(["-c", "run.json", "-j", "4"])
+    args = ap.parse_args(["run.json", "-j", "4"])
     cli = run_config_from_args(args)
     merged = merge_run_config(base, cli, args)
     assert merged.jobs == 4
@@ -162,7 +176,7 @@ def test_path_walk_mode_from_batch_overrides_run_config(tmp_path: Path):
     base = load_run_request(run_json)
     assert base.mode == "check-connect-batch"
     ap = _build_parser()
-    args = ap.parse_args(["--config", str(run_json)])
+    args = ap.parse_args([str(run_json)])
     cli = run_config_from_args(args)
     merged = merge_run_config(base, cli, args)
     final, _src = merge_options_from_connect_batch_json(merged, batch, args)

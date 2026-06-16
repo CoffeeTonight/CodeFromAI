@@ -15,6 +15,7 @@ from scan_inst.run_tests import (
     build_test_run_configs,
     parse_flat_run_suite,
 )
+from scan_inst.run_request import RunConfig
 
 
 CONE_RTL = """
@@ -108,7 +109,7 @@ def test_cli_stderr_has_no_hierarchy_mode_for_disabled_full_index(tmp_path: Path
         encoding="utf-8",
     )
     proc = subprocess.run(
-        ["scan-inst", "--config", str(run_json)],
+        ["scan-inst", str(run_json)],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -153,7 +154,7 @@ def test_legacy_top_level_mode_hierarchy_blocked_when_full_index_disabled(tmp_pa
         encoding="utf-8",
     )
     proc = subprocess.run(
-        ["scan-inst", "--config", str(run_json)],
+        ["scan-inst", str(run_json)],
         capture_output=True,
         text=True,
     )
@@ -262,6 +263,71 @@ def test_duplicate_enable_key_last_value_wins_and_warns():
     assert audit
 
 
+def test_filelist_json_path_runs_suite_not_legacy_hierarchy(tmp_path: Path):
+    """scan-inst run.json (no -c) must flat-suite parse, not fallback hierarchy."""
+    rtl = tmp_path / "d.v"
+    rtl.write_text(CONE_RTL, encoding="utf-8")
+    fl = tmp_path / "fl.f"
+    fl.write_text(f"{rtl.resolve()}\n", encoding="utf-8")
+    run_json = tmp_path / "suite.json"
+    run_json.write_text(
+        json.dumps(
+            {
+                "filelist": str(fl.name),
+                "top": "top",
+                "run_on_full_index": {
+                    "enable": 0,
+                    "mode": "hierarchy",
+                    "output": "instances.tsv",
+                },
+                "run_conn_check": {
+                    "enable": 1,
+                    "mode": "path-walk",
+                    "checks": [{"id": "t", "a": "top.a", "b": "top.z"}],
+                    "output": "-",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["scan-inst", str(run_json)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    err = proc.stderr
+    assert "test-suite 1 step(s)" in err
+    assert "enable-audit: block=run_on_full_index raw_enable=0 parsed_enable=0 action=SKIP" in err
+    assert "effective_mode=hierarchy" not in err
+    assert "index_loader=load_or_build_index" not in err
+
+
+def test_inferred_hierarchy_blocked_without_full_index_step():
+    doc = {
+        "filelist": "fl.f",
+        "top": "top",
+        "run_on_full_index": {"enable": 0, "mode": "hierarchy"},
+        "run_conn_check": {
+            "enable": 1,
+            "mode": "path-walk",
+            "checks": [{"id": "t", "a": "top.a", "b": "top.z"}],
+        },
+    }
+    suite = parse_flat_run_suite(doc)
+    _, cfg = build_test_run_configs(suite, doc)[0]
+
+    class _Ap:
+        def error(self, msg):
+            raise SystemExit(msg)
+
+    # Simulate legacy fallback cfg (mode unset → inferred hierarchy)
+    legacy = RunConfig(filelist=cfg.filelist, top=cfg.top, mode=None)
+    with pytest.raises(SystemExit, match="hierarchy/search/find-top blocked"):
+        execute_run(legacy, _Ap())
+
+
 def test_enable_audit_before_jobs_line_in_stderr_order(tmp_path: Path):
     rtl = tmp_path / "d.v"
     rtl.write_text(CONE_RTL, encoding="utf-8")
@@ -290,7 +356,7 @@ def test_enable_audit_before_jobs_line_in_stderr_order(tmp_path: Path):
         encoding="utf-8",
     )
     proc = subprocess.run(
-        ["scan-inst", "--config", str(run_json)],
+        ["scan-inst", str(run_json)],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -318,7 +384,7 @@ def test_verify_enable_gate_json_subprocess():
         if p.exists():
             p.unlink()
     proc = subprocess.run(
-        ["scan-inst", "--config", str(cfg)],
+        ["scan-inst", str(cfg)],
         cwd=root,
         capture_output=True,
         text=True,

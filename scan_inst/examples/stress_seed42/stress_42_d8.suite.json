@@ -5,7 +5,7 @@
     "STRESS_USE_IN": "1",
     "STRESS_ALT": "0"
   },
-  "run_on_full_db": {
+  "run_on_full_index": {
     "enable": 0,
     "mode": "hierarchy",
     "no_cache": true,
@@ -14,7 +14,7 @@
   },
   "run_conn_check": {
     "enable": 1,
-    "mode": "check-connect-batch",
+    "mode": "path-walk",
     "include_ff": true,
     "checks": [
       {
@@ -32,7 +32,7 @@
   },
   "run_io_trace": {
     "enable": 1,
-    "mode": "inst-trace",
+    "mode": "path-walk",
     "instance": "stress_top.u_spine",
     "direction": "both",
     "path_kind": "ff",
@@ -40,7 +40,7 @@
   },
   "run_cone_trace": {
     "enable": 1,
-    "mode": "fanout-cone",
+    "mode": "path-walk",
     "fanout_cone": "stress_top.probe_in",
     "output": "suite_cone.tsv"
   }

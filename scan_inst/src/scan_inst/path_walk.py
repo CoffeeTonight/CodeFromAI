@@ -302,6 +302,37 @@ def _sorted_prefixes(specs: Sequence[str]) -> List[str]:
     return sorted(prefixes, key=lambda p: (p.count("."), p))
 
 
+def build_path_walk_state_from_specs(
+    index: DesignIndex,
+    top: str,
+    specs: Sequence[str],
+    resolver: ModuleFileResolver,
+    *,
+    expand_subtrees: Sequence[str] = (),
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> PathWalkState:
+    """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
+    state = PathWalkState(index=index, top=top, resolver=resolver)
+    state.ensure_root()
+    spec_list = [str(s).strip() for s in specs if str(s).strip()]
+    if on_progress:
+        on_progress(f"path-walk: {len(spec_list)} endpoint spec(s)")
+    for prefix in _sorted_prefixes(spec_list):
+        state.ensure_path(prefix)
+    for spec in spec_list:
+        inst = _inst_path_from_spec(spec, state)
+        if inst:
+            state.ensure_path(inst)
+    for subtree_root in expand_subtrees:
+        root = str(subtree_root).strip()
+        if not root:
+            continue
+        if state.ensure_path(root):
+            state._expand_subtree(root)
+            state.stats.subtrees_expanded += 1
+    return state
+
+
 def build_path_walk_state(
     index: DesignIndex,
     top: str,
@@ -327,6 +358,61 @@ def build_path_walk_state(
         seen_lca.add(key)
         state.ensure_lca_subtree(a, b)
     return state
+
+
+def run_path_walk_index(
+    fl: FilelistResult,
+    specs: Sequence[str],
+    *,
+    top: str = "",
+    extra_defines: Mapping[str, str] | None = None,
+    expand_subtrees: Sequence[str] = (),
+    ignore_paths: Sequence[str] = (),
+    ignore_path_files: Sequence[str] = (),
+    ignore_modules: Sequence[str] = (),
+    ignore_filelists: Sequence[str] = (),
+    on_progress: Optional[Callable[[str], None]] = None,
+) -> Tuple[DesignIndex, PathWalkState, str]:
+    """On-demand index + hierarchy rows for arbitrary endpoint specs."""
+    defines = dict(fl.defines)
+    defines.update(extra_defines or {})
+    index, resolver = create_path_walk_index(
+        fl,
+        top,
+        defines=defines,
+        ignore_paths=ignore_paths,
+        ignore_path_files=ignore_path_files,
+        ignore_modules=ignore_modules,
+        ignore_filelists=ignore_filelists,
+        on_progress=on_progress,
+    )
+    tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
+    top_name = tops[0]
+    state = build_path_walk_state_from_specs(
+        index,
+        top_name,
+        specs,
+        resolver,
+        on_progress=on_progress,
+    )
+    extra_roots = list(expand_subtrees)
+    for spec in specs:
+        inst = _inst_path_from_spec(spec, state)
+        if inst and inst not in extra_roots:
+            extra_roots.append(inst)
+    for subtree_root in extra_roots:
+        root = str(subtree_root).strip()
+        if not root:
+            continue
+        if state.ensure_path(root):
+            state._expand_subtree(root)
+            state.stats.subtrees_expanded += 1
+    if on_progress:
+        on_progress(
+            f"path-walk: {len(state.rows_by_path)} instance row(s), "
+            f"{state.stats.modules_loaded} module(s) loaded"
+        )
+    return index, state, top_name
 
 
 def create_path_walk_index(

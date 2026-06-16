@@ -191,9 +191,9 @@ Flat run suite (one JSON, sibling blocks, sequential run)
 -------------------------------------------------------
   Top-level siblings (same level). Each block has enable: 1|0 to run or skip.
   filelist, top, defines stay at the root; full-index options live under
-  run_on_full_db.
+  run_on_full_index.
 
-  run_on_full_db             Full filelist index + elaboration settings
+  run_on_full_index          Full filelist index + elaboration settings
     enable (0|1)             Run hierarchy/search/find-top step when 1
     mode                     hierarchy (default) | search | find-top
     ignore-path              RTL path globs (moved here from top level)
@@ -205,22 +205,27 @@ Flat run suite (one JSON, sibling blocks, sequential run)
 
   run_conn_check             P2P path connectivity (checks inside)
     enable (0|1)
-    mode                     check-connect | check-connect-batch | path-walk
-    checks                   Endpoint pairs (required except check-connect)
+    mode                     full-index | path-walk (default: path-walk)
+    checks                   Endpoint pairs (required)
     output
 
   run_io_trace               Instance driver/sinker trace
     enable (0|1)
-    mode                     inst-trace
+    mode                     full-index | path-walk (default: path-walk)
     instance, direction, path_kind (ff|comb), output
 
   run_cone_trace             Fanin/fanout COI cone
     enable (0|1)
-    mode                     fanin-cone | fanout-cone | cone
-    fanin_cone / fanout_cone, cone-graph, output
+    mode                     full-index | path-walk (default: path-walk)
+    fanin_cone / fanout_cone (pick one), cone-graph, output
 
-  run_on_full_db settings (ignores, jobs, cache, …) merge into every enabled
-  verification step even when run_on_full_db.enable is 0.
+  Verification block ``mode`` is only the index strategy (full-index vs path-walk).
+  The step kind is the block name (run_conn_check, run_io_trace, run_cone_trace).
+  Legacy values (check-connect-batch, inst-trace, fanout-cone, …) map to full-index.
+
+  run_on_full_index settings (ignores, jobs, cache, …) merge into every enabled
+  verification step even when run_on_full_index.enable is 0.
+  Legacy key run_on_full_db is still accepted.
 
 Example (flat)
 --------------
@@ -228,7 +233,7 @@ Example (flat)
   "filelist": "design.f",
   "top": "top",
   "defines": {"USE_X": "1"},
-  "run_on_full_db": {
+  "run_on_full_index": {
     "enable": 0,
     "mode": "hierarchy",
     "ignore_path": ["pcielinktop"],
@@ -239,13 +244,13 @@ Example (flat)
   },
   "run_conn_check": {
     "enable": 1,
-    "mode": "check-connect-batch",
+    "mode": "path-walk",
     "checks": [{"id": "a", "a": "top.a", "b": "top.z"}],
     "output": "conn.tsv"
   },
   "run_io_trace": {
     "enable": 1,
-    "mode": "inst-trace",
+    "mode": "full-index",
     "instance": "top.u_mid",
     "direction": "driver",
     "path_kind": "ff",
@@ -253,7 +258,7 @@ Example (flat)
   },
   "run_cone_trace": {
     "enable": 0,
-    "mode": "fanout-cone",
+    "mode": "full-index",
     "fanout_cone": "top.u_mid.din",
     "output": "cone.tsv"
   }
@@ -262,8 +267,8 @@ Example (flat)
 Legacy tests[] array is still accepted (enable supported per entry).
 
 Bundled examples (run from examples/stress_seed42):
-  flat_run_example.json
-  stress_42_d8.suite.json
+  flat_run_example.json   (JSONC: // comments; one runnable step + commented templates)
+  stress_42_d8.suite.json (all steps enabled)
 
   cd examples/stress_seed42
   scan-inst --config flat_run_example.json

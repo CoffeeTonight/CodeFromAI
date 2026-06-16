@@ -50,6 +50,7 @@ from scan_inst.run_request import (
     merge_options_from_connect_batch_json,
     merge_run_config,
     normalize_run_mode,
+    read_json_document,
     resolve_connectivity_request,
     resolve_effective_run_mode,
     resolve_jobs_after_merge,
@@ -490,7 +491,7 @@ def main(argv=None) -> int:
     test_plan: list[tuple[RunTestEntry | None, object]] = []
     if config_path is not None:
         try:
-            raw_doc = json.loads(config_path.read_text(encoding="utf-8-sig"))
+            raw_doc = read_json_document(config_path)
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             raw_doc = None
         if isinstance(raw_doc, dict):

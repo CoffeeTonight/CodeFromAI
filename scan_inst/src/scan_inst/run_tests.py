@@ -1,4 +1,4 @@
-"""Flat run JSON: run_on_full_db + run_conn_check / run_io_trace / run_cone_trace."""
+"""Flat run JSON: run_on_full_index + run_conn_check / run_io_trace / run_cone_trace."""
 
 from __future__ import annotations
 
@@ -17,13 +17,14 @@ from scan_inst.run_request import (
     parse_run_request_json,
 )
 
-RUN_ON_FULL_DB = "run_on_full_db"
+RUN_ON_FULL_INDEX = "run_on_full_index"
+RUN_ON_FULL_DB_LEGACY = "run_on_full_db"
 RUN_CONN_CHECK = "run_conn_check"
 RUN_IO_TRACE = "run_io_trace"
 RUN_CONE_TRACE = "run_cone_trace"
 
 TEST_KINDS: Tuple[str, ...] = (
-    RUN_ON_FULL_DB,
+    RUN_ON_FULL_INDEX,
     RUN_CONN_CHECK,
     RUN_IO_TRACE,
     RUN_CONE_TRACE,
@@ -36,12 +37,29 @@ VERIFICATION_KINDS: Tuple[str, ...] = (
 
 _FLAT_BLOCK_ORDER: Tuple[str, ...] = TEST_KINDS
 
-_CONN_CHECK_MODES = frozenset(
-    {"check-connect", "check-connect-batch", "path-walk"}
-)
-_IO_TRACE_MODES = frozenset({"inst-trace"})
-_CONE_TRACE_MODES = frozenset({"cone", "fanin-cone", "fanout-cone"})
+_INDEX_STRATEGY_MODES = frozenset({"full-index", "path-walk"})
 _FULL_DB_MODES = frozenset({"hierarchy", "search", "find-top"})
+
+# Legacy verification-type modes → index strategy (backward compatible).
+_LEGACY_INDEX_MODE = {
+    "check-connect": "full-index",
+    "check-connect-batch": "full-index",
+    "inst-trace": "full-index",
+    "inst_trace": "full-index",
+    "cone": "full-index",
+    "fanin-cone": "full-index",
+    "fanout-cone": "full-index",
+    "hierarchy": "full-index",
+    "full": "full-index",
+    "full-index": "full-index",
+    "path-walk": "path-walk",
+}
+
+_DEFAULT_INDEX_MODE = {
+    RUN_CONN_CHECK: "path-walk",
+    RUN_IO_TRACE: "path-walk",
+    RUN_CONE_TRACE: "path-walk",
+}
 
 
 @dataclass(frozen=True)
@@ -61,7 +79,7 @@ class RunTestSuite:
 
     shared: RunConfig
     tests: Tuple[RunTestEntry, ...]
-    full_db_spec: Optional[Mapping[str, Any]] = None
+    full_index_spec: Optional[Mapping[str, Any]] = None
 
 
 def _first_ci(data: Mapping[str, Any], *keys: str) -> Any:
@@ -99,79 +117,91 @@ def _spec_block(data: Mapping[str, Any], kind: str) -> Mapping[str, Any]:
     return raw
 
 
-def _validate_conn_check_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
-    if mode not in _CONN_CHECK_MODES:
-        raise ValueError(
-            f"{label} run_conn_check: unknown mode {mode!r}; "
-            f"expected one of {sorted(_CONN_CHECK_MODES)}"
-        )
+def normalize_index_strategy_mode(mode: str) -> str:
+    """Map JSON mode to ``full-index`` or ``path-walk`` (index/elab strategy)."""
+    key = normalize_run_mode(str(mode or ""))
+    if not key:
+        return ""
+    mapped = _LEGACY_INDEX_MODE.get(key, key)
+    if mapped in _INDEX_STRATEGY_MODES:
+        return mapped
+    raise ValueError(
+        f"unknown index mode {mode!r}; expected full-index or path-walk "
+        f"(legacy aliases: check-connect-batch, inst-trace, fanout-cone, …)"
+    )
+
+
+def _validate_conn_check_spec(spec: Mapping[str, Any], *, label: str) -> None:
     checks = _mapping_get_ci(spec, "checks")
     check_connect = _first_ci(spec, "check_connect", "check-connect")
-    if mode == "check-connect":
-        if check_connect is None and checks is None:
-            raise ValueError(
-                f"{label} run_conn_check mode check-connect "
-                "requires check_connect or checks"
-            )
-    elif checks is None and check_connect is None:
-        raise ValueError(f"{label} run_conn_check mode {mode!r} requires checks")
-    return mode
+    if checks is None and check_connect is None:
+        raise ValueError(f"{label} run_conn_check requires checks")
 
 
-def _validate_io_trace_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
-    if mode not in _IO_TRACE_MODES:
-        raise ValueError(
-            f"{label} run_io_trace: unknown mode {mode!r}; "
-            f"expected one of {sorted(_IO_TRACE_MODES)}"
-        )
+def _validate_io_trace_spec(spec: Mapping[str, Any], *, label: str) -> None:
     instance = _first_ci(spec, "instance", "inst", "path")
     if not str(instance or "").strip():
         raise ValueError(f"{label} run_io_trace requires instance (hierarchy path)")
-    return mode
 
 
-def _validate_cone_trace_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
-    if mode not in _CONE_TRACE_MODES:
-        raise ValueError(
-            f"{label} run_cone_trace: unknown mode {mode!r}; "
-            f"expected one of {sorted(_CONE_TRACE_MODES)}"
-        )
+def _validate_cone_trace_spec(spec: Mapping[str, Any], *, label: str) -> None:
     fanin = _first_ci(spec, "fanin_cone", "fanin-cone", "endpoint")
     fanout = _first_ci(spec, "fanout_cone", "fanout-cone")
-    if mode == "fanin-cone":
-        if not str(fanin or "").strip():
-            raise ValueError(
-                f"{label} run_cone_trace mode fanin-cone "
-                "requires fanin_cone or endpoint"
-            )
-    elif mode == "fanout-cone":
-        if not str(fanout or "").strip():
-            raise ValueError(
-                f"{label} run_cone_trace mode fanout-cone "
-                "requires fanout_cone or endpoint"
-            )
+    if fanin and fanout:
+        raise ValueError(
+            f"{label} run_cone_trace: use fanin_cone or fanout_cone, not both"
+        )
+    if not fanin and not fanout:
+        raise ValueError(
+            f"{label} run_cone_trace requires fanin_cone or fanout_cone"
+        )
+
+
+def _validate_verification_index_mode(
+    kind: str,
+    mode: str,
+    spec: Mapping[str, Any],
+    *,
+    label: str,
+) -> str:
+    if kind == RUN_CONN_CHECK:
+        _validate_conn_check_spec(spec, label=label)
+    elif kind == RUN_IO_TRACE:
+        _validate_io_trace_spec(spec, label=label)
     else:
-        if fanin and fanout:
-            raise ValueError(
-                f"{label} run_cone_trace: use fanin_cone or fanout_cone, not both"
-            )
-        if not fanin and not fanout:
-            raise ValueError(
-                f"{label} run_cone_trace requires fanin_cone or fanout_cone"
-            )
+        _validate_cone_trace_spec(spec, label=label)
     return mode
 
 
-def _validate_full_db_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
+def exec_mode_for_verification(kind: str, index_mode: str) -> str:
+    """Map flat-suite block kind to CLI execution mode (not index strategy)."""
+    if kind == RUN_CONN_CHECK:
+        return "check-connect-batch"
+    if kind == RUN_IO_TRACE:
+        return "inst-trace"
+    return "cone"
+
+
+def _full_index_block_key(data: Mapping[str, Any]) -> Optional[str]:
+    if _mapping_get_ci(data, RUN_ON_FULL_INDEX) is not None:
+        return RUN_ON_FULL_INDEX
+    if _mapping_get_ci(data, RUN_ON_FULL_DB_LEGACY) is not None:
+        return RUN_ON_FULL_DB_LEGACY
+    return None
+
+
+def _validate_full_index_mode(mode: str, spec: Mapping[str, Any], *, label: str) -> str:
     if mode not in _FULL_DB_MODES:
         raise ValueError(
-            f"{label} run_on_full_db: unknown mode {mode!r}; "
+            f"{label} run_on_full_index: unknown mode {mode!r}; "
             f"expected one of {sorted(_FULL_DB_MODES)}"
         )
     if mode == "search" and not (
         _mapping_get_ci(spec, "search") or _mapping_get_ci(spec, "search_path")
     ):
-        raise ValueError(f"{label} run_on_full_db mode search requires search/search_path")
+        raise ValueError(
+            f"{label} run_on_full_index mode search requires search/search_path"
+        )
     return mode
 
 
@@ -184,25 +214,19 @@ def _parse_test_entry_from_spec(
     enabled: bool,
     name: str = "",
 ) -> RunTestEntry:
-    raw_mode = _mapping_get_ci(spec, "mode")
-    mode = normalize_run_mode(str(raw_mode or ""))
-
-    if kind == RUN_ON_FULL_DB:
+    if kind == RUN_ON_FULL_INDEX:
+        raw_mode = _mapping_get_ci(spec, "mode")
+        mode = normalize_run_mode(str(raw_mode or ""))
         if not mode:
             mode = "hierarchy"
-        mode = _validate_full_db_mode(mode, spec, label=label)
-    elif kind == RUN_CONN_CHECK:
-        if not mode:
-            raise ValueError(f"{label} run_conn_check requires mode")
-        mode = _validate_conn_check_mode(mode, spec, label=label)
-    elif kind == RUN_IO_TRACE:
-        if not mode:
-            raise ValueError(f"{label} run_io_trace requires mode")
-        mode = _validate_io_trace_mode(mode, spec, label=label)
+        mode = _validate_full_index_mode(mode, spec, label=label)
     else:
-        if not mode:
-            raise ValueError(f"{label} run_cone_trace requires mode")
-        mode = _validate_cone_trace_mode(mode, spec, label=label)
+        raw_mode = _mapping_get_ci(spec, "mode")
+        if raw_mode is None or not str(raw_mode).strip():
+            mode = _DEFAULT_INDEX_MODE[kind]
+        else:
+            mode = normalize_index_strategy_mode(str(raw_mode))
+        mode = _validate_verification_index_mode(kind, mode, spec, label=label)
 
     entry_name = str(
         name
@@ -225,6 +249,7 @@ def _strip_suite_blocks(data: Mapping[str, Any]) -> dict[str, Any]:
     shared_data.pop("tests", None)
     for key in TEST_KINDS:
         shared_data.pop(key, None)
+    shared_data.pop(RUN_ON_FULL_DB_LEGACY, None)
     for key in (
         "mode",
         "connect",
@@ -260,13 +285,13 @@ def _strip_suite_blocks(data: Mapping[str, Any]) -> dict[str, Any]:
     return shared_data
 
 
-def _merge_full_db_fields(
+def _merge_full_index_fields(
     cfg: RunConfig,
     spec: Mapping[str, Any],
     *,
     base_dir: Any,
 ) -> RunConfig:
-    """Apply run_on_full_db settings (ignores, cache, jobs, …) onto a RunConfig."""
+    """Apply run_on_full_index settings (ignores, cache, jobs, …) onto a RunConfig."""
     from pathlib import Path
 
     base = base_dir or Path.cwd()
@@ -361,7 +386,7 @@ def _optional_bool(spec: Mapping[str, Any], key: str) -> Optional[bool]:
     return hit
 
 
-def run_config_for_full_db(
+def run_config_for_full_index(
     shared: RunConfig,
     entry: RunTestEntry,
     spec: Mapping[str, Any],
@@ -371,7 +396,7 @@ def run_config_for_full_db(
     from pathlib import Path
 
     base = base_dir or Path.cwd()
-    cfg = _merge_full_db_fields(shared, spec, base_dir=base)
+    cfg = _merge_full_index_fields(shared, spec, base_dir=base)
 
     out_raw = _mapping_get_ci(spec, "output")
     output = (
@@ -409,15 +434,15 @@ def run_config_for_test(
     spec: Mapping[str, Any],
     *,
     base_dir: Optional[Any] = None,
-    full_db_spec: Optional[Mapping[str, Any]] = None,
+    full_index_spec: Optional[Mapping[str, Any]] = None,
 ) -> RunConfig:
-    """Merge shared + run_on_full_db + one verification block into RunConfig."""
+    """Merge shared + run_on_full_index + one verification block into RunConfig."""
     from pathlib import Path
 
     base = base_dir or Path.cwd()
     cfg = shared
-    if full_db_spec is not None:
-        cfg = _merge_full_db_fields(cfg, full_db_spec, base_dir=base)
+    if full_index_spec is not None:
+        cfg = _merge_full_index_fields(cfg, full_index_spec, base_dir=base)
 
     out_raw = _mapping_get_ci(spec, "output")
     output = (
@@ -452,15 +477,15 @@ def run_config_for_test(
         checks = _mapping_get_ci(spec, "checks")
         check_connect_raw = _first_ci(spec, "check_connect", "check-connect")
 
-        if entry.mode == "check-connect":
+        exec_mode = exec_mode_for_verification(entry.kind, entry.mode)
+        if exec_mode == "check-connect":
             if check_connect_raw is not None:
                 check_connect = _parse_check_connect(check_connect_raw)
             elif isinstance(checks, list) and len(checks) == 1:
                 check_connect = _parse_check_connect(checks[0])
             else:
                 raise ValueError(
-                    f"{entry.kind} mode check-connect "
-                    "needs check_connect or a single checks[] item"
+                    f"{entry.kind} needs check_connect or a single checks[] item"
                 )
         else:
             if checks is not None:
@@ -469,13 +494,12 @@ def run_config_for_test(
                 parsed = _parse_check_connect(check_connect_raw)
                 connect_inline = {"checks": [{"a": parsed[0], "b": parsed[1]}]}
             else:
-                raise ValueError(
-                    f"{entry.kind} mode {entry.mode!r} requires checks"
-                )
+                raise ValueError(f"{entry.kind} requires checks")
 
         return replace(
             cfg,
-            mode=entry.mode,
+            mode=exec_mode,
+            index_strategy=entry.mode,
             output=output or "-",
             check_connect=check_connect,
             connect_inline=connect_inline,
@@ -496,9 +520,11 @@ def run_config_for_test(
             top=cfg.top or "",
             defines=cfg.defines_map,
         )
+        exec_mode = exec_mode_for_verification(entry.kind, entry.mode)
         return replace(
             cfg,
-            mode="inst-trace",
+            mode=exec_mode,
+            index_strategy=entry.mode,
             output=output or "-",
             inst_trace=inst_req,
             check_connect=None,
@@ -511,15 +537,13 @@ def run_config_for_test(
 
     fanin = str(_first_ci(spec, "fanin_cone", "fanin-cone", "endpoint") or "").strip() or None
     fanout = str(_first_ci(spec, "fanout_cone", "fanout-cone") or "").strip() or None
-    if entry.mode == "fanin-cone":
-        fanout = None
-    elif entry.mode == "fanout-cone":
-        fanin = None
+    exec_mode = exec_mode_for_verification(entry.kind, entry.mode)
     cone_graph = _resolve_path(base, _first_ci(spec, "cone_graph", "cone-graph"))
 
     return replace(
         cfg,
-        mode="cone",
+        mode=exec_mode,
+        index_strategy=entry.mode,
         output=output or "-",
         fanin_cone=fanin,
         fanout_cone=fanout,
@@ -545,7 +569,7 @@ def parse_flat_run_suite(
         {
           "filelist": "design.f",
           "top": "top",
-          "run_on_full_db": {
+          "run_on_full_index": {
             "enable": 1,
             "mode": "hierarchy",
             "ignore_path": ["pcielinktop"],
@@ -554,18 +578,24 @@ def parse_flat_run_suite(
           },
           "run_conn_check": {
             "enable": 1,
-            "mode": "check-connect-batch",
+            "mode": "path-walk",
             "checks": [{"id": "a", "a": "top.a", "b": "top.b"}]
           },
-          "run_io_trace": {"enable": 0, "mode": "inst-trace", "instance": "top.u0"},
+          "run_io_trace": {"enable": 0, "mode": "full-index", "instance": "top.u0"},
           "run_cone_trace": {
             "enable": 1,
-            "mode": "fanout-cone",
+            "mode": "full-index",
             "fanout_cone": "top.u0.din"
           }
         }
     """
-    present = [k for k in _FLAT_BLOCK_ORDER if _mapping_get_ci(data, k) is not None]
+    present: list[str] = []
+    for k in _FLAT_BLOCK_ORDER:
+        if k == RUN_ON_FULL_INDEX:
+            if _full_index_block_key(data) is not None:
+                present.append(k)
+        elif _mapping_get_ci(data, k) is not None:
+            present.append(k)
     if not present:
         raise ValueError(
             "flat run JSON needs at least one of "
@@ -588,14 +618,20 @@ def parse_flat_run_suite(
         ignore_filelist=(),
     )
 
-    full_db_spec: Optional[Mapping[str, Any]] = None
-    if _mapping_get_ci(data, RUN_ON_FULL_DB) is not None:
-        full_db_spec = _spec_block(data, RUN_ON_FULL_DB)
+    full_index_spec: Optional[Mapping[str, Any]] = None
+    full_index_key = _full_index_block_key(data)
+    if full_index_key is not None:
+        full_index_spec = _spec_block(data, full_index_key)
 
     entries: list[RunTestEntry] = []
     index = 0
     for kind in _FLAT_BLOCK_ORDER:
-        spec_raw = _mapping_get_ci(data, kind)
+        if kind == RUN_ON_FULL_INDEX:
+            if full_index_key is None:
+                continue
+            spec_raw = _mapping_get_ci(data, full_index_key)
+        else:
+            spec_raw = _mapping_get_ci(data, kind)
         if spec_raw is None:
             continue
         if not isinstance(spec_raw, Mapping):
@@ -617,7 +653,11 @@ def parse_flat_run_suite(
     if not entries:
         raise ValueError("no enabled steps (all blocks have enable: 0)")
 
-    return RunTestSuite(shared=shared, tests=tuple(entries), full_db_spec=full_db_spec)
+    return RunTestSuite(
+        shared=shared,
+        tests=tuple(entries),
+        full_index_spec=full_index_spec,
+    )
 
 
 def _kinds_in_item(item: Mapping[str, Any]) -> list[str]:
@@ -677,14 +717,19 @@ def parse_legacy_tests_array_suite(
     if not entries:
         raise ValueError("no enabled steps in tests array")
 
-    full_db_spec = _mapping_get_ci(data, RUN_ON_FULL_DB)
-    if full_db_spec is not None and not isinstance(full_db_spec, Mapping):
-        raise ValueError("run_on_full_db must be an object")
+    full_index_key = _full_index_block_key(data)
+    full_index_spec = (
+        _mapping_get_ci(data, full_index_key) if full_index_key is not None else None
+    )
+    if full_index_spec is not None and not isinstance(full_index_spec, Mapping):
+        raise ValueError("run_on_full_index must be an object")
 
     return RunTestSuite(
         shared=shared,
         tests=tuple(entries),
-        full_db_spec=full_db_spec if isinstance(full_db_spec, Mapping) else None,
+        full_index_spec=(
+            full_index_spec if isinstance(full_index_spec, Mapping) else None
+        ),
     )
 
 
@@ -705,7 +750,9 @@ def try_parse_run_test_suite(
 ) -> Optional[RunTestSuite]:
     if not isinstance(data, Mapping):
         return None
-    has_flat = any(_mapping_get_ci(data, k) is not None for k in TEST_KINDS)
+    has_flat = any(_mapping_get_ci(data, k) is not None for k in TEST_KINDS) or (
+        _full_index_block_key(data) is not None
+    )
     has_legacy = "tests" in data
     if not has_flat and not has_legacy:
         return None
@@ -737,6 +784,11 @@ def spec_for_test_entry(
             seen += 1
         raise ValueError(f"tests[{entry.index}] missing from document")
 
+    if entry.kind == RUN_ON_FULL_INDEX:
+        key = _full_index_block_key(document)
+        if key is None:
+            raise ValueError(f"{RUN_ON_FULL_INDEX} block missing")
+        return _spec_block(document, key)
     return _spec_block(document, entry.kind)
 
 
@@ -749,8 +801,8 @@ def build_test_run_configs(
     out: list[Tuple[RunTestEntry, RunConfig]] = []
     for entry in suite.tests:
         spec = spec_for_test_entry(document, entry)
-        if entry.kind == RUN_ON_FULL_DB:
-            cfg = run_config_for_full_db(
+        if entry.kind == RUN_ON_FULL_INDEX:
+            cfg = run_config_for_full_index(
                 suite.shared,
                 entry,
                 spec,
@@ -762,7 +814,7 @@ def build_test_run_configs(
                 entry,
                 spec,
                 base_dir=base_dir,
-                full_db_spec=suite.full_db_spec,
+                full_index_spec=suite.full_index_spec,
             )
         out.append((entry, cfg))
     return tuple(out)

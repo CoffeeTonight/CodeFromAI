@@ -39,8 +39,9 @@ from scan_inst.connectivity import (
     print_connect_trace_reports,
     run_connectivity_request,
 )
-from scan_inst.path_walk import run_path_walk_connect
+from scan_inst.path_walk import run_path_walk_connect, run_path_walk_index
 from scan_inst.run_request import (
+    normalize_run_mode,
     resolve_connectivity_request,
     resolve_effective_run_mode,
 )
@@ -67,7 +68,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
         connect_request = resolve_connectivity_request(cfg)
 
     effective_mode = resolve_effective_run_mode(cfg, connect_request)
-    path_walk_mode = effective_mode == "path-walk"
+    index_strategy = normalize_run_mode(cfg.index_strategy or "full-index")
+    path_walk_mode = effective_mode == "path-walk" or index_strategy == "path-walk"
     cone_mode = effective_mode == "cone"
     inst_trace_mode = effective_mode == "inst-trace"
     connect_run_mode = effective_mode in (
@@ -79,8 +81,8 @@ def execute_run(cfg: RunConfig, ap) -> int:
         ap.error("use either check_connect or check_connect_batch/connect, not both")
     if cfg.fanin_cone and cfg.fanout_cone:
         ap.error("use either fanin_cone or fanout_cone, not both")
-    if path_walk_mode and connect_request is None:
-        ap.error("path-walk requires checks in batch JSON or --check-connect")
+    if path_walk_mode and connect_run_mode and connect_request is None:
+        ap.error("path-walk connect requires checks in batch JSON or --check-connect")
     if effective_mode == "check-connect-batch" and connect_request is None:
         ap.error(
             "check-connect-batch mode requires checks/pairs in batch JSON "
@@ -131,94 +133,234 @@ def execute_run(cfg: RunConfig, ap) -> int:
     if path_walk_mode:
         if on_progress:
             on_progress("path-walk: on-demand index (endpoint paths only)")
-        if cfg.check_connect and connect_request is None:
-            connect_request = ConnectivityRequest(
-                checks=(
-                    ConnectivityCheck(
-                        cfg.check_connect[0],
-                        cfg.check_connect[1],
-                    ),
-                ),
-                top=cfg.top or "",
-            )
-            extra_defines.update(connect_request.defines)
-        else:
-            connect_request = resolve_connectivity_request(cfg)
-            if connect_request is None:
-                print("missing connectivity request", file=sys.stderr)
-                return 1
-            extra_defines.update(connect_request.defines)
         top_for_walk = (
             cfg.top
             or (connect_request.top if connect_request else "")
+            or (cfg.inst_trace.top if cfg.inst_trace else "")
             or (fl.top_modules[0] if fl.top_modules else "")
         )
         if not top_for_walk:
-            print("path-walk requires --top or connect JSON top", file=sys.stderr)
+            print("path-walk requires --top or JSON top", file=sys.stderr)
             return 2
-        try:
-            batch, index, pw_state = run_path_walk_connect(
-                connect_request,
-                fl,
-                top=top_for_walk,
-                extra_defines=extra_defines,
-                ignore_paths=list(cfg.ignore_path),
-                ignore_path_files=list(cfg.ignore_path_file),
-                ignore_modules=list(cfg.ignore_module),
-                ignore_filelists=list(cfg.ignore_filelist),
-                on_progress=on_progress,
-            )
-        except ValueError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        connect_results = batch.results
-        body = format_connect_results_tsv(
-            connect_results,
-            modules_cached=batch.modules_cached,
+        pw_ignore = dict(
+            ignore_paths=list(cfg.ignore_path),
+            ignore_path_files=list(cfg.ignore_path_file),
+            ignore_modules=list(cfg.ignore_module),
+            ignore_filelists=list(cfg.ignore_filelist),
+            on_progress=on_progress,
         )
-        endpoint_rows = pw_state.rows_by_path
-        if not cfg.quiet:
-            for result in connect_results:
-                emit_connect_trace_log(
-                    result,
+        elapsed = time.perf_counter() - t0
+
+        if inst_trace_mode:
+            assert cfg.inst_trace is not None
+            try:
+                index, pw_state, top_name = run_path_walk_index(
+                    fl,
+                    [cfg.inst_trace.instance],
+                    top=top_for_walk,
+                    extra_defines=extra_defines,
+                    **pw_ignore,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            trace_result = run_inst_trace(
+                cfg.inst_trace,
+                rows=pw_state.rows(),
+                index=index,
+                top=top_name,
+                defines=extra_defines,
+            )
+            if not cfg.quiet:
+                emit_path_provenance_log(
+                    trace_result.instance,
+                    rows_lookup(pw_state.rows()),
                     stream=sys.stderr,
-                    check_prefix=result.check_id or "",
+                    label="instance",
+                    prefix="[scan-inst inst-trace]",
+                )
+            trace_rows = rows_lookup(pw_state.rows())
+            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
+            print_inst_trace_report(
+                trace_result,
+                stream=term_stream,
+                rows_by_path=trace_rows,
+            )
+            if log_path is not None:
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    print_inst_trace_report(
+                        trace_result,
+                        stream=fh,
+                        rows_by_path=trace_rows,
+                    )
+            body = format_inst_trace_tsv(trace_result)
+            report_mode = "inst-trace"
+            search_pattern = cfg.inst_trace.instance
+        elif cone_mode:
+            cone_label = cfg.fanout_cone or cfg.fanin_cone or ""
+            try:
+                index, pw_state, top_name = run_path_walk_index(
+                    fl,
+                    [cone_label],
+                    top=top_for_walk,
+                    extra_defines=extra_defines,
+                    **pw_ignore,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            over_approx = (
+                cfg.over_approximate_if
+                if cfg.over_approximate_if is not None
+                else True
+            )
+            if cfg.fanout_cone:
+                cone_result = fanout_cone(
+                    cfg.fanout_cone,
+                    rows=pw_state.rows(),
+                    index=index,
+                    top=top_name,
+                    defines=extra_defines,
+                    over_approximate_if=over_approx,
+                )
+                report_mode = "fanout-cone"
+            else:
+                assert cfg.fanin_cone is not None
+                cone_result = fanin_cone(
+                    cfg.fanin_cone,
+                    rows=pw_state.rows(),
+                    index=index,
+                    top=top_name,
+                    defines=extra_defines,
+                    over_approximate_if=over_approx,
+                )
+                report_mode = "fanin-cone"
+            if not cfg.quiet:
+                emit_path_provenance_log(
+                    cone_result.origin_scope,
+                    rows_lookup(pw_state.rows()),
+                    stream=sys.stderr,
+                    label="origin",
+                    prefix="[scan-inst cone]",
+                )
+            cone_rows = rows_lookup(pw_state.rows())
+            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
+            print_cone_report(
+                cone_result,
+                stream=term_stream,
+                rows_by_path=cone_rows,
+            )
+            if log_path is not None:
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    print_cone_report(
+                        cone_result,
+                        stream=fh,
+                        rows_by_path=cone_rows,
+                    )
+            if cfg.cone_graph:
+                write_cone_dot(cone_result, cfg.cone_graph)
+            body = format_cone_tsv(cone_result)
+            search_pattern = cone_label
+        else:
+            if cfg.check_connect and connect_request is None:
+                connect_request = ConnectivityRequest(
+                    checks=(
+                        ConnectivityCheck(
+                            cfg.check_connect[0],
+                            cfg.check_connect[1],
+                        ),
+                    ),
+                    top=cfg.top or "",
+                )
+                extra_defines.update(connect_request.defines)
+            else:
+                connect_request = resolve_connectivity_request(cfg)
+                if connect_request is None:
+                    print("missing connectivity request", file=sys.stderr)
+                    return 1
+                extra_defines.update(connect_request.defines)
+            try:
+                batch, index, pw_state = run_path_walk_connect(
+                    connect_request,
+                    fl,
+                    top=top_for_walk,
+                    extra_defines=extra_defines,
+                    **pw_ignore,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            connect_results = batch.results
+            body = format_connect_results_tsv(
+                connect_results,
+                modules_cached=batch.modules_cached,
+            )
+            endpoint_rows = pw_state.rows_by_path
+            if not cfg.quiet:
+                for result in connect_results:
+                    emit_connect_trace_log(
+                        result,
+                        stream=sys.stderr,
+                        check_prefix=result.check_id or "",
+                        rows_by_path=endpoint_rows,
+                    )
+            use_trace = cfg.connect_trace or cfg.connect_log
+            if connect_request.trace or use_trace:
+                term_stream = sys.stderr if cfg.output == "-" else sys.stdout
+                print_connect_trace_reports(
+                    connect_results,
+                    stream=term_stream,
                     rows_by_path=endpoint_rows,
                 )
-        use_trace = cfg.connect_trace or cfg.connect_log
-        if connect_request.trace or use_trace:
-            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
-            print_connect_trace_reports(
-                connect_results,
-                stream=term_stream,
-                rows_by_path=endpoint_rows,
+            if on_progress and not cfg.quiet:
+                on_progress(
+                    f"path-walk: done {pw_state.stats.checks_run} check(s), "
+                    f"{len(pw_state.rows_by_path)} row(s), "
+                    f"{pw_state.stats.modules_loaded} module(s), "
+                    f"{time.perf_counter() - t0:.1f}s"
+                )
+            emit_run_report(
+                RunReport(
+                    filelist_path=cfg.filelist,
+                    elapsed_sec=time.perf_counter() - t0,
+                    fl=fl,
+                    index=index,
+                    cache_enabled=False,
+                    elab_tops=[top_for_walk],
+                    instance_rows=len(pw_state.rows_by_path),
+                    mode="path-walk",
+                    output_path=cfg.output,
+                    filelist_warnings=len(fl.errors),
+                ),
+                log_path=log_path,
             )
+            return 0
+
         if cfg.output == "-":
             sys.stdout.write(body)
         else:
             with open(cfg.output, "w", encoding="utf-8") as f:
                 f.write(body)
-        elapsed = time.perf_counter() - t0
-        tops = [top_for_walk]
         if on_progress and not cfg.quiet:
             on_progress(
-                f"path-walk: done {pw_state.stats.checks_run} check(s), "
+                f"path-walk: done 1 trace step, "
                 f"{len(pw_state.rows_by_path)} row(s), "
                 f"{pw_state.stats.modules_loaded} module(s), "
-                f"{elapsed:.1f}s"
+                f"{time.perf_counter() - t0:.1f}s"
             )
         emit_run_report(
             RunReport(
                 filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
+                elapsed_sec=time.perf_counter() - t0,
                 fl=fl,
                 index=index,
                 cache_enabled=False,
-                elab_tops=tops,
+                elab_tops=[top_name],
                 instance_rows=len(pw_state.rows_by_path),
-                mode="path-walk",
+                mode=report_mode,
                 output_path=cfg.output,
                 filelist_warnings=len(fl.errors),
+                search_pattern=search_pattern,
             ),
             log_path=log_path,
         )

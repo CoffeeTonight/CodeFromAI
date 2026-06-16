@@ -17,6 +17,43 @@ from scan_inst.connect_request import (
 from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
 
 
+def strip_jsonc_line_comments(text: str) -> str:
+    """Remove ``//`` line comments outside JSON strings (JSONC-style configs)."""
+    out: List[str] = []
+    for line in text.splitlines():
+        cut = len(line)
+        in_string = False
+        escape = False
+        for i, ch in enumerate(line):
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_string:
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if (
+                not in_string
+                and ch == "/"
+                and i + 1 < len(line)
+                and line[i + 1] == "/"
+            ):
+                cut = i
+                break
+        out.append(line[:cut].rstrip())
+    return "\n".join(out)
+
+
+def loads_json_document(text: str) -> Any:
+    return json.loads(strip_jsonc_line_comments(text))
+
+
+def read_json_document(path: Union[str, Path]) -> Any:
+    return loads_json_document(Path(path).read_text(encoding="utf-8-sig"))
+
+
 @dataclass(frozen=True)
 class RunConfig:
     """All options needed to run scan-inst (CLI-equivalent)."""
@@ -58,6 +95,7 @@ class RunConfig:
     log_file: Optional[str] = None
     no_log_file: bool = False
     mode: Optional[str] = None
+    index_strategy: str = "full-index"
 
     @property
     def defines_map(self) -> Dict[str, str]:
@@ -515,7 +553,7 @@ def parse_run_request_json(
 
 def load_run_request(path: Union[str, Path]) -> RunConfig:
     p = Path(path)
-    data = json.loads(p.read_text(encoding="utf-8-sig"))
+    data = read_json_document(p)
     if isinstance(data, Mapping):
         apply_config_env_from_document(data)
     return parse_run_request_json(data, base_dir=p.parent)
@@ -784,7 +822,7 @@ def merge_options_from_connect_batch_json(
     if not p.is_file():
         return cfg, None
     try:
-        data = json.loads(p.read_text(encoding="utf-8-sig"))
+        data = read_json_document(p)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return cfg, None
     if not isinstance(data, Mapping):
@@ -842,7 +880,7 @@ def try_load_run_request_from_path(
     if p.suffix.lower() != ".json" or not p.is_file():
         return None
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = read_json_document(p)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return None
     if not isinstance(data, Mapping) or "filelist" not in data:
@@ -860,8 +898,7 @@ def load_run_request_with_jobs_source(
     path: Union[str, Path],
 ) -> tuple[RunConfig, Optional[str]]:
     p = Path(path)
-    text = p.read_text(encoding="utf-8-sig")
-    data = json.loads(text)
+    data = read_json_document(p)
     if isinstance(data, Mapping):
         apply_config_env_from_document(data)
     cfg = parse_run_request_json(data, base_dir=p.parent)

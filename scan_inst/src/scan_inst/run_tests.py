@@ -15,6 +15,8 @@ from scan_inst.run_request import (
     RunConfig,
     _full_index_block_key,
     _mapping_get_ci,
+    block_enable_raw,
+    block_enabled,
     _parse_check_connect,
     _parse_jobs,
     _parse_string_list,
@@ -174,7 +176,7 @@ def _full_index_enable_state(
     if key is None:
         return None, False
     spec = _spec_block(data, key)
-    enabled = parse_enable(_mapping_get_ci(spec, "enable"), default=True)
+    enabled = block_enabled(spec, default=True)
     return spec, enabled
 
 
@@ -610,7 +612,7 @@ def parse_flat_run_suite(
             continue
         if not isinstance(spec_raw, Mapping):
             raise ValueError(f"{kind!r} must be an object")
-        enabled = parse_enable(_mapping_get_ci(spec_raw, "enable"), default=True)
+        enabled = block_enabled(spec_raw, default=True)
         if not enabled:
             continue
         label = kind
@@ -712,8 +714,12 @@ def format_suite_enable_trace(
                 "action=ERROR (not an object)"
             )
             continue
-        raw_enable = _mapping_get_ci(spec_raw, "enable")
-        parsed = parse_enable(raw_enable, default=True)
+        raw_enable = block_enable_raw(spec_raw)
+        parsed = block_enabled(spec_raw, default=True)
+        if raw_enable is None and parsed:
+            default_note = "enable/enabled missing, default=1"
+        else:
+            default_note = ""
         if not parsed:
             action = "SKIP"
             detail = "not added to suite.tests; settings not merged"
@@ -727,6 +733,7 @@ def format_suite_enable_trace(
         lines.append(
             f"enable-trace: block={block_key} raw_enable={raw_enable!r} "
             f"parsed_enable={int(parsed)} action={action} {detail}"
+            + (f" ({default_note})" if default_note else "")
         )
 
     for i, (entry, cfg) in enumerate(plan):
@@ -771,7 +778,7 @@ def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
                     continue
                 kind = kinds[0]
                 spec = _spec_block(item, kind)
-                if not parse_enable(_mapping_get_ci(spec, "enable"), default=True):
+                if not block_enabled(spec, default=True):
                     label = str(
                         _mapping_get_ci(item, "name")
                         or _mapping_get_ci(item, "id")
@@ -794,7 +801,7 @@ def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
             continue
         if not isinstance(spec_raw, Mapping):
             continue
-        if not parse_enable(_mapping_get_ci(spec_raw, "enable"), default=True):
+        if not block_enabled(spec_raw, default=True):
             disabled.append(block_label)
     return tuple(disabled)
 
@@ -834,7 +841,7 @@ def parse_legacy_tests_array_suite(
             )
         kind = kinds[0]
         spec = _spec_block(item, kind)
-        enabled = parse_enable(_mapping_get_ci(spec, "enable"), default=True)
+        enabled = block_enabled(spec, default=True)
         if not enabled:
             continue
         name = str(_mapping_get_ci(item, "name") or _mapping_get_ci(item, "id") or "").strip()
@@ -906,7 +913,7 @@ def spec_for_test_entry(
                 continue
             kind = kinds[0]
             spec = _spec_block(item, kind)
-            if not parse_enable(_mapping_get_ci(spec, "enable"), default=True):
+            if not block_enabled(spec, default=True):
                 continue
             if seen == entry.index:
                 return spec

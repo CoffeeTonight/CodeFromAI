@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 import os
 
@@ -44,6 +44,11 @@ from scan_inst.connectivity import (
 )
 from scan_inst.path_walk import run_path_walk_connect
 from scan_inst.run_request import (
+    RUN_ON_FULL_INDEX,
+    _full_index_block_key,
+    _mapping_get_ci,
+    block_enabled,
+    is_run_test_suite_document,
     jobs_from_env,
     jobs_hint_from_config_text,
     load_run_request_with_jobs_source,
@@ -64,6 +69,7 @@ from scan_inst.run_tests import (
     detect_enable_key_typos,
     format_suite_enable_trace,
     list_disabled_suite_blocks,
+    spec_for_test_entry,
     try_parse_run_test_suite,
 )
 from scan_inst.cli_execute import execute_run
@@ -531,10 +537,42 @@ def main(argv=None) -> int:
                     for line in format_suite_enable_trace(raw_doc, suite, test_plan):
                         print(f"run: {line}", file=sys.stderr)
     if not test_plan:
+        if test_document is not None and is_run_test_suite_document(test_document):
+            ap.error(
+                "flat suite JSON has no enabled steps (all blocks enable/enabled: 0); "
+                "enable at least one of run_conn_check, run_io_trace, run_cone_trace, "
+                "or set run_on_full_index enable: 1"
+            )
         test_plan = [(None, cfg)]
 
     exit_code = 0
     for test_entry, run_cfg in test_plan:
+        if test_document is not None and test_entry is None:
+            connect_req = resolve_connectivity_request(run_cfg)
+            eff = resolve_effective_run_mode(run_cfg, connect_req)
+            if eff in ("hierarchy", "search", "find-top"):
+                full_key = _full_index_block_key(test_document)
+                if full_key is not None:
+                    spec = _mapping_get_ci(test_document, full_key)
+                    if isinstance(spec, Mapping) and not block_enabled(
+                        spec, default=True
+                    ):
+                        ap.error(
+                            f"{full_key} is disabled (enable/enabled: 0) but a "
+                            f"{eff} run was scheduled — JSON was not executed as a "
+                            "flat suite (check block key spelling, enable vs enabled, "
+                            "and that verification blocks are siblings at top level)"
+                        )
+        if (
+            test_document is not None
+            and test_entry is not None
+            and test_entry.kind == RUN_ON_FULL_INDEX
+        ):
+            spec = spec_for_test_entry(test_document, test_entry)
+            if not block_enabled(spec, default=True):
+                ap.error(
+                    "internal error: run_on_full_index scheduled despite enable/enabled: 0"
+                )
         if test_entry is not None and not run_cfg.quiet:
             label = test_entry.name or f"{test_entry.kind}[{test_entry.index}]"
             index_note = run_cfg.index_strategy

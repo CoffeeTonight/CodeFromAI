@@ -84,6 +84,23 @@ def is_run_test_suite_document(data: Mapping[str, Any]) -> bool:
     return any(_mapping_get_ci(data, k) is not None for k in RUN_TEST_SUITE_KINDS[1:])
 
 
+_BLOCK_ENABLE_KEYS = ("enable", "enabled")
+
+
+def block_enable_raw(spec: Mapping[str, Any]) -> Any:
+    """Read ``enable`` or ``enabled`` from a suite step block."""
+    for key in _BLOCK_ENABLE_KEYS:
+        hit = _mapping_get_ci(spec, key)
+        if hit is not None:
+            return hit
+    return None
+
+
+def block_enabled(spec: Mapping[str, Any], *, default: bool = True) -> bool:
+    """True when a suite step block is enabled (``enable`` / ``enabled``)."""
+    return parse_enable(block_enable_raw(spec), default=default)
+
+
 def parse_enable(raw: Any, *, default: bool = True) -> bool:
     """Parse ``enable`` as 1/0 (also true/false, yes/no)."""
     if raw is None:
@@ -320,9 +337,7 @@ def _jobs_from_document(data: Mapping[str, Any]) -> tuple[int, Optional[str]]:
     full_index_key = _full_index_block_key(data)
     if full_index_key is not None:
         sub = _mapping_get_ci(data, full_index_key)
-        if isinstance(sub, Mapping) and parse_enable(
-            _mapping_get_ci(sub, "enable"), default=True
-        ):
+        if isinstance(sub, Mapping) and block_enabled(sub, default=True):
             nested_jobs, nested_src = _jobs_from_mapping(sub)
             if nested_src is not None:
                 return nested_jobs, f"{full_index_key}.{nested_src}"

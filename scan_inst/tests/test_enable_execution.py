@@ -122,6 +122,45 @@ def test_cli_stderr_has_no_hierarchy_mode_for_disabled_full_index(tmp_path: Path
     assert not (tmp_path / "instances.tsv").exists()
 
 
+def test_enabled_alias_zero_skips_full_index_step():
+    doc = {
+        "filelist": "fl.f",
+        "top": "top",
+        "run_on_full_index": {"enabled": 0, "mode": "hierarchy"},
+        "run_conn_check": {
+            "enable": 1,
+            "mode": "path-walk",
+            "checks": [{"id": "t", "a": "top.a", "b": "top.z"}],
+        },
+    }
+    suite = parse_flat_run_suite(doc)
+    assert suite.full_index_enabled is False
+    assert all(e.kind != RUN_ON_FULL_INDEX for e in suite.tests)
+
+
+def test_legacy_top_level_mode_hierarchy_blocked_when_full_index_disabled(tmp_path):
+    """Top-level mode:hierarchy must not run when only full_index block is disabled."""
+    run_json = tmp_path / "legacy.json"
+    run_json.write_text(
+        json.dumps(
+            {
+                "filelist": "fl.f",
+                "top": "top",
+                "mode": "hierarchy",
+                "run_on_full_index": {"enable": 0, "mode": "hierarchy"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["scan-inst", "--config", str(run_json)],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "no enabled steps" in proc.stderr + proc.stdout
+
+
 def test_verify_enable_gate_json_subprocess():
     """Bundled verify_enable_gate.json: full_index off, 2 path-walk steps on."""
     root = Path(__file__).resolve().parents[1] / "examples" / "stress_seed42"

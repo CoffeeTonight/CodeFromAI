@@ -250,7 +250,10 @@ def execute_run(cfg: RunConfig, ap) -> int:
                         stream=fh,
                         rows_by_path=trace_rows,
                     )
-            body = format_inst_trace_tsv(trace_result)
+            body = format_inst_trace_tsv(
+                trace_result,
+                rows_by_path=trace_rows,
+            )
             report_mode = "inst-trace"
             search_pattern = cfg.inst_trace.instance
         elif cone_mode:
@@ -318,7 +321,10 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     )
             if cfg.cone_graph:
                 write_cone_dot(cone_result, cfg.cone_graph)
-            body = format_cone_tsv(cone_result)
+            body = format_cone_tsv(
+                cone_result,
+                rows_by_path=cone_rows,
+            )
             search_pattern = cone_label
         else:
             if cfg.check_connect and connect_request is None:
@@ -350,11 +356,12 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 print(str(exc), file=sys.stderr)
                 return 2
             connect_results = batch.results
+            endpoint_rows = pw_state.rows_by_path
             body = format_connect_results_tsv(
                 connect_results,
                 modules_cached=batch.modules_cached,
+                rows_by_path=endpoint_rows,
             )
-            endpoint_rows = pw_state.rows_by_path
             if not cfg.quiet:
                 emit_hierarchy_rows_log(
                     pw_state.rows(),
@@ -625,7 +632,10 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     stream=fh,
                     rows_by_path=trace_rows,
                 )
-        body = format_inst_trace_tsv(trace_result)
+        body = format_inst_trace_tsv(
+            trace_result,
+            rows_by_path=trace_rows,
+        )
         if cfg.output == "-":
             sys.stdout.write(body)
         else:
@@ -710,7 +720,10 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 )
         if cfg.cone_graph:
             write_cone_dot(cone_result, cfg.cone_graph)
-        body = format_cone_tsv(cone_result)
+        body = format_cone_tsv(
+            cone_result,
+            rows_by_path=cone_rows,
+        )
         if cfg.output == "-":
             sys.stdout.write(body)
         else:
@@ -773,9 +786,11 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 jobs=cfg.jobs,
             )
             connect_results = batch.results
+            endpoint_rows = rows_lookup(rows)
             body = format_connect_results_tsv(
                 connect_results,
                 modules_cached=batch.modules_cached,
+                rows_by_path=endpoint_rows,
             )
         else:
             assert cfg.check_connect is not None
@@ -799,8 +814,11 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 elapsed_sec=time.perf_counter() - _item_t0,
             )
             connect_results = [result]
-            body = format_connect_results_tsv(connect_results)
-        endpoint_rows = rows_lookup(rows)
+            endpoint_rows = rows_lookup(rows)
+            body = format_connect_results_tsv(
+                connect_results,
+                rows_by_path=endpoint_rows,
+            )
         if not cfg.quiet:
             for result in connect_results:
                 emit_connect_trace_log(

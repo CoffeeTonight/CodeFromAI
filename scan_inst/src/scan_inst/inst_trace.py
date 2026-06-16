@@ -348,20 +348,43 @@ def run_inst_trace(
     return result
 
 
-def format_inst_trace_tsv(result: InstTraceResult) -> str:
+def format_inst_trace_tsv(
+    result: InstTraceResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
+    from scan_inst.hierarchy_log import provenance_fields
+
     lines = [
-        "origin_port\ttrace_direction\tboundary_kind\tscope\tnet\tmodule\tdetail",
+        "origin_port\ttrace_direction\tboundary_kind\tscope\tnet\tmodule\tdetail\t"
+        "rtl\tvia_filelist\tfilelist_chain",
     ]
     for pr, b in result.boundaries:
+        prov = (
+            provenance_fields(b.scope, rows_by_path)
+            if rows_by_path is not None
+            else {}
+        )
         lines.append(
             f"{pr.port_name}\t{pr.trace_direction}\t{b.kind}\t{b.scope}\t"
-            f"{b.net}\t{b.module}\t{b.detail}"
+            f"{b.net}\t{b.module}\t{b.detail}\t"
+            f"{prov.get('rtl', '')}\t{prov.get('via_filelist', '')}\t"
+            f"{prov.get('filelist_chain', '')}"
         )
     lines.append(f"# instance\t{result.instance}")
     lines.append(f"# module\t{result.module}")
     lines.append(f"# direction\t{result.direction}")
     lines.append(f"# path_kind\t{result.path_kind}")
     lines.append(f"# port_traces\t{len(result.port_results)}")
+    if rows_by_path is not None:
+        inst_prov = provenance_fields(result.instance, rows_by_path)
+        lines.append(f"# instance_rtl\t{inst_prov.get('rtl', '')}")
+        lines.append(
+            f"# instance_via_filelist\t{inst_prov.get('via_filelist', '')}"
+        )
+        lines.append(
+            f"# instance_filelist_chain\t{inst_prov.get('filelist_chain', '')}"
+        )
     if result.errors:
         lines.append(f"# errors\t{' | '.join(result.errors)}")
     return "\n".join(lines) + "\n"

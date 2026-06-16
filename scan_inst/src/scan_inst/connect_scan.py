@@ -449,6 +449,85 @@ def _collect_decl_bit_indices(
     return out
 
 
+def _split_net_base_suffix(net: str) -> tuple[str, str]:
+    """``bus[0][1]`` -> (``bus``, ``[0][1]``); ``clk`` -> (``clk``, ````)."""
+    text = re.sub(r"\s+", "", net.strip())
+    m = re.match(r"^((?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*))", text)
+    if not m:
+        return text, ""
+    base = m.group(1)
+    return base, text[len(base) :]
+
+
+def _port_select_suffix(port_name: str, child_net: str) -> Optional[str]:
+    """Dimension suffix of *child_net* relative to inst port *port_name*."""
+    if child_net == port_name:
+        return ""
+    prefix = port_name + "["
+    if child_net.startswith(prefix):
+        return child_net[len(port_name) :]
+    return None
+
+
+def _collect_decl_md_suffixes(
+    body: str,
+    param_map: Mapping[str, str],
+) -> Dict[str, List[str]]:
+    """Materialized multi-dim suffixes from ``logic [2:0][3:0] foo`` declarations."""
+    from scan_inst.port_scan import expand_port_name
+
+    pmap = dict(param_map)
+    out: Dict[str, List[str]] = {}
+    pat = re.compile(
+        r"\b(?:input|output|inout)?\s*(?:logic|wire|reg)?\s*((?:\[[^\]]+\])+)\s*"
+        r"((?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*))",
+        re.IGNORECASE,
+    )
+    for m in pat.finditer(body):
+        dims = m.group(1)
+        base = m.group(2)
+        names = expand_port_name(base, dims)
+        suffixes = [
+            name[len(base) :]
+            for name in names
+            if name != base and name.startswith(base + "[")
+        ]
+        if suffixes:
+            out[base] = sorted(set(suffixes))
+    return out
+
+
+def _md_suffixes_for_token(
+    token: str,
+    param_map: Mapping[str, str],
+    decl_md_suffixes: Mapping[str, List[str]],
+    decl_widths: Mapping[str, List[int]],
+) -> Optional[List[str]]:
+    """Per-element suffixes for a net token (supports ``[i][j]`` buses)."""
+    base, suffix = _split_net_base_suffix(token)
+    if suffix:
+        if ":" in suffix:
+            from scan_inst.port_scan import expand_port_name
+
+            names = expand_port_name(base, suffix)
+            out = sorted(
+                {
+                    name[len(base) :]
+                    for name in names
+                    if name != base and name.startswith(base + "[")
+                }
+            )
+            return out or [suffix]
+        return [suffix]
+    md = decl_md_suffixes.get(base)
+    if md:
+        return list(md)
+    bits = decl_widths.get(base)
+    if bits:
+        return [f"[{i}]" for i in bits]
+    return None
+
+
 def _bit_suffixes_for_token(
     token: str,
     param_map: Mapping[str, str],
@@ -496,13 +575,25 @@ def _expand_hier_bit_links(
     hier_ref_targets: Dict[Tuple[str, str], Set[str]],
     *,
     decl_widths: Mapping[str, List[int]],
+    decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> None:
     """Expand ``assign arr = u_next.arr`` style links to per-bit hier edges."""
+    md = dict(decl_md_suffixes or {})
     fallback_bits = _default_bus_bits(decl_widths)
     extra_links: Dict[str, List[Tuple[str, str]]] = {}
     extra_targets: Dict[Tuple[str, str], Set[str]] = {}
     for net, pairs in hier_links.items():
         if "[" in net:
+            continue
+        suffixes = md.get(net)
+        if suffixes:
+            for inst, port in pairs:
+                port_base = port.split("[", 1)[0]
+                for sfx in suffixes:
+                    bit_net = f"{net}{sfx}"
+                    bit_port = port if "[" in port else f"{port_base}{sfx}"
+                    extra_links.setdefault(bit_net, []).append((inst, bit_port))
+                    extra_targets.setdefault((inst, bit_port), set()).add(bit_net)
             continue
         bits = decl_widths.get(net) or fallback_bits
         if not bits:
@@ -534,15 +625,17 @@ def _expand_assign_bit_links(
     *,
     param_map: Mapping[str, str],
     decl_widths: Mapping[str, List[int]],
+    decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> None:
     """Add per-bit edges for vector / part-select assigns (``arr = bus[9:0]``)."""
     pmap = dict(param_map)
-    a_sfx = _bit_suffixes_for_token(a, pmap, decl_widths)
-    b_sfx = _bit_suffixes_for_token(b, pmap, decl_widths)
+    md = dict(decl_md_suffixes or {})
+    a_sfx = _md_suffixes_for_token(a, pmap, md, decl_widths)
+    b_sfx = _md_suffixes_for_token(b, pmap, md, decl_widths)
     if not a_sfx and not b_sfx:
         return
-    a_base = re.sub(r"\s+", "", a).split("[", 1)[0]
-    b_base = re.sub(r"\s+", "", b).split("[", 1)[0]
+    a_base, _ = _split_net_base_suffix(a)
+    b_base, _ = _split_net_base_suffix(b)
     if not a_sfx:
         a_sfx = b_sfx
     if not b_sfx:
@@ -1815,6 +1908,7 @@ def _parse_assign_stmt(
     zero_nets: Mapping[str, int] | None = None,
     over_approximate_if: bool = True,
     decl_widths: Optional[Mapping[str, List[int]]] = None,
+    decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> None:
     pmap = dict(param_map or {})
     if not _stmt_starts_with(stmt, "assign"):
@@ -1842,6 +1936,7 @@ def _parse_assign_stmt(
     if not rhs_roots:
         return
     widths = dict(decl_widths or {})
+    md_suffixes = dict(decl_md_suffixes or {})
     for a in _local_connect_nodes(lhs, pmap):
         for b in rhs_roots:
             _add_undirected(adj, a, b)
@@ -1851,6 +1946,7 @@ def _parse_assign_stmt(
                 adj,
                 param_map=pmap,
                 decl_widths=widths,
+                decl_md_suffixes=md_suffixes,
             )
 
 
@@ -2157,6 +2253,7 @@ def scan_assign_adjacency(
     param_map: Mapping[str, str] | None = None,
     over_approximate_if: bool = True,
     decl_widths: Optional[Mapping[str, List[int]]] = None,
+    decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> Dict[str, Set[str]]:
     pmap = dict(param_map or {})
     consts = _collect_const_assigns(body, param_map=pmap)
@@ -2177,6 +2274,9 @@ def scan_assign_adjacency(
     widths = _collect_decl_bit_indices(body, pmap)
     for name, bits in (decl_widths or {}).items():
         widths.setdefault(name, list(bits))
+    md_suffixes = _collect_decl_md_suffixes(body, pmap)
+    for name, suffixes in (decl_md_suffixes or {}).items():
+        md_suffixes.setdefault(name, list(suffixes))
     for stmt in _iter_connect_statements(body):
         _parse_assign_stmt(
             stmt,
@@ -2187,6 +2287,7 @@ def scan_assign_adjacency(
             zero_nets=zero_nets,
             over_approximate_if=over_approximate_if,
             decl_widths=widths,
+            decl_md_suffixes=md_suffixes,
         )
         _parse_decl_alias_stmt(stmt, adj, param_map=pmap, zero_nets=zero_nets)
         _parse_primitive_gate_stmt(stmt, adj)
@@ -2622,9 +2723,11 @@ def _build_reverse_port_index(
     *,
     param_map: Mapping[str, str] | None = None,
     decl_widths: Optional[Mapping[str, List[int]]] = None,
+    decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> Dict[str, List[Tuple[str, str]]]:
     pmap = dict(param_map or {})
     widths = dict(decl_widths or {})
+    md = dict(decl_md_suffixes or {})
     out: Dict[str, List[Tuple[str, str]]] = {}
 
     def _add(rep: str, inst: str, port: str) -> None:
@@ -2636,7 +2739,7 @@ def _build_reverse_port_index(
             for root in _cached_expr_roots(expr, expr_cache, param_map=pmap):
                 roots.add(root)
                 base = root.split("[", 1)[0]
-                for sfx in _bit_suffixes_for_token(root, pmap, widths) or ():
+                for sfx in _md_suffixes_for_token(root, pmap, md, widths) or ():
                     roots.add(base + sfx)
             for root in roots:
                 rep = net_rep.get(root, root)
@@ -2646,6 +2749,18 @@ def _build_reverse_port_index(
 
     for rep, pairs in list(out.items()):
         if "[" in rep:
+            continue
+        suffixes = md.get(rep)
+        if suffixes:
+            for sfx in suffixes:
+                bit_key = f"{rep}{sfx}"
+                bit_rep = net_rep.get(bit_key, bit_key)
+                if bit_rep == rep:
+                    continue
+                for inst, port in list(pairs):
+                    port_base = port.split("[", 1)[0]
+                    bit_port = port if "[" in port else f"{port_base}{sfx}"
+                    _add(bit_rep, inst, bit_port)
             continue
         bits = widths.get(rep)
         if not bits:
@@ -2825,6 +2940,7 @@ def build_module_connect_index(
     over_approximate_if: bool = True,
     ff_barrier: bool = False,
     port_decl_widths: Optional[Mapping[str, List[int]]] = None,
+    port_decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
 ) -> ModuleConnectIndex:
     pmap = dict(param_map or {})
     body_params = collect_connect_module_params("", body)
@@ -2843,6 +2959,9 @@ def build_module_connect_index(
     decl_widths = _collect_decl_bit_indices(text, full_pmap)
     for name, bits in (port_decl_widths or {}).items():
         decl_widths.setdefault(name, list(bits))
+    decl_md_suffixes = _collect_decl_md_suffixes(text, full_pmap)
+    for name, suffixes in (port_decl_md_suffixes or {}).items():
+        decl_md_suffixes.setdefault(name, list(suffixes))
     assign_adj = scan_assign_adjacency(
         text,
         hier_links=hier_links,
@@ -2850,9 +2969,17 @@ def build_module_connect_index(
         param_map=full_pmap,
         over_approximate_if=over_approximate_if,
         decl_widths=decl_widths,
+        decl_md_suffixes=decl_md_suffixes,
     )
+    for base, suffixes in decl_md_suffixes.items():
+        if not suffixes:
+            continue
+        bus_nodes = [base] + [f"{base}{sfx}" for sfx in suffixes]
+        for a in bus_nodes:
+            for b in bus_nodes:
+                _add_undirected(assign_adj, a, b)
     for base, bits in decl_widths.items():
-        if not bits:
+        if not bits or base in decl_md_suffixes:
             continue
         bus_nodes = [base] + [f"{base}[{i}]" for i in bits]
         if len(bits) > 1:
@@ -2865,6 +2992,7 @@ def build_module_connect_index(
         hier_links,
         hier_ref_targets,
         decl_widths=decl_widths,
+        decl_md_suffixes=decl_md_suffixes,
     )
     ff_adj = scan_ff_adjacency(text, ff_barrier=ff_barrier, param_map=full_pmap)
     inst_ports = scan_instance_port_maps(text, param_map=full_pmap)
@@ -2876,6 +3004,7 @@ def build_module_connect_index(
         net_rep,
         param_map=full_pmap,
         decl_widths=decl_widths,
+        decl_md_suffixes=decl_md_suffixes,
     )
     rep_hier_links: Dict[str, List[Tuple[str, str]]] = {}
     for net, pairs in hier_links.items():

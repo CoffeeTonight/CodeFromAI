@@ -1,15 +1,20 @@
-kind	scope	net	module	detail
-blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine
-port-in	hc_verify_top.u_gen_if	clk	mid_gen_if	module input port in mid_gen_if
-port-in	hc_verify_top.u_gen_if	rst_n	mid_gen_if	module input port in mid_gen_if
-port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
-port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
-port-in	hc_verify_top.u_ifdef	clk	mid_ifdef	module input port in mid_ifdef
-port-in	hc_verify_top.u_ifdef	rst_n	mid_ifdef	module input port in mid_ifdef
-port-in	hc_verify_top	and_y	hc_verify_top	module input port in hc_verify_top
+kind	scope	net	module	detail	rtl	via_filelist	filelist_chain
+blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/ecc_engine.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_gen_if	clk	mid_gen_if	module input port in mid_gen_if	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_if.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_gen_if	rst_n	mid_gen_if	module input port in mid_gen_if	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_if.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_ifdef	clk	mid_ifdef	module input port in mid_ifdef	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_ifdef.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_ifdef	rst_n	mid_ifdef	module input port in mid_ifdef	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_ifdef.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_md2d	clk	mid_md2d	module input port in mid_md2d	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_zigzag	clk	mid_zigzag	module input port in mid_zigzag	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_zigzag.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top	and_y	hc_verify_top	module input port in hc_verify_top	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
 # origin	hc_verify_top.clk
 # direction	fanin
 # nets_visited	4
 # ff_count	0
-# port_count	7
+# port_count	9
 # blackbox_count	1
+# origin_rtl	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v
+# origin_via_filelist	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+# origin_filelist_chain	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f

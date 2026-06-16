@@ -112,6 +112,7 @@ def test_unified_verify_md2d_deep_path_walk():
     assert deep_b in state.rows_by_path
     assert state.rows_by_path[deep_a].inst_leaf == "g[0][2]"
     assert state.rows_by_path[deep_b].inst_leaf == "g[1][1]"
+    f1 = f"{TOP}.u_md2d.a.b.c[0][1].d.e.f[1]"
     request = ConnectivityRequest(
         checks=(
             ConnectivityCheck(f"{TOP}.clk", f"{deep_a}.clk", check_id="md2d_clk"),
@@ -120,6 +121,16 @@ def test_unified_verify_md2d_deep_path_walk():
                 f"{deep_b}.probe_in",
                 check_id="md2d_branch_link",
             ),
+            ConnectivityCheck(
+                f"{f1}.leaf_out[0][2]",
+                f"{deep_a}.probe_out",
+                check_id="md2d_wire_leaf",
+            ),
+            ConnectivityCheck(
+                f"{TOP}.md2d_probe_sink",
+                f"{TOP}.status[0]",
+                check_id="md2d_wire_top",
+            ),
         ),
         top=TOP,
     )
@@ -127,3 +138,70 @@ def test_unified_verify_md2d_deep_path_walk():
     by_id = {r.check_id: r for r in batch.results}
     assert by_id["md2d_clk"].connected is True
     assert by_id["md2d_branch_link"].connected is True
+    assert by_id["md2d_wire_leaf"].connected is True
+    assert by_id["md2d_wire_top"].connected is True
+
+
+@pytest.mark.skipif(FILELIST is None, reason="unified_verify corpus not available")
+def test_unified_verify_zigzag_bus_path_walk():
+    """Zigzag depth + a[2:0][3:0] bus: deep arm, shallow arm, FF/comb io_trace."""
+    fl = parse_filelist(str(FILELIST), index_cwd=str(UNIFIED_VERIFY))
+    deep_d5 = f"{TOP}.u_zigzag.u_deep.d1.d2.d3.d4.d5"
+    shallow_r4 = f"{TOP}.u_zigzag.u_shallow.r1.r2.r3.r4"
+    index, state, top = run_path_walk_index(
+        fl,
+        [deep_d5, shallow_r4, f"{TOP}.u_zigzag.u_deep", f"{TOP}.u_zigzag.u_shallow"],
+        top=TOP,
+        no_cache=True,
+    )
+    assert deep_d5 in state.rows_by_path
+    assert shallow_r4 in state.rows_by_path
+    assert state.rows_by_path[deep_d5].inst_leaf == "d5"
+    assert state.rows_by_path[shallow_r4].inst_leaf == "r4"
+    request = ConnectivityRequest(
+        checks=(
+            ConnectivityCheck(
+                f"{TOP}.data[0]",
+                f"{TOP}.u_zigzag.u_deep.a[0][0]",
+                check_id="zz_src_to_deep_a00",
+            ),
+            ConnectivityCheck(
+                f"{TOP}.u_zigzag.u_deep.mid_tap",
+                f"{TOP}.u_zigzag.u_shallow.a",
+                check_id="zz_deep_to_shallow",
+            ),
+            ConnectivityCheck(
+                f"{TOP}.u_zigzag.u_deep.mid_tap[1][2]",
+                f"{TOP}.u_zigzag.u_shallow.a[1][2]",
+                check_id="zz_deep_to_shallow_slice",
+            ),
+            ConnectivityCheck(
+                f"{TOP}.clk",
+                f"{deep_d5}.clk",
+                check_id="zz_clk_deep",
+            ),
+        ),
+        top=TOP,
+    )
+    batch, _idx2, _st2 = run_path_walk_connect(request, fl, top=TOP, no_cache=True)
+    by_id = {r.check_id: r for r in batch.results}
+    assert by_id["zz_src_to_deep_a00"].connected is True
+    assert by_id["zz_deep_to_shallow"].connected is True
+    assert by_id["zz_deep_to_shallow_slice"].connected is True
+    assert by_id["zz_clk_deep"].connected is True
+    from scan_inst.inst_trace import InstTraceRequest, run_inst_trace
+
+    io = run_inst_trace(
+        InstTraceRequest(
+            instance=deep_d5,
+            direction="driver",
+            path_kind="comb",
+        ),
+        rows=state.rows(),
+        index=index,
+        top=top,
+        defines=dict(fl.defines),
+    )
+    assert not io.errors
+    assert any(pr.port_name == "a[2:0][3:0]" for pr in io.port_results)
+    assert io.boundaries

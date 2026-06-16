@@ -3,70 +3,15 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-
-def parse_cone_tsv(path: Path) -> dict:
-    meta: dict[str, str] = {}
-    rows: list[list[str]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line:
-            continue
-        if line.startswith("#"):
-            parts = line[1:].split("\t", 1)
-            if len(parts) == 2:
-                meta[parts[0].strip()] = parts[1].strip()
-            continue
-        rows.append(line.split("\t"))
-    data_rows = rows[1:] if len(rows) > 1 else []
-    scopes = [r[1] for r in data_rows if len(r) > 1]
-    return {
-        **meta,
-        "boundary_count": len(data_rows),
-        "kinds": [r[0] for r in data_rows],
-        "scopes": scopes,
-    }
-
-
-def parse_io_tsv(path: Path) -> dict:
-    meta: dict[str, str] = {}
-    rows: list[list[str]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line:
-            continue
-        if line.startswith("#"):
-            parts = line[1:].split("\t", 1)
-            if len(parts) == 2:
-                meta[parts[0].strip()] = parts[1].strip()
-            continue
-        rows.append(line.split("\t"))
-    boundaries = rows[1:] if len(rows) > 1 else []
-    by_port: dict[str, int] = {}
-    scopes: list[str] = []
-    for row in boundaries:
-        if not row:
-            continue
-        by_port[row[0]] = by_port.get(row[0], 0) + 1
-        if len(row) > 3:
-            scopes.append(row[3])
-    return {
-        **meta,
-        "boundary_count": len(boundaries),
-        "by_port": by_port,
-        "scopes": scopes,
-    }
-
-
-def parse_conn_tsv(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line or line.startswith("#") or line.startswith("check_id"):
-            continue
-        parts = line.split("\t")
-        if parts:
-            out[parts[0]] = parts[3] if len(parts) > 3 else ""
-    return out
+from verify_report import (
+    CheckResult,
+    emit_report,
+    parse_conn_tsv,
+    parse_cone_tsv,
+    parse_io_tsv,
+)
 
 
 def _scopes_match(scopes: list[str], needles: tuple[str, ...], *, min_hits: int) -> bool:
@@ -78,9 +23,8 @@ def _scopes_match(scopes: list[str], needles: tuple[str, ...], *, min_hits: int)
     return hits >= min_hits
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parent
-    checks: list[tuple[str, Path, str, dict]] = [
+def _cone_io_checks(root: Path) -> list[CheckResult]:
+    specs: list[tuple[str, Path, str, dict]] = [
         (
             "fanout_top_clk",
             root / "out_multifan_fanout_top_clk.tsv",
@@ -194,72 +138,131 @@ def main() -> int:
         ),
     ]
 
-    failed = 0
-    for name, path, kind, expect in checks:
+    results: list[CheckResult] = []
+    for name, path, kind, expect in specs:
         if not path.is_file():
-            print(f"FAIL {name}: missing {path.name}")
-            failed += 1
+            results.append(
+                CheckResult(
+                    name=name,
+                    category=kind,
+                    passed=False,
+                    summary="missing TSV",
+                    issues=[f"missing {path.name}"],
+                    tsv=path.name,
+                )
+            )
             continue
         data = parse_io_tsv(path) if kind == "io" else parse_cone_tsv(path)
         ok = True
-        msgs: list[str] = []
+        issues: list[str] = []
 
         bmin = expect.get("boundary_count_min", 2)
         if data["boundary_count"] < bmin:
             ok = False
-            msgs.append(f"boundary_count={data['boundary_count']} < {bmin}")
+            issues.append(f"boundary_count={data['boundary_count']} < {bmin}")
 
         gen_needles = expect.get("generate_scopes")
         if gen_needles:
             gmin = expect.get("generate_min", 1)
             if not _scopes_match(data.get("scopes", []), gen_needles, min_hits=gmin):
                 ok = False
-                msgs.append(
-                    f"generate scopes need {gmin} of {gen_needles}; got {data.get('scopes', [])[:6]}"
+                issues.append(
+                    f"generate scopes need {gmin} of {gen_needles}; "
+                    f"got {data.get('scopes', [])[:6]}"
                 )
 
         if kind == "cone":
             pmin = expect.get("port_count_min", 2)
             if int(data.get("port_count", "0")) < pmin:
                 ok = False
-                msgs.append(f"port_count={data.get('port_count')} < {pmin}")
+                issues.append(f"port_count={data.get('port_count')} < {pmin}")
             summary = (
                 f"boundaries={data['boundary_count']} "
                 f"port_count={data.get('port_count')} "
                 f"direction={data.get('direction')}"
             )
+            nodes = [data["origin_node"], *data.get("boundaries", [])]
         else:
             ports_min = expect.get("ports_min", 1)
             by_port = data.get("by_port", {})
             if len(by_port) < ports_min:
                 ok = False
-                msgs.append(f"ports={len(by_port)} < {ports_min}")
+                issues.append(f"ports={len(by_port)} < {ports_min}")
             summary = (
                 f"boundaries={data['boundary_count']} "
                 f"ports={list(by_port.keys())} "
                 f"path_kind={data.get('path_kind')}"
             )
+            nodes = [data["instance_node"], *data.get("boundaries", [])]
 
-        if ok:
-            print(f"PASS {name}: {summary}")
-        else:
-            failed += 1
-            print(f"FAIL {name}: {'; '.join(msgs)} | {summary}")
+        results.append(
+            CheckResult(
+                name=name,
+                category=kind,
+                passed=ok,
+                summary=summary,
+                issues=issues,
+                nodes=nodes,
+                tsv=path.name,
+            )
+        )
+    return results
 
+
+def _conn_checks(root: Path) -> list[CheckResult]:
     conn_path = root / "out_pw_multifan_gen_conn.tsv"
+    check_ids = ("pw_deep_gen_clk_port", "pw_deep_gen_if_cell")
     if not conn_path.is_file():
-        print("FAIL pw_gen_conn: missing out_pw_multifan_gen_conn.tsv")
-        failed += 1
-    else:
-        conn = parse_conn_tsv(conn_path)
-        for check_id in ("pw_deep_gen_clk_port", "pw_deep_gen_if_cell"):
-            if conn.get(check_id) != "True":
-                print(f"FAIL pw_gen_conn: {check_id}={conn.get(check_id)!r}")
-                failed += 1
-            else:
-                print(f"PASS pw_gen_conn: {check_id}=True")
+        return [
+            CheckResult(
+                name=check_id,
+                category="conn",
+                passed=False,
+                summary="missing TSV",
+                issues=["missing out_pw_multifan_gen_conn.tsv"],
+                tsv=conn_path.name,
+            )
+            for check_id in check_ids
+        ]
+    data = parse_conn_tsv(conn_path)
+    results: list[CheckResult] = []
+    for check_id in check_ids:
+        row = data["checks"].get(check_id)
+        if row is None:
+            results.append(
+                CheckResult(
+                    name=check_id,
+                    category="conn",
+                    passed=False,
+                    summary="check missing in TSV",
+                    issues=[f"{check_id} not found"],
+                    tsv=conn_path.name,
+                )
+            )
+            continue
+        ok = row["connected"] == "True"
+        results.append(
+            CheckResult(
+                name=check_id,
+                category="conn",
+                passed=ok,
+                summary=f"connected={row['connected']} mode={row['mode']}",
+                issues=[] if ok else [f"connected={row['connected']!r}"],
+                nodes=[row["endpoint_a_prov"], row["endpoint_b_prov"]],
+                tsv=conn_path.name,
+            )
+        )
+    return results
 
-    return 1 if failed else 0
+
+def main() -> int:
+    root = Path(__file__).resolve().parent
+    results = _cone_io_checks(root) + _conn_checks(root)
+    return emit_report(
+        "unified_verify multifan",
+        results,
+        report_path=root / "verify_multifan.report.txt",
+    )
 
 
 if __name__ == "__main__":

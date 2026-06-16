@@ -34,6 +34,31 @@
             "id": "pw_md2d_b_to_sink",
             "a": "hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_out",
             "b": "hc_verify_top.status[0]"
+          },
+          {
+            "id": "pw_md2d_wire_leaf_out",
+            "a": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].leaf_out[0][2]",
+            "b": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out"
+          },
+          {
+            "id": "pw_md2d_wire_f_out",
+            "a": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f_out[1]",
+            "b": "hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out"
+          },
+          {
+            "id": "pw_md2d_wire_c_out",
+            "a": "hc_verify_top.u_md2d.a.b.c_out[0][1]",
+            "b": "hc_verify_top.u_md2d.a.probe_out"
+          },
+          {
+            "id": "pw_md2d_wire_top_sink",
+            "a": "hc_verify_top.md2d_probe_sink",
+            "b": "hc_verify_top.status[0]"
+          },
+          {
+            "id": "pw_md2d_wire_probe_src",
+            "a": "hc_verify_top.u_md2d.probe_src",
+            "b": "hc_verify_top.data[0]"
           }
         ],
         "output": "out_pw_md2d_conn.tsv"

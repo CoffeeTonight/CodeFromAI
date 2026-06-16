@@ -696,20 +696,42 @@ def fanin_cone(
     )
 
 
-def format_cone_tsv(result: ConeResult) -> str:
+def format_cone_tsv(
+    result: ConeResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
+    from scan_inst.hierarchy_log import provenance_fields
+
     lines = [
-        "kind\tscope\tnet\tmodule\tdetail",
-        *(
-            f"{b.kind}\t{b.scope}\t{b.net}\t{b.module}\t{b.detail}"
-            for b in result.boundaries
-        ),
+        "kind\tscope\tnet\tmodule\tdetail\trtl\tvia_filelist\tfilelist_chain",
     ]
+    for b in result.boundaries:
+        prov = (
+            provenance_fields(b.scope, rows_by_path)
+            if rows_by_path is not None
+            else {}
+        )
+        lines.append(
+            f"{b.kind}\t{b.scope}\t{b.net}\t{b.module}\t{b.detail}\t"
+            f"{prov.get('rtl', '')}\t{prov.get('via_filelist', '')}\t"
+            f"{prov.get('filelist_chain', '')}"
+        )
     lines.append(f"# origin\t{result.origin_spec}")
     lines.append(f"# direction\t{result.direction}")
     lines.append(f"# nets_visited\t{result.nets_visited}")
     lines.append(f"# ff_count\t{len(result.flip_flops)}")
     lines.append(f"# port_count\t{len(result.ports)}")
     lines.append(f"# blackbox_count\t{len(result.blackboxes)}")
+    if rows_by_path is not None:
+        origin_prov = provenance_fields(result.origin_scope, rows_by_path)
+        lines.append(f"# origin_rtl\t{origin_prov.get('rtl', '')}")
+        lines.append(
+            f"# origin_via_filelist\t{origin_prov.get('via_filelist', '')}"
+        )
+        lines.append(
+            f"# origin_filelist_chain\t{origin_prov.get('filelist_chain', '')}"
+        )
     if result.errors:
         lines.append(f"# errors\t{' | '.join(result.errors)}")
     return "\n".join(lines) + "\n"

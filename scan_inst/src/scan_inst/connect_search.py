@@ -10,6 +10,7 @@ from scan_inst.connect_endpoints import _module_index, _port_param_ctx
 from scan_inst.connect_scan import (
     ModuleConnectIndex,
     _expand_concat_elements,
+    _port_select_suffix,
     _range_to_bit_indices,
     net_representative,
 )
@@ -50,8 +51,18 @@ def _parent_port_map_roots(
 ) -> FrozenSet[str]:
     """Resolve parent nets for a child port-bit via instance port map *expr*."""
     text = re.sub(r"\s+", "", expr.strip())
+    suffix = _port_select_suffix(port_name, child_net)
+    if suffix is not None and re.match(
+        r"^(?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*)\s*$",
+        text,
+    ):
+        return frozenset({text + suffix})
     bit_idx: Optional[int] = None
-    if child_net.startswith(port_name + "["):
+    if suffix is not None and suffix.count("[") == 1:
+        m = re.match(r"^\[([^\]]+)\]$", suffix)
+        if m and ":" not in m.group(1):
+            bit_idx = resolve_param_expr(m.group(1), dict(param_map))
+    elif child_net.startswith(port_name + "["):
         m = re.match(rf"^{re.escape(port_name)}\[([^\]]+)\]", child_net)
         if m:
             bit_idx = resolve_param_expr(m.group(1), dict(param_map))

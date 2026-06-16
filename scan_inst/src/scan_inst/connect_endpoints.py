@@ -26,6 +26,33 @@ from scan_inst.port_scan import (
 )
 
 
+def _port_decl_md_suffixes(
+    index: DesignIndex,
+    mod_name: str,
+    param_ctx: Mapping[str, str],
+) -> Dict[str, List[str]]:
+    rec = index.get_module(mod_name)
+    if not rec or not rec.file_path:
+        return {}
+    try:
+        text = Path(rec.file_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return {}
+    out: Dict[str, List[str]] = {}
+    for info in scan_ports_detail_from_module_text(
+        text,
+        mod_name,
+        param_ctx=param_ctx,
+    ):
+        suffixes: List[str] = []
+        for name in info.names:
+            if name.startswith(info.base_name + "["):
+                suffixes.append(name[len(info.base_name) :])
+        if suffixes:
+            out[info.base_name] = sorted(set(suffixes))
+    return out
+
+
 def _port_decl_bit_indices(
     index: DesignIndex,
     mod_name: str,
@@ -246,6 +273,7 @@ def _net_exists_in_module(
         body,
         param_map=ctx,
         port_decl_widths=decl_widths,
+        port_decl_md_suffixes=_port_decl_md_suffixes(index, row.module, ctx),
     )
     if net_name in mod_idx.net_rep:
         return True
@@ -427,6 +455,9 @@ def _module_index(
             over_approximate_if=over_approximate_if,
             ff_barrier=ff_barrier,
             port_decl_widths=_port_decl_bit_indices(index, mod_name, param_ctx),
+            port_decl_md_suffixes=_port_decl_md_suffixes(
+                index, mod_name, param_ctx
+            ),
         )
         binds = collect_bind_records_for_module(index, mod_name)
         if binds:

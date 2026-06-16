@@ -24,6 +24,9 @@ module hc_verify_top (
     wire md2d_probe_sink;
     mid_md2d u_md2d (.clk(clk), .probe_src(data[0]), .probe_sink(md2d_probe_sink));
     assign status[0] = md2d_probe_sink;
+    wire [2:0][3:0] zz_status;
+    mid_zigzag u_zigzag (.clk(clk), .src(data[2:0]), .status(zz_status));
+    assign status[3:1] = {zz_status[2][3], zz_status[1][2], zz_status[0][1]};
     mid_param #(.DEPTH(2)) u_param_gen ();
     defparam_top u_defparam ();
     param_child #(.W(8)) u_child_n8 ();

@@ -679,14 +679,34 @@ def run_connectivity_request(
     return session.run_request(request, jobs=jobs)
 
 
-def format_connect_result_row(result: ConnectResult) -> str:
+def format_connect_result_row(
+    result: ConnectResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
+    from scan_inst.hierarchy_log import endpoint_provenance_fields
+
     err_text = " | ".join(result.errors)
     hop_text = " | ".join(format_connect_hop(h) for h in result.hops)
+    a_prov = (
+        endpoint_provenance_fields(result.endpoint_a, rows_by_path)
+        if rows_by_path is not None
+        else {}
+    )
+    b_prov = (
+        endpoint_provenance_fields(result.endpoint_b, rows_by_path)
+        if rows_by_path is not None
+        else {}
+    )
     return (
         f"{result.check_id}\t{result.endpoint_a.spec}\t{result.endpoint_b.spec}\t"
         f"{result.connected}\t{result.mode}\t{result.note}\t"
         f"{err_text}\t"
-        f"{hop_text}"
+        f"{hop_text}\t"
+        f"{a_prov.get('rtl', '')}\t{a_prov.get('via_filelist', '')}\t"
+        f"{a_prov.get('filelist_chain', '')}\t"
+        f"{b_prov.get('rtl', '')}\t{b_prov.get('via_filelist', '')}\t"
+        f"{b_prov.get('filelist_chain', '')}"
     )
 
 
@@ -694,10 +714,16 @@ def format_connect_results_tsv(
     results: Sequence[ConnectResult],
     *,
     modules_cached: Optional[int] = None,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> str:
     lines = [
-        "check_id\tendpoint_a\tendpoint_b\tconnected\tmode\tnote\terrors\thops",
-        *(format_connect_result_row(r) for r in results),
+        "check_id\tendpoint_a\tendpoint_b\tconnected\tmode\tnote\terrors\thops\t"
+        "a_rtl\ta_via_filelist\ta_filelist_chain\t"
+        "b_rtl\tb_via_filelist\tb_filelist_chain",
+        *(
+            format_connect_result_row(r, rows_by_path=rows_by_path)
+            for r in results
+        ),
     ]
     if modules_cached is not None:
         lines.append(f"# modules_cached\t{modules_cached}")

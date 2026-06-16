@@ -1,10 +1,13 @@
-kind	scope	net	module	detail
-port-in	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module input port in leaf_cell
-port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc
-port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc
+kind	scope	net	module	detail	rtl	via_filelist	filelist_chain
+port-in	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module input port in leaf_cell	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+port-in	hc_verify_top.u_gen_soc	clk	mid_gen_soc	module input port in mid_gen_soc	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_gen_soc	rst_n	mid_gen_soc	module input port in mid_gen_soc	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
 # origin	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done
 # direction	fanin
 # nets_visited	3
 # ff_count	0
 # port_count	3
 # blackbox_count	0
+# origin_rtl	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v
+# origin_via_filelist	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+# origin_filelist_chain	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f

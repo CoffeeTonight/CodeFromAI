@@ -21,6 +21,7 @@ rtl/defparam_top.v
 rtl/mid_anchor_depth.v
 rtl/mid_arr.v
 rtl/mid_md2d.v
+rtl/mid_zigzag.v
 rtl/mid_ifdef.v
 rtl/mid_gen_soc.v
 rtl/mid_gen_if.v

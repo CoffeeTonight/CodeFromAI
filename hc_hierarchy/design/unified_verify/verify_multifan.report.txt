@@ -1,0 +1,169 @@
+unified_verify multifan
+=======================
+
+SUMMARY
+metric     value 
+---------  ------
+total      13    
+pass       13    
+fail       0     
+pass_rate  100.0%
+
+check                  category  status  summary                                                                            
+---------------------  --------  ------  -----------------------------------------------------------------------------------
+fanout_top_clk         cone      PASS    boundaries=5 port_count=4 direction=fanout                                         
+fanin_top_clk          cone      PASS    boundaries=10 port_count=9 direction=fanin                                         
+fanin_gen_soc_clk      cone      PASS    boundaries=5 port_count=5 direction=fanin                                          
+fanout_cell_done       cone      PASS    boundaries=6 port_count=5 direction=fanout                                         
+fanin_cell_done        cone      PASS    boundaries=3 port_count=3 direction=fanin                                          
+io_driver_gen_soc      io        PASS    boundaries=10 ports=['clk', 'rst_n'] path_kind=comb                                
+io_sinker_gen_soc      io        PASS    boundaries=4 ports=['status', 'status[0]', 'status[1]', 'status[2]'] path_kind=comb
+pw_fanin_gen_soc_clk   cone      PASS    boundaries=5 port_count=5 direction=fanin                                          
+pw_fanin_gen_cell_clk  cone      PASS    boundaries=3 port_count=3 direction=fanin                                          
+pw_fanout_gen_if_done  cone      PASS    boundaries=1 port_count=1 direction=fanout                                         
+pw_io_driver_gen_soc   io        PASS    boundaries=10 ports=['clk', 'rst_n'] path_kind=comb                                
+pw_deep_gen_clk_port   conn      PASS    connected=True mode=port-port                                                      
+pw_deep_gen_if_cell    conn      PASS    connected=True mode=hierarchy-hierarchy                                            
+
+FAILED
+(none)
+
+
+DETAIL
+
+[PASS] fanout_top_clk (cone)
+  tsv: out_multifan_fanout_top_clk.tsv
+  summary: boundaries=5 port_count=4 direction=fanout
+  nodes:
+    hc_verify_top.clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_ecc_engine_00  role=blackbox  module=ecc_engine  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/ecc_engine.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_if.gen_on.u_on  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+
+[PASS] fanin_top_clk (cone)
+  tsv: out_multifan_fanin_top_clk.tsv
+  summary: boundaries=10 port_count=9 direction=fanin
+  nodes:
+    hc_verify_top.clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_ecc_engine_00  role=blackbox  module=ecc_engine  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/ecc_engine.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_if  role=port-in  module=mid_gen_if  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_if.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc  role=port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_ifdef  role=port-in  module=mid_ifdef  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_ifdef.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d  role=port-in  module=mid_md2d  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_zigzag  role=port-in  module=mid_zigzag  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_zigzag.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] fanin_gen_soc_clk (cone)
+  tsv: out_multifan_fanin_gen_soc_clk.tsv
+  summary: boundaries=5 port_count=5 direction=fanin
+  nodes:
+    hc_verify_top.u_gen_soc.clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] fanout_cell_done (cone)
+  tsv: out_multifan_fanout_cell_done.tsv
+  summary: boundaries=6 port_count=5 direction=fanout
+  nodes:
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_ecc_engine_00  role=blackbox  module=ecc_engine  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/ecc_engine.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_if.gen_on.u_on  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=port-out  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] fanin_cell_done (cone)
+  tsv: out_multifan_fanin_cell_done.tsv
+  summary: boundaries=3 port_count=3 direction=fanin
+  nodes:
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.done  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] io_driver_gen_soc (io)
+  tsv: out_multifan_io_gen_soc_driver.tsv
+  summary: boundaries=10 ports=['clk', 'rst_n'] path_kind=comb
+  nodes:
+    hc_verify_top.u_gen_soc  role=instance  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=clk/port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=clk/port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=rst_n/port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=rst_n/port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] io_sinker_gen_soc (io)
+  tsv: out_multifan_io_gen_soc_sinker.tsv
+  summary: boundaries=4 ports=['status', 'status[0]', 'status[1]', 'status[2]'] path_kind=comb
+  nodes:
+    hc_verify_top.u_gen_soc  role=instance  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=status/port-out  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=status[0]/port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=status[1]/port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=status[2]/port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+
+[PASS] pw_fanin_gen_soc_clk (cone)
+  tsv: out_pw_multifan_fanin_gen_soc_clk.tsv
+  summary: boundaries=5 port_count=5 direction=fanin
+  nodes:
+    hc_verify_top.u_gen_soc.clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_fanin_gen_cell_clk (cone)
+  tsv: out_pw_multifan_fanin_gen_cell_clk.tsv
+  summary: boundaries=3 port_count=3 direction=fanin
+  nodes:
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_fanout_gen_if_done (cone)
+  tsv: out_pw_multifan_fanout_gen_if_done.tsv
+  summary: boundaries=1 port_count=1 direction=fanout
+  nodes:
+    hc_verify_top.u_gen_if.gen_on.u_on.done  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_if.gen_on.u_on  role=port-out  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+
+[PASS] pw_io_driver_gen_soc (io)
+  tsv: out_pw_multifan_io_gen_soc_driver.tsv
+  summary: boundaries=10 ports=['clk', 'rst_n'] path_kind=comb
+  nodes:
+    hc_verify_top.u_gen_soc  role=instance  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=clk/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=clk/port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=clk/port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc.u_alt  role=rst_n/port-in  module=leaf_cell  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_soc  role=rst_n/port-in  module=mid_gen_soc  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_gen_soc.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top  role=rst_n/port-in  module=hc_verify_top  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_deep_gen_clk_port (conn)
+  tsv: out_pw_multifan_gen_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.clk  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell.clk  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+
+[PASS] pw_deep_gen_if_cell (conn)
+  tsv: out_pw_multifan_gen_conn.tsv
+  summary: connected=True mode=hierarchy-hierarchy
+  nodes:
+    hc_verify_top.u_gen_if.gen_on.u_on  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+    hc_verify_top.u_gen_if.gen_on.u_on  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f

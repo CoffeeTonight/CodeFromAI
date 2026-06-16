@@ -534,6 +534,51 @@ def test_scan_instance_port_maps_multi_dim_array():
     ]
 
 
+def test_connectivity_md2_port_per_slice(tmp_path: Path):
+    """2D bus ``a[2:0][3:0]``: bare ``.a`` and per-slice ``a[i][j]`` connect."""
+    v = tmp_path / "md2.v"
+    v.write_text(
+        """
+        module leaf(input logic [2:0][3:0] a, output logic [2:0][3:0] y);
+          wire [2:0][3:0] comb_w;
+          genvar i, j;
+          generate
+            for (i = 0; i < 3; i++) begin : gi
+              for (j = 0; j < 4; j++) begin : gj
+                assign comb_w[i][j] = a[i][j];
+                assign y[i][j] = comb_w[i][j];
+              end
+            end
+          endgenerate
+        endmodule
+        module mid(input logic [2:0][3:0] a, output logic [2:0][3:0] y);
+          leaf u_leaf (.a(a), .y(y));
+        endmodule
+        module top(input logic [2:0] src, output logic [2:0][3:0] out);
+          wire [2:0][3:0] bus;
+          assign bus[0][0] = src[0];
+          assign bus[1][2] = src[1];
+          mid u_mid (.a(bus), .y(out));
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    index, rows = _index_and_rows(v.read_text(), tmp_path)
+    assert check_connectivity(
+        "top.src[0]", "top.u_mid.a[0][0]", rows=rows, index=index, top="top"
+    ).connected
+    assert check_connectivity(
+        "top.src[1]", "top.u_mid.a[1][2]", rows=rows, index=index, top="top"
+    ).connected
+    assert check_connectivity(
+        "top.u_mid.a", "top.u_mid.u_leaf.a", rows=rows, index=index, top="top"
+    ).connected
+    assert check_connectivity(
+        "top.u_mid.a[0][0]", "top.u_mid.u_leaf.a[0][0]",
+        rows=rows, index=index, top="top",
+    ).connected
+
+
 def test_nested_bracket_select_token_parse():
     from scan_inst.connect_scan import extract_connect_nodes
 

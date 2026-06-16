@@ -1,0 +1,133 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "tests": [
+    {
+      "name": "pw_zigzag_bus_connect",
+      "run_conn_check": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "include_ff": true,
+        "checks": [
+          {
+            "id": "pw_zz_src_to_bus",
+            "a": "hc_verify_top.data[0]",
+            "b": "hc_verify_top.u_zigzag.src[0]"
+          },
+          {
+            "id": "pw_zz_src_to_deep_a00",
+            "a": "hc_verify_top.data[0]",
+            "b": "hc_verify_top.u_zigzag.u_deep.a[0][0]"
+          },
+          {
+            "id": "pw_zz_deep_to_shallow",
+            "a": "hc_verify_top.u_zigzag.u_deep.mid_tap",
+            "b": "hc_verify_top.u_zigzag.u_shallow.a"
+          },
+          {
+            "id": "pw_zz_deep_to_shallow_slice",
+            "a": "hc_verify_top.u_zigzag.u_deep.mid_tap[1][2]",
+            "b": "hc_verify_top.u_zigzag.u_shallow.a[1][2]"
+          },
+          {
+            "id": "pw_zz_shallow_y_bus",
+            "a": "hc_verify_top.u_zigzag.u_shallow.r1.r2.r3.r4.y",
+            "b": "hc_verify_top.u_zigzag.u_shallow.y"
+          },
+          {
+            "id": "pw_zz_deep_y_bus",
+            "a": "hc_verify_top.u_zigzag.u_deep.y",
+            "b": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5.y"
+          },
+          {
+            "id": "pw_zz_clk_deep",
+            "a": "hc_verify_top.clk",
+            "b": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5.clk"
+          },
+          {
+            "id": "pw_zz_zigzag_hier",
+            "a": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5",
+            "b": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5"
+          },
+          {
+            "id": "pw_zz_zigzag_shallow_hier",
+            "a": "hc_verify_top.u_zigzag.u_shallow.r1.r2.r3.r4",
+            "b": "hc_verify_top.u_zigzag.u_shallow.r1.r2.r3.r4"
+          }
+        ],
+        "output": "out_pw_zigzag_conn.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_bus_fanout_comb",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "path_kind": "comb",
+        "fanout_cone": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5.a[0][0]",
+        "output": "out_pw_zigzag_fanout_comb.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_bus_fanout_ff",
+      "run_cone_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "path_kind": "ff",
+        "fanout_cone": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5.a[0][0]",
+        "output": "out_pw_zigzag_fanout_ff.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_bus_io_driver_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_pw_zigzag_io_driver_comb.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_bus_io_driver_ff",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5",
+        "direction": "driver",
+        "path_kind": "ff",
+        "output": "out_pw_zigzag_io_driver_ff.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_bus_io_sinker_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_zigzag.u_deep.d1.d2.d3.d4.d5",
+        "direction": "sinker",
+        "path_kind": "comb",
+        "output": "out_pw_zigzag_io_sinker_comb.tsv"
+      }
+    },
+    {
+      "name": "pw_zigzag_shallow_io_driver_comb",
+      "run_io_trace": {
+        "enable": 1,
+        "mode": "path-walk",
+        "no_cache": true,
+        "instance": "hc_verify_top.u_zigzag.u_shallow.r1.r2.r3.r4",
+        "direction": "driver",
+        "path_kind": "comb",
+        "output": "out_pw_zigzag_io_shallow_driver.tsv"
+      }
+    }
+  ]
+}

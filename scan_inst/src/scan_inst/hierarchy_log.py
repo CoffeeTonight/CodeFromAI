@@ -12,6 +12,42 @@ _PREFIX = "[scan-inst hierarchy]"
 _PATH_WALK_PREFIX = "[scan-inst path-walk]"
 
 
+def provenance_fields(
+    scope: str,
+    rows_by_path: Mapping[str, FlatRow],
+) -> dict[str, str]:
+    """Machine-readable rtl + filelist fields for one hierarchy *scope*."""
+    row = rows_by_path.get(scope) if scope else None
+    if row is None:
+        return {
+            "module": "",
+            "rtl": "",
+            "via_filelist": "",
+            "filelist_chain": "",
+        }
+    return {
+        "module": row.module,
+        "rtl": row.file or "",
+        "via_filelist": row.via_filelist or "",
+        "filelist_chain": row.filelist_chain or "",
+    }
+
+
+def endpoint_provenance_fields(
+    ep: ConnectEndpoint,
+    rows_by_path: Mapping[str, FlatRow],
+) -> dict[str, str]:
+    """Provenance for a connect/io endpoint (inst path + optional port)."""
+    base = provenance_fields(ep.inst_path, rows_by_path)
+    if ep.port_name and not base["rtl"]:
+        base["note"] = ep.spec
+    elif ep.port_name:
+        base["port"] = ep.port_name
+    if ep.module and not base["module"]:
+        base["module"] = ep.module
+    return base
+
+
 def format_row_provenance(row: FlatRow, *, compact: bool = False) -> str:
     """RTL file + filelist chain for one elaborated instance row."""
     parts = [f"module={row.module}"]

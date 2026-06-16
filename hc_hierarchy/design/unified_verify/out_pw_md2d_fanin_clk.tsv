@@ -1,9 +1,12 @@
-kind	scope	net	module	detail
-port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	clk	md2d_leaf	module input port in md2d_leaf
-port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]	clk	md2d_g_wrap_a	module input port in md2d_g_wrap_a
+kind	scope	net	module	detail	rtl	via_filelist	filelist_chain
+port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]	clk	md2d_leaf	module input port in md2d_leaf	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-in	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]	clk	md2d_g_wrap_a	module input port in md2d_g_wrap_a	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
 # origin	hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk
 # direction	fanin
 # nets_visited	1
 # ff_count	0
 # port_count	2
 # blackbox_count	0
+# origin_rtl	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v
+# origin_via_filelist	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+# origin_filelist_chain	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f

@@ -1,0 +1,119 @@
+unified_verify md2d path-walk (A=hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2], B=hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1])
+=========================================================================================================================================
+
+SUMMARY
+metric     value 
+---------  ------
+total      12    
+pass       12    
+fail       0     
+pass_rate  100.0%
+
+check                   category   status  summary                                                                  
+----------------------  ---------  ------  -------------------------------------------------------------------------
+pw_md2d_hier            conn/port  PASS    connected=True mode=hierarchy-hierarchy                                  
+pw_md2d_clk             conn/port  PASS    connected=True mode=port-port                                            
+pw_md2d_branch_link     conn/port  PASS    connected=True mode=port-port                                            
+pw_md2d_src_to_a        conn/port  PASS    connected=True mode=port-port                                            
+pw_md2d_b_to_sink       conn/port  PASS    connected=True mode=port-port                                            
+pw_md2d_wire_leaf_out   conn/wire  PASS    connected=True mode=port-port                                            
+pw_md2d_wire_f_out      conn/wire  PASS    connected=True mode=port-port                                            
+pw_md2d_wire_c_out      conn/wire  PASS    connected=True mode=port-port                                            
+pw_md2d_wire_top_sink   conn/wire  PASS    connected=True mode=port-port                                            
+pw_md2d_wire_probe_src  conn/wire  PASS    connected=True mode=port-port                                            
+fanin_clk               cone       PASS    boundaries=2 origin=hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk
+io_driver               io         PASS    boundaries=4 instance=hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  
+
+FAILED
+(none)
+
+
+DETAIL
+
+[PASS] pw_md2d_hier (conn/port)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=hierarchy-hierarchy
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_clk (conn/port)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.clk  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_branch_link (conn/port)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_in  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_src_to_a (conn/port)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.data[0]  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_in  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_b_to_sink (conn/port)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.a2.b.c[1][0].d.e.f[0].g[1][1].probe_out  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.status[0]  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_wire_leaf_out (conn/wire)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].leaf_out[0][2]  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_wire_f_out (conn/wire)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f_out[1]  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].probe_out  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_wire_c_out (conn/wire)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.a.b.c_out[0][1]  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.probe_out  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_wire_top_sink (conn/wire)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.md2d_probe_sink  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.status[0]  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] pw_md2d_wire_probe_src (conn/wire)
+  tsv: out_pw_md2d_conn.tsv
+  summary: connected=True mode=port-port
+  nodes:
+    hc_verify_top.u_md2d.probe_src  role=endpoint_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.data[0]  role=endpoint_b  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] fanin_clk (cone)
+  tsv: out_pw_md2d_fanin_clk.tsv
+  summary: boundaries=2 origin=hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2].clk  role=origin  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=port-in  module=md2d_leaf  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]  role=port-in  module=md2d_g_wrap_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+
+[PASS] io_driver (io)
+  tsv: out_pw_md2d_io_driver.tsv
+  summary: boundaries=4 instance=hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]
+  nodes:
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=instance  module=md2d_leaf  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=clk/port-in  module=md2d_leaf  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]  role=clk/port-in  module=md2d_g_wrap_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1].g[0][2]  role=probe_in/port-in  module=md2d_leaf  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+    hc_verify_top.u_md2d.a.b.c[0][1].d.e.f[1]  role=probe_in/port-in  module=md2d_g_wrap_a  rtl=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/mid_md2d.v  via_filelist=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f  filelist_chain=/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f

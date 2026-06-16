@@ -39,6 +39,14 @@ _MODULE_DEF_RE = re.compile(
 )
 
 
+@dataclass(frozen=True)
+class _PendingWalkMiss:
+    parent_path: str
+    inst_leaf: str
+    reason: str
+    target_path: str
+
+
 @dataclass
 class PathWalkStats:
     modules_loaded: int = 0
@@ -118,6 +126,7 @@ class PathWalkState:
     on_progress: Optional[Callable[[str], None]] = None
     trace_stream: Optional[TextIO] = None
     _trace_log: Optional[TextIO] = field(default=None, repr=False)
+    _pending_misses: List[_PendingWalkMiss] = field(default_factory=list, repr=False)
 
     def _trace_streams(self) -> List[TextIO]:
         out: List[TextIO] = []
@@ -167,6 +176,33 @@ class PathWalkState:
             message += f"  stop={row.stop_reason}"
         self._emit_walk(message)
 
+    def _clear_pending_misses(self, target_path: str) -> None:
+        if not target_path:
+            return
+        self._pending_misses = [
+            miss
+            for miss in self._pending_misses
+            if miss.target_path != target_path
+        ]
+
+    def _queue_walk_miss(
+        self,
+        parent_path: str,
+        inst_leaf: str,
+        *,
+        reason: str,
+        target_path: str,
+    ) -> None:
+        self._clear_pending_misses(target_path)
+        self._pending_misses.append(
+            _PendingWalkMiss(
+                parent_path=parent_path,
+                inst_leaf=inst_leaf,
+                reason=reason,
+                target_path=target_path,
+            )
+        )
+
     def _emit_walk_miss(
         self,
         parent_path: str,
@@ -201,6 +237,20 @@ class PathWalkState:
         elif target_path:
             self._emit_walk(
                 f"walked spine -> {spine_end} (target {target_path} stopped)"
+            )
+
+    def flush_pending_misses(self) -> None:
+        """Emit miss lines only for walk targets that never resolved."""
+        pending = list(self._pending_misses)
+        self._pending_misses.clear()
+        for miss in pending:
+            if miss.target_path in self.rows_by_path:
+                continue
+            self._emit_walk_miss(
+                miss.parent_path,
+                miss.inst_leaf,
+                reason=miss.reason,
+                target_path=miss.target_path,
             )
 
     def _sync_db_stats(self) -> None:
@@ -340,6 +390,7 @@ class PathWalkState:
         if not path or not path.startswith(self.top):
             return False
         if path in self.rows_by_path:
+            self._clear_pending_misses(path)
             return True
         self.ensure_root()
         parts = path.split(".")
@@ -362,7 +413,7 @@ class PathWalkState:
                         f"{e.inst_name}->{e.child_module}"
                         for e in parent_rec.instances[:8]
                     )
-                self._emit_walk_miss(
+                self._queue_walk_miss(
                     cur,
                     seg,
                     reason=(
@@ -381,7 +432,7 @@ class PathWalkState:
             attached = self._attach_child(cur, seg, edge)
             if attached is None:
                 child_mod = edge.child_module or "?"
-                self._emit_walk_miss(
+                self._queue_walk_miss(
                     cur,
                     seg,
                     reason=f"child module {child_mod!r} not loaded",
@@ -390,7 +441,10 @@ class PathWalkState:
                 return False
             cur = attached
         self.stats.paths_walked += 1
-        return path in self.rows_by_path
+        ok = path in self.rows_by_path
+        if ok:
+            self._clear_pending_misses(path)
+        return ok
 
     def _expand_subtree(self, inst_path: str) -> None:
         row = self.rows_by_path.get(inst_path)
@@ -427,10 +481,38 @@ class PathWalkState:
         self.stats.subtrees_expanded += 1
 
 
+def _walk_target_from_spec(spec: str, state: PathWalkState) -> str:
+    """
+    Hierarchy path to walk for a connect/endpoint spec.
+
+    Uses the full instance-name chain from *spec*. Does not truncate to the
+    first missing prefix (that truncation is only for error reporting).
+    """
+    from scan_inst.connect_endpoints import _port_exists
+
+    text = spec.strip()
+    if not text:
+        return ""
+    lookup = state.rows_by_path
+    if text in lookup:
+        return text
+    parts = text.split(".")
+    for i in range(len(parts) - 1, 0, -1):
+        hier = ".".join(parts[:i])
+        row = lookup.get(hier)
+        if row is None:
+            continue
+        port = ".".join(parts[i:])
+        if _port_exists(state.index, row, port, top=state.top):
+            return hier
+    return text
+
+
 def _inst_path_from_spec(
     spec: str,
     state: PathWalkState,
 ) -> str:
+    """Resolved hierarchy prefix for error messages (may stop at first miss)."""
     ep, _errors = resolve_endpoint(
         spec,
         state.rows(),
@@ -506,7 +588,7 @@ def build_path_walk_state_from_specs(
         for prefix in _sorted_prefixes(spec_list):
             state.ensure_path(prefix)
         for spec in spec_list:
-            inst = _inst_path_from_spec(spec, state)
+            inst = _walk_target_from_spec(spec, state)
             if inst:
                 state.ensure_path(inst)
         for subtree_root in expand_subtrees:
@@ -516,6 +598,7 @@ def build_path_walk_state_from_specs(
             if state.ensure_path(root):
                 state._expand_subtree(root)
                 state.stats.subtrees_expanded += 1
+        state.flush_pending_misses()
         return state
     finally:
         if opened_log and close_trace_log and trace_log_fh is not None:
@@ -556,13 +639,14 @@ def build_path_walk_state(
             state.ensure_path(prefix)
         seen_lca: Set[Tuple[str, str]] = set()
         for chk in request.checks:
-            a = _inst_path_from_spec(chk.endpoint_a, state)
-            b = _inst_path_from_spec(chk.endpoint_b, state)
+            a = _walk_target_from_spec(chk.endpoint_a, state)
+            b = _walk_target_from_spec(chk.endpoint_b, state)
             key = (a, b)
             if key in seen_lca:
                 continue
             seen_lca.add(key)
             state.ensure_lca_subtree(a, b)
+        state.flush_pending_misses()
         return state
     finally:
         if opened_log and close_trace_log and trace_log_fh is not None:
@@ -623,7 +707,7 @@ def run_path_walk_index(
         )
         extra_roots = list(expand_subtrees)
         for spec in specs:
-            inst = _inst_path_from_spec(spec, state)
+            inst = _walk_target_from_spec(spec, state)
             if inst and inst not in extra_roots:
                 extra_roots.append(inst)
         for subtree_root in extra_roots:

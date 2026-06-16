@@ -130,6 +130,14 @@ def execute_run(cfg: RunConfig, ap) -> int:
         print("No sources in filelist", file=sys.stderr)
         return 1
 
+    if not cfg.quiet:
+        loader = "path-walk" if path_walk_mode else "load_or_build_index"
+        print(
+            f"run: enable-trace: stage=execute_run effective_mode={effective_mode} "
+            f"index_strategy={index_strategy} index_loader={loader}",
+            file=sys.stderr,
+        )
+
     if path_walk_mode:
         if on_progress:
             on_progress("path-walk: on-demand index (endpoint paths only)")
@@ -319,6 +327,11 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     f"{pw_state.stats.modules_loaded} module(s), "
                     f"{time.perf_counter() - t0:.1f}s"
                 )
+            if cfg.output == "-":
+                sys.stdout.write(body)
+            else:
+                with open(cfg.output, "w", encoding="utf-8") as f:
+                    f.write(body)
             emit_run_report(
                 RunReport(
                     filelist_path=cfg.filelist,

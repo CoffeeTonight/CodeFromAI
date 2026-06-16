@@ -639,6 +639,124 @@ def _kinds_in_item(item: Mapping[str, Any]) -> list[str]:
     return [k for k in VERIFICATION_KINDS if _mapping_get_ci(item, k) is not None]
 
 
+_ENABLE_TYPO_HINTS = (
+    "run_on_full_inex",
+    "run_on_full_indx",
+    "run_on_ful_index",
+)
+
+
+def detect_enable_key_typos(data: Mapping[str, Any]) -> Tuple[str, ...]:
+    """Warn on block keys that look like run_on_full_index typos (not legacy db)."""
+    hints: list[str] = []
+    known = frozenset(
+        {
+            RUN_ON_FULL_INDEX,
+            RUN_ON_FULL_DB_LEGACY,
+            RUN_CONN_CHECK,
+            RUN_IO_TRACE,
+            RUN_CONE_TRACE,
+            "filelist",
+            "top",
+            "defines",
+            "tests",
+            "mode",
+            "output",
+            "env",
+            "environment",
+        }
+    )
+    for raw_key in data:
+        if not isinstance(raw_key, str):
+            continue
+        low = raw_key.lower()
+        if low in known or low.startswith("//"):
+            continue
+        if "full" in low and "index" in low.replace("_", "") and low not in known:
+            hints.append(raw_key)
+        elif low in _ENABLE_TYPO_HINTS:
+            hints.append(raw_key)
+    return tuple(hints)
+
+
+def format_suite_enable_trace(
+    document: Mapping[str, Any],
+    suite: RunTestSuite,
+    plan: Sequence[Tuple[RunTestEntry, RunConfig]],
+) -> Tuple[str, ...]:
+    """
+    Human-readable enable path from JSON blocks → suite.tests → RunConfig → execute_run.
+    """
+    lines: list[str] = []
+    lines.append(
+        "enable-trace: stage=parse_flat_suite "
+        f"full_index_block_enabled={suite.full_index_enabled} "
+        f"scheduled_steps={len(suite.tests)}"
+    )
+
+    full_index_key = _full_index_block_key(document)
+    for kind in TEST_KINDS:
+        if kind == RUN_ON_FULL_INDEX:
+            if full_index_key is None:
+                continue
+            block_key = full_index_key
+            spec_raw = _mapping_get_ci(document, full_index_key)
+        else:
+            block_key = kind
+            spec_raw = _mapping_get_ci(document, kind)
+        if spec_raw is None:
+            continue
+        if not isinstance(spec_raw, Mapping):
+            lines.append(
+                f"enable-trace: block={block_key} raw_enable=? parsed=? "
+                "action=ERROR (not an object)"
+            )
+            continue
+        raw_enable = _mapping_get_ci(spec_raw, "enable")
+        parsed = parse_enable(raw_enable, default=True)
+        if not parsed:
+            action = "SKIP"
+            detail = "not added to suite.tests; settings not merged"
+        elif kind == RUN_ON_FULL_INDEX:
+            action = "SCHEDULE"
+            detail = f"mode={_mapping_get_ci(spec_raw, 'mode') or 'hierarchy'}"
+        else:
+            action = "SCHEDULE"
+            raw_mode = _mapping_get_ci(spec_raw, "mode")
+            detail = f"block_mode={raw_mode or _DEFAULT_INDEX_MODE.get(kind, '?')}"
+        lines.append(
+            f"enable-trace: block={block_key} raw_enable={raw_enable!r} "
+            f"parsed_enable={int(parsed)} action={action} {detail}"
+        )
+
+    for i, (entry, cfg) in enumerate(plan):
+        merge = (
+            entry.kind != RUN_ON_FULL_INDEX
+            and suite.full_index_spec is not None
+            and suite.full_index_enabled
+        )
+        index_path = (
+            "path-walk"
+            if (
+                cfg.index_strategy == "path-walk"
+                or cfg.mode == "path-walk"
+            )
+            else "full-index(load_or_build_index)"
+        )
+        if entry.kind == RUN_ON_FULL_INDEX:
+            index_path = f"hierarchy-step(mode={cfg.mode})"
+        lines.append(
+            f"enable-trace: stage=build_config step={i} kind={entry.kind} "
+            f"cfg.mode={cfg.mode} cfg.index_strategy={cfg.index_strategy} "
+            f"merge_full_index_settings={int(merge)}"
+        )
+        lines.append(
+            f"enable-trace: stage=pre_execute step={i} kind={entry.kind} "
+            f"index_path={index_path}"
+        )
+    return tuple(lines)
+
+
 def list_disabled_suite_blocks(data: Mapping[str, Any]) -> Tuple[str, ...]:
     """Return suite block names present in JSON but skipped via ``enable: 0``."""
     disabled: list[str] = []

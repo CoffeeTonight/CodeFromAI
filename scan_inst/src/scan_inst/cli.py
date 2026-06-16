@@ -61,6 +61,8 @@ from scan_inst.startup import emit_startup_banner
 from scan_inst.run_tests import (
     RunTestEntry,
     build_test_run_configs,
+    detect_enable_key_typos,
+    format_suite_enable_trace,
     list_disabled_suite_blocks,
     try_parse_run_test_suite,
 )
@@ -514,11 +516,20 @@ def main(argv=None) -> int:
                         f"{config_path.resolve()}",
                         file=sys.stderr,
                     )
+                    for typo in detect_enable_key_typos(raw_doc):
+                        print(
+                            f"run: WARNING unknown block {typo!r} — "
+                            f"enable is not read; use run_on_full_index "
+                            f"(or legacy run_on_full_db)",
+                            file=sys.stderr,
+                        )
                     for skipped in list_disabled_suite_blocks(raw_doc):
                         print(
                             f"run: inactive {skipped} (enable: 0; step and settings ignored)",
                             file=sys.stderr,
                         )
+                    for line in format_suite_enable_trace(raw_doc, suite, test_plan):
+                        print(f"run: {line}", file=sys.stderr)
     if not test_plan:
         test_plan = [(None, cfg)]
 

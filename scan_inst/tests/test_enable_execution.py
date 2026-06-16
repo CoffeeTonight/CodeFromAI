@@ -120,3 +120,38 @@ def test_cli_stderr_has_no_hierarchy_mode_for_disabled_full_index(tmp_path: Path
     assert "index: building from" not in err
     assert "Mode:          hierarchy" not in err
     assert not (tmp_path / "instances.tsv").exists()
+
+
+def test_verify_enable_gate_json_subprocess():
+    """Bundled verify_enable_gate.json: full_index off, 2 path-walk steps on."""
+    root = Path(__file__).resolve().parents[1] / "examples" / "stress_seed42"
+    cfg = root / "verify_enable_gate.json"
+    assert cfg.is_file()
+    for name in (
+        "VERIFY_gate_instances.tsv",
+        "VERIFY_gate_conn.tsv",
+        "VERIFY_gate_trace.tsv",
+        "VERIFY_gate_cone.tsv",
+    ):
+        p = root / name
+        if p.exists():
+            p.unlink()
+    proc = subprocess.run(
+        ["scan-inst", "--config", str(cfg)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    err = proc.stderr
+    assert "enable-trace: block=run_on_full_index raw_enable=0 parsed_enable=0 action=SKIP" in err
+    assert "enable-trace: block=run_conn_check raw_enable=1 parsed_enable=1 action=SCHEDULE" in err
+    assert "enable-trace: block=run_io_trace raw_enable=1 parsed_enable=1 action=SCHEDULE" in err
+    assert "enable-trace: block=run_cone_trace raw_enable=0 parsed_enable=0 action=SKIP" in err
+    assert "kind=run_on_full_index" not in err
+    assert "index_loader=load_or_build_index" not in err
+    assert "index: building from" not in err
+    assert (root / "VERIFY_gate_conn.tsv").is_file()
+    assert (root / "VERIFY_gate_trace.tsv").is_file()
+    assert not (root / "VERIFY_gate_instances.tsv").exists()
+    assert not (root / "VERIFY_gate_cone.tsv").exists()

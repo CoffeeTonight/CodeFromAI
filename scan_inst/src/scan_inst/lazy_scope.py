@@ -1,18 +1,52 @@
-"""Lazy processing: endpoint scope paths and elab/connect filtering."""
+"""Lazy processing policy: defer heavy work until connect/elab needs it."""
 
 from __future__ import annotations
 
+import os
 from typing import Iterable, List, Optional, Sequence, Set
 
 from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
 
 
-def lazy_processing_enabled() -> bool:
-    """Default on; set ``SCAN_INST_LAZY=0`` to disable scoped elab / light index."""
-    import os
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "off", "false", "no", "disable", "disabled"):
+        return False
+    return default
 
-    raw = os.environ.get("SCAN_INST_LAZY", "").strip().lower()
-    return raw not in ("0", "off", "false", "no", "disable", "disabled")
+
+def lazy_processing_enabled() -> bool:
+    """Master switch (default on). ``SCAN_INST_LAZY=0`` restores eager index/elab."""
+    return _env_bool("SCAN_INST_LAZY", default=True)
+
+
+def lazy_index_ifdef() -> bool:
+    """
+    Apply ``ifdef`` during index preprocess.
+
+    Lazy default is **off** — ifdef runs when a module body is needed (connect/elab)
+    or when ``SCAN_INST_LAZY_IFDEF=1``.
+    """
+    if not lazy_processing_enabled():
+        return True
+    return _env_bool("SCAN_INST_LAZY_IFDEF", default=False)
+
+
+def lazy_filelist_defer_exists() -> bool:
+    """Skip ``exists()`` while expanding filelists (lazy default on)."""
+    return lazy_processing_enabled()
+
+
+def lazy_scoped_connect_elab() -> bool:
+    """Elaborate only endpoint prefix paths for connect/check (lazy default on)."""
+    return lazy_processing_enabled()
+
+
+def lazy_on_demand_full_preprocess() -> bool:
+    """Upgrade to full preprocess (macro/bind/ifdef) when generate-fold elab needs it."""
+    return lazy_processing_enabled()
 
 
 def endpoint_specs_from_checks(checks: Sequence[ConnectivityCheck]) -> List[str]:

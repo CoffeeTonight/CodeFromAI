@@ -8,7 +8,7 @@ from typing import Dict, List, Mapping, Optional, Sequence
 
 from scan_inst.generate_fold import prepare_body_for_instance_scan
 from scan_inst.index import DesignIndex
-from scan_inst.inst_scan import _MODULE_BLOCK_RE, scan_hierarchy_instances
+from scan_inst.inst_scan import iter_module_blocks, scan_hierarchy_instances
 from scan_inst.models import InstanceEdge
 from scan_inst.params import collect_module_params, parse_param_pairs, resolve_param_map, split_module_header
 
@@ -52,10 +52,10 @@ def _module_chunk(index: DesignIndex, mod_name: str) -> tuple[str, str, str]:
         text = Path(path).read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return path, "", body
-    for m in _MODULE_BLOCK_RE.finditer(text):
-        if m.group(1) != mod_name:
+    for block in iter_module_blocks(text):
+        if block["name"] != mod_name:
             continue
-        header, mod_body = split_module_header(m.group(2))
+        header, mod_body = split_module_header(block["chunk"])
         return path, header, mod_body or body
     return path, "", body
 

@@ -12,9 +12,10 @@ Modes (pick one; default is hierarchy dump):
   check-connect      Single endpoint-pair connectivity
   check-connect-batch  Many pairs; JSON or text pairs file
   fanin-cone / fanout-cone  COI cone debug (FF/port/blackbox boundaries)
+  inst-trace             Driver/sinker trace from one instance path (JSON)
 
 Use --config RUN.json to supply all options from one file. CLI flags override JSON.
-See --help-config, --help-connect, and --help-cone for JSON field reference."""
+See --help-config, --help-connect, --help-cone, and --help-inst-trace."""
 
 HELP_EPILOG = """\
 examples:
@@ -33,8 +34,10 @@ JSON help:
   scan-inst --help-stress     random RTL connectivity stress / pytest
 
 environment:
-  SCAN_INST_LAZY              default on: light index preprocess, scoped connect elab,
-                              lazy filelist expand (SCAN_INST_LAZY=0 to disable)
+  SCAN_INST_LAZY              default on: minimal index (includes only), scoped connect
+                              elab, lazy filelist; macro/ifdef/body on connect/elab
+                              (SCAN_INST_LAZY=0 for eager/full index)
+  SCAN_INST_LAZY_IFDEF        when lazy: run ifdef during index (default off)
   SCAN_INST_CACHE_DIR         index/elab cache root
   SCAN_INST_IGNORE_PATH       default --ignore-path patterns (comma-separated)
   SCAN_INST_IGNORE_MODULE     default --ignore-module names (comma-separated)
@@ -61,7 +64,8 @@ Required
 Mode (optional; inferred when omitted)
 --------------------------------------
   mode (string)
-      hierarchy | find-top | search | check-connect | check-connect-batch | cone
+      hierarchy | find-top | search | check-connect | check-connect-batch
+      | cone | path-walk
   find-top (bool)             Same as --find-top
   all-tops (bool)             Same as --all-tops
 
@@ -124,6 +128,64 @@ Example (fanout from a net)
   "fanout-cone": "top.u_mid.din",
   "output": "cone.tsv"
 }
+
+Inst-trace mode (instance drivers / sinkers)
+--------------------------------------------
+  mode: inst-trace | inst_trace
+  inst_trace (object|string)  Required. Instance hierarchy path only.
+
+  inst_trace fields:
+    instance (string)         Hierarchy path (e.g. top.u_blk)
+    direction (string)        driver | in | sinker | out | both  (default: both)
+    path_kind (string)        ff | comb  (default: ff; aliases: ff_comb, ff/comb)
+    top, defines              Optional overrides
+
+  driver/in  — fanin from input (and inout) ports; collect port-in, ff-driver, …
+  sinker/out — fanout from output (and inout) ports; collect port-out, ff-sink, …
+  path_kind ff   — traverse always_ff D<->Q interior
+  path_kind comb — stop at ff-driver / ff-sink boundaries
+
+Example
+-------
+{
+  "filelist": "design.f",
+  "top": "SOC_TOP",
+  "mode": "inst-trace",
+  "inst_trace": {
+    "instance": "SOC_TOP.u_ecc",
+    "direction": "both",
+    "path_kind": "ff"
+  },
+  "output": "inst_trace.tsv"
+}
+
+Path-walk connect (on-demand index)
+-----------------------------------
+  mode: path-walk | path_walk
+      Skips full filelist index. Walks endpoint instance paths, loads RTL files
+      on demand, expands LCA subtrees per check, then runs connect batch with a
+      shared module graph cache (jobs forced to 1 for cache reuse).
+
+  Requires connect / check-connect-batch / check-connect plus top.
+
+  Stress corpus (4 sets × 10-deep zigzag × 10-bit array):
+    python -m scan_inst.path_walk_stress_gen --out-dir DIR
+    scan-inst --config DIR/pw_stress.run.json -o connect.tsv
+    pytest tests/test_path_walk_stress.py -q
+
+  Example (array bit × driver matrix):
+  {
+    "filelist": "design.f",
+    "mode": "path-walk",
+    "top": "SOC_TOP",
+    "connect": {
+      "checks": [
+        {"id": "b0", "a": "SOC_TOP.u_blk.arr[0]", "b": "SOC_TOP.drv_a"},
+        {"id": "b1", "a": "SOC_TOP.u_blk.arr[1]", "b": "SOC_TOP.drv_b"}
+      ]
+    },
+    "output": "connect.tsv"
+  }
 
 Connectivity — batch
 --------------------
@@ -393,6 +455,47 @@ def print_connect_help() -> None:
 
 def print_cone_help() -> None:
     print(CONE_HELP)
+
+
+INST_TRACE_HELP = """\
+scan-inst inst-trace mode
+=======================
+
+Trace drivers (fanin) and/or sinkers (fanout) from every port on one instance.
+No per-port endpoint list required — supply the instance path only.
+
+Run JSON (--config)
+-------------------
+{
+  "filelist": "design.f",
+  "top": "top",
+  "mode": "inst-trace",
+  "inst_trace": {
+    "instance": "top.u_mid",
+    "direction": "both",
+    "path_kind": "ff"
+  },
+  "output": "trace.tsv"
+}
+
+direction
+---------
+  driver, in, driver-in   Fanin from input/inout ports (what drives the instance)
+  sinker, out, sinker-out Fanout from output/inout ports (what the instance drives)
+  both                    Both (default)
+
+path_kind (ff/comb)
+-------------------
+  ff    Traverse always_ff D<->Q (sequential paths; default)
+  comb  Combinational cone only; stop at ff-driver / ff-sink
+
+Output TSV columns:
+  origin_port, trace_direction, boundary_kind, scope, net, module, detail
+"""
+
+
+def print_inst_trace_help() -> None:
+    print(INST_TRACE_HELP)
 
 
 def print_stress_help() -> None:

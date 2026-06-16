@@ -7,8 +7,9 @@ import re
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from io import StringIO
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.ignore_path import source_path_matches
 from scan_inst.progress import format_work_location, maybe_track_work
@@ -44,14 +45,23 @@ _IncludeCacheKey = Tuple[str, int, int]
 _DefineOp = Tuple[str, str, str]  # ("set"|"undef", name, value)
 _INCLUDE_UNIT_CACHE: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]] = {}
 
+# Per-process source translation-unit cache after full preprocess.
+_SourcePreprocessKey = Tuple[str, int, int, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]]
+_SOURCE_PREPROCESS_CACHE: Dict[_SourcePreprocessKey, str] = {}
+
 
 def clear_include_unit_cache() -> None:
     """Drop cached include expansions (tests / long-lived workers)."""
     _INCLUDE_UNIT_CACHE.clear()
+    _SOURCE_PREPROCESS_CACHE.clear()
 
 
 def _snapshot_include_cache() -> Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]]:
     return dict(_INCLUDE_UNIT_CACHE)
+
+
+def _snapshot_source_preprocess_cache() -> Dict[_SourcePreprocessKey, str]:
+    return dict(_SOURCE_PREPROCESS_CACHE)
 
 
 def _install_include_cache_snapshot(
@@ -60,6 +70,60 @@ def _install_include_cache_snapshot(
     """Seed worker-local include cache (required when start method is ``spawn``)."""
     _INCLUDE_UNIT_CACHE.clear()
     _INCLUDE_UNIT_CACHE.update(snapshot)
+
+
+def _install_preprocess_caches(
+    include_snapshot: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]],
+    source_snapshot: Dict[_SourcePreprocessKey, str],
+) -> None:
+    """Seed worker-local include + source preprocess caches."""
+    _INCLUDE_UNIT_CACHE.clear()
+    _INCLUDE_UNIT_CACHE.update(include_snapshot)
+    _SOURCE_PREPROCESS_CACHE.clear()
+    _SOURCE_PREPROCESS_CACHE.update(source_snapshot)
+
+
+def _iter_text_lines(text: str) -> Iterator[str]:
+    """Yield lines without ``str.splitlines()`` materializing a full list."""
+    if not text:
+        return
+    start = 0
+    n = len(text)
+    i = 0
+    while i < n:
+        ch = text[i]
+        if ch == "\n":
+            yield text[start:i]
+            start = i + 1
+        elif ch == "\r":
+            end = i
+            if i + 1 < n and text[i + 1] == "\n":
+                i += 1
+            yield text[start:end]
+            start = i + 1
+        i += 1
+    if start < n:
+        yield text[start:]
+
+
+def _source_preprocess_cache_key(
+    path: Path,
+    base_defines: Mapping[str, str],
+    mode: str,
+    skip_path_patterns: Sequence[str],
+) -> Optional[_SourcePreprocessKey]:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (
+        str(path.resolve()),
+        st.st_mtime_ns,
+        st.st_size,
+        mode,
+        tuple(sorted(base_defines.items())),
+        tuple(skip_path_patterns),
+    )
 
 
 def strip_comments(text: str) -> str:
@@ -142,14 +206,19 @@ def _emit_ifdef_line_segments(
 
 def apply_ifdef_filter(text: str, defines: Mapping[str, str]) -> str:
     defs = dict(defines)
-    lines_out: List[str] = []
     stack: List[Tuple[bool, bool, bool]] = []
-
-    for raw_line in text.splitlines():
+    out = StringIO()
+    first = True
+    for raw_line in _iter_text_lines(text):
         segments = _emit_ifdef_line_segments(raw_line, stack, defs)
-        if segments:
-            lines_out.append(" ".join(segments))
-    return "\n".join(lines_out)
+        if not segments:
+            continue
+        if first:
+            first = False
+        else:
+            out.write("\n")
+        out.write(" ".join(segments))
+    return out.getvalue()
 
 
 def _resolve_include(
@@ -189,9 +258,10 @@ def _collect_define_undef_ops(
     text: str,
 ) -> Tuple[str, Tuple[_DefineOp, ...]]:
     """Strip `` `define `` / `` `undef `` / `` `include `` lines; record define ops."""
-    lines: List[str] = []
+    out = StringIO()
     ops: List[_DefineOp] = []
-    for line in text.splitlines():
+    first = True
+    for line in _iter_text_lines(text):
         dm = _DEFINE_LINE_RE.match(line)
         if dm:
             name = dm.group(1)
@@ -204,8 +274,12 @@ def _collect_define_undef_ops(
             continue
         if _INCLUDE_LINE_RE.match(line):
             continue
-        lines.append(line)
-    return "\n".join(lines), tuple(ops)
+        if first:
+            first = False
+        else:
+            out.write("\n")
+        out.write(line)
+    return out.getvalue(), tuple(ops)
 
 
 def _collect_define_undef(
@@ -219,6 +293,8 @@ def _collect_define_undef(
 
 def _expand_macros(text: str, defines: Mapping[str, str]) -> str:
     """Replace `` `MACRO `` tokens (non function-like)."""
+    if not defines or "`" not in text:
+        return text
     skip = {
         "ifdef", "ifndef", "elsif", "else", "endif",
         "define", "undef", "include",
@@ -235,7 +311,17 @@ def _expand_macros(text: str, defines: Mapping[str, str]) -> str:
             return m.group(0)
         return body
 
-    return _MACRO_USE_RE.sub(repl, text)
+    out = StringIO()
+    first = True
+    for line in _iter_text_lines(text):
+        if "`" in line:
+            line = _MACRO_USE_RE.sub(repl, line)
+        if first:
+            first = False
+        else:
+            out.write("\n")
+        out.write(line)
+    return out.getvalue()
 
 
 def _should_skip_preprocess_path(
@@ -261,17 +347,17 @@ def _expand_includes_once(
     *,
     skip_path_patterns: Sequence[str] = (),
 ) -> str:
-    out: List[str] = []
+    out = StringIO()
     last = 0
     for m in _INCLUDE_RE.finditer(text):
-        out.append(text[last : m.start()])
+        out.write(text[last : m.start()])
         inc_path = _resolve_include(m.group(2).strip(), m.group(1), source_file, include_dirs)
         if inc_path is None:
-            out.append(f"/* scan_inst: missing include {m.group(2)} */")
+            out.write(f"/* scan_inst: missing include {m.group(2)} */")
         elif _should_skip_preprocess_path(inc_path.resolve(), skip_path_patterns):
-            out.append(_IGNORE_PATH_STUB)
+            out.write(_IGNORE_PATH_STUB)
         else:
-            out.append(
+            out.write(
                 _preprocess_include_unit(
                     inc_path,
                     include_dirs,
@@ -281,8 +367,8 @@ def _expand_includes_once(
                 )
             )
         last = m.end()
-    out.append(text[last:])
-    return "".join(out)
+    out.write(text[last:])
+    return out.getvalue()
 
 
 def _include_cache_key(path: Path) -> Optional[_IncludeCacheKey]:
@@ -369,12 +455,24 @@ def preprocess_file_for_index(
     skip_path_patterns: Sequence[str] = (),
 ) -> str:
     """
-    Light preprocess for index/instance scan: includes + ``ifdef`` only.
+    Light preprocess for index/instance scan: includes, optional ``ifdef``.
 
-    Macro expand and bind stripping are deferred to connect/elab ``module_body``.
+    Macro expand and bind stripping are deferred to connect/elab.
+    With lazy on, ``ifdef`` is also deferred unless ``SCAN_INST_LAZY_IFDEF=1``.
     """
     if _should_skip_preprocess_path(path, skip_path_patterns):
         return _IGNORE_PATH_STUB
+    from scan_inst.lazy_scope import lazy_index_ifdef
+
+    base_defines = dict(defines)
+    mode = "light-ifdef" if lazy_index_ifdef() else "minimal"
+    cache_key = _source_preprocess_cache_key(
+        path, base_defines, mode, skip_path_patterns
+    )
+    if cache_key is not None:
+        hit = _SOURCE_PREPROCESS_CACHE.get(cache_key)
+        if hit is not None:
+            return hit
     visiting = visiting or set()
     text = _preprocess_include_unit(
         path,
@@ -383,7 +481,11 @@ def preprocess_file_for_index(
         visiting,
         skip_path_patterns=skip_path_patterns,
     )
-    return apply_ifdef_filter(text, defines)
+    if lazy_index_ifdef():
+        text = apply_ifdef_filter(text, defines)
+    if cache_key is not None:
+        _SOURCE_PREPROCESS_CACHE[cache_key] = text
+    return text
 
 
 def preprocess_file(
@@ -397,6 +499,14 @@ def preprocess_file(
     """Full preprocess for one translation unit."""
     if _should_skip_preprocess_path(path, skip_path_patterns):
         return _IGNORE_PATH_STUB
+    base_defines = dict(defines)
+    cache_key = _source_preprocess_cache_key(
+        path, base_defines, "full", skip_path_patterns
+    )
+    if cache_key is not None:
+        hit = _SOURCE_PREPROCESS_CACHE.get(cache_key)
+        if hit is not None:
+            return hit
     visiting = visiting or set()
     text = _preprocess_include_unit(
         path,
@@ -407,7 +517,10 @@ def preprocess_file(
     )
     text = _expand_macros(text, defines)
     text = apply_ifdef_filter(text, defines)
-    text = _BIND_LINE_RE.sub("", text)
+    if re.search(r"^\s*bind\b", text, re.IGNORECASE | re.MULTILINE):
+        text = _BIND_LINE_RE.sub("", text)
+    if cache_key is not None:
+        _SOURCE_PREPROCESS_CACHE[cache_key] = text
     return text
 
 
@@ -817,10 +930,11 @@ def preprocess_sources(
 
             chunk = scan_chunksize(total, workers)
             cache_snapshot = _snapshot_include_cache()
+            source_cache_snapshot = _snapshot_source_preprocess_cache()
             with ProcessPoolExecutor(
                 max_workers=workers,
-                initializer=_install_include_cache_snapshot,
-                initargs=(cache_snapshot,),
+                initializer=_install_preprocess_caches,
+                initargs=(cache_snapshot, source_cache_snapshot),
             ) as pool:
                 for i, (key, text) in enumerate(
                     pool.map(_preprocess_file_task, tasks, chunksize=chunk),

@@ -14,8 +14,9 @@ from typing import Callable, Dict, List, Literal, Mapping, Optional, Sequence, T
 
 from scan_inst.generate_fold import needs_generate_fold, prepare_body_for_instance_scan
 from scan_inst.inst_scan import (
-    _MODULE_BLOCK_RE,
+    iter_module_blocks,
     scan_hierarchy_instances,
+    slim_body_for_instance_scan,
 )
 from scan_inst.ignore_path import (
     partition_sources,
@@ -421,8 +422,9 @@ def _scan_sources_fused(
         )
     from scan_inst.progress import format_work_location, maybe_track_work
     from scan_inst.preprocess import (
-        _install_include_cache_snapshot,
+        _install_preprocess_caches,
         _snapshot_include_cache,
+        _snapshot_source_preprocess_cache,
         _warm_include_cache_for_sources,
     )
 
@@ -437,6 +439,7 @@ def _scan_sources_fused(
         file_via_filelist=file_via_filelist,
     )
     cache_snapshot = _snapshot_include_cache()
+    source_cache_snapshot = _snapshot_source_preprocess_cache()
 
     if workers == 1:
         for i, task in enumerate(tasks, start=1):
@@ -464,8 +467,8 @@ def _scan_sources_fused(
             chunk = scan_chunksize(total, workers)
             with ProcessPoolExecutor(
                 max_workers=workers,
-                initializer=_install_include_cache_snapshot,
-                initargs=(cache_snapshot,),
+                initializer=_install_preprocess_caches,
+                initargs=(cache_snapshot, source_cache_snapshot),
             ) as pool:
                 for i, per_file in enumerate(
                     pool.map(_preprocess_scan_file_task, tasks, chunksize=chunk),
@@ -504,9 +507,9 @@ def _scan_sources_fused(
 
 
 def _module_header_body(text: str, mod_name: str) -> Tuple[str, str]:
-    for m in _MODULE_BLOCK_RE.finditer(text):
-        if m.group(1) == mod_name:
-            return split_module_header(m.group(2))
+    for block in iter_module_blocks(text):
+        if block["name"] == mod_name:
+            return split_module_header(block["chunk"])
     return "", ""
 
 
@@ -525,7 +528,7 @@ def _scan_instances_for_index(
         return parse_param_pairs(header), [], True
 
     header_params = parse_param_pairs(header)
-    scan_body = strip_body_param_declarations(body)
+    scan_body = slim_body_for_instance_scan(strip_body_param_declarations(body))
     edges = scan_hierarchy_instances(
         scan_body,
         param_map=resolve_param_map(header_params),
@@ -546,10 +549,9 @@ def _scan_instances_for_index(
 def scan_preprocessed(text: str, file_path: str) -> Dict[str, ModuleRecord]:
     out: Dict[str, ModuleRecord] = {}
     param_limit = body_param_scan_max()
-    for m in _MODULE_BLOCK_RE.finditer(text):
-        name = m.group(1)
-        chunk = m.group(2)
-        header, body = split_module_header(chunk)
+    for block in iter_module_blocks(text):
+        name = block["name"]
+        header, body = split_module_header(block["chunk"])
         if body_param_scan_skipped(body, max_body_bytes=param_limit) and log_large_module_skips():
             import sys
 
@@ -562,12 +564,7 @@ def scan_preprocessed(text: str, file_path: str) -> Dict[str, ModuleRecord]:
             body,
             max_body_bytes=param_limit,
         )
-        kind_m = re.search(
-            rf"\b(module|interface|program)\s+{re.escape(name)}\b",
-            text[m.start() : m.start() + 80],
-            re.IGNORECASE,
-        )
-        is_interface = bool(kind_m and kind_m.group(1).lower() == "interface")
+        is_interface = block["kind"] == "interface"
         out[name] = ModuleRecord(
             module_name=name,
             file_path=file_path,
@@ -659,7 +656,7 @@ class DesignIndex:
         for names in self.file_modules.values():
             names.sort()
 
-    def _source_text(self, file_path: str) -> str:
+    def _source_text(self, file_path: str, *, full: bool = False) -> str:
         keys = (file_path, str(Path(file_path)), str(Path(file_path).resolve()))
         for key in keys:
             hit = self._preprocessed_sources.get(key)
@@ -669,10 +666,14 @@ class DesignIndex:
         if not path.is_file():
             return ""
         if self._preprocess_include_dirs or self._preprocess_defines:
-            from scan_inst.preprocess import preprocess_file
+            from scan_inst.lazy_scope import lazy_on_demand_full_preprocess, lazy_processing_enabled
+            from scan_inst.preprocess import preprocess_file, preprocess_file_for_index
 
             inc = [Path(p) for p in self._preprocess_include_dirs]
-            return preprocess_file(path, inc, self._preprocess_defines, set())
+            defs: Dict[str, str] = dict(self._preprocess_defines)
+            if full or not (lazy_processing_enabled() and lazy_on_demand_full_preprocess()):
+                return preprocess_file(path, inc, defs, set())
+            return preprocess_file_for_index(path, inc, defs, set())
         try:
             return path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -687,10 +688,10 @@ class DesignIndex:
         text = self._source_text(rec.file_path)
         if not text:
             return ""
-        for m in _MODULE_BLOCK_RE.finditer(text):
-            if m.group(1) != mod_name:
+        for block in iter_module_blocks(text):
+            if block["name"] != mod_name:
                 continue
-            _header, body = split_module_header(m.group(2))
+            _header, body = split_module_header(block["chunk"])
             rec.body = body
             return body
         return ""
@@ -1019,7 +1020,7 @@ class DesignIndex:
 
         raw_params = rec.raw_params
         if rec.needs_generate_fold:
-            text = self._source_text(rec.file_path)
+            text = self._source_text(rec.file_path, full=True)
             hdr, full_body = _module_header_body(text, mod_name)
             if full_body:
                 body = full_body

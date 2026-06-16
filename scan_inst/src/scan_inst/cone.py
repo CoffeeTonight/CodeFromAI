@@ -90,6 +90,7 @@ class _ConeCtx:
     defines: Mapping[str, str]
     over_approximate_if: bool
     direction: str
+    path_kind: str = "comb"
 
 
 def _net_label(scope: str, net: str) -> str:
@@ -255,7 +256,7 @@ def _boundary_at_state(
             f"blackbox / opaque instance {mod_name}",
         )
     if ctx.direction == "fanout":
-        if rep in mod_idx.ff_d_reps:
+        if ctx.path_kind == "comb" and rep in mod_idx.ff_d_reps:
             return ConeBoundary(
                 "ff-sink",
                 scope,
@@ -272,7 +273,7 @@ def _boundary_at_state(
                 f"module output port in {mod_name}",
             )
     else:
-        if rep in mod_idx.ff_q_reps:
+        if ctx.path_kind == "comb" and rep in mod_idx.ff_q_reps:
             return ConeBoundary(
                 "ff-driver",
                 scope,
@@ -327,6 +328,16 @@ def _expand_fanout(
             "intra-module",
             f"{here} ~ {_net_label(scope, peer)} (comb in {mod_name})",
         )
+
+    if ctx.path_kind == "ff" and rep in mod_idx.ff_d_reps:
+        for q_rep in mod_idx.ff_q_reps:
+            push(
+                scope,
+                q_rep,
+                "ff-interior",
+                f"{here} -> {_net_label(scope, q_rep)} "
+                f"(always_ff Q in {mod_name})",
+            )
 
     for inst_leaf, port in comb.net_to_children.get(rep, ()):
         child_path = ctx.child_by_parent_leaf.get((scope, inst_leaf))
@@ -443,7 +454,7 @@ def _expand_fanin(
             f"{_net_label(scope, peer)} ~ {here} (comb in {mod_name})",
         )
 
-    if rep in mod_idx.ff_q_reps:
+    if ctx.path_kind == "ff" and rep in mod_idx.ff_q_reps:
         for d_rep in mod_idx.ff_d_reps:
             push(
                 scope,
@@ -546,6 +557,7 @@ def _run_cone(
     top: str,
     defines: Mapping[str, str] | None = None,
     over_approximate_if: bool = True,
+    path_kind: str = "comb",
 ) -> ConeResult:
     ep, errs = resolve_endpoint(endpoint, rows, index, top=top, require_port=False)
     if errs:
@@ -571,6 +583,7 @@ def _run_cone(
         defines=dict(defines or {}),
         over_approximate_if=over_approximate_if,
         direction=direction,
+        path_kind=path_kind,
     )
     row = rows_by_path.get(ep.inst_path)
     if row is None:
@@ -647,6 +660,7 @@ def fanout_cone(
     top: str,
     defines: Mapping[str, str] | None = None,
     over_approximate_if: bool = True,
+    path_kind: str = "comb",
 ) -> ConeResult:
     return _run_cone(
         endpoint,
@@ -656,6 +670,7 @@ def fanout_cone(
         top=top,
         defines=defines,
         over_approximate_if=over_approximate_if,
+        path_kind=path_kind,
     )
 
 
@@ -667,6 +682,7 @@ def fanin_cone(
     top: str,
     defines: Mapping[str, str] | None = None,
     over_approximate_if: bool = True,
+    path_kind: str = "comb",
 ) -> ConeResult:
     return _run_cone(
         endpoint,
@@ -676,6 +692,7 @@ def fanin_cone(
         top=top,
         defines=defines,
         over_approximate_if=over_approximate_if,
+        path_kind=path_kind,
     )
 
 

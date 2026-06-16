@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.connect_scan import (
@@ -19,7 +21,36 @@ from scan_inst.port_scan import (
     matching_ports,
     port_index_for_design_module,
     ports_for_module,
+    scan_ports_detail_from_module_text,
 )
+
+
+def _port_decl_bit_indices(
+    index: DesignIndex,
+    mod_name: str,
+    param_ctx: Mapping[str, str],
+) -> Dict[str, List[int]]:
+    rec = index.get_module(mod_name)
+    if not rec or not rec.file_path:
+        return {}
+    try:
+        text = Path(rec.file_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return {}
+    out: Dict[str, List[int]] = {}
+    for info in scan_ports_detail_from_module_text(
+        text,
+        mod_name,
+        param_ctx=param_ctx,
+    ):
+        bits: List[int] = []
+        for name in info.names:
+            m = re.match(rf"^{re.escape(info.base_name)}\[(\d+)\]$", name)
+            if m:
+                bits.append(int(m.group(1)))
+        if bits:
+            out[info.base_name] = sorted(set(bits))
+    return out
 
 def parse_connect_endpoint(
     spec: str,
@@ -358,6 +389,7 @@ def _module_index(
             fold_generate=True,
             over_approximate_if=over_approximate_if,
             ff_barrier=ff_barrier,
+            port_decl_widths=_port_decl_bit_indices(index, mod_name, param_ctx),
         )
         binds = collect_bind_records_for_module(index, mod_name)
         if binds:

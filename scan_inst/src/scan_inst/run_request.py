@@ -13,6 +13,7 @@ from scan_inst.connect_request import (
     load_connect_request,
     parse_connect_request_json,
 )
+from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class RunConfig:
     fanin_cone: Optional[str] = None
     fanout_cone: Optional[str] = None
     cone_graph: Optional[str] = None
+    inst_trace: Optional[InstTraceRequest] = None
     strict_generate: bool = False
     over_approximate_if: Optional[bool] = None
     ignore_path: Tuple[str, ...] = ()
@@ -54,6 +56,7 @@ class RunConfig:
     quiet: bool = False
     log_file: Optional[str] = None
     no_log_file: bool = False
+    mode: Optional[str] = None
 
     @property
     def defines_map(self) -> Dict[str, str]:
@@ -243,8 +246,12 @@ def _parse_check_connect(data: Any) -> Optional[Tuple[str, str]]:
     raise ValueError("'check_connect' must be [a, b] or an object")
 
 
+def normalize_run_mode(mode: str) -> str:
+    return str(mode or "").strip().replace("_", "-")
+
+
 def _infer_mode(data: Mapping[str, Any]) -> str:
-    explicit = str(data.get("mode") or "").strip()
+    explicit = normalize_run_mode(str(data.get("mode") or ""))
     if explicit:
         return explicit
     if data.get("find_top"):
@@ -253,6 +260,11 @@ def _infer_mode(data: Mapping[str, Any]) -> str:
         return "check-connect"
     if data.get("check_connect_batch") is not None or data.get("connect") is not None:
         return "check-connect-batch"
+    if (
+        data.get("inst_trace") is not None
+        or data.get("inst-trace") is not None
+    ):
+        return "inst-trace"
     if (
         data.get("fanin_cone") is not None
         or data.get("fanin-cone") is not None
@@ -273,6 +285,8 @@ def _validate_mode(data: Mapping[str, Any], mode: str) -> None:
         "check-connect",
         "check-connect-batch",
         "cone",
+        "inst-trace",
+        "path-walk",
     }
     if mode not in allowed:
         raise ValueError(f"unknown mode {mode!r}; expected one of {sorted(allowed)}")
@@ -308,6 +322,16 @@ def _validate_mode(data: Mapping[str, Any], mode: str) -> None:
         raise ValueError("mode search requires 'search' and/or 'search_path'")
     if mode == "cone" and not flags["cone"]:
         raise ValueError("mode cone requires 'fanin_cone' and/or 'fanout_cone'")
+    if mode == "inst-trace" and not (
+        data.get("inst_trace") is not None or data.get("inst-trace") is not None
+    ):
+        raise ValueError("mode inst-trace requires 'inst_trace'")
+    if mode == "path-walk" and not (
+        flags["check-connect"] or flags["check-connect-batch"]
+    ):
+        raise ValueError(
+            "mode path-walk requires 'check_connect' or 'connect' / 'check_connect_batch'"
+        )
     fanin_ep = data.get("fanin_cone", data.get("fanin-cone"))
     fanout_ep = data.get("fanout_cone", data.get("fanout-cone"))
     if fanin_ep and fanout_ep:
@@ -377,6 +401,14 @@ def parse_run_request_json(
 
     fanin_ep = data.get("fanin_cone", data.get("fanin-cone"))
     fanout_ep = data.get("fanout_cone", data.get("fanout-cone"))
+    inst_trace_raw = data.get("inst_trace", data.get("inst-trace"))
+    inst_trace_req: Optional[InstTraceRequest] = None
+    if inst_trace_raw is not None:
+        inst_trace_req = parse_inst_trace_json(
+            inst_trace_raw,
+            top=str(data.get("top") or "").strip(),
+            defines=defines,
+        )
 
     return RunConfig(
         filelist=_resolve_path(base, filelist) or filelist,
@@ -400,6 +432,7 @@ def parse_run_request_json(
         fanin_cone=str(fanin_ep or "").strip() or None,
         fanout_cone=str(fanout_ep or "").strip() or None,
         cone_graph=_resolve_path(base, data.get("cone_graph", data.get("cone-graph"))),
+        inst_trace=inst_trace_req,
         strict_generate=bool(data.get("strict_generate", False)),
         over_approximate_if=over_approx,
         ignore_path=tuple(
@@ -435,6 +468,7 @@ def parse_run_request_json(
         quiet=bool(data.get("quiet", False)),
         log_file=_resolve_path(base, data.get("log_file")),
         no_log_file=bool(data.get("no_log_file", False)),
+        mode=mode,
     )
 
 
@@ -781,6 +815,8 @@ def run_config_from_args(args: Any) -> RunConfig:
         quiet=bool(args.quiet),
         log_file=args.log_file,
         no_log_file=bool(args.no_log_file),
+        mode=normalize_run_mode(getattr(args, "mode", "") or "")
+        or None,
     )
 
 
@@ -872,6 +908,8 @@ def merge_run_config(base: RunConfig, cli: RunConfig, args: Any) -> RunConfig:
         out = replace(out, ignore_module=cli.ignore_module)
     if getattr(args, "ignore_filelist", None):
         out = replace(out, ignore_filelist=cli.ignore_filelist)
+    if getattr(args, "mode", None):
+        out = replace(out, mode=cli.mode)
     if _field_overridden(args, "jobs", 0):
         out = replace(out, jobs=cli.jobs)
     if getattr(args, "low_memory", False):

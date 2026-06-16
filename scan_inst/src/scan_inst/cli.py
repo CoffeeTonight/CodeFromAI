@@ -23,7 +23,10 @@ from scan_inst.elab import elaborate_tops_parallel
 from scan_inst.lazy_scope import (
     elab_scope_paths,
     endpoint_specs_from_request,
+    lazy_filelist_defer_exists,
+    lazy_index_ifdef,
     lazy_processing_enabled,
+    lazy_scoped_connect_elab,
 )
 from scan_inst.perf import effective_low_memory
 from scan_inst.filelist import parse_filelist
@@ -31,19 +34,21 @@ from scan_inst.progress import ProgressHeartbeat, ProgressReporter, progress_cal
 from scan_inst.report import RunReport, default_log_path, emit_run_report
 from scan_inst.path_chain import attach_path_chains, format_path_chain_compact
 from scan_inst.path_search import search_hierarchy_path
-from scan_inst.connect_request import ConnectivityRequest
+from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
 from scan_inst.connectivity import (
     check_connectivity,
     format_connect_results_tsv,
     print_connect_trace_reports,
     run_connectivity_request,
 )
+from scan_inst.path_walk import run_path_walk_connect
 from scan_inst.run_request import (
     jobs_from_env,
     jobs_hint_from_config_text,
     load_run_request_with_jobs_source,
     merge_options_from_connect_batch_json,
     merge_run_config,
+    normalize_run_mode,
     resolve_connectivity_request,
     resolve_jobs_after_merge,
     run_config_from_args,
@@ -56,12 +61,18 @@ from scan_inst.cone import (
     print_cone_report,
     write_cone_dot,
 )
+from scan_inst.inst_trace import (
+    format_inst_trace_tsv,
+    print_inst_trace_report,
+    run_inst_trace,
+)
 from scan_inst.help_text import (
     CONE_HELP,
     CONNECT_HELP,
     CONFIG_HELP,
     HELP_DESCRIPTION,
     HELP_EPILOG,
+    INST_TRACE_HELP,
     STRESS_HELP,
 )
 from scan_inst.search import normalize_search_patterns, search
@@ -112,6 +123,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print fanin/fanout cone mode reference; exit",
     )
+    cfg.add_argument(
+        "--help-inst-trace",
+        action="store_true",
+        help="print inst-trace mode reference; exit",
+    )
 
     elab = ap.add_argument_group("elaboration")
     elab.add_argument(
@@ -149,6 +165,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="cap instance elaboration depth",
+    )
+    elab.add_argument(
+        "--mode",
+        default=None,
+        metavar="MODE",
+        help="run mode: hierarchy, path-walk, check-connect-batch, … (JSON: mode)",
     )
 
     out = ap.add_argument_group("output")
@@ -346,6 +368,9 @@ def main(argv=None) -> int:
     if args.help_cone:
         print(CONE_HELP, end="" if CONE_HELP.endswith("\n") else "\n")
         return 0
+    if args.help_inst_trace:
+        print(INST_TRACE_HELP, end="" if INST_TRACE_HELP.endswith("\n") else "\n")
+        return 0
     if not args.config and not args.filelist:
         ap.error("filelist or --config is required")
     if args.check_connect and args.check_connect_batch:
@@ -442,12 +467,31 @@ def main(argv=None) -> int:
 
     batch_mode = bool(cfg.check_connect_batch or cfg.connect_inline)
     cone_mode = bool(cfg.fanin_cone or cfg.fanout_cone)
+    inst_trace_mode = bool(cfg.inst_trace)
     if cfg.check_connect and batch_mode:
         ap.error("use either check_connect or check_connect_batch/connect, not both")
-    if cone_mode and (cfg.check_connect or batch_mode or cfg.search or cfg.search_path):
-        ap.error("cone mode is exclusive with search/connect modes")
+    if cone_mode and (
+        cfg.check_connect
+        or batch_mode
+        or cfg.search
+        or cfg.search_path
+        or inst_trace_mode
+    ):
+        ap.error("cone mode is exclusive with search/connect/inst-trace modes")
+    if inst_trace_mode and (
+        cfg.check_connect or batch_mode or cfg.search or cfg.search_path or cone_mode
+    ):
+        ap.error("inst-trace mode is exclusive with search/connect/cone modes")
     if cfg.fanin_cone and cfg.fanout_cone:
         ap.error("use either fanin_cone or fanout_cone, not both")
+
+    path_walk_mode = normalize_run_mode(cfg.mode or "") == "path-walk"
+    if path_walk_mode and (
+        cone_mode or cfg.search or cfg.search_path or cfg.find_top
+    ):
+        ap.error("path-walk mode supports connect checks only")
+    if path_walk_mode and not batch_mode and not cfg.check_connect:
+        ap.error("path-walk requires connect batch or --check-connect")
 
     t0 = time.perf_counter()
     extra_defines = dict(cfg.defines_map)
@@ -473,8 +517,10 @@ def main(argv=None) -> int:
 
     lazy = lazy_processing_enabled()
     if lazy and on_progress:
+        ifdef_note = "ifdef at index" if lazy_index_ifdef() else "ifdef/macro deferred"
         on_progress(
-            "index: lazy preprocessing enabled (SCAN_INST_LAZY=0 to disable)"
+            f"index: lazy ({ifdef_note}; connect/elab on-demand; "
+            f"SCAN_INST_LAZY=0 to disable)"
         )
 
     fl = parse_filelist(
@@ -483,11 +529,94 @@ def main(argv=None) -> int:
         extra_defines=extra_defines,
         on_progress=on_progress,
         ignore_filelists=list(cfg.ignore_filelist),
-        defer_source_exists=lazy,
+        defer_source_exists=lazy_filelist_defer_exists(),
     )
     if not fl.source_files:
         print("No sources in filelist", file=sys.stderr)
         return 1
+
+    if path_walk_mode:
+        if on_progress:
+            on_progress("path-walk: on-demand index (endpoint paths only)")
+        if cfg.check_connect and not batch_mode:
+            connect_request = ConnectivityRequest(
+                checks=(
+                    ConnectivityCheck(
+                        cfg.check_connect[0],
+                        cfg.check_connect[1],
+                    ),
+                ),
+                top=cfg.top or "",
+            )
+            extra_defines.update(connect_request.defines)
+        else:
+            connect_request = resolve_connectivity_request(cfg)
+            if connect_request is None:
+                print("missing connectivity request", file=sys.stderr)
+                return 1
+            extra_defines.update(connect_request.defines)
+        top_for_walk = (
+            cfg.top
+            or (connect_request.top if connect_request else "")
+            or (fl.top_modules[0] if fl.top_modules else "")
+        )
+        if not top_for_walk:
+            print("path-walk requires --top or connect JSON top", file=sys.stderr)
+            return 2
+        try:
+            batch, index, pw_state = run_path_walk_connect(
+                connect_request,
+                fl,
+                top=top_for_walk,
+                extra_defines=extra_defines,
+                ignore_paths=list(cfg.ignore_path),
+                ignore_path_files=list(cfg.ignore_path_file),
+                ignore_modules=list(cfg.ignore_module),
+                ignore_filelists=list(cfg.ignore_filelist),
+                on_progress=on_progress,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        connect_results = batch.results
+        body = format_connect_results_tsv(
+            connect_results,
+            modules_cached=batch.modules_cached,
+        )
+        use_trace = cfg.connect_trace or cfg.connect_log
+        if connect_request.trace or use_trace:
+            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
+            print_connect_trace_reports(connect_results, stream=term_stream)
+        if cfg.output == "-":
+            sys.stdout.write(body)
+        else:
+            with open(cfg.output, "w", encoding="utf-8") as f:
+                f.write(body)
+        elapsed = time.perf_counter() - t0
+        tops = [top_for_walk]
+        if on_progress and not cfg.quiet:
+            on_progress(
+                f"path-walk: done {pw_state.stats.checks_run} check(s), "
+                f"{len(pw_state.rows_by_path)} row(s), "
+                f"{pw_state.stats.modules_loaded} module(s), "
+                f"{elapsed:.1f}s"
+            )
+        emit_run_report(
+            RunReport(
+                filelist_path=cfg.filelist,
+                elapsed_sec=elapsed,
+                fl=fl,
+                index=index,
+                cache_enabled=False,
+                elab_tops=tops,
+                instance_rows=len(pw_state.rows_by_path),
+                mode="path-walk",
+                output_path=cfg.output,
+                filelist_warnings=len(fl.errors),
+            ),
+            log_path=log_path,
+        )
+        return 0
 
     heartbeat = ProgressHeartbeat(
         reporter.phase,
@@ -572,7 +701,11 @@ def main(argv=None) -> int:
         return 2
 
     elab_scope = None
-    use_scoped_elab = lazy and (batch_mode or cfg.check_connect) and not cone_mode
+    use_scoped_elab = (
+        lazy_scoped_connect_elab()
+        and (batch_mode or cfg.check_connect)
+        and not cone_mode
+    )
     if use_scoped_elab:
         pair = tuple(cfg.check_connect) if cfg.check_connect else None
         specs = endpoint_specs_from_request(connect_request, pair=pair)
@@ -622,7 +755,56 @@ def main(argv=None) -> int:
         compute_coverage_audit(index, fl, rows, tops=tops) if rows and tops else None
     )
 
-    if cone_mode:
+    if inst_trace_mode:
+        assert cfg.inst_trace is not None
+        top_name = (
+            cfg.inst_trace.top
+            or cfg.top
+            or (tops[0] if tops else "")
+        )
+        compile_defines = dict(fl.defines)
+        compile_defines.update(extra_defines)
+        trace_result = run_inst_trace(
+            cfg.inst_trace,
+            rows=rows,
+            index=index,
+            top=top_name,
+            defines=compile_defines,
+        )
+        term_stream = sys.stderr if cfg.output == "-" else sys.stdout
+        print_inst_trace_report(trace_result, stream=term_stream)
+        if log_path is not None:
+            with open(log_path, "a", encoding="utf-8") as fh:
+                print_inst_trace_report(trace_result, stream=fh)
+        body = format_inst_trace_tsv(trace_result)
+        if cfg.output == "-":
+            sys.stdout.write(body)
+        else:
+            with open(cfg.output, "w", encoding="utf-8") as f:
+                f.write(body)
+        emit_run_report(
+            RunReport(
+                filelist_path=cfg.filelist,
+                elapsed_sec=elapsed,
+                fl=fl,
+                index=index,
+                cache_path=cache_path if use_cache else None,
+                cache_enabled=use_cache,
+                index_cache_hit=index_cache_hit,
+                index_rebuilt=index_rebuilt,
+                index_incremental=index_incremental,
+                elab_tops=tops,
+                elab_cache_hits=elab_cache_hits,
+                instance_rows=len(rows),
+                mode="inst-trace",
+                output_path=cfg.output,
+                filelist_warnings=len(fl.errors),
+                search_pattern=cfg.inst_trace.instance,
+                coverage=coverage,
+            ),
+            log_path=log_path,
+        )
+    elif cone_mode:
         top_name = tops[0] if tops else ""
         compile_defines = dict(fl.defines)
         compile_defines.update(extra_defines)

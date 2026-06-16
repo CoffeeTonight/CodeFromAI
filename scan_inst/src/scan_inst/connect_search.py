@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.connect_endpoints import _module_index, _port_param_ctx
-from scan_inst.connect_scan import ModuleConnectIndex, net_representative
+from scan_inst.connect_scan import (
+    ModuleConnectIndex,
+    _expand_concat_elements,
+    _range_to_bit_indices,
+    net_representative,
+)
 from scan_inst.index import DesignIndex
 from scan_inst.models import ConnectHop, ElabIndex, FlatRow
+from scan_inst.params import resolve_param_expr
 
 NetState = Tuple[str, str]
 PrevStep = Tuple[NetState, str, str]
@@ -16,6 +23,55 @@ PrevStep = Tuple[NetState, str, str]
 
 def _net_label(scope: str, net: str) -> str:
     return f"{scope}:{net}" if net else scope
+
+
+def _child_port_rep_matches(
+    mod_idx: ModuleConnectIndex,
+    port_name: str,
+    rep: str,
+) -> bool:
+    if net_representative(mod_idx, port_name) == rep:
+        return True
+    return rep.startswith(port_name + "[")
+
+
+def _parent_port_map_roots(
+    port_name: str,
+    expr: str,
+    child_net: str,
+    parent_idx: ModuleConnectIndex,
+    param_map: Mapping[str, str],
+) -> FrozenSet[str]:
+    """Resolve parent nets for a child port-bit via instance port map *expr*."""
+    text = re.sub(r"\s+", "", expr.strip())
+    bit_idx: Optional[int] = None
+    if child_net.startswith(port_name + "["):
+        m = re.match(rf"^{re.escape(port_name)}\[([^\]]+)\]", child_net)
+        if m:
+            bit_idx = resolve_param_expr(m.group(1), dict(param_map))
+    if bit_idx is not None and text.startswith("{") and text.endswith("}"):
+        parts = _expand_concat_elements(text[1:-1])
+        if 0 <= bit_idx < len(parts):
+            return frozenset({parts[bit_idx].strip()})
+    if bit_idx is not None:
+        m = re.match(
+            r"^((?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*))\[([^\]]+)\]$",
+            text,
+        )
+        if m:
+            base, sel = m.group(1), m.group(2)
+            if ":" in sel:
+                bits = _range_to_bit_indices(sel, param_map)
+                if bits and bit_idx in bits:
+                    return frozenset({f"{base}[{bit_idx}]"})
+            elif resolve_param_expr(sel, dict(param_map)) == bit_idx:
+                return frozenset({text})
+    if bit_idx is not None and re.match(
+        r"^(?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*)$",
+        text,
+    ):
+        return frozenset({f"{text}[{bit_idx}]"})
+    return parent_idx.expr_roots.get(expr) or frozenset()
 
 
 @dataclass(frozen=True)
@@ -280,10 +336,16 @@ def _expand_state(
                 ff_barrier=ctx.ff_barrier,
             )
             for port_name, expr in parent_idx.inst_ports.get(row.inst_leaf, ()):
-                if net_representative(mod_idx, port_name) != rep:
+                if not _child_port_rep_matches(mod_idx, port_name, rep):
                     continue
-                roots: FrozenSet[str] = parent_idx.expr_roots.get(expr) or frozenset()
-                child_lbl = _net_label(scope, port_name)
+                roots = _parent_port_map_roots(
+                    port_name,
+                    expr,
+                    net,
+                    parent_idx,
+                    mod_ctx,
+                )
+                child_lbl = _net_label(scope, net if net != port_name else port_name)
                 if not roots and expr.strip():
                     push(
                         parent_path,
@@ -313,7 +375,7 @@ def _expand_state(
             for (inst_leaf, port), parent_reps in parent_idx.hier_ref_targets.items():
                 if inst_leaf != row.inst_leaf:
                     continue
-                if net_representative(mod_idx, port) != rep:
+                if not _child_port_rep_matches(mod_idx, port, rep):
                     continue
                 if skip_iface_hier:
                     continue

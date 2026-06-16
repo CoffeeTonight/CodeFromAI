@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Mapping, Optional, Set, Tuple
+from typing import Dict, Iterator, List, Mapping, Optional, Set, Tuple, TypedDict
 
 _IDENT = r"[A-Za-z_]\w*"
 _ESC_IDENT = r"\\(?:[A-Za-z_]\w*|\S+)"
@@ -30,6 +30,24 @@ _PARAM_RE = re.compile(
     re.IGNORECASE,
 )
 _BIND_LINE_RE = re.compile(r"^\s*bind\b", re.IGNORECASE | re.MULTILINE)
+_DIRECTIVE_LINE_RE = re.compile(
+    r"^\s*`(?:define|undef|include|ifdef|ifndef|elsif|else|endif)\b",
+    re.IGNORECASE,
+)
+_MACRO_ONLY_LINE_RE = re.compile(r"^\s*(?:`[A-Za-z_]\w*\s*)+$")
+_LARGE_BODY_ATTR_SKIP = 512 * 1024
+_LARGE_BODY_SLIM = 256 * 1024
+
+_MODULE_KIND_END = {
+    "module": "endmodule",
+    "interface": "endinterface",
+    "program": "endprogram",
+}
+_MODULE_START_RE = re.compile(
+    r"\b(module|interface|program)\s+([A-Za-z_]\w*)\b",
+    re.IGNORECASE,
+)
+_END_KW_PATTERNS: Dict[str, re.Pattern[str]] = {}
 
 
 from scan_inst.models import InstanceEdge
@@ -189,6 +207,77 @@ def expand_inst_names(
     return names
 
 
+def _iter_body_lines(body: str) -> Iterator[str]:
+    start = 0
+    n = len(body)
+    i = 0
+    while i < n:
+        if body[i] == "\n":
+            yield body[start:i]
+            start = i + 1
+        elif body[i] == "\r":
+            end = i
+            if i + 1 < n and body[i + 1] == "\n":
+                i += 1
+            yield body[start:end]
+            start = i + 1
+        i += 1
+    if start < n:
+        yield body[start:]
+
+
+def slim_body_for_instance_scan(body: str) -> str:
+    """Drop preprocessor noise so instance walk skips `` `define `` / bare `` `MACRO `` lines."""
+    if len(body) < _LARGE_BODY_SLIM:
+        return body
+    if "`" not in body:
+        return body
+    kept: List[str] = []
+    for line in _iter_body_lines(body):
+        if _DIRECTIVE_LINE_RE.match(line):
+            continue
+        if _MACRO_ONLY_LINE_RE.match(line):
+            continue
+        kept.append(line)
+    if not kept:
+        return body
+    return "\n".join(kept)
+
+
+def _end_keyword_pattern(end_kw: str) -> re.Pattern[str]:
+    pat = _END_KW_PATTERNS.get(end_kw)
+    if pat is None:
+        pat = re.compile(rf"\b{re.escape(end_kw)}\b", re.IGNORECASE)
+        _END_KW_PATTERNS[end_kw] = pat
+    return pat
+
+
+class ModuleBlock(TypedDict):
+    name: str
+    chunk: str
+    kind: str
+    start: int
+
+
+def iter_module_blocks(text: str) -> Iterator[ModuleBlock]:
+    """Yield module chunks without a whole-file DOTALL regex."""
+    for m in _MODULE_START_RE.finditer(text):
+        kind = m.group(1).lower()
+        name = m.group(2)
+        end_kw = _MODULE_KIND_END.get(kind)
+        if not end_kw:
+            continue
+        end_m = _end_keyword_pattern(end_kw).search(text, m.end())
+        if not end_m:
+            continue
+        yield {
+            "name": name,
+            "chunk": text[m.end() : end_m.start()],
+            "kind": kind,
+            "start": m.start(),
+        }
+
+
 def scan_hierarchy_instances(
     body: str,
     *,
@@ -208,8 +297,12 @@ def scan_hierarchy_instances(
       comma-separated: cell u1 (...), u2 (...);
     """
     pmap = dict(param_map or {})
-    clean = _ATTR_RE.sub(" ", body)
-    clean = _BIND_LINE_RE.sub("", clean)
+    work = slim_body_for_instance_scan(body)
+    if len(work) <= _LARGE_BODY_ATTR_SKIP:
+        clean = _ATTR_RE.sub(" ", work)
+        clean = _BIND_LINE_RE.sub("", clean)
+    else:
+        clean = work
     out: List[InstanceEdge] = []
     seen: Set[Tuple[str, str]] = set()
     n = len(clean)

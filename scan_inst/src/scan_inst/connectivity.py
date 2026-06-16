@@ -58,19 +58,53 @@ def format_connect_hop(hop: ConnectHop) -> str:
     return f"[{hop.kind}] {hop.detail}"
 
 
-def format_connect_trace_report(result: ConnectResult) -> str:
+def format_connect_trace_report(
+    result: ConnectResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
     """Multi-line evidence report for a connectivity result."""
+    from scan_inst.hierarchy_log import (
+        format_endpoint_provenance_line,
+        format_scopes_provenance_lines,
+        hierarchy_spine_between,
+        scopes_from_hop_detail,
+    )
+
     lines = [
         f"check: {result.endpoint_a.spec} -> {result.endpoint_b.spec}",
         f"connected: {result.connected}  mode: {result.mode}  note: {result.note}",
     ]
+    if rows_by_path is not None:
+        lines.append(format_endpoint_provenance_line("A", result.endpoint_a, rows_by_path))
+        lines.append(format_endpoint_provenance_line("B", result.endpoint_b, rows_by_path))
     if result.errors:
         lines.append("errors:")
         lines.extend(f"  - {e}" for e in result.errors)
+    if result.connected and rows_by_path is not None:
+        spine = hierarchy_spine_between(
+            result.endpoint_a.inst_path,
+            result.endpoint_b.inst_path,
+        )
+        if spine:
+            lines.append("path hierarchy (rtl + filelist):")
+            lines.extend(
+                format_scopes_provenance_lines(spine, rows_by_path, indent="  ")
+            )
     if result.connected and result.hops:
         lines.append("path evidence:")
         for i, hop in enumerate(result.hops, 1):
             lines.append(f"  {i}. {format_connect_hop(hop)}")
+            if rows_by_path is not None:
+                hop_scopes = scopes_from_hop_detail(hop.detail)
+                if hop_scopes:
+                    lines.extend(
+                        format_scopes_provenance_lines(
+                            hop_scopes,
+                            rows_by_path,
+                            indent="    ",
+                        )
+                    )
     elif result.connected:
         lines.append("path evidence: (no hop detail; enable connect_trace / connect_log)")
     return "\n".join(lines) + "\n"
@@ -81,24 +115,71 @@ def emit_connect_trace_log(
     *,
     stream: IO[str] = sys.stderr,
     check_prefix: str = "",
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> None:
-    """Emit numbered path-evidence steps for a connected (or traced) result."""
+    """Emit endpoint provenance and path evidence for one connect result."""
+    from scan_inst.hierarchy_log import (
+        emit_scopes_provenance_log,
+        format_endpoint_provenance_line,
+        hierarchy_spine_between,
+        scopes_from_hop_detail,
+    )
+
     prefix = "[scan-inst connect]"
     if check_prefix:
         prefix = f"{prefix} [{check_prefix}]"
     header = f"{prefix} {result.endpoint_a.spec} -> {result.endpoint_b.spec}"
     print(header, file=stream, flush=True)
+    if rows_by_path is not None:
+        print(
+            f"{prefix}   {format_endpoint_provenance_line('A', result.endpoint_a, rows_by_path)}",
+            file=stream,
+            flush=True,
+        )
+        print(
+            f"{prefix}   {format_endpoint_provenance_line('B', result.endpoint_b, rows_by_path)}",
+            file=stream,
+            flush=True,
+        )
     if result.errors:
         for err in result.errors:
             print(f"{prefix}   error: {err}", file=stream, flush=True)
     if not result.connected:
         print(f"{prefix}   not connected ({result.note})", file=stream, flush=True)
         return
+    print(
+        f"{prefix}   connected: {result.connected}  mode: {result.mode}  note: {result.note}",
+        file=stream,
+        flush=True,
+    )
+    if rows_by_path is not None:
+        spine = hierarchy_spine_between(
+            result.endpoint_a.inst_path,
+            result.endpoint_b.inst_path,
+        )
+        emit_scopes_provenance_log(
+            spine,
+            rows_by_path,
+            stream=stream,
+            prefix=prefix,
+            title="path hierarchy (rtl + filelist):",
+            indent="    ",
+        )
     if not result.hops:
-        print(f"{prefix}   connected ({result.note}); no hop detail", file=stream, flush=True)
+        print(f"{prefix}   path evidence: (no hop detail; use connect_trace)", file=stream, flush=True)
         return
     for i, hop in enumerate(result.hops, 1):
         print(f"{prefix}   {i}. {format_connect_hop(hop)}", file=stream, flush=True)
+        if rows_by_path is not None:
+            hop_scopes = scopes_from_hop_detail(hop.detail)
+            emit_scopes_provenance_log(
+                hop_scopes,
+                rows_by_path,
+                stream=stream,
+                prefix=prefix,
+                title="",
+                indent="      ",
+            )
 
 
 def print_connect_trace_reports(
@@ -106,6 +187,7 @@ def print_connect_trace_reports(
     *,
     stream: IO[str],
     title: str = "connectivity path evidence",
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> None:
     """Print human-readable path-evidence blocks for terminal or log file."""
     if not results:
@@ -114,7 +196,12 @@ def print_connect_trace_reports(
     for result in results:
         if result.check_id:
             print(f"# check_id: {result.check_id}", file=stream, flush=True)
-        print(format_connect_trace_report(result), end="", file=stream, flush=True)
+        print(
+            format_connect_trace_report(result, rows_by_path=rows_by_path),
+            end="",
+            file=stream,
+            flush=True,
+        )
 
 
 def _effective_defines(

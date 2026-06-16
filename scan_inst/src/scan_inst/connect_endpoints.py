@@ -13,6 +13,7 @@ from scan_inst.connect_scan import (
     build_module_connect_index,
     collect_bind_records_for_module,
 )
+from scan_inst.hierarchy_log import format_row_provenance
 from scan_inst.index import DesignIndex
 from scan_inst.models import ConnectEndpoint, FlatRow
 from scan_inst.params import resolve_param_map
@@ -173,13 +174,20 @@ def _explain_hierarchy_miss(
     remainder = text[len(nearest) + 1 :] if len(nearest) < len(text) else ""
     errors.append(
         f"hierarchy not found: '{text}' — path stops at '{nearest}' "
-        f"(module {row.module})"
+        f"({format_row_provenance(row)})"
     )
     if remainder:
         errors.append(f"unresolved suffix: '{remainder}'")
     children = _child_instances(nearest, rows_by_path)
     if children:
-        errors.append(f"instances under '{nearest}': {', '.join(children)}")
+        errors.append(f"instances under '{nearest}':")
+        for leaf in children:
+            child_path = f"{nearest}.{leaf}" if nearest else leaf
+            child_row = rows_by_path.get(child_path)
+            if child_row is not None:
+                errors.append(f"  {child_path}  ({format_row_provenance(child_row)})")
+            else:
+                errors.append(f"  {child_path}")
         first_seg = remainder.split(".", 1)[0] if remainder else ""
         similar = _suggest_instances(first_seg, children)
         if similar:

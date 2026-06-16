@@ -715,7 +715,13 @@ def format_cone_tsv(result: ConeResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def format_cone_report(result: ConeResult) -> str:
+def format_cone_report(
+    result: ConeResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
+    from scan_inst.hierarchy_log import format_scope_provenance_line
+
     lines = [
         f"cone {result.direction}: {result.origin_spec}",
         f"visited nets: {result.nets_visited}",
@@ -724,25 +730,44 @@ def format_cone_report(result: ConeResult) -> str:
         lines.append("errors:")
         lines.extend(f"  - {e}" for e in result.errors)
         return "\n".join(lines) + "\n"
+
+    def _append_boundary(prefix: str, b: ConeBoundary) -> None:
+        lines.append(prefix)
+        if rows_by_path is not None and b.scope:
+            lines.append(f"    {format_scope_provenance_line(b.scope, rows_by_path)}")
+
     if result.flip_flops:
         lines.append(f"flip-flops ({len(result.flip_flops)}):")
         for i, b in enumerate(result.flip_flops, 1):
-            lines.append(f"  {i}. [{b.kind}] {b.label} ({b.module}) — {b.detail}")
+            _append_boundary(
+                f"  {i}. [{b.kind}] {b.label} ({b.module}) — {b.detail}",
+                b,
+            )
     if result.ports:
         lines.append(f"ports ({len(result.ports)}):")
         for i, b in enumerate(result.ports, 1):
-            lines.append(f"  {i}. [{b.kind}] {b.label} ({b.module})")
+            _append_boundary(f"  {i}. [{b.kind}] {b.label} ({b.module})", b)
     if result.blackboxes:
         lines.append(f"blackboxes ({len(result.blackboxes)}):")
         for i, b in enumerate(result.blackboxes, 1):
-            lines.append(f"  {i}. {b.label} ({b.module})")
+            _append_boundary(f"  {i}. {b.label} ({b.module})", b)
     if not result.boundaries:
         lines.append("no boundaries reached (check endpoint or expand rules)")
     return "\n".join(lines) + "\n"
 
 
-def print_cone_report(result: ConeResult, *, stream: IO[str] = sys.stderr) -> None:
-    print(format_cone_report(result), end="", file=stream, flush=True)
+def print_cone_report(
+    result: ConeResult,
+    *,
+    stream: IO[str] = sys.stderr,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> None:
+    print(
+        format_cone_report(result, rows_by_path=rows_by_path),
+        end="",
+        file=stream,
+        flush=True,
+    )
 
 
 def write_cone_dot(

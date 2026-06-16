@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from dataclasses import replace
@@ -55,6 +56,12 @@ from scan_inst.run_request import (
     run_config_from_args,
     try_load_run_request_from_path,
 )
+from scan_inst.run_tests import (
+    RunTestEntry,
+    build_test_run_configs,
+    try_parse_run_test_suite,
+)
+from scan_inst.cli_execute import execute_run
 from scan_inst.cone import (
     fanin_cone,
     fanout_cone,
@@ -479,613 +486,46 @@ def main(argv=None) -> int:
                     file=sys.stderr,
                 )
 
-    connect_request: Optional[ConnectivityRequest] = None
-    if cfg.check_connect_batch or cfg.connect_inline:
-        connect_request = resolve_connectivity_request(cfg)
-
-    effective_mode = resolve_effective_run_mode(cfg, connect_request)
-    path_walk_mode = effective_mode == "path-walk"
-    cone_mode = effective_mode == "cone"
-    inst_trace_mode = effective_mode == "inst-trace"
-    connect_run_mode = effective_mode in (
-        "check-connect",
-        "check-connect-batch",
-        "path-walk",
-    )
-    if cfg.check_connect and connect_request is not None:
-        ap.error("use either check_connect or check_connect_batch/connect, not both")
-    if cfg.fanin_cone and cfg.fanout_cone:
-        ap.error("use either fanin_cone or fanout_cone, not both")
-    if path_walk_mode and connect_request is None:
-        ap.error("path-walk requires checks in batch JSON or --check-connect")
-    if effective_mode == "check-connect-batch" and connect_request is None:
-        ap.error(
-            "check-connect-batch mode requires checks/pairs in batch JSON "
-            "or a pairs text file"
-        )
-    if inst_trace_mode and cfg.inst_trace is None:
-        ap.error("inst-trace mode requires inst_trace in JSON")
-    if cone_mode and not (cfg.fanin_cone or cfg.fanout_cone):
-        ap.error("cone mode requires fanin_cone or fanout_cone in JSON")
-
-    t0 = time.perf_counter()
-    extra_defines = dict(cfg.defines_map)
-    if connect_request is not None:
-        extra_defines.update(connect_request.defines)
-    cache_dir = default_cache_dir() if cfg.cache_dir is None else Path(cfg.cache_dir)
-    use_cache = not cfg.no_cache
-    reporter = ProgressReporter(enabled=not cfg.quiet)
-    reporter.set_filelist(cfg.filelist)
-    on_progress = progress_callback(reporter)
-    log_path: Path | None = None
-    if not cfg.no_log_file:
-        log_path = (
-            Path(cfg.log_file)
-            if cfg.log_file
-            else default_log_path(cfg.filelist, cfg.output)
-        )
-
-    lazy = lazy_processing_enabled()
-    if lazy and on_progress:
-        ifdef_note = "ifdef at index" if lazy_index_ifdef() else "ifdef/macro deferred"
-        on_progress(
-            f"index: lazy ({ifdef_note}; connect/elab on-demand; "
-            f"SCAN_INST_LAZY=0 to disable)"
-        )
-
-    fl = parse_filelist(
-        cfg.filelist,
-        index_cwd=cfg.index_cwd,
-        extra_defines=extra_defines,
-        on_progress=on_progress,
-        ignore_filelists=list(cfg.ignore_filelist),
-        defer_source_exists=lazy_filelist_defer_exists(),
-    )
-    if not fl.source_files:
-        print("No sources in filelist", file=sys.stderr)
-        return 1
-
-    if path_walk_mode:
-        if on_progress:
-            on_progress("path-walk: on-demand index (endpoint paths only)")
-        if cfg.check_connect and connect_request is None:
-            connect_request = ConnectivityRequest(
-                checks=(
-                    ConnectivityCheck(
-                        cfg.check_connect[0],
-                        cfg.check_connect[1],
-                    ),
-                ),
-                top=cfg.top or "",
-            )
-            extra_defines.update(connect_request.defines)
-        else:
-            connect_request = resolve_connectivity_request(cfg)
-            if connect_request is None:
-                print("missing connectivity request", file=sys.stderr)
-                return 1
-            extra_defines.update(connect_request.defines)
-        top_for_walk = (
-            cfg.top
-            or (connect_request.top if connect_request else "")
-            or (fl.top_modules[0] if fl.top_modules else "")
-        )
-        if not top_for_walk:
-            print("path-walk requires --top or connect JSON top", file=sys.stderr)
-            return 2
+    test_document = None
+    test_plan: list[tuple[RunTestEntry | None, object]] = []
+    if config_path is not None:
         try:
-            batch, index, pw_state = run_path_walk_connect(
-                connect_request,
-                fl,
-                top=top_for_walk,
-                extra_defines=extra_defines,
-                ignore_paths=list(cfg.ignore_path),
-                ignore_path_files=list(cfg.ignore_path_file),
-                ignore_modules=list(cfg.ignore_module),
-                ignore_filelists=list(cfg.ignore_filelist),
-                on_progress=on_progress,
-            )
-        except ValueError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-        connect_results = batch.results
-        body = format_connect_results_tsv(
-            connect_results,
-            modules_cached=batch.modules_cached,
-        )
-        use_trace = cfg.connect_trace or cfg.connect_log
-        if connect_request.trace or use_trace:
-            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
-            print_connect_trace_reports(connect_results, stream=term_stream)
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        elapsed = time.perf_counter() - t0
-        tops = [top_for_walk]
-        if on_progress and not cfg.quiet:
-            on_progress(
-                f"path-walk: done {pw_state.stats.checks_run} check(s), "
-                f"{len(pw_state.rows_by_path)} row(s), "
-                f"{pw_state.stats.modules_loaded} module(s), "
-                f"{elapsed:.1f}s"
-            )
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_enabled=False,
-                elab_tops=tops,
-                instance_rows=len(pw_state.rows_by_path),
-                mode="path-walk",
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-            ),
-            log_path=log_path,
-        )
-        return 0
-
-    heartbeat = ProgressHeartbeat(
-        reporter.phase,
-        "index",
-        enabled=not cfg.quiet and len(fl.source_files) >= 500,
-        get_detail=reporter.get_detail,
-    )
-    low_memory = effective_low_memory(
-        explicit=cfg.low_memory,
-        num_sources=len(fl.source_files),
-    )
-    if low_memory and not cfg.low_memory and on_progress:
-        on_progress(
-            f"index: auto low-memory fused build ({len(fl.source_files)} sources)"
-        )
-    with heartbeat:
-        index, bundle, index_cache_hit, index_rebuilt, index_incremental, cache_path = (
-            load_or_build_index(
-            cfg.filelist,
-            fl,
-            cache_dir=cache_dir,
-            extra_defines=extra_defines,
-            ignore_paths=list(cfg.ignore_path),
-            ignore_path_files=list(cfg.ignore_path_file),
-            ignore_modules=list(cfg.ignore_module),
-            ignore_filelists=list(cfg.ignore_filelist),
-            jobs=cfg.jobs,
-            use_cache=use_cache,
-            refresh_cache=cfg.refresh_cache,
-            low_memory=low_memory,
-            on_progress=on_progress,
-            )
-        )
-    if index_cache_hit and not cfg.quiet:
-        reporter.phase(f"cache hit: index ({len(index.modules)} modules)")
-
-    if cfg.find_top:
-        tops = find_top_modules(index)
-        elapsed = time.perf_counter() - t0
-        lines = ["module\tfile\tstop_reason"]
-        for name in tops:
-            rec = index.get_module(name)
-            file_p = rec.file_path if rec else ""
-            stop = index.module_stop_reason(name)
-            lines.append(f"{name}\t{file_p}\t{stop}")
-        body = "\n".join(lines) + "\n"
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                top_candidates=len(tops),
-                mode="find-top",
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-            ),
-            log_path=log_path,
-        )
-        return 0
-
-    try:
-        tops = resolve_top_modules(
-            index,
-            top=cfg.top or (connect_request.top if connect_request else ""),
-            filelist_tops=fl.top_modules,
-            all_tops=cfg.all_tops,
-        )
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        print("Hint: scan-inst ... --find-top", file=sys.stderr)
-        return 2
-
-    elab_scope = None
-    use_scoped_elab = (
-        lazy_scoped_connect_elab()
-        and connect_run_mode
-        and not cone_mode
-        and not inst_trace_mode
-    )
-    if use_scoped_elab:
-        pair = tuple(cfg.check_connect) if cfg.check_connect else None
-        specs = endpoint_specs_from_request(connect_request, pair=pair)
-        if specs:
-            top_for_scope = tops[0] if tops else ""
-            elab_scope = elab_scope_paths(specs, top=top_for_scope)
-            if on_progress:
-                on_progress(f"elab: scoped {len(elab_scope)} path(s) for connect")
-
-    def _get_cached_elab(top_name: str):
-        if not use_cache or elab_scope is not None:
-            return None
-        return get_cached_elab(bundle, top_name, cfg.max_depth)
-
-    def _store_cached_elab(
-        top_name: str,
-        root,
-        part,
-    ) -> None:
-        if elab_scope is not None:
-            return
-        store_cached_elab(
-            bundle,
-            top_name,
-            cfg.max_depth,
-            root,
-            part,
-            cache_dir=cache_dir,
-            use_cache=use_cache,
-        )
-
-    roots, rows, elab_cache_hits = elaborate_tops_parallel(
-        index,
-        tops,
-        max_depth=cfg.max_depth,
-        scope_paths=elab_scope,
-        jobs=cfg.jobs,
-        get_cached=_get_cached_elab,
-        store_cached=_store_cached_elab,
-        on_progress=on_progress,
-    )
-    if elab_cache_hits and on_progress:
-        on_progress(f"cache hit: elab ({elab_cache_hits}/{len(tops)} tops)")
-    rows.sort(key=lambda r: (r.full_path.count("."), r.full_path))
-    elapsed = time.perf_counter() - t0
-    coverage = (
-        compute_coverage_audit(index, fl, rows, tops=tops) if rows and tops else None
-    )
-
-    if inst_trace_mode:
-        assert cfg.inst_trace is not None
-        top_name = (
-            cfg.inst_trace.top
-            or cfg.top
-            or (tops[0] if tops else "")
-        )
-        compile_defines = dict(fl.defines)
-        compile_defines.update(extra_defines)
-        trace_result = run_inst_trace(
-            cfg.inst_trace,
-            rows=rows,
-            index=index,
-            top=top_name,
-            defines=compile_defines,
-        )
-        term_stream = sys.stderr if cfg.output == "-" else sys.stdout
-        print_inst_trace_report(trace_result, stream=term_stream)
-        if log_path is not None:
-            with open(log_path, "a", encoding="utf-8") as fh:
-                print_inst_trace_report(trace_result, stream=fh)
-        body = format_inst_trace_tsv(trace_result)
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                elab_tops=tops,
-                elab_cache_hits=elab_cache_hits,
-                instance_rows=len(rows),
-                mode="inst-trace",
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-                search_pattern=cfg.inst_trace.instance,
-                coverage=coverage,
-            ),
-            log_path=log_path,
-        )
-    elif cone_mode:
-        top_name = tops[0] if tops else ""
-        compile_defines = dict(fl.defines)
-        compile_defines.update(extra_defines)
-        over_approx = (
-            cfg.over_approximate_if
-            if cfg.over_approximate_if is not None
-            else True
-        )
-        if cfg.fanout_cone:
-            cone_result = fanout_cone(
-                cfg.fanout_cone,
-                rows=rows,
-                index=index,
-                top=top_name,
-                defines=compile_defines,
-                over_approximate_if=over_approx,
-            )
-            cone_label = cfg.fanout_cone
-            mode_name = "fanout-cone"
-        else:
-            assert cfg.fanin_cone is not None
-            cone_result = fanin_cone(
-                cfg.fanin_cone,
-                rows=rows,
-                index=index,
-                top=top_name,
-                defines=compile_defines,
-                over_approximate_if=over_approx,
-            )
-            cone_label = cfg.fanin_cone
-            mode_name = "fanin-cone"
-        term_stream = sys.stderr if cfg.output == "-" else sys.stdout
-        print_cone_report(cone_result, stream=term_stream)
-        if log_path is not None:
-            with open(log_path, "a", encoding="utf-8") as fh:
-                print_cone_report(
-                    cone_result,
-                    stream=fh,
-                )
-        if cfg.cone_graph:
-            write_cone_dot(cone_result, cfg.cone_graph)
-        body = format_cone_tsv(cone_result)
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                elab_tops=tops,
-                elab_cache_hits=elab_cache_hits,
-                instance_rows=len(rows),
-                mode=mode_name,
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-                search_pattern=cone_label,
-                coverage=coverage,
-            ),
-            log_path=log_path,
-        )
-    elif connect_run_mode:
-        top_name = tops[0] if tops else ""
-        compile_defines = dict(fl.defines)
-        compile_defines.update(extra_defines)
-        use_trace = cfg.connect_trace or cfg.connect_log
-        if effective_mode in ("check-connect-batch", "path-walk"):
-            request = connect_request
-            assert request is not None
-            trace_on = request.trace or use_trace
-            log_on = request.connect_log or cfg.connect_log
-            include_ff = request.include_ff or cfg.include_ff
-            if (
-                trace_on != request.trace
-                or log_on != request.connect_log
-                or include_ff != request.include_ff
-            ):
-                request = ConnectivityRequest(
-                    checks=request.checks,
-                    top=request.top,
-                    defines=request.defines,
-                    trace=trace_on,
-                    connect_log=log_on,
-                    include_ff=include_ff,
-                    strict_generate=request.strict_generate,
-                    over_approximate_if=request.over_approximate_if,
-                )
-            batch = run_connectivity_request(
-                request,
-                rows=rows,
-                index=index,
-                top=top_name,
-                extra_defines=compile_defines,
-                jobs=cfg.jobs,
-            )
-            connect_results = batch.results
-            body = format_connect_results_tsv(
-                connect_results,
-                modules_cached=batch.modules_cached,
-            )
-        else:
-            assert cfg.check_connect is not None
-            result = check_connectivity(
-                cfg.check_connect[0],
-                cfg.check_connect[1],
-                rows=rows,
-                index=index,
-                top=top_name,
-                defines=compile_defines,
-                trace=use_trace,
-                ff_barrier=not cfg.include_ff,
-                strict_generate=cfg.strict_generate,
-                over_approximate_if=cfg.over_approximate_if,
-            )
-            connect_results = [result]
-            body = format_connect_results_tsv(connect_results)
-        if use_trace:
-            term_stream = sys.stderr if cfg.output == "-" else sys.stdout
-            print_connect_trace_reports(connect_results, stream=term_stream)
-            if log_path is not None:
-                with open(log_path, "a", encoding="utf-8") as fh:
-                    print_connect_trace_reports(
-                        connect_results,
-                        stream=fh,
-                        title="connectivity path evidence (log)",
+            raw_doc = json.loads(config_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            raw_doc = None
+        if isinstance(raw_doc, dict):
+            test_document = raw_doc
+            suite = try_parse_run_test_suite(raw_doc, base_dir=config_path.parent)
+            if suite is not None:
+                test_plan = list(
+                    build_test_run_configs(
+                        suite,
+                        raw_doc,
+                        base_dir=config_path.parent,
                     )
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                elab_tops=tops,
-                elab_cache_hits=elab_cache_hits,
-                instance_rows=len(rows),
-                mode=effective_mode,
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-                coverage=coverage,
-            ),
-            log_path=log_path,
-        )
-    elif cfg.search or cfg.search_path:
-        hits = []
-        if cfg.search:
-            hits.extend(
-                search(
-                    cfg.search,
-                    rows=rows,
-                    match_inst=True,
-                    match_module=cfg.search_module,
-                    include_subtree=cfg.search_subtree,
                 )
-            )
-        if cfg.search_path:
-            hits.extend(
-                search_hierarchy_path(rows, cfg.search_path, index)
-            )
-        if cfg.search:
-            need_chain = [h for h in hits if not h.path_chain]
-            if need_chain:
-                top_name = tops[0] if tops else ""
-                attach_path_chains(
-                    need_chain, index, rows, top=top_name, refine_paths=False
-                )
-        hits.sort(key=lambda h: h.full_path)
-        lines = [
-            "full_path\tmatched\tmodule\tdepth\tfile\t"
-            "via_filelist\tfilelist_chain\tstop_reason\tkind\t"
-            "port\tport_found\tport_line\tport_decl\tport_param_note\t"
-            "path_chain"
-        ]
-        for h in hits:
-            lines.append(
-                f"{h.full_path}\t{h.matched_name}\t{h.module}\t"
-                f"{h.depth}\t{h.file}\t{h.via_filelist}\t{h.filelist_chain}\t"
-                f"{h.stop_reason}\t{h.match_kind}\t"
-                f"{h.port_name}\t{h.port_found}\t{h.port_line}\t"
-                f"{h.port_decl}\t{h.port_param_note}\t"
-                f"{format_path_chain_compact(h.path_chain)}"
-            )
-        body = "\n".join(lines) + "\n"
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                elab_tops=tops,
-                elab_cache_hits=elab_cache_hits,
-                instance_rows=len(rows),
-                search_hits=len(hits),
-                search_pattern=cfg.search_path
-                or ",".join(normalize_search_patterns(cfg.search or "")),
-                search_hit_details=hits,
-                mode="search",
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-                coverage=coverage,
-            ),
-            log_path=log_path,
-        )
-    else:
-        lines = [
-            "full_path\tinst_leaf\tmodule\tdepth\tfile\t"
-            "stop_reason\tvia_filelist\tfilelist_chain"
-        ]
-        for r in rows:
-            lines.append(
-                f"{r.full_path}\t{r.inst_leaf}\t{r.module}\t"
-                f"{r.depth}\t{r.file}\t{r.stop_reason}\t"
-                f"{r.via_filelist}\t{r.filelist_chain}"
-            )
-        body = "\n".join(lines) + "\n"
-        if cfg.output == "-":
-            sys.stdout.write(body)
-        else:
-            with open(cfg.output, "w", encoding="utf-8") as f:
-                f.write(body)
-        emit_run_report(
-            RunReport(
-                filelist_path=cfg.filelist,
-                elapsed_sec=elapsed,
-                fl=fl,
-                index=index,
-                cache_path=cache_path if use_cache else None,
-                cache_enabled=use_cache,
-                index_cache_hit=index_cache_hit,
-                index_rebuilt=index_rebuilt,
-                index_incremental=index_incremental,
-                elab_tops=tops,
-                elab_cache_hits=elab_cache_hits,
-                instance_rows=len(rows),
-                mode="hierarchy",
-                output_path=cfg.output,
-                filelist_warnings=len(fl.errors),
-                coverage=coverage,
-            ),
-            log_path=log_path,
-        )
+                if not cfg.quiet:
+                    print(
+                        f"run: test-suite {len(test_plan)} step(s) from "
+                        f"{config_path.resolve()}",
+                        file=sys.stderr,
+                    )
+    if not test_plan:
+        test_plan = [(None, cfg)]
 
-    return 0
+    exit_code = 0
+    for test_entry, run_cfg in test_plan:
+        if test_entry is not None and not run_cfg.quiet:
+            label = test_entry.name or f"{test_entry.kind}[{test_entry.index}]"
+            print(
+                f"run: test {label} kind={test_entry.kind} mode={test_entry.mode} "
+                f"output={run_cfg.output}",
+                file=sys.stderr,
+            )
+        step_rc = execute_run(run_cfg, ap)
+        if step_rc != 0:
+            exit_code = step_rc
+    return exit_code
 
 
 if __name__ == "__main__":

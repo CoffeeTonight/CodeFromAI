@@ -187,8 +187,89 @@ Path-walk connect (on-demand index)
     "output": "connect.tsv"
   }
 
-Connectivity — batch
---------------------
+Flat run suite (one JSON, sibling blocks, sequential run)
+-------------------------------------------------------
+  Top-level siblings (same level). Each block has enable: 1|0 to run or skip.
+  filelist, top, defines stay at the root; full-index options live under
+  run_on_full_db.
+
+  run_on_full_db             Full filelist index + elaboration settings
+    enable (0|1)             Run hierarchy/search/find-top step when 1
+    mode                     hierarchy (default) | search | find-top
+    ignore-path              RTL path globs (moved here from top level)
+    ignore-path-file         External ignore lists
+    ignore-module            Module names to mark ignorePath
+    ignore-filelist          Listing .f names/paths to skip
+    jobs, no-cache, cache-dir, refresh-cache, low-memory, max-depth, …
+    output                   TSV for hierarchy/search/find-top step
+
+  run_conn_check             P2P path connectivity (checks inside)
+    enable (0|1)
+    mode                     check-connect | check-connect-batch | path-walk
+    checks                   Endpoint pairs (required except check-connect)
+    output
+
+  run_io_trace               Instance driver/sinker trace
+    enable (0|1)
+    mode                     inst-trace
+    instance, direction, path_kind (ff|comb), output
+
+  run_cone_trace             Fanin/fanout COI cone
+    enable (0|1)
+    mode                     fanin-cone | fanout-cone | cone
+    fanin_cone / fanout_cone, cone-graph, output
+
+  run_on_full_db settings (ignores, jobs, cache, …) merge into every enabled
+  verification step even when run_on_full_db.enable is 0.
+
+Example (flat)
+--------------
+{
+  "filelist": "design.f",
+  "top": "top",
+  "defines": {"USE_X": "1"},
+  "run_on_full_db": {
+    "enable": 0,
+    "mode": "hierarchy",
+    "ignore_path": ["pcielinktop"],
+    "ignore_module": ["bb_mod"],
+    "jobs": 4,
+    "no_cache": true,
+    "output": "instances.tsv"
+  },
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "check-connect-batch",
+    "checks": [{"id": "a", "a": "top.a", "b": "top.z"}],
+    "output": "conn.tsv"
+  },
+  "run_io_trace": {
+    "enable": 1,
+    "mode": "inst-trace",
+    "instance": "top.u_mid",
+    "direction": "driver",
+    "path_kind": "ff",
+    "output": "trace.tsv"
+  },
+  "run_cone_trace": {
+    "enable": 0,
+    "mode": "fanout-cone",
+    "fanout_cone": "top.u_mid.din",
+    "output": "cone.tsv"
+  }
+}
+
+Legacy tests[] array is still accepted (enable supported per entry).
+
+Bundled examples (run from examples/stress_seed42):
+  flat_run_example.json
+  stress_42_d8.suite.json
+
+  cd examples/stress_seed42
+  scan-inst --config flat_run_example.json
+
+Connectivity — batch (single-test / legacy)
+-------------------------------------------
   connect (object)            Inline checks + connect options (preferred in run JSON)
   check-connect-batch (string | object)
       Path to pairs/checks file, OR inline same shape as connect

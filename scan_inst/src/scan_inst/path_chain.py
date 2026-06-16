@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from scan_inst.index import DesignIndex
+from scan_inst.hierarchy_log import format_path_link_provenance
 from scan_inst.models import FlatRow, PathChainLink, SearchHit
 from scan_inst.path_refine import PathRefineResult, refine_param_ctx_for_path
 
@@ -227,7 +228,7 @@ def format_path_chain_report(links: Sequence[PathChainLink]) -> List[str]:
                 f"    {link.port_name:<16} port   module={link.module}  "
                 f"rtl={rtl_name}{line}"
             )
-        if link.via_filelist:
-            via_name = Path(link.via_filelist).name
-            lines.append(f"      {'':16}       via_filelist={via_name}")
+        prov = format_path_link_provenance(link)
+        if prov:
+            lines.append(f"      {'':16}       {prov}")
     return lines

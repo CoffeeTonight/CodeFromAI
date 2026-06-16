@@ -367,7 +367,13 @@ def format_inst_trace_tsv(result: InstTraceResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def format_inst_trace_report(result: InstTraceResult) -> str:
+def format_inst_trace_report(
+    result: InstTraceResult,
+    *,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
+) -> str:
+    from scan_inst.hierarchy_log import format_scope_provenance_line
+
     lines = [
         f"inst-trace: {result.instance} ({result.module})",
         f"direction={result.direction} path_kind={result.path_kind}",
@@ -384,6 +390,10 @@ def format_inst_trace_report(result: InstTraceResult) -> str:
         )
         for b in pr.cone.boundaries:
             lines.append(f"    [{b.kind}] {b.label} ({b.module}) — {b.detail}")
+            if rows_by_path is not None and b.scope:
+                lines.append(
+                    f"      {format_scope_provenance_line(b.scope, rows_by_path)}"
+                )
     if not result.port_results:
         lines.append("no port traces (check instance or direction filter)")
     return "\n".join(lines) + "\n"
@@ -393,5 +403,11 @@ def print_inst_trace_report(
     result: InstTraceResult,
     *,
     stream: IO[str] = sys.stderr,
+    rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> None:
-    print(format_inst_trace_report(result), end="", file=stream, flush=True)
+    print(
+        format_inst_trace_report(result, rows_by_path=rows_by_path),
+        end="",
+        file=stream,
+        flush=True,
+    )

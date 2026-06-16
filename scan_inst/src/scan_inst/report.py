@@ -11,7 +11,8 @@ from typing import List, Optional, Sequence, TextIO, Tuple
 from scan_inst.coverage_audit import CoverageAuditResult
 from scan_inst.filelist import FilelistResult
 from scan_inst.index import DesignIndex
-from scan_inst.models import SearchHit
+from scan_inst.hierarchy_log import format_hierarchy_rows_report
+from scan_inst.models import FlatRow, SearchHit
 from scan_inst.path_chain import format_path_chain_report
 from scan_inst.progress import format_duration
 
@@ -61,6 +62,7 @@ class RunReport:
     output_path: str = "-"
     filelist_warnings: int = 0
     coverage: Optional[CoverageAuditResult] = None
+    hierarchy_rows: Sequence[FlatRow] = ()
 
     def lines(self) -> List[str]:
         out: List[str] = []
@@ -134,6 +136,16 @@ class RunReport:
             out.append(f"  Elab tops:     {tops}")
         if self.instance_rows:
             out.append(f"  Instances:     {self.instance_rows}")
+        if self.hierarchy_rows:
+            out.append("")
+            cap = 200 if len(self.hierarchy_rows) > 200 else None
+            out.extend(
+                format_hierarchy_rows_report(
+                    self.hierarchy_rows,
+                    limit=cap,
+                    title="Hierarchy (rtl + filelist per node)",
+                )
+            )
         if self.search_hits is not None:
             pat = self.search_pattern or ""
             out.append(f"  Search:        {self.search_hits} hits ({pat!r})")

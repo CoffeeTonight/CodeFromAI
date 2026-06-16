@@ -13,6 +13,7 @@ from scan_inst.perf import (
     low_memory_auto_threshold,
     slow_file_log_threshold_sec,
 )
+from scan_inst.preprocess import _define_active
 from scan_inst.run_request import _config_env_block, _mapping_get_ci, _parse_defines
 
 # Env vars that affect index/preprocess/connect behavior (stable order for logs).
@@ -233,10 +234,109 @@ def format_config_env_audit_lines(
         )
 
     lines.append(
-        "config-env: note: filelist +define+ macros merge at filelist parse "
-        "(see run report Defines:); they affect ifdef when index-ifdef-policy is active-at-index"
+        "config-env: note: full effective RTL macros logged after filelist parse "
+        "(run: verilog-defines: ...)"
     )
     return lines
+
+
+def _ifdef_semantics_lines() -> List[str]:
+    return [
+        "verilog-defines: ifdef/ifndef semantics (SystemVerilog-style truth, not C #ifdef):",
+        "verilog-defines:   `ifdef MACRO`  — branch ON when MACRO is *active*",
+        "verilog-defines:   `ifndef MACRO` — branch ON when MACRO is *not active*",
+        "verilog-defines:   *active* = name appears in defines map AND value is truthy",
+        "verilog-defines:   truthy values: 1, true, yes, non-zero literals, etc.",
+        "verilog-defines:   inactive (same for ifdef OFF / ifndef ON): key missing, "
+        'value "", "0", "false", "1\'b0", "\'b0", "1\'h0", "\'h0"',
+        "verilog-defines:   example: defines ABC=0 → `ifndef ABC` stays ON (0 is inactive); "
+        "`ifdef ABC` is OFF",
+        "verilog-defines:   example: defines ABC=1 → `ifndef ABC` is OFF (branch removed "
+        "when index applies ifdef)",
+        "verilog-defines:   in-file `define in RTL is collected per file during preprocess "
+        "(not listed here unless also in JSON/filelist)",
+    ]
+
+
+def format_verilog_defines_audit_lines(
+    *,
+    effective_defines: Mapping[str, str],
+    json_defines: Optional[Mapping[str, str]] = None,
+    connect_defines: Optional[Mapping[str, str]] = None,
+) -> List[str]:
+    """Log merged RTL macros used for preprocess/ifdef after filelist parse."""
+    json_map = dict(json_defines or {})
+    connect_map = dict(connect_defines or {})
+    lines: List[str] = [
+        "verilog-defines: === effective RTL macros (JSON + filelist +define+ + connect) ===",
+    ]
+    lines.extend(_ifdef_semantics_lines())
+
+    if not effective_defines:
+        lines.append(
+            "verilog-defines: (none from JSON or filelist — RTL `define may still add macros per file)"
+        )
+        return lines
+
+    filelist_only = {
+        k: v
+        for k, v in effective_defines.items()
+        if k not in json_map and k not in connect_map
+    }
+    if json_map:
+        parts = [f"{k}={v!r}" for k, v in sorted(json_map.items())]
+        lines.append(f"verilog-defines: from JSON defines ({len(json_map)}): {'; '.join(parts)}")
+    if connect_map:
+        parts = [f"{k}={v!r}" for k, v in sorted(connect_map.items())]
+        lines.append(
+            f"verilog-defines: from connect batch ({len(connect_map)}): {'; '.join(parts)}"
+        )
+    if filelist_only:
+        parts = [f"{k}={v!r}" for k, v in sorted(filelist_only.items())]
+        lines.append(
+            f"verilog-defines: from filelist +define+ only ({len(filelist_only)}): "
+            f"{'; '.join(parts)}"
+        )
+
+    lines.append(
+        f"verilog-defines: merged effective ({len(effective_defines)}) — "
+        "per-macro branch state if index applies ifdef:"
+    )
+    for name in sorted(effective_defines):
+        val = effective_defines[name]
+        active = _define_active(name, effective_defines)
+        sources: List[str] = []
+        if name in json_map:
+            sources.append("json")
+        if name in connect_map:
+            sources.append("connect")
+        if name in filelist_only:
+            sources.append("filelist")
+        src = "+".join(sources) if sources else "merged"
+        lines.append(
+            f"verilog-defines:   {name}={val!r} source={src} "
+            f"active={int(active)} → `ifdef {name}`={'ON' if active else 'OFF'} "
+            f"`ifndef {name}`={'ON' if not active else 'OFF'}"
+        )
+    return lines
+
+
+def emit_verilog_defines_audit(
+    *,
+    effective_defines: Mapping[str, str],
+    json_defines: Optional[Mapping[str, str]] = None,
+    connect_defines: Optional[Mapping[str, str]] = None,
+    stream: Optional[TextIO] = None,
+) -> None:
+    import sys
+
+    out = stream if stream is not None else sys.stderr
+    for line in format_verilog_defines_audit_lines(
+        effective_defines=effective_defines,
+        json_defines=json_defines,
+        connect_defines=connect_defines,
+    ):
+        print(f"run: {line}", file=out, flush=True)
 
 
 def emit_config_env_audit(

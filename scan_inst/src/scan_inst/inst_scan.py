@@ -227,9 +227,13 @@ def _iter_body_lines(body: str) -> Iterator[str]:
 
 
 def slim_body_for_instance_scan(body: str) -> str:
-    """Drop preprocessor noise so instance walk skips `` `define `` / bare `` `MACRO `` lines."""
-    if len(body) < _LARGE_BODY_SLIM:
-        return body
+    """
+    Drop `` `ifdef `` / `` `ifndef `` / bare `` `MACRO `` lines before instance walk.
+
+    When index defers ifdef filtering, directive lines remain in the body; stripping
+    them avoids confusing the instance scanner (including nested `` `ifndef `` inside
+    port lists) while keeping RTL in all conditional branches.
+    """
     if "`" not in body:
         return body
     kept: List[str] = []

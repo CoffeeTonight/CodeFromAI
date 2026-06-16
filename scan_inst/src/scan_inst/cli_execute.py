@@ -151,6 +151,16 @@ def execute_run(cfg: RunConfig, ap) -> int:
         return 1
 
     if not cfg.quiet:
+        from scan_inst.config_env_audit import emit_verilog_defines_audit
+
+        emit_verilog_defines_audit(
+            effective_defines=fl.defines,
+            json_defines=cfg.defines_map,
+            connect_defines=(
+                connect_request.defines if connect_request is not None else None
+            ),
+            stream=sys.stderr,
+        )
         loader = "path-walk" if path_walk_mode else "load_or_build_index"
         print(
             f"run: enable-trace: stage=execute_run effective_mode={effective_mode} "

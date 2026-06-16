@@ -189,6 +189,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
             no_cache=not use_cache,
             on_progress=on_progress,
             trace_stream=sys.stderr if not cfg.quiet else None,
+            trace_log_path=log_path,
         )
         elapsed = time.perf_counter() - t0
 
@@ -338,12 +339,24 @@ def execute_run(cfg: RunConfig, ap) -> int:
             )
             endpoint_rows = pw_state.rows_by_path
             if not cfg.quiet:
+                emit_hierarchy_rows_log(
+                    pw_state.rows(),
+                    stream=sys.stderr,
+                    title="path-walk instance rows (rtl + filelist)",
+                )
                 for result in connect_results:
                     emit_connect_trace_log(
                         result,
                         stream=sys.stderr,
                         check_prefix=result.check_id or "",
                         rows_by_path=endpoint_rows,
+                    )
+            if log_path is not None:
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    emit_hierarchy_rows_log(
+                        pw_state.rows(),
+                        stream=fh,
+                        title="path-walk instance rows (rtl + filelist)",
                     )
             use_trace = cfg.connect_trace or cfg.connect_log
             if connect_request.trace or use_trace:

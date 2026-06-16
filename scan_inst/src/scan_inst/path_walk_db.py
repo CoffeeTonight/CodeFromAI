@@ -3,17 +3,22 @@ Path-walk module DB: Tier-0 regex decl index + Tier-1 validated instance scan.
 
 Built incrementally during path-walk; disk cache per RTL file (regex + validated).
 Does not participate in full DesignIndex build / load_or_build_index.
+
+Disk layout::
+
+    {cache_dir}/path-walk-db/{cache_key}/regex/{file_token}.pkl
+    {cache_dir}/path-walk-db/{cache_key}/validated/{file_token}_{defines}.pkl
+    {cache_dir}/path-walk-db/{cache_key}/module_index.tsv   (human-readable snapshot)
 """
 
 from __future__ import annotations
 
 import hashlib
-import os
 import pickle
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.ignore_path import source_path_matches
 from scan_inst.index import DesignIndex, scan_preprocessed
@@ -22,7 +27,7 @@ from scan_inst.manifest import path_stat
 from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
-PATH_WALK_DB_VERSION = 1
+PATH_WALK_DB_VERSION = 3
 
 _MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|interface|program)\s+([A-Za-z_]\w*)\b",
@@ -114,6 +119,14 @@ def _record_lite(rec: ModuleRecord) -> ModuleRecord:
     )
 
 
+def _is_placeholder_module(rec: Optional[ModuleRecord]) -> bool:
+    if rec is None:
+        return True
+    if rec.is_blackbox or rec.stop_reason:
+        return True
+    return not bool(rec.file_path)
+
+
 class PathWalkModuleDb:
     """
     Incremental module→files map (Tier 0) and per-file validated scan (Tier 1).
@@ -133,6 +146,7 @@ class PathWalkModuleDb:
         cache_dir: Optional[Path] = None,
         cache_key: Optional[str] = None,
         no_cache: bool = False,
+        on_trace: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._sources = [str(Path(s).resolve()) for s in sources]
         self._index = index
@@ -141,6 +155,7 @@ class PathWalkModuleDb:
         self._skip = tuple(skip_path_patterns)
         self._no_cache = no_cache
         self._defines_digest = _defines_digest(self._defines)
+        self._on_trace = on_trace
 
         base = cache_dir
         if base is None and not no_cache:
@@ -162,9 +177,42 @@ class PathWalkModuleDb:
         self.cache_regex_hits: int = 0
         self.cache_validated_hits: int = 0
 
+    @property
+    def cache_root(self) -> Optional[Path]:
+        return self._cache_root
+
+    def _trace(self, message: str) -> None:
+        if self._on_trace is not None and message:
+            self._on_trace(message)
+
+    def format_status_line(self) -> str:
+        root = str(self._cache_root) if self._cache_root else "(memory only)"
+        mapped = len(self._module_to_files)
+        return (
+            f"pw-db v{PATH_WALK_DB_VERSION} root={root} "
+            f"module_map={mapped} tier0={self.files_regex_scanned} "
+            f"tier1={self.files_validated} cache_hit="
+            f"{self.cache_regex_hits}+{self.cache_validated_hits}"
+        )
+
+    def module_to_files_snapshot(self) -> Dict[str, List[str]]:
+        return {name: list(files) for name, files in self._module_to_files.items()}
+
+    def write_module_index_snapshot(self) -> Optional[Path]:
+        if self._cache_root is None:
+            return None
+        out = self._cache_root / "module_index.tsv"
+        lines = ["module\tfiles"]
+        for name in sorted(self._module_to_files):
+            files = self._module_to_files[name]
+            lines.append(f"{name}\t{';'.join(files)}")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return out
+
     def remember_index_modules(self) -> None:
         for name, rec in self._index.modules.items():
-            if rec.file_path:
+            if rec.file_path and not _is_placeholder_module(rec):
                 self._note_regex_modules(rec.file_path, [name])
                 self._prefer_file.setdefault(name, str(Path(rec.file_path).resolve()))
 
@@ -272,6 +320,7 @@ class PathWalkModuleDb:
         self._regex_scanned.add(key)
         if self._skip and source_path_matches(key, self._skip):
             self.files_regex_scanned += 1
+            self._trace(f"pw-db tier0 skip {Path(key).name}")
             return []
 
         hit = self._load_regex_sidecar(key)
@@ -280,28 +329,27 @@ class PathWalkModuleDb:
             names = list(hit.module_names)
             self._note_regex_modules(key, names)
             self.files_regex_scanned += 1
+            self._trace(
+                f"pw-db tier0 cache {Path(key).name} -> {','.join(names) or '(none)'}"
+            )
             return names
 
         try:
             text = Path(key).read_text(encoding="utf-8", errors="ignore")
         except OSError:
             self.files_regex_scanned += 1
+            self._trace(f"pw-db tier0 read-fail {Path(key).name}")
             return []
         names = tier0_regex_module_names(text)
         self._note_regex_modules(key, names)
         self._save_regex_sidecar(key, names)
         self.files_regex_scanned += 1
+        self._trace(
+            f"pw-db tier0 scan {Path(key).name} -> {','.join(names) or '(none)'}"
+        )
         return names
 
     def _ensure_regex_candidates(self, module_name: str) -> List[str]:
-        if module_name in self._prefer_file:
-            preferred = self._prefer_file[module_name]
-            rest = [f for f in self._module_to_files.get(module_name, []) if f != preferred]
-            if preferred not in rest and preferred in self._module_to_files.get(module_name, []):
-                return [preferred] + rest
-            if module_name in self._module_to_files:
-                return list(self._module_to_files[module_name])
-
         if not self._regex_queue:
             self._regex_queue = [s for s in self._sources if s not in self._regex_scanned]
 
@@ -310,11 +358,6 @@ class PathWalkModuleDb:
             self._tier0_scan_file(nxt)
 
         if module_name not in self._module_to_files:
-            while self._regex_queue:
-                nxt = self._regex_queue.pop(0)
-                self._tier0_scan_file(nxt)
-                if module_name in self._module_to_files:
-                    break
             for src in self._sources:
                 if src not in self._regex_scanned:
                     self._tier0_scan_file(src)
@@ -326,6 +369,23 @@ class PathWalkModuleDb:
         if preferred and preferred in files:
             files = [preferred] + [f for f in files if f != preferred]
         return files
+
+    def _order_candidate_files(
+        self,
+        module_name: str,
+        *,
+        avoid_file: str = "",
+    ) -> List[str]:
+        candidates = self._ensure_regex_candidates(module_name)
+        if not candidates:
+            return []
+        avoid = str(Path(avoid_file).resolve()) if avoid_file else ""
+        if avoid:
+            rest = [f for f in candidates if f != avoid]
+            if avoid in candidates:
+                return rest + [avoid]
+            return rest
+        return candidates
 
     def tier1_scan_file(self, path: str) -> Dict[str, ModuleRecord]:
         """Light preprocess + instance scan for one translation unit."""
@@ -339,9 +399,13 @@ class PathWalkModuleDb:
             self.cache_validated_hits += 1
             self._validated_memory[key] = disk
             self.files_validated += 1
+            summary = ",".join(
+                f"{n}({len(r.instances)}inst)" for n, r in sorted(disk.items())
+            )
+            self._trace(f"pw-db tier1 cache {Path(key).name} -> {summary or '(none)'}")
             return disk
 
-        from scan_inst.preprocess import preprocess_file_for_index
+        from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
 
         defs: Dict[str, str] = dict(self._defines)
         text = preprocess_file_for_index(
@@ -351,6 +415,9 @@ class PathWalkModuleDb:
             set(),
             skip_path_patterns=self._skip,
         )
+        # Tier-1 must honour filelist defines (ifdef instance names, gated modules).
+        if defs:
+            text = apply_ifdef_filter(text, defs)
         per_file = scan_preprocessed(text, key)
         out = {name: _record_lite(rec) for name, rec in per_file.items()}
         self._validated_memory[key] = out
@@ -358,6 +425,10 @@ class PathWalkModuleDb:
         self.files_validated += 1
         for name in out:
             self._note_regex_modules(key, [name])
+        summary = ",".join(
+            f"{n}({len(r.instances)}inst)" for n, r in sorted(out.items())
+        )
+        self._trace(f"pw-db tier1 scan {Path(key).name} -> {summary or '(none)'}")
         return out
 
     def _edge_matches(
@@ -383,11 +454,37 @@ class PathWalkModuleDb:
             jobs=1,
         )
 
+    def _index_has_resolved_module(
+        self,
+        module_name: str,
+        *,
+        expect_inst: Optional[Tuple[str, str]] = None,
+        parent_ctx: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        rec = self._index.get_module(module_name)
+        if _is_placeholder_module(rec):
+            return False
+        if expect_inst is None:
+            return True
+        parent_mod, inst_leaf = expect_inst
+        if parent_mod != module_name or rec is None:
+            return False
+        pmap = resolve_param_map(rec.raw_params, parent=parent_ctx or {})
+        return (
+            self._edge_matches(
+                self._index.instances_for(module_name, parent_ctx or {}, {}),
+                inst_leaf,
+                pmap,
+            )
+            is not None
+        )
+
     def ensure_module_in_index(
         self,
         module_name: str,
         *,
         expect_inst: Optional[Tuple[str, str]] = None,
+        parent_ctx: Optional[Mapping[str, str]] = None,
     ) -> bool:
         """
         Load *module_name* into the shared index from the best candidate file.
@@ -395,42 +492,55 @@ class PathWalkModuleDb:
         When *expect_inst* is ``(parent_module, inst_leaf)``, prefer a file whose
         scanned parent body contains that instance edge.
         """
+        if self._index_has_resolved_module(
+            module_name,
+            expect_inst=expect_inst,
+            parent_ctx=parent_ctx,
+        ):
+            return True
+
         rec = self._index.get_module(module_name)
-        if rec is not None and rec.file_path:
-            if expect_inst is None:
-                return True
-            parent_mod, inst_leaf = expect_inst
-            if parent_mod == module_name:
-                pmap = resolve_param_map(rec.raw_params)
-                if self._edge_matches(
-                    self._index.instances_for(module_name, {}, {}),
-                    inst_leaf,
-                    pmap,
-                ):
-                    return True
+        avoid = ""
+        if rec is not None and rec.file_path and not _is_placeholder_module(rec):
+            avoid = str(Path(rec.file_path).resolve())
 
-        candidates = self._ensure_regex_candidates(module_name)
-        current = str(Path(rec.file_path).resolve()) if rec and rec.file_path else ""
-        ordered = candidates
-        if current:
-            ordered = [f for f in candidates if f != current] + ([current] if current in candidates else [])
-
-        for fpath in ordered:
+        candidates = self._order_candidate_files(module_name, avoid_file=avoid)
+        self._trace(
+            f"pw-db resolve module={module_name} candidates={len(candidates)}"
+            + (f" expect_inst={expect_inst[1]!r}" if expect_inst else "")
+        )
+        for fpath in candidates:
             modules = self.tier1_scan_file(fpath)
             hit = modules.get(module_name)
             if hit is None:
+                self._trace(
+                    f"pw-db   miss {Path(fpath).name}: no module {module_name!r} after tier1"
+                )
                 continue
             if expect_inst is not None:
                 parent_mod, inst_leaf = expect_inst
                 if parent_mod == module_name:
-                    pmap = resolve_param_map(hit.raw_params)
-                    if not self._edge_matches(hit.instances, inst_leaf, pmap):
+                    pmap = resolve_param_map(hit.raw_params, parent=parent_ctx or {})
+                    edge = self._edge_matches(hit.instances, inst_leaf, pmap)
+                    if edge is None:
+                        insts = ", ".join(e.inst_name for e in hit.instances[:12])
+                        self._trace(
+                            f"pw-db   miss {Path(fpath).name}: "
+                            f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
+                        )
                         continue
             self._apply_file_modules(fpath, modules)
             self._prefer_file[module_name] = fpath
-            return self._index.get_module(module_name) is not None
+            self._trace(f"pw-db   hit {Path(fpath).name} for module {module_name!r}")
+            if self._index.get_module(module_name) is not None:
+                self.write_module_index_snapshot()
+                return True
 
-        return self._index.get_module(module_name) is not None
+        if expect_inst is not None:
+            return False
+        return self._index.get_module(module_name) is not None and not _is_placeholder_module(
+            self._index.get_module(module_name)
+        )
 
     def resolve_child_edge(
         self,
@@ -441,53 +551,63 @@ class PathWalkModuleDb:
         current_file: str = "",
     ) -> Optional[InstanceEdge]:
         """Tier-1 confirmed child edge, trying alternate decl files on miss."""
-        rec = self._index.get_module(parent_module)
-        if rec is not None:
-            pmap = resolve_param_map(rec.raw_params, parent=parent_ctx)
-            edge = self._edge_matches(
-                self._index.instances_for(parent_module, parent_ctx, {}),
-                inst_leaf,
-                pmap,
-            )
-            if edge is not None:
-                if rec.file_path:
-                    self._prefer_file[parent_module] = str(Path(rec.file_path).resolve())
-                return edge
-
-        if self.ensure_module_in_index(
+        avoid = current_file
+        if self._index_has_resolved_module(
             parent_module,
             expect_inst=(parent_module, inst_leaf),
+            parent_ctx=parent_ctx,
         ):
             rec = self._index.get_module(parent_module)
             if rec is not None:
                 pmap = resolve_param_map(rec.raw_params, parent=parent_ctx)
-                return self._edge_matches(
+                edge = self._edge_matches(
                     self._index.instances_for(parent_module, parent_ctx, {}),
                     inst_leaf,
                     pmap,
                 )
-
-        if current_file:
-            cur = str(Path(current_file).resolve())
-            for fpath in self._ensure_regex_candidates(parent_module):
-                if fpath == cur:
-                    continue
-                modules = self.tier1_scan_file(fpath)
-                hit = modules.get(parent_module)
-                if hit is None:
-                    continue
-                pmap = resolve_param_map(hit.raw_params, parent=parent_ctx)
-                edge = self._edge_matches(hit.instances, inst_leaf, pmap)
                 if edge is not None:
-                    self._apply_file_modules(fpath, modules)
-                    self._prefer_file[parent_module] = fpath
+                    if rec.file_path:
+                        self._prefer_file[parent_module] = str(
+                            Path(rec.file_path).resolve()
+                        )
                     return edge
+
+        candidates = self._order_candidate_files(parent_module, avoid_file=avoid)
+        self._trace(
+            f"pw-db edge {parent_module}.{inst_leaf} "
+            f"candidates={len(candidates)}"
+        )
+        for fpath in candidates:
+            modules = self.tier1_scan_file(fpath)
+            hit = modules.get(parent_module)
+            if hit is None:
+                continue
+            pmap = resolve_param_map(hit.raw_params, parent=parent_ctx)
+            edge = self._edge_matches(hit.instances, inst_leaf, pmap)
+            if edge is not None:
+                self._apply_file_modules(fpath, modules)
+                self._prefer_file[parent_module] = fpath
+                self._trace(
+                    f"pw-db   edge hit {parent_module}.{inst_leaf} "
+                    f"via {Path(fpath).name} -> child {edge.child_module!r}"
+                )
+                self.write_module_index_snapshot()
+                return edge
+            insts = ", ".join(e.inst_name for e in hit.instances[:12])
+            self._trace(
+                f"pw-db   edge miss {Path(fpath).name}: "
+                f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
+            )
         return None
 
     def find_module_decl_file(self, module_name: str) -> Optional[str]:
         files = self._ensure_regex_candidates(module_name)
         if not files:
             return None
+        for fpath in files:
+            modules = self.tier1_scan_file(fpath)
+            if module_name in modules:
+                return fpath
         preferred = self._prefer_file.get(module_name)
         if preferred and preferred in files:
             return preferred

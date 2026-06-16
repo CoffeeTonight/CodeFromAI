@@ -27,6 +27,7 @@ from scan_inst.hierarchy_log import (
     emit_path_walk_log,
     emit_path_walk_spine_log,
     format_path_walk_miss_line,
+    open_path_walk_trace_log,
 )
 from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
 from scan_inst.top_find import resolve_top_modules
@@ -115,17 +116,40 @@ class PathWalkState:
     stats: PathWalkStats = field(default_factory=PathWalkStats)
     on_progress: Optional[Callable[[str], None]] = None
     trace_stream: Optional[TextIO] = None
+    _trace_log: Optional[TextIO] = field(default=None, repr=False)
+
+    def _trace_streams(self) -> List[TextIO]:
+        out: List[TextIO] = []
+        if self.trace_stream is not None:
+            out.append(self.trace_stream)
+        if self._trace_log is not None:
+            out.append(self._trace_log)
+        return out
 
     def _walk_trace_enabled(self) -> bool:
-        return self.on_progress is not None or self.trace_stream is not None
+        return bool(self._trace_streams()) or self.on_progress is not None
 
     def _emit_walk(self, message: str) -> None:
         if not message:
             return
-        if self.trace_stream is not None:
-            emit_path_walk_log(message, stream=self.trace_stream)
+        streams = self._trace_streams()
+        if streams:
+            for stream in streams:
+                emit_path_walk_log(message, stream=stream)
         elif self.on_progress is not None:
             self.on_progress(f"path-walk: {message}")
+
+    def _emit_walk_spine(self, path: str, *, title: str) -> None:
+        streams = self._trace_streams()
+        if not streams:
+            return
+        for stream in streams:
+            emit_path_walk_spine_log(
+                path,
+                self.rows_by_path,
+                stream=stream,
+                title=title,
+            )
 
     def _emit_walk_node(self, path: str, *, action: str = "ok") -> None:
         row = self.rows_by_path.get(path)
@@ -168,13 +192,11 @@ class PathWalkState:
             )
         )
         spine_end = parent_path
-        if self.trace_stream is not None:
-            emit_path_walk_spine_log(
-                spine_end,
-                self.rows_by_path,
-                stream=self.trace_stream,
-                title=f"walked (target {target_path} stopped)" if target_path else "walked",
-            )
+        spine_title = (
+            f"walked (target {target_path} stopped)" if target_path else "walked"
+        )
+        if self._trace_streams():
+            self._emit_walk_spine(spine_end, title=spine_title)
         elif target_path:
             self._emit_walk(
                 f"walked spine -> {spine_end} (target {target_path} stopped)"
@@ -237,14 +259,22 @@ class PathWalkState:
         )
 
     def _load_module(self, module_name: str) -> bool:
-        if self.index.get_module(module_name) is not None:
-            return True
+        had = self.index.get_module(module_name)
         if not self.mod_db.ensure_module_in_index(module_name):
             self._sync_db_stats()
+            self._emit_walk(
+                f"pw-db load failed module={module_name!r} "
+                f"{self.mod_db.format_status_line()}"
+            )
             return False
-        self.stats.modules_loaded += 1
+        rec = self.index.get_module(module_name)
+        if rec is None:
+            self._sync_db_stats()
+            return False
+        if had is None or (had.file_path or "") != (rec.file_path or ""):
+            self.stats.modules_loaded += 1
         self._sync_db_stats()
-        return self.index.get_module(module_name) is not None
+        return True
 
     def _child_edge(self, parent_path: str, inst_leaf: str) -> Optional[InstanceEdge]:
         row = self.rows_by_path.get(parent_path)
@@ -312,12 +342,21 @@ class PathWalkState:
                 continue
             edge = self._child_edge(cur, seg)
             if edge is None:
+                row = self.rows_by_path.get(cur)
+                parent_mod = row.module if row else "?"
+                snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
+                cand = "; ".join(Path(f).name for f in snap[:8])
                 self._emit_walk_miss(
                     cur,
                     seg,
-                    reason="instance edge not found in parent module",
+                    reason=(
+                        "instance edge not found in parent module"
+                        + (f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}" if parent_mod else "")
+                    ),
                     target_path=path,
                 )
+                self._emit_walk(self.mod_db.format_status_line())
+                self.mod_db.write_module_index_snapshot()
                 return False
             attached = self._attach_child(cur, seg, edge)
             if attached is None:
@@ -387,6 +426,17 @@ def _sorted_prefixes(specs: Sequence[str]) -> List[str]:
     return sorted(prefixes, key=lambda p: (p.count("."), p))
 
 
+def _wire_db_trace_to_state(mod_db: PathWalkModuleDb, state: PathWalkState) -> None:
+    prev = mod_db._on_trace
+
+    def _combined(msg: str) -> None:
+        if prev is not None:
+            prev(msg)
+        state._emit_walk(msg)
+
+    mod_db._on_trace = _combined
+
+
 def build_path_walk_state_from_specs(
     index: DesignIndex,
     top: str,
@@ -396,33 +446,43 @@ def build_path_walk_state_from_specs(
     expand_subtrees: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
+    trace_log_path: Optional[Path] = None,
 ) -> PathWalkState:
     """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
-    state = PathWalkState(
-        index=index,
-        top=top,
-        mod_db=mod_db,
-        on_progress=on_progress,
-        trace_stream=trace_stream,
-    )
-    state.ensure_root()
-    spec_list = [str(s).strip() for s in specs if str(s).strip()]
-    if on_progress:
-        on_progress(f"path-walk: {len(spec_list)} endpoint spec(s)")
-    for prefix in _sorted_prefixes(spec_list):
-        state.ensure_path(prefix)
-    for spec in spec_list:
-        inst = _inst_path_from_spec(spec, state)
-        if inst:
-            state.ensure_path(inst)
-    for subtree_root in expand_subtrees:
-        root = str(subtree_root).strip()
-        if not root:
-            continue
-        if state.ensure_path(root):
-            state._expand_subtree(root)
-            state.stats.subtrees_expanded += 1
-    return state
+    trace_log_fh: Optional[TextIO] = None
+    if trace_log_path is not None:
+        trace_log_fh = open_path_walk_trace_log(trace_log_path)
+    try:
+        state = PathWalkState(
+            index=index,
+            top=top,
+            mod_db=mod_db,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            _trace_log=trace_log_fh,
+        )
+        _wire_db_trace_to_state(mod_db, state)
+        state.ensure_root()
+        spec_list = [str(s).strip() for s in specs if str(s).strip()]
+        if on_progress:
+            on_progress(f"path-walk: {len(spec_list)} endpoint spec(s)")
+        for prefix in _sorted_prefixes(spec_list):
+            state.ensure_path(prefix)
+        for spec in spec_list:
+            inst = _inst_path_from_spec(spec, state)
+            if inst:
+                state.ensure_path(inst)
+        for subtree_root in expand_subtrees:
+            root = str(subtree_root).strip()
+            if not root:
+                continue
+            if state.ensure_path(root):
+                state._expand_subtree(root)
+                state.stats.subtrees_expanded += 1
+        return state
+    finally:
+        if trace_log_fh is not None:
+            trace_log_fh.close()
 
 
 def build_path_walk_state(
@@ -433,30 +493,40 @@ def build_path_walk_state(
     *,
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
+    trace_log_path: Optional[Path] = None,
 ) -> PathWalkState:
-    state = PathWalkState(
-        index=index,
-        top=top,
-        mod_db=mod_db,
-        on_progress=on_progress,
-        trace_stream=trace_stream,
-    )
-    state.ensure_root()
-    specs = endpoint_specs_from_request(request)
-    if on_progress:
-        on_progress(f"path-walk: {len(specs)} endpoint spec(s)")
-    for prefix in _sorted_prefixes(specs):
-        state.ensure_path(prefix)
-    seen_lca: Set[Tuple[str, str]] = set()
-    for chk in request.checks:
-        a = _inst_path_from_spec(chk.endpoint_a, state)
-        b = _inst_path_from_spec(chk.endpoint_b, state)
-        key = (a, b)
-        if key in seen_lca:
-            continue
-        seen_lca.add(key)
-        state.ensure_lca_subtree(a, b)
-    return state
+    trace_log_fh: Optional[TextIO] = None
+    if trace_log_path is not None:
+        trace_log_fh = open_path_walk_trace_log(trace_log_path)
+    try:
+        state = PathWalkState(
+            index=index,
+            top=top,
+            mod_db=mod_db,
+            on_progress=on_progress,
+            trace_stream=trace_stream,
+            _trace_log=trace_log_fh,
+        )
+        _wire_db_trace_to_state(mod_db, state)
+        state.ensure_root()
+        specs = endpoint_specs_from_request(request)
+        if on_progress:
+            on_progress(f"path-walk: {len(specs)} endpoint spec(s)")
+        for prefix in _sorted_prefixes(specs):
+            state.ensure_path(prefix)
+        seen_lca: Set[Tuple[str, str]] = set()
+        for chk in request.checks:
+            a = _inst_path_from_spec(chk.endpoint_a, state)
+            b = _inst_path_from_spec(chk.endpoint_b, state)
+            key = (a, b)
+            if key in seen_lca:
+                continue
+            seen_lca.add(key)
+            state.ensure_lca_subtree(a, b)
+        return state
+    finally:
+        if trace_log_fh is not None:
+            trace_log_fh.close()
 
 
 def run_path_walk_index(
@@ -474,6 +544,7 @@ def run_path_walk_index(
     no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
+    trace_log_path: Optional[Path] = None,
 ) -> Tuple[DesignIndex, PathWalkState, str]:
     """On-demand index + hierarchy rows for arbitrary endpoint specs."""
     defines = dict(fl.defines)
@@ -499,6 +570,7 @@ def run_path_walk_index(
         mod_db,
         on_progress=on_progress,
         trace_stream=trace_stream,
+        trace_log_path=trace_log_path,
     )
     extra_roots = list(expand_subtrees)
     for spec in specs:
@@ -576,6 +648,10 @@ def create_path_walk_index(
         include_dirs=[str(p) for p in fl.include_dirs],
         skip_path_patterns=path_patterns,
     )
+    def _db_trace(msg: str) -> None:
+        if on_progress:
+            on_progress(msg)
+
     mod_db = PathWalkModuleDb(
         sources,
         index,
@@ -585,8 +661,11 @@ def create_path_walk_index(
         cache_dir=cache_dir,
         cache_key=cache_key,
         no_cache=no_cache,
+        on_trace=_db_trace,
     )
     mod_db.remember_index_modules()
+    if on_progress:
+        on_progress(mod_db.format_status_line())
     top_file = mod_db.find_module_decl_file(top)
     if not top_file:
         raise ValueError(f"top module {top!r} not found in filelist sources")
@@ -611,6 +690,7 @@ def run_path_walk_connect(
     no_cache: bool = False,
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
+    trace_log_path: Optional[Path] = None,
 ) -> Tuple[ConnectivityBatchResult, DesignIndex, PathWalkState]:
     """
     Path-walk batch connectivity: on-demand RTL + shared :class:`ConnectivitySession`.
@@ -643,6 +723,7 @@ def run_path_walk_connect(
         mod_db,
         on_progress=on_progress,
         trace_stream=trace_stream,
+        trace_log_path=trace_log_path,
     )
     state._sync_db_stats()
     if on_progress:

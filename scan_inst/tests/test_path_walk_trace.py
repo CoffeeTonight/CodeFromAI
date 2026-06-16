@@ -76,3 +76,34 @@ def test_path_walk_trace_logs_nodes_and_miss(tmp_path: Path):
     assert "via_filelist=" in text
     assert "miss inst=u_missing under top" in text
     assert "walked" in text
+
+
+def test_path_walk_trace_writes_run_log(tmp_path: Path):
+    top_v = tmp_path / "top.v"
+    top_v.write_text(
+        """
+        module top;
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    fl_path = tmp_path / "design.f"
+    fl_path.write_text(f"{top_v.resolve()}\n", encoding="utf-8")
+    fl = parse_filelist(str(fl_path), index_cwd=str(tmp_path))
+    from scan_inst.path_walk import create_path_walk_index
+
+    index, mod_db = create_path_walk_index(fl, "top", defines={})
+    log_path = tmp_path / "out.tsv.scan-inst.log"
+    build_path_walk_state_from_specs(
+        index,
+        "top",
+        ["top.u_missing"],
+        mod_db,
+        trace_log_path=log_path,
+    )
+    text = log_path.read_text(encoding="utf-8")
+    assert "# path-walk trace" in text
+    assert "[scan-inst path-walk]" in text
+    assert "ok top" in text
+    assert "rtl=" in text
+    assert "via_filelist=" in text

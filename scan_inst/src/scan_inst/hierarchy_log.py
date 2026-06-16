@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import IO, List, Mapping, Optional, Sequence, TextIO
 
@@ -262,6 +263,16 @@ def format_path_walk_spine_lines(
             break
         lines.append(f"{indent}{format_path_walk_node_line(prefix, row)}")
     return lines
+
+
+def open_path_walk_trace_log(log_path: Path) -> TextIO:
+    """Append path-walk trace section to the run log file."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = log_path.open("a", encoding="utf-8")
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fh.write(f"\n# path-walk trace {stamp}\n")
+    fh.flush()
+    return fh
 
 
 def emit_path_walk_log(

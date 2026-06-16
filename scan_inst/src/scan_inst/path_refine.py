@@ -71,15 +71,42 @@ def _params_in_text(text: str) -> Dict[str, str]:
     return out
 
 
+def _inst_matches_target(inst: str, dims: str, target: str) -> bool:
+    """Match instance names the same way as :func:`scan_hierarchy_instances`."""
+    from scan_inst.inst_scan import expand_inst_names
+
+    if not inst:
+        return False
+    want = target.lower()
+    if inst.lower() == want:
+        return True
+    if inst.rsplit(".", 1)[-1].lower() == want:
+        return True
+    for leaf in expand_inst_names(inst, dims, {}):
+        if leaf.lower() == want:
+            return True
+        if leaf.rsplit(".", 1)[-1].lower() == want:
+            return True
+    return False
+
+
 def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
     """Return module body text that appears before ``inst_leaf`` declaration."""
-    from scan_inst.inst_scan import _ATTR_RE, _BIND_LINE_RE, _KEYWORDS, _read_ident, _skip_balanced
+    from scan_inst.inst_scan import (
+        _ATTR_RE,
+        _BIND_LINE_RE,
+        _KEYWORDS,
+        _read_hier_inst_path,
+        _read_ident,
+        _skip_balanced,
+        _skip_sv_attributes,
+    )
 
     clean = _ATTR_RE.sub(" ", body)
     clean = _BIND_LINE_RE.sub("", clean)
     n = len(clean)
     i = 0
-    target = inst_leaf.lower()
+    target = inst_leaf
 
     def consume_hash(start: int) -> int:
         pos = start
@@ -92,6 +119,38 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
             return start
         return _skip_balanced(clean, pos, "(", ")")
 
+    def read_inst_tail(start: int) -> tuple[str, str, int]:
+        k = start
+        while k < n and clean[k].isspace():
+            k += 1
+        k = _skip_sv_attributes(clean, k)
+        inst = ""
+        dims = ""
+        if k < n and clean[k] == "#":
+            k = consume_hash(k)
+            while k < n and clean[k].isspace():
+                k += 1
+            k = _skip_sv_attributes(clean, k)
+            inst, k = _read_hier_inst_path(clean, k)
+        else:
+            inst, k = _read_hier_inst_path(clean, k)
+            if inst:
+                while k < n and clean[k].isspace():
+                    k += 1
+                if k < n and clean[k] == "#":
+                    k = consume_hash(k)
+        if not inst:
+            return "", "", start
+        while k < n and clean[k].isspace():
+            k += 1
+        while k < n and clean[k] == "[":
+            end = _skip_balanced(clean, k, "[", "]")
+            dims += clean[k:end]
+            k = end
+            while k < n and clean[k].isspace():
+                k += 1
+        return inst, dims, k
+
     while i < n:
         decl_start = i
         while i < n and clean[i].isspace():
@@ -102,35 +161,14 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
         if not cell or cell.lower() in _KEYWORDS:
             i = j if j > i else i + 1
             continue
-        k = j
-        while k < n and clean[k].isspace():
-            k += 1
-        inst = ""
-        if k < n and clean[k] == "#":
-            k = consume_hash(k)
-            while k < n and clean[k].isspace():
-                k += 1
-            inst, k = _read_ident(clean, k)
-        else:
-            inst, k = _read_ident(clean, k)
-            if inst:
-                while k < n and clean[k].isspace():
-                    k += 1
-                if k < n and clean[k] == "#":
-                    k = consume_hash(k)
+        inst, dims, k = read_inst_tail(j)
         if not inst:
             i += 1
             continue
-        while k < n and clean[k].isspace():
-            k += 1
-        while k < n and clean[k] == "[":
-            k = _skip_balanced(clean, k, "[", "]")
-            while k < n and clean[k].isspace():
-                k += 1
         if k >= n or clean[k] not in "(;":
             i += 1
             continue
-        if inst.lower() == target:
+        if _inst_matches_target(inst, dims, target):
             return clean[:decl_start]
         if clean[k] == "(":
             k = _skip_balanced(clean, k, "(", ")")
@@ -138,10 +176,8 @@ def _body_prefix_before_instance(body: str, inst_leaf: str) -> str:
             k += 1
         if k < n and clean[k] == ",":
             k += 1
-            while k < n and clean[k].isspace():
-                k += 1
-            inst2, k2 = _read_ident(clean, k)
-            if inst2 and inst2.lower() == target:
+            inst2, dims2, k2 = read_inst_tail(k)
+            if inst2 and _inst_matches_target(inst2, dims2, target):
                 return clean[:decl_start]
             i = k
             continue

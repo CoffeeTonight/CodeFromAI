@@ -105,6 +105,21 @@ def _inst_matches_target(
     return False
 
 
+def _edge_matches_inst_leaf(
+    edge: InstanceEdge,
+    inst_leaf: str,
+    *,
+    param_map: Optional[Mapping[str, str]] = None,
+) -> bool:
+    """Match a scanned edge to *inst_leaf* (incl. array base names like ``u_core``)."""
+    if _inst_matches_target(edge.inst_name, "", inst_leaf, param_map=param_map):
+        return True
+    base = edge.inst_name.split("[", 1)[0]
+    if base == edge.inst_name:
+        return False
+    return _inst_matches_target(base, "", inst_leaf, param_map=param_map)
+
+
 def _body_prefix_before_instance(
     body: str,
     inst_leaf: str,
@@ -256,7 +271,7 @@ def find_child_instance(
     pmap = resolve_param_map(raw, parent=parent_ctx)
     folded = prepare_body_for_instance_scan(body, pmap)
     for edge in scan_hierarchy_instances(folded, param_map=pmap):
-        if edge.inst_name.lower() == inst_leaf.lower():
+        if _edge_matches_inst_leaf(edge, inst_leaf, param_map=pmap):
             return edge
     return None
 

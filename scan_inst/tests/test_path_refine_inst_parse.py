@@ -53,6 +53,28 @@ def test_body_prefix_skips_comma_separated_inst_before_target():
     assert "W_LATE" not in prefix
 
 
+def test_find_child_instance_matches_array_base_name(tmp_path: Path):
+    from scan_inst.path_refine import find_child_instance
+
+    rtl = tmp_path / "arr_base.v"
+    rtl.write_text(
+        """
+        module top;
+          core u_core[3:0] ();
+        endmodule
+        module core;
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    text = preprocess_file(rtl, [], {})
+    index = DesignIndex.build({str(rtl): text})
+    edge = find_child_instance(index, "top", "u_core", {})
+    assert edge is not None
+    assert edge.child_module == "core"
+    assert edge.inst_name.startswith("u_core[")
+
+
 def test_find_child_instance_honors_empty_scoped_params(tmp_path: Path):
     from scan_inst.path_refine import find_child_instance
 

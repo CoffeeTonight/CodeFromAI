@@ -28,11 +28,11 @@ from scan_inst.index import (
     scan_preprocessed,
 )
 from scan_inst.inst_scan import expand_inst_names
-from scan_inst.manifest import path_stat
+from scan_inst.manifest import PathDigests, path_content_digest
 from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
-PATH_WALK_DB_VERSION = 6
+PATH_WALK_DB_VERSION = 9
 
 _MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|interface|program)\s+([A-Za-z_]\w*)\b",
@@ -42,15 +42,13 @@ _MODULE_DECL_RE = re.compile(
 
 @dataclass(frozen=True)
 class _FileRegexCacheEntry:
-    mtime_ns: int
-    size: int
+    content_digest: str
     module_names: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class _FileValidatedCacheEntry:
-    mtime_ns: int
-    size: int
+    content_digest: str
     defines_digest: str
     modules: Tuple[Tuple[str, ModuleRecord], ...]
 
@@ -75,6 +73,7 @@ def path_walk_db_cache_key(
     defines: Mapping[str, str],
     include_dirs: Sequence[str | Path] = (),
     skip_path_patterns: Sequence[str] = (),
+    path_digests: Optional[Mapping[str, str]] = None,
 ) -> str:
     """Stable namespace for path-walk DB sidecars (independent of full-index cache)."""
     hasher = hashlib.sha256()
@@ -82,10 +81,9 @@ def path_walk_db_cache_key(
     for raw in sorted({str(Path(s).resolve()) for s in sources}):
         hasher.update(raw.encode())
         hasher.update(b"\0")
-        stat = path_stat(Path(raw))
-        if stat is not None:
-            hasher.update(str(stat[0]).encode())
-            hasher.update(str(stat[1]).encode())
+        digest = path_content_digest(Path(raw), path_digests=path_digests)
+        if digest is not None:
+            hasher.update(digest.encode())
     for raw in sorted({str(Path(p).resolve()) for p in include_dirs}):
         hasher.update(b"inc:")
         hasher.update(raw.encode())
@@ -155,8 +153,12 @@ class PathWalkModuleDb:
         on_progress: Optional[Callable[[str], None]] = None,
         file_via_filelist: Optional[Mapping[str, str]] = None,
         filelist_children: Optional[Mapping[str, Sequence[str]]] = None,
+        path_digests: Optional[Mapping[str, str]] = None,
     ) -> None:
         self._sources = [str(Path(s).resolve()) for s in sources]
+        self._path_digests: Optional[PathDigests] = (
+            dict(path_digests) if path_digests is not None else None
+        )
         self._index = index
         self._include_dirs = [Path(p) for p in include_dirs]
         self._defines = dict(defines or {})
@@ -258,6 +260,9 @@ class PathWalkModuleDb:
                 self._note_regex_modules(rec.file_path, [name])
                 self._prefer_file.setdefault(name, str(Path(rec.file_path).resolve()))
 
+    def _source_digest(self, path: str) -> Optional[str]:
+        return path_content_digest(Path(path), path_digests=self._path_digests)
+
     def _regex_sidecar(self, path: str) -> Optional[Path]:
         if self._cache_root is None:
             return None
@@ -283,8 +288,8 @@ class PathWalkModuleDb:
             return None
         if not isinstance(obj, _FileRegexCacheEntry):
             return None
-        stat = path_stat(Path(path))
-        if stat is None or stat != (obj.mtime_ns, obj.size):
+        live = self._source_digest(path)
+        if live is None or live != obj.content_digest:
             return None
         return obj
 
@@ -292,10 +297,10 @@ class PathWalkModuleDb:
         sidecar = self._regex_sidecar(path)
         if sidecar is None:
             return
-        stat = path_stat(Path(path))
-        if stat is None:
+        digest = self._source_digest(path)
+        if digest is None:
             return
-        entry = _FileRegexCacheEntry(stat[0], stat[1], tuple(names))
+        entry = _FileRegexCacheEntry(digest, tuple(names))
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         tmp = sidecar.with_suffix(sidecar.suffix + ".tmp")
         with tmp.open("wb") as fh:
@@ -313,8 +318,8 @@ class PathWalkModuleDb:
             return None
         if not isinstance(obj, _FileValidatedCacheEntry):
             return None
-        stat = path_stat(Path(path))
-        if stat is None or stat != (obj.mtime_ns, obj.size):
+        live = self._source_digest(path)
+        if live is None or live != obj.content_digest:
             return None
         if obj.defines_digest != self._defines_digest:
             return None
@@ -328,12 +333,11 @@ class PathWalkModuleDb:
         sidecar = self._validated_sidecar(path)
         if sidecar is None:
             return
-        stat = path_stat(Path(path))
-        if stat is None:
+        digest = self._source_digest(path)
+        if digest is None:
             return
         entry = _FileValidatedCacheEntry(
-            stat[0],
-            stat[1],
+            digest,
             self._defines_digest,
             tuple((n, _record_lite(r)) for n, r in sorted(modules.items())),
         )

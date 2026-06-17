@@ -1022,6 +1022,7 @@ def path_walk_session_key(
     ignore_filelists: Sequence[str] = (),
     cache_dir: Optional[Path] = None,
     no_cache: bool = False,
+    path_digests: Mapping[str, str] | None = None,
 ) -> str:
     defines = dict(fl.defines)
     defines.update(extra_defines or {})
@@ -1037,6 +1038,7 @@ def path_walk_session_key(
         defines=defines,
         include_dirs=[str(p) for p in fl.include_dirs],
         skip_path_patterns=path_patterns,
+        path_digests=path_digests,
     )
     hasher = hashlib.sha256()
     hasher.update(db_key.encode())
@@ -1050,8 +1052,10 @@ def clear_path_walk_suite_session() -> None:
     global _suite_session
     if _suite_session is not None:
         _suite_session.mod_db.flush_module_index_snapshot()
+        from scan_inst.manifest import clear_digest_scope
         from scan_inst.path_refine import clear_module_chunk_cache
 
+        clear_digest_scope()
         clear_module_chunk_cache()
     _suite_session = None
 
@@ -1070,10 +1074,15 @@ def acquire_path_walk_session(
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
     trace_log_fh: Optional[TextIO] = None,
+    jobs: int = 0,
 ) -> PathWalkSuiteSession:
     global _suite_session
+    from scan_inst.manifest import hash_paths_parallel, set_digest_scope
+
     defines = dict(fl.defines)
     defines.update(extra_defines or {})
+    sources = [str(Path(p).resolve()) for p in fl.source_files]
+    path_digests = hash_paths_parallel(sources, jobs=jobs)
     session_key = path_walk_session_key(
         fl,
         top=top,
@@ -1084,6 +1093,7 @@ def acquire_path_walk_session(
         ignore_filelists=ignore_filelists,
         cache_dir=cache_dir,
         no_cache=no_cache,
+        path_digests=path_digests,
     )
     if _suite_session is not None and _suite_session.session_key == session_key:
         state = _suite_session.state
@@ -1098,6 +1108,7 @@ def acquire_path_walk_session(
     if _suite_session is not None:
         clear_path_walk_suite_session()
 
+    set_digest_scope(path_digests)
     index, mod_db = create_path_walk_index(
         fl,
         top,
@@ -1111,6 +1122,8 @@ def acquire_path_walk_session(
         on_progress=on_progress,
         trace_stream=trace_stream,
         trace_log_fh=trace_log_fh,
+        path_digests=path_digests,
+        jobs=jobs,
     )
     tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
     top_name = tops[0]
@@ -1406,7 +1419,10 @@ def create_path_walk_index(
     on_progress: Optional[Callable[[str], None]] = None,
     trace_stream: Optional[TextIO] = None,
     trace_log_fh: Optional[TextIO] = None,
+    path_digests: Mapping[str, str] | None = None,
+    jobs: int = 0,
 ) -> Tuple[DesignIndex, PathWalkModuleDb]:
+    from scan_inst.manifest import hash_paths_parallel, set_digest_scope
     path_patterns, module_patterns, filelist_patterns = resolve_ignore_path_patterns(
         ignore_paths,
         ignore_path_files=ignore_path_files,
@@ -1440,12 +1456,18 @@ def create_path_walk_index(
         preprocess_include_dirs=[str(p) for p in fl.include_dirs],
         preprocess_defines=dict(defines),
     )
-    sources = [str(p) for p in fl.source_files]
+    sources = [str(Path(p).resolve()) for p in fl.source_files]
+    if path_digests is None:
+        if on_progress:
+            on_progress(f"path-walk: hashing {len(sources)} sources")
+        path_digests = hash_paths_parallel(sources, jobs=jobs)
+        set_digest_scope(path_digests)
     cache_key = path_walk_db_cache_key(
         sources,
         defines=defines,
         include_dirs=[str(p) for p in fl.include_dirs],
         skip_path_patterns=path_patterns,
+        path_digests=path_digests,
     )
     def _db_trace(msg: str) -> None:
         _path_walk_trace_emit(
@@ -1473,6 +1495,7 @@ def create_path_walk_index(
         filelist_children={
             str(k): list(v) for k, v in (fl.filelist_children or {}).items()
         },
+        path_digests=path_digests,
     )
     from scan_inst.progress import ProgressHeartbeat
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from typing import Dict, Iterable, List, Optional, Sequence, Union
+from typing import Dict, Iterable, List, Literal, Optional, Sequence, Union
+
+PatternKind = Literal["auto", "instance", "path"]
 
 SearchPatterns = Union[str, Sequence[str]]
 
@@ -44,19 +46,39 @@ def _glob_to_regex(pattern: str) -> str:
     return "".join(parts)
 
 
-def _segment_glob_match(segment: str, pattern: str) -> bool:
+def _glob_match(text: str, pattern: str, *, case_insensitive: bool) -> bool:
+    if case_insensitive:
+        return (
+            re.fullmatch(fnmatch.translate(pattern), text, re.IGNORECASE)
+            is not None
+        )
+    return fnmatch.fnmatchcase(text, pattern)
+
+
+def _segment_glob_match(
+    segment: str,
+    pattern: str,
+    *,
+    case_insensitive: bool = False,
+) -> bool:
     if any(ch in pattern for ch in "*?[]"):
-        if fnmatch.fnmatchcase(segment, pattern):
+        if _glob_match(segment, pattern, case_insensitive=case_insensitive):
             return True
-        return re.search(_glob_to_regex(pattern), segment, re.IGNORECASE) is not None
-    return segment.lower() == pattern.lower()
+        flags = re.IGNORECASE if case_insensitive else 0
+        return re.search(_glob_to_regex(pattern), segment, flags) is not None
+    if case_insensitive:
+        return segment.lower() == pattern.lower()
+    return segment == pattern
 
 
-def _name_match(name: str, pattern: str) -> bool:
+def _name_match(name: str, pattern: str, *, case_insensitive: bool = False) -> bool:
     if any(ch in pattern for ch in "*?[]"):
-        return fnmatch.fnmatchcase(name, pattern)
+        return _glob_match(name, pattern, case_insensitive=case_insensitive)
     if any(ch in pattern for ch in ".^$+?{}|()\\"):
-        return re.compile(pattern, re.IGNORECASE).search(name) is not None
+        flags = re.IGNORECASE if case_insensitive else 0
+        return re.compile(pattern, flags).search(name) is not None
+    if case_insensitive:
+        return pattern.lower() in name.lower()
     return pattern.lower() in name.lower()
 
 
@@ -64,7 +86,12 @@ def _uses_path_pattern(pattern: str) -> bool:
     return "." in pattern
 
 
-def path_pattern_match(full_path: str, pattern: str) -> bool:
+def path_pattern_match(
+    full_path: str,
+    pattern: str,
+    *,
+    case_insensitive: bool = False,
+) -> bool:
     """
     Match hierarchy paths.
 
@@ -74,7 +101,7 @@ def path_pattern_match(full_path: str, pattern: str) -> bool:
     """
     if not pattern:
         return False
-    if fnmatch.fnmatchcase(full_path, pattern):
+    if _glob_match(full_path, pattern, case_insensitive=case_insensitive):
         return True
     pat_parts = [part for part in pattern.split(".") if part]
     if not pat_parts:
@@ -84,7 +111,11 @@ def path_pattern_match(full_path: str, pattern: str) -> bool:
     for seg in path_parts:
         if pi >= len(pat_parts):
             break
-        if _segment_glob_match(seg, pat_parts[pi]):
+        if _segment_glob_match(
+            seg,
+            pat_parts[pi],
+            case_insensitive=case_insensitive,
+        ):
             pi += 1
     return pi == len(pat_parts)
 
@@ -95,14 +126,33 @@ def row_matches_search_pattern(
     *,
     match_inst: bool,
     match_module: bool,
+    pattern_kind: PatternKind = "auto",
+    case_insensitive: bool = False,
 ) -> bool:
     if match_inst:
-        if _uses_path_pattern(pattern):
-            if path_pattern_match(row.full_path, pattern):
+        if pattern_kind in ("auto", "path") and (
+            pattern_kind == "path" or _uses_path_pattern(pattern)
+        ):
+            if path_pattern_match(
+                row.full_path,
+                pattern,
+                case_insensitive=case_insensitive,
+            ):
                 return True
-        elif _name_match(row.inst_leaf, pattern):
-            return True
-    if match_module and _name_match(row.module, pattern):
+        if pattern_kind in ("auto", "instance") and not (
+            pattern_kind == "auto" and _uses_path_pattern(pattern)
+        ):
+            if _name_match(
+                row.inst_leaf,
+                pattern,
+                case_insensitive=case_insensitive,
+            ):
+                return True
+    if match_module and _name_match(
+        row.module,
+        pattern,
+        case_insensitive=case_insensitive,
+    ):
         return True
     return False
 
@@ -141,6 +191,8 @@ def search_flat_rows(
     match_inst: bool = True,
     match_module: bool = False,
     include_subtree: bool = False,
+    pattern_kind: PatternKind = "auto",
+    case_insensitive: bool = False,
 ) -> List[SearchHit]:
     """
     Search flattened instance rows.
@@ -157,10 +209,19 @@ def search_flat_rows(
     for row in rows:
         for pat in patterns:
             if row_matches_search_pattern(
-                row, pat, match_inst=match_inst, match_module=match_module
+                row,
+                pat,
+                match_inst=match_inst,
+                match_module=match_module,
+                pattern_kind=pattern_kind,
+                case_insensitive=case_insensitive,
             ):
                 anchors.add(row.full_path)
-                if match_module and _name_match(row.module, pat):
+                if match_module and _name_match(
+                    row.module,
+                    pat,
+                    case_insensitive=case_insensitive,
+                ):
                     anchor_kinds[row.full_path] = "module"
                 else:
                     anchor_kinds[row.full_path] = "instance"
@@ -239,11 +300,16 @@ def search_tree(
     *,
     match_inst: bool = True,
     match_module: bool = False,
+    case_insensitive: bool = False,
 ) -> List[SearchHit]:
     hits: List[SearchHit] = []
 
     def walk(node: ElabNode) -> None:
-        if match_inst and _name_match(node.inst_name, pattern):
+        if match_inst and _name_match(
+            node.inst_name,
+            pattern,
+            case_insensitive=case_insensitive,
+        ):
             hits.append(
                 SearchHit(
                     full_path=node.full_path,
@@ -255,7 +321,11 @@ def search_tree(
                     stop_reason=node.stop_reason,
                 )
             )
-        if match_module and _name_match(node.module, pattern):
+        if match_module and _name_match(
+            node.module,
+            pattern,
+            case_insensitive=case_insensitive,
+        ):
             hits.append(
                 SearchHit(
                     full_path=node.full_path,
@@ -282,6 +352,8 @@ def search(
     match_inst: bool = True,
     match_module: bool = False,
     include_subtree: bool = False,
+    pattern_kind: PatternKind = "auto",
+    case_insensitive: bool = False,
 ) -> List[SearchHit]:
     patterns = normalize_search_patterns(pattern)
     if rows is not None:
@@ -291,6 +363,8 @@ def search(
             match_inst=match_inst,
             match_module=match_module,
             include_subtree=include_subtree,
+            pattern_kind=pattern_kind,
+            case_insensitive=case_insensitive,
         )
     if root is not None:
         hits: List[SearchHit] = []
@@ -301,6 +375,7 @@ def search(
                 pat,
                 match_inst=match_inst,
                 match_module=match_module,
+                case_insensitive=case_insensitive,
             ):
                 if hit.full_path in seen:
                     continue

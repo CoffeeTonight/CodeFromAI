@@ -13,13 +13,16 @@ from scan_inst.index import DesignIndex
 from scan_inst.manifest import (
     SourceManifest,
     build_source_manifest,
+    collect_index_digest_paths,
     config_cache_key,
+    digest_scope,
+    hash_paths_parallel,
     manifest_diff,
     manifest_is_current,
 )
 from scan_inst.models import ElabNode, FlatRow
 
-CACHE_VERSION = 5
+CACHE_VERSION = 8
 
 
 @dataclass
@@ -238,89 +241,110 @@ def load_or_build_index(
     ``index_cache_hit`` is True on a full manifest match (no RTL rescan).
     ``incremental`` is True when only changed sources were rescanned.
     """
-    config_key = config_cache_key(
+    digest_paths = collect_index_digest_paths(
         filelist_path,
         fl,
-        cache_version=CACHE_VERSION,
-        extra_defines=extra_defines,
-        ignore_paths=ignore_paths,
         ignore_path_files=ignore_path_files,
-        ignore_modules=ignore_modules,
-        ignore_filelists=ignore_filelists,
     )
-    path = cache_path_for(cache_dir, config_key)
-    manifest = build_source_manifest(fl, ignore_path_files=ignore_path_files)
-    bundle: Optional[ScanInstCacheBundle] = None
-    index_cache_hit = False
-    rebuilt_index = True
-    incremental = False
-
-    if use_cache and not refresh_cache:
-        if on_progress:
-            on_progress("cache: checking index cache")
-        bundle = load_cache(path, cache_dir=cache_dir)
-        if bundle is not None and bundle.config_key == config_key:
-            if manifest_is_current(bundle.source_manifest, manifest):
-                index_cache_hit = True
-                rebuilt_index = False
-                if on_progress:
-                    on_progress(
-                        f"cache: loaded index ({len(bundle.index.modules)} modules)"
-                    )
-                return bundle.index, bundle, True, False, False, path
-            changed, removed, added = manifest_diff(bundle.source_manifest, manifest)
-            if changed or removed or added:
-                index = _incremental_update(
-                    bundle,
-                    fl,
-                    manifest,
-                    changed=changed,
-                    removed=removed,
-                    added=added,
-                    ignore_paths=ignore_paths,
-                    ignore_path_files=ignore_path_files,
-                    ignore_modules=ignore_modules,
-                    ignore_filelists=ignore_filelists,
-                    jobs=jobs,
-                    on_progress=on_progress,
-                )
-                save_cache(path, bundle)
-                if on_progress:
-                    on_progress(
-                        f"cache: incremental save ({len(index.modules)} modules)"
-                    )
-                incremental = True
-                rebuilt_index = True
-                return index, bundle, False, rebuilt_index, incremental, path
-        if on_progress and path.is_file():
-            on_progress("cache: stale or unreadable, rebuilding index")
-
     if on_progress:
-        on_progress("index: building (no cache hit)")
-    index = build_design_index(
-        fl,
-        ignore_paths=ignore_paths,
-        ignore_path_files=ignore_path_files,
-        ignore_modules=ignore_modules,
-        ignore_filelists=ignore_filelists,
-        jobs=jobs,
-        low_memory=low_memory,
-        on_progress=on_progress,
-    )
-    bundle = ScanInstCacheBundle(
-        version=CACHE_VERSION,
-        config_key=config_key,
-        source_manifest=dict(manifest),
-        index=index,
-        elab=bundle.elab if bundle is not None else {},
-    )
-    if use_cache:
+        on_progress(f"cache: hashing {len(digest_paths)} inputs")
+    path_digests = hash_paths_parallel(digest_paths, jobs=jobs)
+
+    with digest_scope(path_digests):
+        config_key = config_cache_key(
+            filelist_path,
+            fl,
+            cache_version=CACHE_VERSION,
+            extra_defines=extra_defines,
+            ignore_paths=ignore_paths,
+            ignore_path_files=ignore_path_files,
+            ignore_modules=ignore_modules,
+            ignore_filelists=ignore_filelists,
+            path_digests=path_digests,
+        )
+        path = cache_path_for(cache_dir, config_key)
+        bundle: Optional[ScanInstCacheBundle] = None
+        index_cache_hit = False
+        rebuilt_index = True
+        incremental = False
+
+        if use_cache and not refresh_cache:
+            if on_progress:
+                on_progress("cache: checking index cache")
+            bundle = load_cache(path, cache_dir=cache_dir)
+
+        manifest = build_source_manifest(
+            fl,
+            ignore_path_files=ignore_path_files,
+            path_digests=path_digests,
+        )
+
+        if use_cache and not refresh_cache and bundle is not None:
+            if bundle.config_key == config_key:
+                if manifest_is_current(bundle.source_manifest, manifest):
+                    index_cache_hit = True
+                    rebuilt_index = False
+                    if on_progress:
+                        on_progress(
+                            f"cache: loaded index ({len(bundle.index.modules)} modules)"
+                        )
+                    return bundle.index, bundle, True, False, False, path
+                changed, removed, added = manifest_diff(
+                    bundle.source_manifest,
+                    manifest,
+                )
+                if changed or removed or added:
+                    index = _incremental_update(
+                        bundle,
+                        fl,
+                        manifest,
+                        changed=changed,
+                        removed=removed,
+                        added=added,
+                        ignore_paths=ignore_paths,
+                        ignore_path_files=ignore_path_files,
+                        ignore_modules=ignore_modules,
+                        ignore_filelists=ignore_filelists,
+                        jobs=jobs,
+                        on_progress=on_progress,
+                    )
+                    save_cache(path, bundle)
+                    if on_progress:
+                        on_progress(
+                            f"cache: incremental save ({len(index.modules)} modules)"
+                        )
+                    incremental = True
+                    rebuilt_index = True
+                    return index, bundle, False, rebuilt_index, incremental, path
+            if on_progress and path.is_file():
+                on_progress("cache: stale or unreadable, rebuilding index")
+
         if on_progress:
-            on_progress(f"cache: saving index ({len(index.modules)} modules)")
-        save_cache(path, bundle)
-    elif on_progress:
-        on_progress(f"index: done ({len(index.modules)} modules)")
-    return index, bundle, index_cache_hit, rebuilt_index, incremental, path
+            on_progress("index: building (no cache hit)")
+        index = build_design_index(
+            fl,
+            ignore_paths=ignore_paths,
+            ignore_path_files=ignore_path_files,
+            ignore_modules=ignore_modules,
+            ignore_filelists=ignore_filelists,
+            jobs=jobs,
+            low_memory=low_memory,
+            on_progress=on_progress,
+        )
+        bundle = ScanInstCacheBundle(
+            version=CACHE_VERSION,
+            config_key=config_key,
+            source_manifest=dict(manifest),
+            index=index,
+            elab=bundle.elab if bundle is not None else {},
+        )
+        if use_cache:
+            if on_progress:
+                on_progress(f"cache: saving index ({len(index.modules)} modules)")
+            save_cache(path, bundle)
+        elif on_progress:
+            on_progress(f"index: done ({len(index.modules)} modules)")
+        return index, bundle, index_cache_hit, rebuilt_index, incremental, path
 
 
 def get_cached_elab(

@@ -218,9 +218,9 @@ def _validate_full_index_mode(mode: str, spec: Mapping[str, Any], *, label: str)
             f"{label} run_on_full_index: unknown mode {mode!r}; "
             f"expected one of {sorted(_FULL_DB_MODES)}"
         )
-    if mode == "search" and not (
-        _mapping_get_ci(spec, "search") or _mapping_get_ci(spec, "search_path")
-    ):
+    from scan_inst.search_spec import document_has_search
+
+    if mode == "search" and not document_has_search(spec):
         raise ValueError(
             f"{label} run_on_full_index mode search requires search/search_path"
         )
@@ -386,10 +386,22 @@ def run_config_for_full_index(
         else cfg.output
     )
 
+    from scan_inst.search_spec import resolve_search_spec
+
     mode = entry.mode
     find_top = mode == "find-top"
-    search = str(_mapping_get_ci(spec, "search") or "").strip() or None
-    search_path = str(_mapping_get_ci(spec, "search_path") or "").strip() or None
+    raw_search = _mapping_get_ci(spec, "search")
+    search_spec = resolve_search_spec(spec)
+    search = None
+    search_path = None
+    search_case_insensitive = False
+    if search_spec is not None:
+        search_case_insensitive = search_spec.case_insensitive
+    if not isinstance(raw_search, Mapping):
+        search = str(raw_search or "").strip() or None
+        search_path = (
+            str(_mapping_get_ci(spec, "search_path") or "").strip() or None
+        )
 
     return replace(
         cfg,
@@ -400,6 +412,8 @@ def run_config_for_full_index(
         search_path=search_path,
         search_subtree=bool(_mapping_get_ci(spec, "search_subtree") or False),
         search_module=bool(_mapping_get_ci(spec, "search_module") or False),
+        search_case_insensitive=search_case_insensitive,
+        search_spec=search_spec,
         check_connect=None,
         check_connect_batch=None,
         connect_inline=None,

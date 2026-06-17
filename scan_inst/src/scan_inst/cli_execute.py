@@ -30,7 +30,7 @@ from scan_inst.progress import ProgressHeartbeat, ProgressReporter, progress_cal
 from scan_inst.hierarchy_log import emit_hierarchy_rows_log, emit_path_provenance_log, rows_lookup
 from scan_inst.report import RunReport, default_log_path, emit_run_report
 from scan_inst.path_chain import attach_path_chains, format_path_chain_compact
-from scan_inst.path_search import search_hierarchy_path
+from scan_inst.search_spec import effective_search_spec, execute_search_spec
 from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
 from scan_inst.connectivity import (
     check_connectivity,
@@ -57,7 +57,7 @@ from scan_inst.inst_trace import (
     print_inst_trace_report,
     run_inst_trace,
 )
-from scan_inst.search import normalize_search_patterns, search
+
 from scan_inst.top_find import find_top_modules, resolve_top_modules
 from scan_inst.run_request import RunConfig
 from scan_inst.verification_timing import (
@@ -871,29 +871,17 @@ def execute_run(cfg: RunConfig, ap) -> int:
             ),
             log_path=log_path,
         )
-    elif cfg.search or cfg.search_path:
-        hits = []
-        if cfg.search:
-            hits.extend(
-                search(
-                    cfg.search,
-                    rows=rows,
-                    match_inst=True,
-                    match_module=cfg.search_module,
-                    include_subtree=cfg.search_subtree,
-                )
-            )
-        if cfg.search_path:
-            hits.extend(
-                search_hierarchy_path(rows, cfg.search_path, index)
-            )
-        if cfg.search:
+    elif (search_spec := effective_search_spec(cfg)) is not None:
+        hits = execute_search_spec(rows, index, search_spec)
+        if search_spec.instance or search_spec.path:
             need_chain = [h for h in hits if not h.path_chain]
-            if need_chain:
-                top_name = tops[0] if tops else ""
-                attach_path_chains(
-                    need_chain, index, rows, top=top_name, refine_paths=False
-                )
+        else:
+            need_chain = []
+        if need_chain:
+            top_name = tops[0] if tops else ""
+            attach_path_chains(
+                need_chain, index, rows, top=top_name, refine_paths=False
+            )
         hits.sort(key=lambda h: h.full_path)
         lines = [
             "full_path\tmatched\tmodule\tdepth\tfile\t"
@@ -931,8 +919,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                 elab_cache_hits=elab_cache_hits,
                 instance_rows=len(rows),
                 search_hits=len(hits),
-                search_pattern=cfg.search_path
-                or ",".join(normalize_search_patterns(cfg.search or "")),
+                search_pattern=search_spec.summary_pattern(),
                 search_hit_details=hits,
                 mode="search",
                 output_path=cfg.output,

@@ -15,6 +15,12 @@ from scan_inst.connect_request import (
     try_parse_connect_request_json,
 )
 from scan_inst.inst_trace import InstTraceRequest, parse_inst_trace_json
+from scan_inst.search_spec import (
+    SearchSpec,
+    document_has_search,
+    effective_search_spec,
+    resolve_search_spec,
+)
 
 
 def strip_jsonc_line_comments(text: str) -> str:
@@ -196,6 +202,8 @@ class RunConfig:
     search_subtree: bool = False
     search_path: Optional[str] = None
     search_module: bool = False
+    search_case_insensitive: bool = False
+    search_spec: Optional[SearchSpec] = None
     check_connect: Optional[Tuple[str, str]] = None
     check_connect_batch: Optional[str] = None
     connect_inline: Optional[Any] = None
@@ -456,7 +464,7 @@ def resolve_effective_run_mode(
         return "inst-trace"
     if cfg.fanin_cone or cfg.fanout_cone:
         return "cone"
-    if cfg.search or cfg.search_path:
+    if effective_search_spec(cfg) is not None:
         return "search"
     if cfg.check_connect:
         return "check-connect"
@@ -497,7 +505,7 @@ def _infer_mode(data: Mapping[str, Any]) -> str:
         or data.get("fanout-cone") is not None
     ):
         return "cone"
-    if data.get("search") or data.get("search_path"):
+    if document_has_search(data):
         return "search"
     return "hierarchy"
 
@@ -522,7 +530,7 @@ def _validate_mode(data: Mapping[str, Any], mode: str) -> None:
         "check-connect-batch": (
             data.get("check_connect_batch") is not None or data.get("connect") is not None
         ),
-        "search": bool(data.get("search") or data.get("search_path")),
+        "search": document_has_search(data),
         "cone": (
             data.get("fanin_cone") is not None
             or data.get("fanin-cone") is not None
@@ -635,6 +643,28 @@ def parse_run_request_json(
             defines=defines,
         )
 
+    raw_search = _mapping_get_ci(data, "search")
+    search_spec = resolve_search_spec(data)
+    search: Optional[str] = None
+    search_path: Optional[str] = None
+    search_case_insensitive = bool(
+        _mapping_get_ci(data, "search_case_insensitive")
+        or _mapping_get_ci(data, "search-case-insensitive")
+        or False
+    )
+    if search_spec is not None and search_spec.case_insensitive:
+        search_case_insensitive = True
+    if not isinstance(raw_search, Mapping):
+        search = str(raw_search or "").strip() or None
+        search_path = (
+            str(
+                _mapping_get_ci(data, "search_path")
+                or _mapping_get_ci(data, "search-path")
+                or ""
+            ).strip()
+            or None
+        )
+
     return RunConfig(
         filelist=_resolve_path(base, filelist) or filelist,
         top=str(data.get("top") or "").strip() or None,
@@ -644,10 +674,12 @@ def parse_run_request_json(
         index_cwd=_resolve_path(base, data.get("index_cwd")),
         defines=tuple(defines.items()),
         max_depth=max_depth,
-        search=str(data.get("search") or "").strip() or None,
+        search=search,
         search_subtree=bool(data.get("search_subtree", False)),
-        search_path=str(data.get("search_path") or "").strip() or None,
+        search_path=search_path,
         search_module=bool(data.get("search_module", False)),
+        search_case_insensitive=search_case_insensitive,
+        search_spec=search_spec,
         check_connect=_parse_check_connect(data.get("check_connect")),
         check_connect_batch=check_connect_batch,
         connect_inline=connect_inline,
@@ -815,25 +847,75 @@ def _apply_run_document_fields(
         if raw_depth is not None:
             out = replace(out, max_depth=int(raw_depth))
 
-    if _document_has_key(data, "search") and not _field_overridden(args, "search", None):
-        search = str(_mapping_get_ci(data, "search") or "").strip()
-        if search:
-            out = replace(out, search=search)
+    search_keys = (
+        "search",
+        "search_path",
+        "search-path",
+        "search_subtree",
+        "search-subtree",
+        "search_module",
+        "search-module",
+        "search_case_insensitive",
+        "search-case-insensitive",
+    )
+    if any(_document_has_key(data, key) for key in search_keys):
+        raw_search = _mapping_get_ci(data, "search")
+        if isinstance(raw_search, Mapping) and not _field_overridden(
+            args, "search", None
+        ):
+            spec = resolve_search_spec(data)
+            if spec is not None:
+                out = replace(
+                    out,
+                    search_spec=spec,
+                    search=None,
+                    search_path=None,
+                    search_case_insensitive=spec.case_insensitive,
+                )
+        else:
+            if _document_has_key(data, "search") and not _field_overridden(
+                args, "search", None
+            ):
+                search = str(raw_search or "").strip()
+                if search:
+                    out = replace(out, search=search, search_spec=None)
+            if _document_has_key(data, "search_path", "search-path") and not (
+                _field_overridden(args, "search_path", None)
+            ):
+                search_path = str(
+                    _mapping_get_ci(data, "search_path")
+                    or _mapping_get_ci(data, "search-path")
+                    or ""
+                ).strip()
+                if search_path:
+                    out = replace(out, search_path=search_path, search_spec=None)
 
-    if _document_has_key(data, "search_subtree") and not args.search_subtree:
-        if bool(_mapping_get_ci(data, "search_subtree")):
+    if _document_has_key(data, "search_subtree", "search-subtree") and not (
+        args.search_subtree
+    ):
+        if bool(
+            _mapping_get_ci(data, "search_subtree")
+            or _mapping_get_ci(data, "search-subtree")
+        ):
             out = replace(out, search_subtree=True)
 
-    if _document_has_key(data, "search_path") and not _field_overridden(
-        args, "search_path", None
+    if _document_has_key(data, "search_module", "search-module") and not (
+        args.search_module
     ):
-        search_path = str(_mapping_get_ci(data, "search_path") or "").strip()
-        if search_path:
-            out = replace(out, search_path=search_path)
-
-    if _document_has_key(data, "search_module") and not args.search_module:
-        if bool(_mapping_get_ci(data, "search_module")):
+        if bool(
+            _mapping_get_ci(data, "search_module")
+            or _mapping_get_ci(data, "search-module")
+        ):
             out = replace(out, search_module=True)
+
+    if _document_has_key(
+        data, "search_case_insensitive", "search-case-insensitive"
+    ) and not getattr(args, "search_case_insensitive", False):
+        if bool(
+            _mapping_get_ci(data, "search_case_insensitive")
+            or _mapping_get_ci(data, "search-case-insensitive")
+        ):
+            out = replace(out, search_case_insensitive=True)
 
     if _document_has_key(data, "check_connect") and not args.check_connect:
         parsed = _parse_check_connect(_mapping_get_ci(data, "check_connect"))
@@ -1115,7 +1197,7 @@ def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:
         payload["mode"] = "check-connect-batch"
     elif cfg.fanin_cone or cfg.fanout_cone:
         payload["mode"] = "cone"
-    elif cfg.search or cfg.search_path:
+    elif effective_search_spec(cfg) is not None:
         payload["mode"] = "search"
     else:
         payload["mode"] = "hierarchy"
@@ -1134,6 +1216,8 @@ def run_config_to_json(cfg: RunConfig, *, indent: int = 2) -> str:
         payload["search_path"] = cfg.search_path
     if cfg.search_module:
         payload["search_module"] = True
+    if cfg.search_case_insensitive:
+        payload["search_case_insensitive"] = True
     if cfg.connect_trace:
         payload["connect_trace"] = True
     if cfg.connect_log:
@@ -1274,6 +1358,9 @@ def run_config_from_args(args: Any) -> RunConfig:
         search_subtree=bool(args.search_subtree),
         search_path=args.search_path,
         search_module=bool(args.search_module),
+        search_case_insensitive=bool(
+            getattr(args, "search_case_insensitive", False)
+        ),
         check_connect=check_connect,
         check_connect_batch=args.check_connect_batch,
         connect_trace=bool(args.connect_trace),
@@ -1328,13 +1415,15 @@ def merge_run_config(base: RunConfig, cli: RunConfig, args: Any) -> RunConfig:
     if _field_overridden(args, "max_depth", None):
         out = replace(out, max_depth=cli.max_depth)
     if _field_overridden(args, "search", None):
-        out = replace(out, search=cli.search)
+        out = replace(out, search=cli.search, search_spec=None)
     if args.search_subtree:
         out = replace(out, search_subtree=True)
     if _field_overridden(args, "search_path", None):
-        out = replace(out, search_path=cli.search_path)
+        out = replace(out, search_path=cli.search_path, search_spec=None)
     if args.search_module:
         out = replace(out, search_module=True)
+    if getattr(args, "search_case_insensitive", False):
+        out = replace(out, search_case_insensitive=True)
     if args.check_connect:
         out = replace(
             out,

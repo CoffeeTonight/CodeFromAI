@@ -10,7 +10,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from scan_inst.generate_fold import prepare_body_for_instance_scan
 from scan_inst.index import DesignIndex, _ctx_key
 from scan_inst.inst_scan import iter_module_blocks, scan_hierarchy_instances
-from scan_inst.manifest import path_stat
+from scan_inst.manifest import path_content_digest
 from scan_inst.models import InstanceEdge
 from scan_inst.params import collect_module_params, parse_param_pairs, resolve_param_map, split_module_header
 
@@ -45,8 +45,8 @@ _module_chunk_cache: Dict[_ModuleChunkCacheKey, Tuple[str, str, str]] = {}
 
 
 def _module_chunk_cache_key(index: DesignIndex, mod_name: str, path: str) -> _ModuleChunkCacheKey:
-    stat = path_stat(Path(path)) if path else None
-    token = f"{stat[0]}:{stat[1]}" if stat is not None else path
+    digest = path_content_digest(Path(path)) if path else None
+    token = digest if digest is not None else path
     return (id(index), mod_name, token)
 
 

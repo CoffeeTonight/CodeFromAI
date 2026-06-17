@@ -32,6 +32,7 @@ JSON help:
   scan-inst --help-connect    connectivity batch JSON only
   scan-inst --help-cone       fanin/fanout cone mode
   scan-inst --help-stress     random RTL connectivity stress / pytest
+  scan-inst --example         write search_example.json (all search features)
 
 environment:
   SCAN_INST_LAZY              default on: minimal index (includes only), scoped connect
@@ -87,10 +88,23 @@ Output / logging
 
 Search mode
 -----------
-  search (string)             Instance name patterns; comma-separated globs
-  search-path (string)        Hierarchy path glob (leaf port verified in RTL)
+  search (string | object)    Instance/path/hierarchy search (see below)
+  search-path (string)        Legacy hierarchy path glob (merged into object form)
   search-subtree (bool)       Include instances under matched hierarchies
   search-module (bool)        Also match module type names
+  search-case-insensitive (bool)
+                              Case-insensitive globs (default: false)
+
+  Structured search object (``search`` as object)::
+    instance (string|array)       Match inst_leaf (and module if search-module)
+    path (string|array)           Match full_path segment subsequence
+    hierarchy_path (string|array)   Fixed-depth hierarchy + optional port verify
+    case_insensitive (bool)         Per-query case policy (default: false)
+    search_module (bool)          Also match module type names
+    search_subtree (bool)         Include instances under matched hierarchies
+
+  Legacy flat ``search`` string: comma-separated patterns; dotted patterns
+  route to path matching, plain patterns to instance matching.
 
 Connectivity — single
 ---------------------
@@ -275,9 +289,11 @@ Legacy tests[] array is still accepted (enable supported per entry).
 Bundled examples (run from examples/stress_seed42):
   flat_run_example.json   (JSONC: // comments; one runnable step + commented templates)
   stress_42_d8.suite.json (all steps enabled)
+  ../search_example.json  (all search features; copy into stress_seed42/ or use --example)
 
   cd examples/stress_seed42
   scan-inst flat_run_example.json
+  scan-inst --example && scan-inst search_example.json
 
 Connectivity — batch (single-test / legacy)
 -------------------------------------------
@@ -344,6 +360,22 @@ Example (search)
   "top": "hc_verify_top",
   "search": "idx,ecc",
   "search-module": true,
+  "output": "hits.tsv"
+}
+
+Example (structured search)
+---------------------------
+{
+  "filelist": "design.f",
+  "mode": "search",
+  "top": "chip_top",
+  "search": {
+    "instance": ["u_*cpu*", "*gpu*"],
+    "path": ["*.*cpu*", "chip_top.*.u_*"],
+    "hierarchy_path": ["chip_top.u_*.*cpu*"],
+    "case_insensitive": true,
+    "search_module": true
+  },
   "output": "hits.tsv"
 }
 

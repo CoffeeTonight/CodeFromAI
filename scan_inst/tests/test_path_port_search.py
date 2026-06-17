@@ -313,7 +313,9 @@ module mid ( input wire clk ); endmodule
     index = DesignIndex.build({str(rtl): text})
     _root, rows = elaborate(index, "top")
 
-    hits = search_hierarchy_path(rows, "top.U_MID0.clk", index)
+    hits = search_hierarchy_path(
+        rows, "top.U_MID0.clk", index, case_insensitive=True
+    )
     assert len(hits) == 1
     assert hits[0].port_found
     assert hits[0].full_path == "top.u_mid0.clk"

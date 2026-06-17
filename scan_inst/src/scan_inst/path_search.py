@@ -13,13 +13,22 @@ from scan_inst.port_scan import matching_ports, port_index_for_module
 from scan_inst.search import _segment_glob_match, hit_from_row
 
 
-def hierarchy_glob_match(path: str, pattern: str) -> bool:
+def hierarchy_glob_match(
+    path: str,
+    pattern: str,
+    *,
+    case_insensitive: bool = False,
+) -> bool:
     path_parts = path.split(".")
     pat_parts = pattern.split(".")
     if len(path_parts) != len(pat_parts):
         return False
     return all(
-        _segment_glob_match(part, glob_part)
+        _segment_glob_match(
+            part,
+            glob_part,
+            case_insensitive=case_insensitive,
+        )
         for part, glob_part in zip(path_parts, pat_parts)
     )
 
@@ -27,6 +36,8 @@ def hierarchy_glob_match(path: str, pattern: str) -> bool:
 def parse_hierarchy_port_pattern(
     pattern: str,
     rows: Optional[Sequence[FlatRow]] = None,
+    *,
+    case_insensitive: bool = False,
 ) -> Tuple[str, Optional[str]]:
     """
     Split trailing port segment only when the full pattern is not an instance path.
@@ -39,7 +50,12 @@ def parse_hierarchy_port_pattern(
     if len(parts) < 3:
         return pattern, None
     if rows is not None and any(
-        hierarchy_glob_match(row.full_path, pattern) for row in rows
+        hierarchy_glob_match(
+            row.full_path,
+            pattern,
+            case_insensitive=case_insensitive,
+        )
+        for row in rows
     ):
         return pattern, None
     return ".".join(parts[:-1]), parts[-1]
@@ -99,13 +115,22 @@ def search_hierarchy_path(
     *,
     require_port: bool = True,
     refine_port_ctx: bool = True,
+    case_insensitive: bool = False,
 ) -> List[SearchHit]:
-    inst_pat, port_pat = parse_hierarchy_port_pattern(pattern, rows)
+    inst_pat, port_pat = parse_hierarchy_port_pattern(
+        pattern,
+        rows,
+        case_insensitive=case_insensitive,
+    )
     top = _top_from_rows(rows)
     refine_cache: dict = {}
     hits: List[SearchHit] = []
     for row in rows:
-        if not hierarchy_glob_match(row.full_path, inst_pat):
+        if not hierarchy_glob_match(
+            row.full_path,
+            inst_pat,
+            case_insensitive=case_insensitive,
+        ):
             continue
         if port_pat is None:
             hit = hit_from_row(

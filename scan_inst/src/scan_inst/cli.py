@@ -113,6 +113,7 @@ from scan_inst.help_text import (
     INST_TRACE_HELP,
     STRESS_HELP,
 )
+from scan_inst.search_example import SEARCH_EXAMPLE_FILENAME, search_example_text, write_search_example
 from scan_inst.search import normalize_search_patterns, search
 from scan_inst.top_find import find_top_modules, resolve_top_modules
 
@@ -240,6 +241,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print inst-trace mode reference; exit",
     )
+    cfg.add_argument(
+        "--example",
+        nargs="?",
+        const=SEARCH_EXAMPLE_FILENAME,
+        default=None,
+        metavar="PATH",
+        help=(
+            "write comprehensive search example JSON "
+            f"(default {SEARCH_EXAMPLE_FILENAME}; use - for stdout)"
+        ),
+    )
 
     elab = ap.add_argument_group("elaboration")
     elab.add_argument(
@@ -335,6 +347,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--search-module",
         action="store_true",
         help="with --search, also match module type names",
+    )
+    srch.add_argument(
+        "--search-case-insensitive",
+        action="store_true",
+        help="case-insensitive glob matching for --search and --search-path",
     )
 
     conn = ap.add_argument_group("connectivity mode")
@@ -482,6 +499,18 @@ def main(argv=None) -> int:
         return 0
     if args.help_inst_trace:
         print(INST_TRACE_HELP, end="" if INST_TRACE_HELP.endswith("\n") else "\n")
+        return 0
+    if args.example is not None:
+        text = search_example_text()
+        if args.example == "-":
+            sys.stdout.write(text)
+            return 0
+        out_path = write_search_example(Path(args.example))
+        print(
+            f"run: wrote search example to {out_path} "
+            f"(runnable from examples/stress_seed42/ after adjusting paths)",
+            file=sys.stderr,
+        )
         return 0
     run_json_arg = args.filelist or os.environ.get("SCAN_INST_CONFIG")
     if not run_json_arg and not args.check_connect_batch:

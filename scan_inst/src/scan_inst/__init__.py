@@ -33,4 +33,4 @@ __all__ = [
     "flatten",
 ]
 
-__version__ = "0.3.23"
+__version__ = "0.3.25"

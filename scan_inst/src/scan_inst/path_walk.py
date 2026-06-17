@@ -19,7 +19,7 @@ from scan_inst.connectivity import ConnectivityBatchResult, ConnectivitySession
 from scan_inst.filelist import FilelistResult
 from scan_inst.ignore_path import resolve_ignore_path_patterns, source_path_matches
 from scan_inst.index import DesignIndex, _ctx_key
-from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
+from scan_inst.inst_scan import expand_inst_names
 from scan_inst.lazy_scope import endpoint_specs_from_request, hierarchy_prefixes
 from scan_inst.library_scan import scan_library_modules
 from scan_inst.models import FlatRow, InstanceEdge
@@ -415,10 +415,9 @@ class PathWalkState:
 
     @staticmethod
     def _inst_leaf_prefix(remainder: str) -> str:
-        """First hierarchy segment of *remainder* (handles ``c[0][1].d``)."""
-        seg, _ = _read_hier_inst_path(remainder, 0)
-        if seg:
-            return seg
+        """First dotted path segment of *remainder* (``c.d.e`` -> ``c``, ``c[0][1].d`` -> ``c[0][1]``)."""
+        if not remainder:
+            return ""
         return remainder.split(".", 1)[0]
 
     def _longest_known_prefix(self, path: str) -> Tuple[str, str]:

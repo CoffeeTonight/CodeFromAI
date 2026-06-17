@@ -6,7 +6,7 @@ from pathlib import Path
 
 from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
 from scan_inst.filelist import parse_filelist
-from scan_inst.path_walk import run_path_walk_connect
+from scan_inst.path_walk import PathWalkState, run_path_walk_connect
 
 
 def _run(tmp_path: Path, files: dict[str, str], path: str, *, top: str = "A") -> bool:
@@ -29,6 +29,14 @@ def _run(tmp_path: Path, files: dict[str, str], path: str, *, top: str = "A") ->
         no_cache=True,
     )
     return path in state.rows_by_path
+
+
+def test_inst_leaf_prefix_is_path_segment_not_hier_inst_name():
+    """Endpoint remainders use dotted hierarchy paths, not ``inst_scan`` hier refs."""
+    assert PathWalkState._inst_leaf_prefix("c") == "c"
+    assert PathWalkState._inst_leaf_prefix("c.d") == "c"
+    assert PathWalkState._inst_leaf_prefix("c.d.e") == "c"
+    assert PathWalkState._inst_leaf_prefix("c[0][1].d") == "c[0][1]"
 
 
 def test_path_walk_c_only_in_second_b_decl(tmp_path: Path):

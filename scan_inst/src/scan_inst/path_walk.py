@@ -61,6 +61,10 @@ class PathWalkStats:
     paths_walked: int = 0
     subtrees_expanded: int = 0
     checks_run: int = 0
+    endpoint_specs_raw: int = 0
+    endpoint_specs_unique: int = 0
+    walk_target_calls: int = 0
+    walk_target_skipped: int = 0
 
 
 class ModuleFileResolver:
@@ -873,9 +877,126 @@ def _inst_path_from_spec(
     return cur
 
 
+def _path_depth(path: str) -> int:
+    return path.count(".") if path else 0
+
+
+@dataclass
+class _PathTrieNode:
+    """Dotted hierarchy trie for endpoint specs (branch detection + ordered walk)."""
+
+    segment: str = ""
+    full_path: str = ""
+    children: Dict[str, "_PathTrieNode"] = field(default_factory=dict)
+    is_terminal: bool = False
+
+
+def _path_trie_insert(root: _PathTrieNode, path: str, *, top: str) -> None:
+    text = path.strip()
+    if not text:
+        return
+    parts = text.split(".")
+    if not parts:
+        return
+    if parts[0] == top:
+        start = 1
+        node = root
+        cur = top
+    else:
+        start = 0
+        node = root
+        cur = ""
+    for idx in range(start, len(parts)):
+        seg = parts[idx]
+        cur = seg if not cur else f"{cur}.{seg}"
+        child = node.children.get(seg)
+        if child is None:
+            child = _PathTrieNode(segment=seg, full_path=cur)
+            node.children[seg] = child
+        node = child
+    node.is_terminal = True
+
+
+def _path_trie_from_specs(specs: Sequence[str], *, top: str) -> _PathTrieNode:
+    root = _PathTrieNode(segment=top, full_path=top)
+    for spec in specs:
+        _path_trie_insert(root, str(spec).strip(), top=top)
+    return root
+
+
+def _path_trie_branch_points(root: _PathTrieNode) -> List[str]:
+    """Instance paths where two or more child branches diverge (parallel walk candidates)."""
+    out: List[str] = []
+    stack: List[_PathTrieNode] = [root]
+    while stack:
+        node = stack.pop()
+        if len(node.children) > 1 and node.full_path:
+            out.append(node.full_path)
+        stack.extend(node.children.values())
+    return sorted(out, key=_path_depth)
+
+
+def _path_trie_terminals(root: _PathTrieNode) -> List[str]:
+    out: List[str] = []
+
+    def visit(node: _PathTrieNode) -> None:
+        if node.is_terminal and node.full_path:
+            out.append(node.full_path)
+        for child in sorted(node.children.values(), key=lambda n: n.segment):
+            visit(child)
+
+    visit(root)
+    return out
+
+
+def _sorted_unique_specs(specs: Sequence[str]) -> List[str]:
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for raw in specs:
+        text = str(raw).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        ordered.append(text)
+    return sorted(ordered, key=lambda p: (_path_depth(p), p))
+
+
+def _walk_endpoint_specs(
+    state: PathWalkState,
+    specs: Sequence[str],
+) -> None:
+    """
+    Walk endpoint specs with dedup + shallow-first order.
+
+    Replaces the old two-pass prefix sweep + per-spec walk.  Shared prefixes
+    are built once via :meth:`PathWalkState.ensure_path` incremental attach.
+    """
+    raw = [str(s).strip() for s in specs if str(s).strip()]
+    state.stats.endpoint_specs_raw += len(raw)
+    unique = _sorted_unique_specs(raw)
+    state.stats.endpoint_specs_unique += len(unique)
+    walked_targets: Set[str] = set()
+    for spec in unique:
+        inst = _walk_target_from_spec(spec, state)
+        if not inst:
+            continue
+        if inst in walked_targets:
+            state.stats.walk_target_skipped += 1
+            if state._is_walk_blocked(inst):
+                state._note_blocked_walk_skip(inst)
+            continue
+        walked_targets.add(inst)
+        if state._is_walk_blocked(inst):
+            state._note_blocked_walk_skip(inst)
+            continue
+        state.stats.walk_target_calls += 1
+        state.ensure_path(inst)
+
+
 def _sorted_prefixes(specs: Sequence[str]) -> List[str]:
+    """Legacy: all dotted prefixes (prefer :func:`_walk_endpoint_specs`)."""
     prefixes = hierarchy_prefixes(specs)
-    return sorted(prefixes, key=lambda p: (p.count("."), p))
+    return sorted(prefixes, key=lambda p: (_path_depth(p), p))
 
 
 @dataclass
@@ -1021,20 +1142,13 @@ def _extend_path_walk_for_specs(
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> None:
     spec_list = [str(s).strip() for s in specs if str(s).strip()]
+    unique_n = len(_sorted_unique_specs(spec_list))
     if on_progress:
-        on_progress(f"path-walk: {len(spec_list)} endpoint spec(s)")
-    for prefix in _sorted_prefixes(spec_list):
-        if state._is_walk_blocked(prefix):
-            state._note_blocked_walk_skip(prefix)
-            continue
-        state.ensure_path(prefix)
-    for spec in spec_list:
-        inst = _walk_target_from_spec(spec, state)
-        if inst:
-            if state._is_walk_blocked(inst):
-                state._note_blocked_walk_skip(inst)
-            else:
-                state.ensure_path(inst)
+        on_progress(
+            f"path-walk: {len(spec_list)} endpoint spec(s)"
+            f" ({unique_n} unique, trie walk)"
+        )
+    _walk_endpoint_specs(state, spec_list)
     for subtree_root in expand_subtrees:
         root = str(subtree_root).strip()
         if not root:
@@ -1052,13 +1166,13 @@ def _extend_path_walk_connect(
     on_progress: Optional[Callable[[str], None]] = None,
 ) -> None:
     specs = endpoint_specs_from_request(request)
+    unique_n = len(_sorted_unique_specs(specs))
     if on_progress:
-        on_progress(f"path-walk: {len(specs)} endpoint spec(s)")
-    for prefix in _sorted_prefixes(specs):
-        if state._is_walk_blocked(prefix):
-            state._note_blocked_walk_skip(prefix)
-            continue
-        state.ensure_path(prefix)
+        on_progress(
+            f"path-walk: {len(specs)} endpoint spec(s)"
+            f" ({unique_n} unique, trie walk)"
+        )
+    _walk_endpoint_specs(state, specs)
     seen_lca: Set[Tuple[str, str]] = set()
     for chk in request.checks:
         a = _walk_target_from_spec(chk.endpoint_a, state)

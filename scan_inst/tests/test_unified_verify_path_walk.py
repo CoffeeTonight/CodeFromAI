@@ -48,9 +48,9 @@ def test_unified_verify_ifdef_instance_under_define():
     assert "USE_M1" in fl.defines
     index, mod_db = create_path_walk_index(fl, TOP, defines=dict(fl.defines), no_cache=True)
     state = build_path_walk_state_from_specs(
-        index, TOP, [f"{TOP}.u_ifdef.u_mid_1"], mod_db,
+        index, TOP, [f"{TOP}.u_ifdef.u_system_top"], mod_db,
     )
-    assert f"{TOP}.u_ifdef.u_mid_1" in state.rows_by_path
+    assert f"{TOP}.u_ifdef.u_system_top" in state.rows_by_path
 
 
 @pytest.mark.skipif(FILELIST is None, reason="unified_verify corpus not available")

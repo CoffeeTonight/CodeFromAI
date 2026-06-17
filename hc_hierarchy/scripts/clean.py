@@ -4,15 +4,22 @@ Remove generated artifacts under hc_hierarchy (safe for re-index / git status).
 
 Works on Linux, macOS, and Windows (no bash required).
 
+Default clean removes everything not needed for a fresh design analysis run:
+  - hch index DB + slang preprocess cache
+  - scan-inst TSV/log outputs under design/
+  - scan-inst disk cache (~/.cache/scan-inst or $SCAN_INST_CACHE_DIR)
+
 Examples:
-  python3 scripts/clean.py              # default junk
+  python3 scripts/clean.py              # default junk + scan-inst outputs/cache
   python3 scripts/clean.py --dry-run
   python3 scripts/clean.py --all        # + pytest cache, egg-info, build/
+  python3 scripts/clean.py --keep-scan-cache   # keep ~/.cache/scan-inst
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -30,6 +37,14 @@ DEFAULT_GLOBS = [
     ("elab_bench_report.json", "**/elab_bench_report.json"),
     ("bench_*.hch.db", "**/bench_*.hch.db"),
     ("full_batch.tsv", "design/synthetic_deep_rtl/full_batch.tsv"),
+    ("scan-inst TSV outputs", "design/**/out_*.tsv"),
+    ("scan-inst logs", "design/**/*.scan-inst.log"),
+    ("verify reports", "design/**/*.report.txt"),
+    ("query/export TSV", "design/**/hits.tsv"),
+    ("query/export TSV", "design/**/results.tsv"),
+    ("query/export TSV", "design/**/instances.tsv"),
+    ("editor swap", "design/**/*.swp"),
+    ("relative scratch", "relative/out.txt"),
 ]
 
 ALL_EXTRA_GLOBS = [
@@ -42,7 +57,15 @@ ALL_EXTRA_GLOBS = [
     (".deps/", ".deps"),
 ]
 
-SKIP_DIR_NAMES = {".git"}
+
+def _scan_inst_cache_dir() -> Path:
+    env = os.environ.get("SCAN_INST_CACHE_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
+    if xdg:
+        return Path(xdg).expanduser() / "scan-inst"
+    return Path.home() / ".cache" / "scan-inst"
 
 
 def _collect_paths(globs: list[tuple[str, str]]) -> list[Path]:
@@ -56,7 +79,6 @@ def _collect_paths(globs: list[tuple[str, str]]) -> list[Path]:
             if key in seen:
                 continue
             seen.add(key)
-            # never delete source RTL under design (only artifacts matched by glob)
             found.append(p)
     return sorted(found, key=lambda x: (len(x.parts), str(x)))
 
@@ -77,7 +99,9 @@ def _remove(path: Path, *, dry_run: bool) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Clean hc_hierarchy generated artifacts")
+    ap = argparse.ArgumentParser(
+        description="Clean hc_hierarchy generated artifacts for fresh design analysis",
+    )
     ap.add_argument(
         "--dry-run",
         action="store_true",
@@ -87,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
         "--all",
         action="store_true",
         help="Also remove .pytest_cache, __pycache__, egg-info, build/, dist/, .deps/",
+    )
+    ap.add_argument(
+        "--keep-scan-cache",
+        action="store_true",
+        help="Do not remove scan-inst disk cache (~/.cache/scan-inst or $SCAN_INST_CACHE_DIR)",
     )
     ap.add_argument(
         "--quiet",
@@ -100,6 +129,12 @@ def main(argv: list[str] | None = None) -> int:
         globs.extend(ALL_EXTRA_GLOBS)
 
     targets = _collect_paths(globs)
+    if not args.keep_scan_cache:
+        cache_dir = _scan_inst_cache_dir()
+        if cache_dir.exists():
+            targets.append(cache_dir)
+    targets = sorted({str(p.resolve()): p for p in targets}.values(), key=str)
+
     removed = 0
     for p in targets:
         rel = p.relative_to(ROOT) if p.is_relative_to(ROOT) else p

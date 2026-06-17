@@ -229,9 +229,10 @@ git commit -m "hc_hierarchy v1 indexing tool"
 ## 생성물 정리
 
 ```bash
-python3 scripts/clean.py              # .hch.db, slang 캐시, logs 등
+python3 scripts/clean.py              # hch DB/slang 캐시, logs, design/out_*.tsv, scan-inst ~/.cache
 python3 scripts/clean.py --dry-run    # 삭제 목록만
 python3 scripts/clean.py --all        # + .pytest_cache, __pycache__, build/
+python3 scripts/clean.py --keep-scan-cache   # scan-inst 디스크 캐시는 유지
 # Windows: python scripts\clean.py
 ```
 

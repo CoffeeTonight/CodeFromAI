@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Iterable, List, Optional, Sequence, Set
 
+from scan_inst.connect_expand import endpoint_specs_from_expand
 from scan_inst.connect_request import ConnectivityCheck, ConnectivityRequest
 
 
@@ -52,10 +53,13 @@ def lazy_on_demand_full_preprocess() -> bool:
 def endpoint_specs_from_checks(checks: Sequence[ConnectivityCheck]) -> List[str]:
     out: List[str] = []
     for chk in checks:
-        if chk.endpoint_a:
-            out.append(chk.endpoint_a)
-        if chk.endpoint_b:
-            out.append(chk.endpoint_b)
+        if chk.expand is not None:
+            out.extend(endpoint_specs_from_expand(chk.expand))
+        else:
+            if chk.endpoint_a:
+                out.append(chk.endpoint_a)
+            if chk.endpoint_b:
+                out.append(chk.endpoint_b)
     return out
 
 

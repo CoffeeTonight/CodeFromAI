@@ -7,12 +7,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+from scan_inst.connect_expand import (
+    CheckExpandMeta,
+    EndpointValue,
+    build_expand_meta,
+    needs_expansion,
+    parse_endpoint_elements,
+)
+
 
 @dataclass(frozen=True)
 class ConnectivityCheck:
     endpoint_a: str
     endpoint_b: str
     check_id: str = ""
+    expand: Optional[CheckExpandMeta] = None
 
 
 @dataclass(frozen=True)
@@ -44,14 +53,64 @@ _OPTION_KEYS = frozenset(
 )
 
 
+def _endpoint_display(raw: EndpointValue) -> str:
+    display, _, _ = parse_endpoint_elements(raw)
+    return display
+
+
+def _parse_check_endpoints(
+    raw_a: Any,
+    raw_b: Any,
+    *,
+    loop: Any = None,
+    map_spec: Any = None,
+) -> ConnectivityCheck:
+    if isinstance(raw_a, (list, tuple)):
+        endpoint_a: EndpointValue = tuple(str(x).strip() for x in raw_a)
+    else:
+        endpoint_a = str(raw_a).strip()
+    if isinstance(raw_b, (list, tuple)):
+        endpoint_b: EndpointValue = tuple(str(x).strip() for x in raw_b)
+    else:
+        endpoint_b = str(raw_b).strip()
+    if not endpoint_a or (isinstance(endpoint_a, str) and not endpoint_a):
+        raise ValueError("endpoint a must be non-empty")
+    if not endpoint_b or (isinstance(endpoint_b, str) and not endpoint_b):
+        raise ValueError("endpoint b must be non-empty")
+
+    expand = build_expand_meta(
+        endpoint_a,
+        endpoint_b,
+        loop=loop,
+        map_spec=map_spec,
+    )
+    if not needs_expansion(expand):
+        expand = None
+    return ConnectivityCheck(
+        _endpoint_display(endpoint_a),
+        _endpoint_display(endpoint_b),
+        expand=expand,
+    )
+
+
 def _parse_check_item(item: Any, *, index: int) -> ConnectivityCheck:
     check_id = ""
     if isinstance(item, (list, tuple)):
         if len(item) != 2:
             raise ValueError(f"checks[{index}] must have exactly two endpoints")
-        return ConnectivityCheck(str(item[0]).strip(), str(item[1]).strip())
+        chk = _parse_check_endpoints(item[0], item[1])
+        if check_id:
+            return ConnectivityCheck(
+                chk.endpoint_a,
+                chk.endpoint_b,
+                check_id=check_id,
+                expand=chk.expand,
+            )
+        return chk
     if isinstance(item, dict):
         check_id = str(item.get("id") or item.get("name") or "").strip()
+        loop = item.get("loop", item.get("bind"))
+        map_spec = item.get("map")
         for a_key, b_key in (
             ("a", "b"),
             ("from", "to"),
@@ -59,10 +118,17 @@ def _parse_check_item(item: Any, *, index: int) -> ConnectivityCheck:
             ("src", "dst"),
         ):
             if a_key in item and b_key in item:
+                chk = _parse_check_endpoints(
+                    item[a_key],
+                    item[b_key],
+                    loop=loop,
+                    map_spec=map_spec,
+                )
                 return ConnectivityCheck(
-                    str(item[a_key]).strip(),
-                    str(item[b_key]).strip(),
+                    chk.endpoint_a,
+                    chk.endpoint_b,
                     check_id=check_id,
+                    expand=chk.expand,
                 )
         raise ValueError(
             f"checks[{index}] needs a/b, from/to, endpoint_a/endpoint_b, or src/dst"
@@ -209,12 +275,55 @@ def connect_request_to_json(req: ConnectivityRequest, *, indent: int = 2) -> str
         payload["connect_log"] = True
     if req.over_approximate_if is not None:
         payload["over_approximate_if"] = req.over_approximate_if
+    def _endpoint_json(chk: ConnectivityCheck, side: str) -> Any:
+        if chk.expand is None:
+            return chk.endpoint_a if side == "a" else chk.endpoint_b
+        elements = chk.expand.elements_a if side == "a" else chk.expand.elements_b
+        if len(elements) > 1:
+            if chk.expand.map_kind == "concat":
+                return "{" + ", ".join(elements) + "}"
+            return list(elements)
+        return elements[0]
+
     for chk in req.checks:
-        item: Dict[str, Any] = {"a": chk.endpoint_a, "b": chk.endpoint_b}
+        item: Dict[str, Any] = {"a": _endpoint_json(chk, "a"), "b": _endpoint_json(chk, "b")}
         if chk.check_id:
             item["id"] = chk.check_id
+        if chk.expand is not None:
+            if chk.expand.loop:
+                loop_out: Dict[str, Any] = {}
+                for key, values in chk.expand.loop:
+                    loop_out[key] = _loop_value_for_json(values)
+                item["loop"] = loop_out
+            map_out = _map_options_for_json(chk.expand)
+            if map_out:
+                item["map"] = map_out
         payload["checks"].append(item)
     return json.dumps(payload, indent=indent) + "\n"
+
+
+def _loop_value_for_json(values: Tuple[str, ...]) -> Any:
+    if not values:
+        return []
+    if all(v.isdigit() or (v.startswith("-") and v[1:].isdigit()) for v in values):
+        nums = [int(v) for v in values]
+        if len(nums) > 1:
+            step = nums[1] - nums[0]
+            if step != 0 and all(nums[i] - nums[i - 1] == step for i in range(1, len(nums))):
+                return f"{nums[0]}:{nums[-1]}"
+        return [int(v) for v in values]
+    if all(v.isalnum() or v in "-_" for v in values):
+        return ",".join(values)
+    return list(values)
+
+
+def _map_options_for_json(expand: CheckExpandMeta) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if expand.bit_align != "lsb":
+        out["bit_align"] = expand.bit_align
+    if expand.fanout_mode != "all":
+        out["mode"] = expand.fanout_mode
+    return out
 
 
 def write_connect_request(path: Union[str, Path], req: ConnectivityRequest) -> None:

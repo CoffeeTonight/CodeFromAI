@@ -148,6 +148,7 @@ class ConnectResult:
     errors: List[str] = field(default_factory=list)
     note: str = ""
     check_id: str = ""
+    sub_results: Tuple["ConnectResult", ...] = ()
 
 
 @dataclass

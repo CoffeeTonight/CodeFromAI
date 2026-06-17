@@ -17,7 +17,12 @@ from scan_inst.connect_endpoints import (
     parse_connect_endpoint,
     resolve_endpoint,
 )
+from scan_inst.connect_expand import (
+    aggregate_connect_results,
+    expand_check_to_pairs,
+)
 from scan_inst.connect_request import (
+    ConnectivityCheck,
     ConnectivityRequest,
     load_connect_request,
     parse_connect_request_json,
@@ -406,25 +411,64 @@ class ConnectivitySession:
         *,
         trace: bool = False,
         check_id: str = "",
+        expand: Optional[Any] = None,
     ) -> ConnectResult:
         t0 = time.perf_counter()
-        result = _connect_pair(
+        pairs = expand_check_to_pairs(
             endpoint_a,
             endpoint_b,
-            rows=self.rows,
-            index=self.index,
-            top=self.top,
-            effective_defines=self._effective_defines,
-            trace=trace,
-            strict_generate=self.strict_generate,
-            ff_barrier=self.ff_barrier,
-            over_approximate_if=self.over_approximate_if,
-            mod_cache=self.mod_cache,
-            param_ctx_cache=self.param_ctx_cache,
             check_id=check_id,
-            elab_index=self.elab_index,
-            rows_by_path=self.rows_by_path,
+            expand=expand,
         )
+        if len(pairs) == 1 and not pairs[0].sub_id:
+            result = _connect_pair(
+                pairs[0].endpoint_a,
+                pairs[0].endpoint_b,
+                rows=self.rows,
+                index=self.index,
+                top=self.top,
+                effective_defines=self._effective_defines,
+                trace=trace,
+                strict_generate=self.strict_generate,
+                ff_barrier=self.ff_barrier,
+                over_approximate_if=self.over_approximate_if,
+                mod_cache=self.mod_cache,
+                param_ctx_cache=self.param_ctx_cache,
+                check_id=check_id,
+                elab_index=self.elab_index,
+                rows_by_path=self.rows_by_path,
+            )
+        else:
+            fanout_mode = expand.fanout_mode if expand is not None else "all"
+            sub_results: List[ConnectResult] = []
+            for pair in pairs:
+                sub_id = f"{check_id}{pair.sub_id}" if check_id else pair.sub_id.strip("[]->")
+                sub_results.append(
+                    _connect_pair(
+                        pair.endpoint_a,
+                        pair.endpoint_b,
+                        rows=self.rows,
+                        index=self.index,
+                        top=self.top,
+                        effective_defines=self._effective_defines,
+                        trace=trace,
+                        strict_generate=self.strict_generate,
+                        ff_barrier=self.ff_barrier,
+                        over_approximate_if=self.over_approximate_if,
+                        mod_cache=self.mod_cache,
+                        param_ctx_cache=self.param_ctx_cache,
+                        check_id=sub_id,
+                        elab_index=self.elab_index,
+                        rows_by_path=self.rows_by_path,
+                    )
+                )
+            result = aggregate_connect_results(
+                endpoint_a,
+                endpoint_b,
+                sub_results,
+                check_id=check_id,
+                fanout_mode=fanout_mode,
+            )
         from scan_inst.verification_timing import record_connect_check
 
         record_connect_check(
@@ -434,6 +478,20 @@ class ConnectivitySession:
             elapsed_sec=time.perf_counter() - t0,
         )
         return result
+
+    def check_entry(
+        self,
+        chk: ConnectivityCheck,
+        *,
+        trace: bool = False,
+    ) -> ConnectResult:
+        return self.check(
+            chk.endpoint_a,
+            chk.endpoint_b,
+            trace=trace,
+            check_id=chk.check_id,
+            expand=chk.expand,
+        )
 
     def check_many(
         self,
@@ -486,13 +544,7 @@ class ConnectivitySession:
         workers = _resolve_connect_jobs(jobs, len(checks))
         if workers == 1 or len(checks) < 4:
             results = tuple(
-                self.check(
-                    chk.endpoint_a,
-                    chk.endpoint_b,
-                    trace=use_trace,
-                    check_id=chk.check_id,
-                )
-                for chk in checks
+                self.check_entry(chk, trace=use_trace) for chk in checks
             )
             return ConnectivityBatchResult(
                 results=results,
@@ -515,15 +567,7 @@ class ConnectivitySession:
                 ff_barrier=self.ff_barrier,
                 over_approximate_if=self.over_approximate_if,
             )
-            return [
-                local.check(
-                    chk.endpoint_a,
-                    chk.endpoint_b,
-                    trace=use_trace,
-                    check_id=chk.check_id,
-                )
-                for chk in chunk
-            ]
+            return [local.check_entry(chk, trace=use_trace) for chk in chunk]
 
         merged: List[ConnectResult] = []
         with ThreadPoolExecutor(max_workers=len(chunks)) as pool:

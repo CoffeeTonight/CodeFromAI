@@ -17,6 +17,12 @@ design/**/elab_failure_diag.json
 design/**/elab_bench_report.json
 design/**/bench_*.hch.db
 design/synthetic_deep_rtl/full_batch.tsv
+design/**/out_*.tsv
+design/**/*.scan-inst.log
+design/**/*.report.txt
+design/**/hits.tsv
+design/**/results.tsv
+design/**/instances.tsv
 
 logs/
 *.log

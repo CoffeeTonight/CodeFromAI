@@ -60,6 +60,24 @@ def test_ifdef_filter_ignores_directives_in_line_comments():
     assert "u_a" not in out_b
 
 
+def test_ifdef_filter_ignores_directives_in_block_comments():
+    src = """
+A u_a ();
+/*
+`ifdef NO_A
+B u_b ();
+`endif
+*/
+C u_c ();
+"""
+    out = apply_ifdef_filter(src, {"NO_A": "1"})
+    assert "u_a" in out
+    assert "u_c" in out
+    assert "u_b" not in out
+    assert "/*" not in out
+    assert "*/" not in out
+
+
 def test_ifdef_filter_skips_slash_comment_lines_before_ifdef():
     src = """
 ////////

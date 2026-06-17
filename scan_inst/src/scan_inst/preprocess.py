@@ -207,6 +207,7 @@ def _emit_ifdef_line_segments(
 
 def apply_ifdef_filter(text: str, defines: Mapping[str, str]) -> str:
     defs = dict(defines)
+    text = strip_comments(text)
     stack: List[Tuple[bool, bool, bool]] = []
     out = StringIO()
     first = True

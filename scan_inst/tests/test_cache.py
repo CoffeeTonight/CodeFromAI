@@ -41,6 +41,44 @@ module leaf; endmodule
     return fl, rtl
 
 
+def test_save_cache_preserves_live_module_bodies(tmp_path):
+    fl_path, rtl = _write_design(tmp_path)
+    fl = parse_filelist(fl_path)
+    index = build_design_index(
+        fl,
+        ignore_paths=[],
+        ignore_path_files=[],
+        ignore_modules=[],
+        ignore_filelists=[],
+        jobs=1,
+    )
+    body = index.module_body("mid")
+    assert body
+    index._instance_cache[("mid", "default")] = list(index.modules["mid"].instances)
+
+    cache_dir = tmp_path / "cache"
+    cfg = config_cache_key(
+        fl_path,
+        fl,
+        cache_version=CACHE_VERSION,
+        extra_defines={},
+        ignore_paths=[],
+        ignore_path_files=[],
+        ignore_modules=[],
+        ignore_filelists=[],
+    )
+    bundle = ScanInstCacheBundle(
+        version=CACHE_VERSION,
+        config_key=cfg,
+        source_manifest=build_source_manifest(fl),
+        index=index,
+    )
+    save_cache(cache_path_for(cache_dir, cfg), bundle)
+
+    assert index.modules["mid"].body == body
+    assert ("mid", "default") in index._instance_cache
+
+
 def test_cache_roundtrip_pickle(tmp_path):
     fl_path, rtl = _write_design(tmp_path)
     fl = parse_filelist(fl_path)

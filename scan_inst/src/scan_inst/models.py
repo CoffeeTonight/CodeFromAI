@@ -23,6 +23,12 @@ class ModuleRecord:
     is_interface: bool = False
     stop_reason: str = ""
 
+    def __getstate__(self) -> dict:
+        """Omit module bodies from pickle; live records keep lazy-filled bodies."""
+        state = self.__dict__.copy()
+        state["body"] = ""
+        return state
+
 
 @dataclass
 class ElabIndex:

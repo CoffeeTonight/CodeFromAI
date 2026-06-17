@@ -123,7 +123,6 @@ def load_cache(path: Path, *, cache_dir: Optional[Path] = None) -> Optional[Scan
 
 
 def save_cache(path: Path, bundle: ScanInstCacheBundle) -> None:
-    bundle.index.strip_bodies_for_cache()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     slim = ScanInstCacheBundle(

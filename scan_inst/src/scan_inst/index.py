@@ -644,8 +644,11 @@ class DesignIndex:
                 self._default_ctx[name] = _ctx_key(resolve_param_map(rec.raw_params))
 
     def __getstate__(self) -> dict:
+        """Pickle slim index: drop ephemeral caches; do not mutate the live index."""
         state = self.__dict__.copy()
         state.pop("_instance_cache_lock", None)
+        state["_preprocessed_sources"] = {}
+        state["_instance_cache"] = {}
         return state
 
     def __setstate__(self, state: dict) -> None:
@@ -700,6 +703,7 @@ class DesignIndex:
         return ""
 
     def strip_bodies_for_cache(self) -> None:
+        """Explicit live-memory purge (not used on the pickle save path)."""
         for rec in self.modules.values():
             rec.body = ""
         self._preprocessed_sources.clear()

@@ -35,6 +35,10 @@ _DIRECTIVE_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 _MACRO_ONLY_LINE_RE = re.compile(r"^\s*(?:`[A-Za-z_]\w*\s*)+$")
+_ENDIF_DIRECTIVE_SUFFIX_RE = re.compile(
+    r"^\s*`(?:endif|else)\b\s*(.*)$",
+    re.IGNORECASE,
+)
 _LARGE_BODY_ATTR_SKIP = 512 * 1024
 _LARGE_BODY_SLIM = 256 * 1024
 
@@ -250,6 +254,7 @@ def _iter_body_lines(body: str) -> Iterator[str]:
 
 
 def slim_body_for_instance_scan(body: str) -> str:
+    from scan_inst.preprocess import rtl_after_ifdef_label_comment
     """
     Drop `` `ifdef `` / `` `ifndef `` / bare `` `MACRO `` lines before instance walk.
 
@@ -262,6 +267,13 @@ def slim_body_for_instance_scan(body: str) -> str:
     kept: List[str] = []
     for line in _iter_body_lines(body):
         if _DIRECTIVE_LINE_RE.match(line):
+            trailing = rtl_after_ifdef_label_comment(line)
+            if not trailing:
+                suffix_m = _ENDIF_DIRECTIVE_SUFFIX_RE.match(line)
+                if suffix_m is not None:
+                    trailing = suffix_m.group(1).strip()
+            if trailing:
+                kept.append(trailing)
             continue
         if _MACRO_ONLY_LINE_RE.match(line):
             continue
@@ -323,8 +335,10 @@ def scan_hierarchy_instances(
       generate / if / for bodies;
       comma-separated: cell u1 (...), u2 (...);
     """
+    from scan_inst.preprocess import strip_comments_for_instance_scan
+
     pmap = dict(param_map or {})
-    work = slim_body_for_instance_scan(body)
+    work = slim_body_for_instance_scan(strip_comments_for_instance_scan(body))
     if len(work) <= _LARGE_BODY_ATTR_SKIP:
         clean = _ATTR_RE.sub(" ", work)
         clean = _BIND_LINE_RE.sub("", clean)

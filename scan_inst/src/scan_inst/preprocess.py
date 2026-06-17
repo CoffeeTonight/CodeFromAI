@@ -39,6 +39,10 @@ _BIND_LINE_RE = re.compile(r"^\s*bind\b", re.IGNORECASE | re.MULTILINE)
 _INCLUDE_LINE_RE = re.compile(r"^\s*`include\b", re.IGNORECASE)
 _BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+_ENDIF_LABEL_COMMENT_RE = re.compile(
+    r"^(\s*`(?:endif|else))\s*//\s*[A-Za-z_]\w*\s*(.*)$",
+    re.IGNORECASE,
+)
 
 # Per-process include unit cache: (path, mtime_ns, size) -> (text, define ops).
 _IncludeCacheKey = Tuple[str, int, int]
@@ -131,6 +135,36 @@ def strip_comments(text: str) -> str:
     return _LINE_COMMENT_RE.sub("", text)
 
 
+def rtl_after_ifdef_label_comment(line: str) -> str:
+    """
+    RTL tokens after `` `endif//MACRO`` / `` `else//MACRO`` on the same source line.
+
+    Common in RTL: the ``//MACRO`` suffix is a human label, but engineers sometimes
+    place instance declarations on the same line after the label.
+    """
+    m = _ENDIF_LABEL_COMMENT_RE.match(line)
+    if not m:
+        return ""
+    return m.group(2).strip()
+
+
+def strip_line_for_ifdef_scan(line: str) -> str:
+    """Like :func:`strip_comments` but keep RTL after `` `endif//label``."""
+    trailing = rtl_after_ifdef_label_comment(line)
+    if trailing:
+        m = _ENDIF_LABEL_COMMENT_RE.match(line)
+        assert m is not None
+        return f"{m.group(1)} {trailing}"
+    return strip_comments(line)
+
+
+def strip_comments_for_instance_scan(text: str) -> str:
+    """Line-wise comment strip; preserves RTL after `` `endif//label``."""
+    text = _BLOCK_COMMENT_RE.sub("", text)
+    lines = [strip_line_for_ifdef_scan(raw) for raw in _iter_text_lines(text)]
+    return "\n".join(lines)
+
+
 def _define_active(name: str, defines: Mapping[str, str]) -> bool:
     if not name or name not in defines:
         return False
@@ -174,9 +208,12 @@ def _emit_ifdef_line_segments(
     line: str,
     stack: List[Tuple[bool, bool, bool]],
     defs: Mapping[str, str],
+    *,
+    preprocessed: bool = False,
 ) -> List[str]:
     """Split one source line on inline `` `ifdef `` directives; emit active segments."""
-    line = strip_comments(line)
+    if not preprocessed:
+        line = strip_line_for_ifdef_scan(line)
     segments: List[str] = []
     pos = 0
     while True:
@@ -207,12 +244,13 @@ def _emit_ifdef_line_segments(
 
 def apply_ifdef_filter(text: str, defines: Mapping[str, str]) -> str:
     defs = dict(defines)
-    text = strip_comments(text)
+    text = _BLOCK_COMMENT_RE.sub("", text)
     stack: List[Tuple[bool, bool, bool]] = []
     out = StringIO()
     first = True
     for raw_line in _iter_text_lines(text):
-        segments = _emit_ifdef_line_segments(raw_line, stack, defs)
+        line = strip_line_for_ifdef_scan(raw_line)
+        segments = _emit_ifdef_line_segments(line, stack, defs, preprocessed=True)
         if not segments:
             continue
         if first:
@@ -434,7 +472,7 @@ def _preprocess_include_unit(
     except OSError:
         return ""
     text = _expand_include_text(
-        strip_comments(raw),
+        strip_comments_for_instance_scan(raw),
         path,
         include_dirs,
         defines,

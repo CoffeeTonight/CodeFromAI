@@ -326,6 +326,7 @@ def classify_path_walk_inst_miss(
     miss_leaf: str,
     edges: Sequence[InstanceEdge],
     candidate_files: Sequence[str],
+    raw_source_has_inst: bool = False,
 ) -> str:
     """Short cause tag for a missing child instance edge during path-walk."""
     miss_lower = miss_leaf.lower()
@@ -347,6 +348,8 @@ def classify_path_walk_inst_miss(
         return "no-file"
     if len(candidate_files) > 1:
         return "dup-module"
+    if raw_source_has_inst and not edges:
+        return "ifdef-filtered"
     return "no-inst"
 
 
@@ -368,6 +371,7 @@ def path_walk_inst_miss_reason(
     miss_leaf: str,
     edges: Sequence[InstanceEdge],
     candidate_files: Sequence[str],
+    raw_source_has_inst: bool = False,
 ) -> str:
     """Human-readable miss line body with a leading ``cause=`` tag."""
     cause = classify_path_walk_inst_miss(
@@ -375,6 +379,7 @@ def path_walk_inst_miss_reason(
         miss_leaf=miss_leaf,
         edges=edges,
         candidate_files=candidate_files,
+        raw_source_has_inst=raw_source_has_inst,
     )
     have = ""
     if edges:
@@ -404,6 +409,12 @@ def path_walk_inst_miss_reason(
                 f"; hint: {miss_leaf!r} is an array instance — "
                 f"use indexed name e.g. {indexed[0]!r}"
             )
+    elif cause == "ifdef-filtered":
+        type_hint = (
+            f"; hint: {miss_leaf!r} appears in parent RTL source but was removed "
+            f"by `` `ifdef ``/`` `ifndef `` filtering — check filelist ``+define+`` "
+            f"and whether the instance sits inside a gated block"
+        )
     cand = "; ".join(Path(f).name for f in candidate_files[:8])
     parts = [f"cause={cause}"]
     if cause == "ignored" and parent_rec is not None:

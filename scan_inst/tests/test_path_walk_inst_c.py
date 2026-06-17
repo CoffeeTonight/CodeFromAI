@@ -69,6 +69,44 @@ def test_path_walk_bare_c_requires_array_index(tmp_path: Path):
     assert _run(tmp_path, files, "A.b.c[0][1].d", top="A")
 
 
+def test_path_walk_multiline_ifndef_cpusystem_top(tmp_path: Path):
+    """User-style ``ifndef NO_A`` + ``endif//NO_A`` + multiline ``u_cpusystem_top``."""
+    files = {
+        "soc.v": (
+            "module SOC_TOP;\n"
+            "////////\n"
+            "`ifndef NO_A\n"
+            "A u_a\n"
+            "(\n"
+            ".aa (w_aa));\n"
+            "`endif//NO_A\n"
+            "CPUSYSTEM_TOP u_cpusystem_top\n"
+            "(\n"
+            ".clk(clk));\n"
+            "endmodule\n"
+        ),
+        "cpu.v": "module CPUSYSTEM_TOP; endmodule\n",
+        "a.v": "module A; endmodule\n",
+    }
+    assert _run(tmp_path, files, "SOC_TOP.u_cpusystem_top", top="SOC_TOP")
+
+
+def test_path_walk_endif_label_same_line_cpusystem(tmp_path: Path):
+    """`` `endif//NO_A`` label on same line as the next instance must parse."""
+    files = {
+        "soc.v": (
+            "module SOC_TOP;\n"
+            "`ifndef NO_A\n"
+            "A u_a (.aa(w));\n"
+            "`endif//NO_A CPUSYSTEM_TOP u_cpusystem_top (.clk(clk));\n"
+            "endmodule\n"
+        ),
+        "cpu.v": "module CPUSYSTEM_TOP; endmodule\n",
+        "a.v": "module A; endmodule\n",
+    }
+    assert _run(tmp_path, files, "SOC_TOP.u_cpusystem_top", top="SOC_TOP")
+
+
 def test_path_walk_generate_fold_child_before_index_apply(tmp_path: Path):
     """Tier-1 edge resolve must fold generate before matching folded inst names."""
     files = {

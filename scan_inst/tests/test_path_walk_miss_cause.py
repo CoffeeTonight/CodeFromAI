@@ -29,6 +29,18 @@ def test_classify_dup_module_when_multiple_rtl_candidates():
     assert cause == "dup-module"
 
 
+def test_classify_ifdef_filtered_when_raw_source_has_inst_name():
+    rec = ModuleRecord(module_name="top", file_path="/rtl/top.v")
+    cause = classify_path_walk_inst_miss(
+        parent_rec=rec,
+        miss_leaf="u_cpusystem_top",
+        edges=[],
+        candidate_files=["/rtl/top.v"],
+        raw_source_has_inst=True,
+    )
+    assert cause == "ifdef-filtered"
+
+
 def test_classify_no_inst_when_single_file_and_edges_present():
     rec = ModuleRecord(module_name="top", file_path="/rtl/top.v")
     edges = [InstanceEdge("u_a", "A")]

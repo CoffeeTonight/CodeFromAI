@@ -378,6 +378,8 @@ class PathWalkState:
             inst_leaf,
             current_file=row.file,
         )
+        if edge is not None:
+            self._invalidate_walk_caches(module_name=row.module)
         self._sync_db_stats()
         return edge
 
@@ -452,7 +454,14 @@ class PathWalkState:
         cached = self._expanded_inst_cache.get(cache_key)
         if cached is not None:
             return cached
-        edges = self.index.instances_for(row.module, row.param_ctx, {})
+        if rec.instances and not rec.needs_generate_fold:
+            edges = list(rec.instances)
+        else:
+            edges = self.index.instances_for(row.module, row.param_ctx, {})
+            if not edges and row.param_ctx:
+                edges = self.index.instances_for(row.module, {}, {})
+            if not edges and rec.instances:
+                edges = list(rec.instances)
         pairs: List[Tuple[str, InstanceEdge]] = []
         for edge in edges:
             for name in expand_inst_names(edge.inst_name, "", pmap):
@@ -545,15 +554,26 @@ class PathWalkState:
                 miss_leaf = self._inst_leaf_prefix(remainder)
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
-                edges = (
-                    self.index.instances_for(
-                        parent_mod,
-                        row.param_ctx if row else {},
-                        {},
-                    )
-                    if parent_rec is not None
-                    else []
-                )
+                edges: List[InstanceEdge] = []
+                if parent_rec is not None:
+                    if parent_rec.instances and not parent_rec.needs_generate_fold:
+                        edges = list(parent_rec.instances)
+                    else:
+                        edges = self.index.instances_for(
+                            parent_mod,
+                            row.param_ctx if row else {},
+                            {},
+                        )
+                        if not edges and parent_rec.instances:
+                            edges = list(parent_rec.instances)
+                raw_source_has_inst = False
+                if parent_rec is not None and parent_rec.file_path and miss_leaf:
+                    try:
+                        raw_source_has_inst = miss_leaf in Path(
+                            parent_rec.file_path
+                        ).read_text(encoding="utf-8", errors="ignore")
+                    except OSError:
+                        raw_source_has_inst = False
                 self._queue_walk_miss(
                     cur,
                     miss_leaf,
@@ -563,6 +583,7 @@ class PathWalkState:
                         miss_leaf=miss_leaf,
                         edges=edges,
                         candidate_files=snap,
+                        raw_source_has_inst=raw_source_has_inst,
                     ),
                     target_path=path,
                 )

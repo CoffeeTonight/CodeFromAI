@@ -472,22 +472,10 @@ class PathWalkModuleDb:
         *,
         scope_anchor: str = "",
     ) -> List[str]:
-        scoped_pool: Optional[List[str]] = None
         if scope_anchor:
             scoped_pool = self._scoped_sources_for_rtl(scope_anchor)
             if scoped_pool:
                 self._tier0_scan_sources(scoped_pool)
-                scoped_hits = [
-                    f
-                    for f in self._module_to_files.get(module_name, [])
-                    if f in scoped_pool
-                ]
-                if scoped_hits:
-                    return self._sort_module_files(
-                        module_name,
-                        scoped_hits,
-                        scope_anchor=scope_anchor,
-                    )
 
         if not self._regex_queue:
             self._regex_queue = [s for s in self._sources if s not in self._regex_scanned]
@@ -504,15 +492,24 @@ class PathWalkModuleDb:
                     break
 
         files = list(self._module_to_files.get(module_name, []))
-        if scoped_pool:
-            in_scope = [f for f in files if f in scoped_pool]
-            if in_scope:
-                files = in_scope
         return self._sort_module_files(
             module_name,
             files,
             scope_anchor=scope_anchor,
         )
+
+    def _parent_instance_edges(
+        self,
+        module_name: str,
+        parent_ctx: Mapping[str, str],
+    ) -> List[InstanceEdge]:
+        """Tier-1 prescanned edges when available; else lazy fold via the index."""
+        rec = self._index.get_module(module_name)
+        if rec is None:
+            return []
+        if not rec.needs_generate_fold:
+            return list(rec.instances)
+        return self._index.instances_for(module_name, parent_ctx, {})
 
     def _order_candidate_files(
         self,
@@ -613,6 +610,8 @@ class PathWalkModuleDb:
 
         mod_name = hit.module_name
         key = str(Path(fpath).resolve())
+        if not hit.needs_generate_fold:
+            return list(hit.instances)
         idx_rec = self._index.get_module(mod_name)
         if (
             idx_rec is not None
@@ -620,8 +619,6 @@ class PathWalkModuleDb:
             and idx_rec.file_path == key
         ):
             return self._index.instances_for(mod_name, parent_ctx, {})
-        if not hit.needs_generate_fold:
-            return list(hit.instances)
 
         fold_ctx = dict(self._defines)
         fold_ctx.update(resolve_param_map(hit.raw_params, parent=parent_ctx))
@@ -724,7 +721,7 @@ class PathWalkModuleDb:
         pmap = resolve_param_map(rec.raw_params, parent=parent_ctx or {})
         return (
             self._edge_matches(
-                self._index.instances_for(module_name, parent_ctx or {}, {}),
+                self._parent_instance_edges(module_name, parent_ctx or {}),
                 inst_leaf,
                 pmap,
             )
@@ -869,7 +866,7 @@ class PathWalkModuleDb:
             if rec is not None:
                 pmap = resolve_param_map(rec.raw_params, parent=parent_ctx)
                 edge = self._edge_matches(
-                    self._index.instances_for(parent_module, parent_ctx, {}),
+                    self._parent_instance_edges(parent_module, parent_ctx),
                     inst_leaf,
                     pmap,
                 )

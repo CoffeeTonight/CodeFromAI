@@ -165,7 +165,9 @@ def _body_prefix_before_instance(
         slim_body_for_instance_scan,
     )
 
-    body = slim_body_for_instance_scan(body)
+    from scan_inst.preprocess import strip_comments_for_instance_scan
+
+    body = slim_body_for_instance_scan(strip_comments_for_instance_scan(body))
     clean = _ATTR_RE.sub(" ", body)
     clean = _BIND_LINE_RE.sub("", clean)
     n = len(clean)

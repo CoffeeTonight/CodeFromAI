@@ -78,6 +78,37 @@ C u_c ();
     assert "*/" not in out
 
 
+def test_ifdef_filter_preserves_rtl_after_endif_label_comment():
+    """`` `endif//MACRO`` label comments must not swallow same-line RTL."""
+    src = (
+        "module top;\n"
+        "`ifndef NO_A\n"
+        "A u_a (.aa(1'b0));\n"
+        "`endif//NO_A CPUSYSTEM_TOP u_cpusystem_top (.clk(clk));\n"
+        "endmodule\n"
+    )
+    out = apply_ifdef_filter(src, {})
+    assert "u_a" in out
+    assert "u_cpusystem_top" in out
+    out_def = apply_ifdef_filter(src, {"NO_A": "1"})
+    assert "u_a" not in out_def
+    assert "u_cpusystem_top" in out_def
+
+
+def test_slim_body_preserves_rtl_after_endif_label_comment():
+    from scan_inst.inst_scan import scan_hierarchy_instances
+
+    body = (
+        "`ifndef NO_A\n"
+        "A u_a (.aa(1'b0));\n"
+        "`endif//NO_A CPUSYSTEM_TOP u_cpusystem_top (.clk(clk));\n"
+    )
+    edges = scan_hierarchy_instances(body)
+    names = {e.inst_name for e in edges}
+    assert "u_a" in names
+    assert "u_cpusystem_top" in names
+
+
 def test_ifdef_filter_skips_slash_comment_lines_before_ifdef():
     src = """
 ////////

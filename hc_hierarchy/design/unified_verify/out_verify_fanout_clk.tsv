@@ -1,12 +1,15 @@
-kind	scope	net	module	detail
-blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine
-port-out	hc_verify_top.u_gen_if.gen_on.u_on	done	leaf_cell	module output port in leaf_cell
-port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module output port in leaf_cell
-port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell	done	leaf_cell	module output port in leaf_cell
-port-out	hc_verify_top.u_gen_soc.u_alt	done	leaf_cell	module output port in leaf_cell
+kind	scope	net	module	detail	rtl	via_filelist	filelist_chain
+blackbox	hc_verify_top.u_ecc_engine_00	and_y	ecc_engine	blackbox / opaque instance ecc_engine	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/ecc_engine.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+port-out	hc_verify_top.u_gen_if.gen_on.u_on	done	leaf_cell	module output port in leaf_cell	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell	done	leaf_cell	module output port in leaf_cell	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+port-out	hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell	done	leaf_cell	module output port in leaf_cell	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
+port-out	hc_verify_top.u_gen_soc.u_alt	done	leaf_cell	module output port in leaf_cell	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/leaf_cell.v	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f -> /home/user/tools/__CFI/hc_hierarchy/design/unified_verify/fl/cells.f
 # origin	hc_verify_top.clk
 # direction	fanout
-# nets_visited	10
+# nets_visited	165
 # ff_count	0
 # port_count	4
 # blackbox_count	1
+# origin_rtl	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/rtl/top_verify.v
+# origin_via_filelist	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f
+# origin_filelist_chain	/home/user/tools/__CFI/hc_hierarchy/design/unified_verify/filelist.f

@@ -37,7 +37,6 @@ _INCLUDE_RE = re.compile(
 _MACRO_USE_RE = re.compile(r"`([A-Za-z_]\w*)")
 _BIND_LINE_RE = re.compile(r"^\s*bind\b", re.IGNORECASE | re.MULTILINE)
 _INCLUDE_LINE_RE = re.compile(r"^\s*`include\b", re.IGNORECASE)
-_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT_RE = re.compile(r"//[^\n]*")
 _ENDIF_LABEL_COMMENT_RE = re.compile(
     r"^(\s*`(?:endif|else))\s*//\s*[A-Za-z_]\w*\s*(.*)$",
@@ -130,9 +129,83 @@ def _source_preprocess_cache_key(
     )
 
 
+def _strip_comments_stateful(text: str, *, preserve_endif_label: bool = False) -> str:
+    """
+    Remove ``//`` and ``/* */`` comments in one pass.
+
+    Inside an active ``//`` line comment, ``/*`` is plain text (not a block opener).
+    When *preserve_endif_label* is set, `` `endif//MACRO`` lines keep RTL after the
+    label (see :func:`rtl_after_ifdef_label_comment`).
+    """
+    out: List[str] = []
+    i, n = 0, len(text)
+    state = "normal"
+
+    def at_line_start(pos: int) -> bool:
+        return pos == 0 or text[pos - 1] in "\r\n"
+
+    def append_newlines_from(pos: int) -> int:
+        cur = pos
+        if cur < n and text[cur] == "\r":
+            out.append("\r")
+            cur += 1
+        if cur < n and text[cur] == "\n":
+            out.append("\n")
+            cur += 1
+        return cur
+
+    while i < n:
+        if state == "line":
+            if text[i] in "\r\n":
+                i = append_newlines_from(i)
+                state = "normal"
+            else:
+                i += 1
+            continue
+
+        if state == "block":
+            if i < n - 1 and text[i : i + 2] == "*/":
+                i += 2
+                state = "normal"
+            else:
+                i += 1
+            continue
+
+        if preserve_endif_label and at_line_start(i):
+            line_end = i
+            while line_end < n and text[line_end] not in "\r\n":
+                line_end += 1
+            line = text[i:line_end]
+            trailing = rtl_after_ifdef_label_comment(line)
+            if trailing:
+                m = _ENDIF_LABEL_COMMENT_RE.match(line)
+                if m is not None:
+                    out.append(m.group(1))
+                    if trailing:
+                        out.append(" ")
+                        out.append(trailing)
+                    i = line_end
+                    if i < n:
+                        i = append_newlines_from(i)
+                    continue
+
+        if i < n - 1 and text[i : i + 2] == "//":
+            i += 2
+            state = "line"
+            continue
+        if i < n - 1 and text[i : i + 2] == "/*":
+            i += 2
+            state = "block"
+            continue
+
+        out.append(text[i])
+        i += 1
+
+    return "".join(out)
+
+
 def strip_comments(text: str) -> str:
-    text = _BLOCK_COMMENT_RE.sub("", text)
-    return _LINE_COMMENT_RE.sub("", text)
+    return _strip_comments_stateful(text, preserve_endif_label=False)
 
 
 def rtl_after_ifdef_label_comment(line: str) -> str:
@@ -159,10 +232,8 @@ def strip_line_for_ifdef_scan(line: str) -> str:
 
 
 def strip_comments_for_instance_scan(text: str) -> str:
-    """Line-wise comment strip; preserves RTL after `` `endif//label``."""
-    text = _BLOCK_COMMENT_RE.sub("", text)
-    lines = [strip_line_for_ifdef_scan(raw) for raw in _iter_text_lines(text)]
-    return "\n".join(lines)
+    """Comment strip for instance/ifdef scan; preserves RTL after `` `endif//label``."""
+    return _strip_comments_stateful(text, preserve_endif_label=True)
 
 
 def _define_active(name: str, defines: Mapping[str, str]) -> bool:
@@ -244,7 +315,7 @@ def _emit_ifdef_line_segments(
 
 def apply_ifdef_filter(text: str, defines: Mapping[str, str]) -> str:
     defs = dict(defines)
-    text = _BLOCK_COMMENT_RE.sub("", text)
+    text = strip_comments_for_instance_scan(text)
     stack: List[Tuple[bool, bool, bool]] = []
     out = StringIO()
     first = True

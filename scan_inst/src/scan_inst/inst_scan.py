@@ -58,26 +58,6 @@ from scan_inst.models import InstanceEdge
 from scan_inst.params import parse_bound_token, parse_param_overrides
 
 
-def strip_comments(text: str) -> str:
-    out: List[str] = []
-    i, n = 0, len(text)
-    while i < n:
-        if text.startswith("//", i):
-            i += 2
-            while i < n and text[i] not in "\r\n":
-                i += 1
-            continue
-        if text.startswith("/*", i):
-            i += 2
-            while i < n - 1 and text[i : i + 2] != "*/":
-                i += 1
-            i = min(n, i + 2)
-            continue
-        out.append(text[i])
-        i += 1
-    return "".join(out)
-
-
 def _skip_sv_attributes(text: str, start: int) -> int:
     """Skip ``(* ... *)`` attribute regions (may be nested)."""
     pos = start

@@ -1,0 +1,19 @@
+{
+  "filelist": "filelist.f",
+  "top": "hc_verify_top",
+  "run_conn_check": {
+    "enable": 1,
+    "mode": "path-walk",
+    "no_cache": true,
+    "include_ff": true,
+    "connect_trace": true,
+    "checks": [
+      {
+        "id": "cpusystem_child1_b_to_c",
+        "a": "hc_verify_top.u_ifdef.u_cpusystem_top.u_mid_ifdef_child1.b",
+        "b": "hc_verify_top.u_ifdef.c"
+      }
+    ],
+    "output": "out_cpusystem_b_to_c.tsv"
+  }
+}

@@ -22,6 +22,30 @@ def test_strip_comments():
     assert strip_comments(t) == "a \n b"
 
 
+def test_strip_comments_slash_inside_line_comment_not_block():
+    """``/*`` after ``//`` on a line must not open a block (even across lines)."""
+    src = "code // foo /* bar\ncontinues */\nmore"
+    assert strip_comments(src) == "code \ncontinues */\nmore"
+
+    from scan_inst.preprocess import strip_comments_for_instance_scan
+
+    rtl = (
+        "module top;\n"
+        "  keep u_keep ();\n"
+        "  // doc /* fake block\n"
+        "  */\n"
+        "  tail u_tail ();\n"
+        "endmodule\n"
+    )
+    cleaned = strip_comments_for_instance_scan(rtl)
+    assert "u_keep" in cleaned
+    assert "u_tail" in cleaned
+    assert "fake block" not in cleaned
+    mods = scan_preprocessed(cleaned, "top.v")
+    names = {e.inst_name for e in mods["top"].instances}
+    assert names == {"u_keep", "u_tail"}
+
+
 def test_ifdef_filter_single_line():
     src = "`ifdef GHOST assign link=src; `else assign link=1'b0; `endif"
     off = apply_ifdef_filter(src, {})

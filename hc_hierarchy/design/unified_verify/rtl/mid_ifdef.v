@@ -1,5 +1,5 @@
 // HDLforAST-style ifdef instance naming
-module MID_IFDEF_CHILD;
+module SYSTEM_TOP;
 input a;
 output b;
 `ifndef NO_MID_IFDEF_CHILD1
@@ -36,15 +36,15 @@ module mid_ifdef (
 
 wire c;
 /////////////////////////
-//MID_IFDEF_CHILD
+//SYSTEM_TOP
 /////////////////////////
-`ifndef NO_MID_IFDEF_CHILD
-MID_IFDEF_CHILD u_mid_ifdef_child
+`ifndef NO_USYSTEM_TOP
+SYSTEM_TOP u_system_top
 (
 	.a (clk),
 `ifndef NO_C
 	.b(c)
 `endif
 );
-`endif//NO_MID_IFDEF_CHILD
+`endif//NO_SYSTEM_TOP
 endmodule

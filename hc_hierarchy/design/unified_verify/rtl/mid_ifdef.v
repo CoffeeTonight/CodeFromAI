@@ -1,7 +1,25 @@
 // HDLforAST-style ifdef instance naming
-module mid_ifdef_child;
+module MID_IFDEF_CHILD;
+input a;
+output b;
+`ifndef NO_MID_IFDEF_CHILD1
+MID_IFDEF_CHILD1 u_mid_ifdef_child1
+(
+	.a (a),
+	.b(b)
+);
+`endif//NO_MID_IFDEF_CHILD1
 endmodule
 
+module MID_IFDEF_CHILD1;
+input a;
+output b;
+wire c=a;
+wire b;
+always (*) b=c;
+endmodule
+
+module mid_ifdef (
 module mid_ifdef (
     input logic clk,
     input logic rst_n
@@ -16,7 +34,17 @@ module mid_ifdef (
     `endif
     ();
 
-    `ifdef USE_MID_EXTRA
-        mid_ifdef_child u_mid_extra ();
-    `endif
+wire c;
+/////////////////////////
+//MID_IFDEF_CHILD
+/////////////////////////
+`ifndef NO_MID_IFDEF_CHILD
+MID_IFDEF_CHILD u_mid_ifdef_child
+(
+	.a (clk),
+`ifndef NO_C
+	.b(c)
+`endif
+);
+`endif//NO_MID_IFDEF_CHILD
 endmodule

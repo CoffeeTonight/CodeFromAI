@@ -239,16 +239,14 @@ def _explain_hierarchy_miss(
 
 
 def _module_body_for_row(index: DesignIndex, row: FlatRow) -> str:
+    body = index.module_body(row.module)
+    if body:
+        return body
     rec = index.get_module(row.module)
     if rec is None:
         return ""
     if rec.body:
         return rec.body
-    if rec.file_path:
-        try:
-            return Path(rec.file_path).read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            return ""
     return ""
 
 
@@ -307,6 +305,26 @@ def _explain_port_miss(
             errors.append(f"similar ports: {', '.join(hits[:8])}")
     else:
         errors.append("no ports parsed for this module (blackbox or parse limit)")
+    ctx = _port_param_ctx(index, row, top)
+    body = _module_body_for_row(index, row)
+    if body:
+        decl_widths = _port_decl_bit_indices(index, row.module, ctx)
+        mod_idx = build_module_connect_index(
+            body,
+            param_map=ctx,
+            port_decl_widths=decl_widths,
+            port_decl_md_suffixes=_port_decl_md_suffixes(index, row.module, ctx),
+        )
+        internal = sorted(
+            n
+            for n in mod_idx.net_rep
+            if n.split("[", 1)[0] == port_name.split("[", 1)[0]
+            or n.startswith(port_name.split("[", 1)[0] + "[")
+        )
+        if internal:
+            errors.append(
+                f"similar internal signals: {', '.join(internal[:8])}"
+            )
     return errors
 
 

@@ -469,6 +469,65 @@ def _port_select_suffix(port_name: str, child_net: str) -> Optional[str]:
     return None
 
 
+def _ensure_adj_node(adj: Dict[str, Set[str]], net: str) -> None:
+    """Register *net* so it appears in compressed ``net_rep`` (self-rooted)."""
+    if net:
+        adj.setdefault(net, set())
+
+
+def _collect_declared_net_names(body: str) -> Set[str]:
+    """
+    Declared ``wire``/``logic``/``reg`` and port identifiers usable as signal endpoints.
+
+    Skips ``wire x = expr`` alias lines (handled by assign adjacency).
+    """
+    names: Set[str] = set()
+    for stmt in split_statements(_clean_body(body)):
+        if _is_decl_alias_statement(stmt):
+            continue
+        pos = _skip_ws(stmt, 0)
+        kind = ""
+        for kw in ("input", "output", "inout", "wire", "logic", "reg"):
+            if _word_at(stmt, pos, kw):
+                kind = kw
+                pos = _skip_ws(stmt, pos + len(kw))
+                break
+        if not kind:
+            continue
+        if kind in ("wire", "logic", "reg"):
+            pos = _skip_ws(stmt, pos)
+            if pos < len(stmt) and stmt[pos] == "(":
+                pos = _skip_balanced(stmt, pos, "(", ")")
+        while pos < len(stmt):
+            pos = _skip_ws(stmt, pos)
+            if pos < len(stmt) and stmt[pos] == "[":
+                pos = _skip_balanced(stmt, pos, "[", "]")
+                continue
+            ident, pos = _read_ident(stmt, pos)
+            if ident:
+                names.add(ident)
+            pos = _skip_ws(stmt, pos)
+            if pos < len(stmt) and stmt[pos] == ",":
+                pos += 1
+                continue
+            break
+    return names
+
+
+def _seed_adj_from_instance_ports(
+    adj: Dict[str, Set[str]],
+    inst_ports: Mapping[str, List[Tuple[str, str]]],
+    expr_cache: Dict[str, FrozenSet[str]],
+    *,
+    param_map: Mapping[str, str],
+) -> None:
+    """Instance port-map expressions are valid internal signal/net endpoints."""
+    for _inst, ports in inst_ports.items():
+        for _port, expr in ports:
+            for root in _cached_expr_roots(expr, expr_cache, param_map=param_map):
+                _ensure_adj_node(adj, root)
+
+
 def _collect_decl_md_suffixes(
     body: str,
     param_map: Mapping[str, str],
@@ -2996,6 +3055,15 @@ def build_module_connect_index(
     )
     ff_adj = scan_ff_adjacency(text, ff_barrier=ff_barrier, param_map=full_pmap)
     inst_ports = scan_instance_port_maps(text, param_map=full_pmap)
+    expr_cache_seed: Dict[str, FrozenSet[str]] = {}
+    _seed_adj_from_instance_ports(
+        assign_adj,
+        inst_ports,
+        expr_cache_seed,
+        param_map=full_pmap,
+    )
+    for name in _collect_declared_net_names(text):
+        _ensure_adj_node(assign_adj, name)
     net_rep, rep_adj = _build_compressed_local(assign_adj, ff_adj)
     expr_cache: Dict[str, FrozenSet[str]] = {}
     net_to_children = _build_reverse_port_index(

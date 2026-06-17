@@ -52,6 +52,31 @@ def test_resolve_wire_endpoint(tmp_path: Path):
     assert ep.port_name == "bridge"
 
 
+def test_internal_wire_connected_only_via_instance_port(tmp_path: Path):
+    """``wire c`` with no assign — only ``.p(c)`` — is a valid signal endpoint."""
+    v = """
+    module top(input logic clk);
+      wire c;
+      child u0 (.out(c));
+    endmodule
+    module child(output logic out);
+      assign out = 1'b0;
+    endmodule
+    """
+    index, rows = _index_and_rows(v, tmp_path)
+    ep, errors = resolve_endpoint("top.c", rows, index, top="top")
+    assert not errors
+    assert ep.port_found
+    r = check_connectivity(
+        "top.u0.out",
+        "top.c",
+        rows=rows,
+        index=index,
+        top="top",
+    )
+    assert r.connected
+
+
 def test_connectivity_port_to_internal_wire(tmp_path: Path):
     v = """
     module top(input logic clk);

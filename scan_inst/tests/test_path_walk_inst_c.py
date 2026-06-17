@@ -107,6 +107,42 @@ def test_path_walk_endif_label_same_line_cpusystem(tmp_path: Path):
     assert _run(tmp_path, files, "SOC_TOP.u_cpusystem_top", top="SOC_TOP")
 
 
+def test_index_tier1_finds_cpusystem_outside_nonempty_generate(tmp_path: Path):
+    """Instances outside ``generate`` must appear in tier-1 even when fold is deferred."""
+    soc = tmp_path / "soc.v"
+    soc.write_text(
+        "module SOC_TOP;\n"
+        "////////\n"
+        "`ifndef NO_A\n"
+        "A u_a\n"
+        "(\n"
+        ".aa (w_aa));\n"
+        "`endif//NO_A\n"
+        "CPUSYSTEM_TOP u_cpusystem_top\n"
+        "(\n"
+        ".clk(clk));\n"
+        "genvar gi;\n"
+        "generate\n"
+        "  for (gi = 0; gi < 2; gi++) begin : gen_blk\n"
+        "    LEAF u_leaf (.clk(clk));\n"
+        "  end\n"
+        "endgenerate\n"
+        "endmodule\n",
+        encoding="utf-8",
+    )
+    from scan_inst.preprocess import preprocess_file_for_index
+    from scan_inst.scan import scan_preprocessed
+
+    text = preprocess_file_for_index(soc, [], {})
+    mods = scan_preprocessed(text, str(soc))
+    rec = mods["SOC_TOP"]
+    assert rec.needs_generate_fold
+    names = {e.inst_name for e in rec.instances}
+    assert "u_cpusystem_top" in names
+    assert "u_a" in names
+    assert not any(e.inst_name.startswith("gen_blk") for e in rec.instances)
+
+
 def test_path_walk_generate_fold_child_before_index_apply(tmp_path: Path):
     """Tier-1 edge resolve must fold generate before matching folded inst names."""
     files = {

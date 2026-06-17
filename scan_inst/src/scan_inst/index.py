@@ -12,7 +12,11 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Callable, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
 
-from scan_inst.generate_fold import needs_generate_fold, prepare_body_for_instance_scan
+from scan_inst.generate_fold import (
+    body_without_generate_regions,
+    needs_generate_fold,
+    prepare_body_for_instance_scan,
+)
 from scan_inst.inst_scan import (
     iter_module_blocks,
     scan_hierarchy_instances,
@@ -525,13 +529,16 @@ def _scan_instances_for_index(
     """
     Index-time scan: find instances first, then collect only params they need.
 
-    Generate bodies are deferred to :meth:`DesignIndex.instances_for`.
+    Generate bodies are deferred to :meth:`DesignIndex.instances_for`, but
+    instances declared outside ``generate`` are still indexed at tier-1.
     """
-    if needs_generate_fold(body):
-        return parse_param_pairs(header), [], True
-
+    defer_fold = needs_generate_fold(body)
     header_params = parse_param_pairs(header)
-    scan_body = slim_body_for_instance_scan(strip_body_param_declarations(body))
+    if defer_fold:
+        scan_src = body_without_generate_regions(body)
+    else:
+        scan_src = body
+    scan_body = slim_body_for_instance_scan(strip_body_param_declarations(scan_src))
     edges = scan_hierarchy_instances(
         scan_body,
         param_map=resolve_param_map(header_params),
@@ -546,7 +553,7 @@ def _scan_instances_for_index(
             scan_body,
             param_map=resolve_param_map(raw_params),
         )
-    return raw_params, edges, False
+    return raw_params, edges, defer_fold
 
 
 def scan_preprocessed(text: str, file_path: str) -> Dict[str, ModuleRecord]:
@@ -694,12 +701,16 @@ class DesignIndex:
         text = self._source_text(rec.file_path)
         if not text:
             return ""
+        best = ""
         for block in iter_module_blocks(text):
             if block["name"] != mod_name:
                 continue
             _header, body = split_module_header(block["chunk"])
-            rec.body = body
-            return body
+            if len(body.strip()) > len(best.strip()):
+                best = body
+        if best:
+            rec.body = best
+            return best
         return ""
 
     def strip_bodies_for_cache(self) -> None:

@@ -136,6 +136,9 @@ class PathWalkState:
     _expanded_inst_cache: Dict[Tuple[str, str], List[Tuple[str, InstanceEdge]]] = (
         field(default_factory=dict, repr=False)
     )
+    _walk_blocked_prefixes: Set[str] = field(default_factory=set, repr=False)
+    _walk_blocked_skips: int = field(default=0, repr=False)
+    _failed_edge_cache: Set[Tuple[str, str]] = field(default_factory=set, repr=False)
 
     def _trace_streams(self) -> List[TextIO]:
         out: List[TextIO] = []
@@ -194,6 +197,36 @@ class PathWalkState:
             if miss.target_path != target_path
         ]
 
+    def _is_walk_blocked(self, path: str) -> bool:
+        """True when an ancestor miss already blocked walking *path* or below."""
+        if not path:
+            return False
+        for block in self._walk_blocked_prefixes:
+            if path == block or path.startswith(block + "."):
+                return True
+        return False
+
+    def _note_blocked_walk_skip(self, path: str) -> None:
+        if path and self._is_walk_blocked(path):
+            self._walk_blocked_skips += 1
+
+    def _block_walk_under(self, parent_path: str, inst_leaf: str) -> str:
+        """Record the first unresolved instance prefix; skip deeper walks."""
+        block = f"{parent_path}.{inst_leaf}" if parent_path else inst_leaf
+        self._walk_blocked_prefixes.add(block)
+        return block
+
+    def _unblock_walk_prefix(self, path: str) -> None:
+        if not path or not self._walk_blocked_prefixes:
+            return
+        drop = [
+            block
+            for block in self._walk_blocked_prefixes
+            if path == block or path.startswith(block + ".") or block.startswith(path + ".")
+        ]
+        for block in drop:
+            self._walk_blocked_prefixes.discard(block)
+
     def _queue_walk_miss(
         self,
         parent_path: str,
@@ -202,7 +235,15 @@ class PathWalkState:
         reason: str,
         target_path: str,
     ) -> None:
+        miss_key = (parent_path, inst_leaf)
+        if any(
+            m.parent_path == parent_path and m.inst_leaf == inst_leaf
+            for m in self._pending_misses
+        ):
+            self._block_walk_under(parent_path, inst_leaf)
+            return
         self._clear_pending_misses(target_path)
+        self._block_walk_under(parent_path, inst_leaf)
         self._pending_misses.append(
             _PendingWalkMiss(
                 parent_path=parent_path,
@@ -250,19 +291,40 @@ class PathWalkState:
             )
 
     def flush_pending_misses(self) -> None:
-        """Emit miss lines only for walk targets that never resolved."""
+        """Emit one miss per unresolved edge; skip duplicate deeper targets."""
         pending = list(self._pending_misses)
         self._pending_misses.clear()
+        best: Dict[Tuple[str, str], _PendingWalkMiss] = {}
         for miss in pending:
             if miss.target_path in self.rows_by_path:
                 continue
             resolved = _walk_target_from_spec(miss.target_path, self)
             if resolved and resolved in self.rows_by_path:
                 continue
+            key = (miss.parent_path, miss.inst_leaf)
+            prior = best.get(key)
+            if prior is None or len(miss.target_path) < len(prior.target_path):
+                best[key] = miss
+        for miss in best.values():
+            skipped = sum(
+                1
+                for other in pending
+                if other is not miss
+                and other.parent_path == miss.parent_path
+                and other.inst_leaf == miss.inst_leaf
+            )
+            reason = miss.reason
+            blocked_skips = self._walk_blocked_skips
+            if skipped or blocked_skips:
+                total = skipped + blocked_skips
+                reason += (
+                    f"; skipped {total} deeper walk target(s) blocked by this miss"
+                )
+            self._walk_blocked_skips = 0
             self._emit_walk_miss(
                 miss.parent_path,
                 miss.inst_leaf,
-                reason=miss.reason,
+                reason=reason,
                 target_path=miss.target_path,
             )
 
@@ -327,6 +389,14 @@ class PathWalkState:
     def _invalidate_walk_caches(self, *, module_name: str = "") -> None:
         self._resolve_step_cache.clear()
         if module_name:
+            drop_failed = [
+                key
+                for key in self._failed_edge_cache
+                if (row := self.rows_by_path.get(key[0])) is not None
+                and row.module == module_name
+            ]
+            for key in drop_failed:
+                self._failed_edge_cache.discard(key)
             stale = [
                 key
                 for key in self._expanded_inst_cache
@@ -336,6 +406,7 @@ class PathWalkState:
                 del self._expanded_inst_cache[key]
         else:
             self._expanded_inst_cache.clear()
+            self._failed_edge_cache.clear()
 
     def _load_module(
         self,
@@ -425,6 +496,49 @@ class PathWalkState:
             return ""
         return remainder.split(".", 1)[0]
 
+    @staticmethod
+    def _is_folded_inst_prefix_miss(
+        miss_leaf: str,
+        edges: Sequence[InstanceEdge],
+    ) -> bool:
+        """
+        True when *miss_leaf* is only a strict prefix of a folded instance name.
+
+        Example: ``gen_loop[0]`` is not an instance, but ``gen_loop[0].u`` is.
+        Prefix walks must not block the longer path on this pseudo-miss.
+        """
+        if not miss_leaf:
+            return False
+        prefix = miss_leaf + "."
+        for edge in edges:
+            if edge.inst_name.startswith(prefix):
+                return True
+        return False
+
+    def _is_signal_or_port_tail_miss(self, parent_path: str, remainder: str) -> bool:
+        """
+        True when *remainder* names a port/net in the parent module, not a missing instance.
+
+        Prefix walks over full endpoint specs (e.g. ``top.u_ifdef.c``) must not log
+        ``miss inst=c`` when ``c`` is an internal wire.
+        """
+        if not remainder:
+            return False
+        row = self.rows_by_path.get(parent_path)
+        if row is None:
+            return False
+        if _port_exists(self.index, row, remainder, top=self.top):
+            return True
+        if _net_exists_in_module(self.index, row, remainder, top=self.top):
+            return True
+        miss_leaf = self._inst_leaf_prefix(remainder)
+        if miss_leaf and miss_leaf != remainder:
+            if _port_exists(self.index, row, miss_leaf, top=self.top):
+                return True
+            if _net_exists_in_module(self.index, row, miss_leaf, top=self.top):
+                return True
+        return False
+
     def _longest_known_prefix(self, path: str) -> Tuple[str, str]:
         """Return the longest cached ancestor of *path* and the remaining suffix."""
         if path == self.top:
@@ -510,11 +624,17 @@ class PathWalkState:
             out = ("", None)
             self._resolve_step_cache[step_key] = out
             return out
+        if (parent_path, seg) in self._failed_edge_cache:
+            out = ("", None)
+            self._resolve_step_cache[step_key] = out
+            return out
         edge = self._child_edge(parent_path, seg)
         if edge is not None:
+            self._failed_edge_cache.discard((parent_path, seg))
             out = (seg, edge)
             self._resolve_step_cache[step_key] = out
             return out
+        self._failed_edge_cache.add((parent_path, seg))
         out = ("", None)
         self._resolve_step_cache[step_key] = out
         return out
@@ -526,13 +646,18 @@ class PathWalkState:
             return False
         if path != self.top and not path.startswith(self.top + "."):
             return False
+        if self._is_walk_blocked(path):
+            self._note_blocked_walk_skip(path)
+            return False
         self.mod_db._set_phase("searching", detail=path)
         if path in self.rows_by_path:
             self._clear_pending_misses(path)
+            self._unblock_walk_prefix(path)
             return True
         if path == self.top:
             self.ensure_root()
             self._clear_pending_misses(path)
+            self._unblock_walk_prefix(path)
             return True
         cur, remainder = self._longest_known_prefix(path)
         if not cur:
@@ -552,6 +677,12 @@ class PathWalkState:
                 row = self.rows_by_path.get(cur)
                 parent_mod = row.module if row else "?"
                 miss_leaf = self._inst_leaf_prefix(remainder)
+                if any(
+                    m.parent_path == cur and m.inst_leaf == miss_leaf
+                    for m in self._pending_misses
+                ):
+                    self._note_blocked_walk_skip(path)
+                    return False
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
                 edges: List[InstanceEdge] = []
@@ -566,6 +697,10 @@ class PathWalkState:
                         )
                         if not edges and parent_rec.instances:
                             edges = list(parent_rec.instances)
+                if self._is_folded_inst_prefix_miss(miss_leaf, edges):
+                    return False
+                if self._is_signal_or_port_tail_miss(cur, remainder):
+                    return False
                 raw_source_has_inst = False
                 if parent_rec is not None and parent_rec.file_path and miss_leaf:
                     try:
@@ -608,6 +743,7 @@ class PathWalkState:
         ok = path in self.rows_by_path
         if ok:
             self._clear_pending_misses(path)
+            self._unblock_walk_prefix(path)
         return ok
 
     def _expand_subtree(self, inst_path: str) -> None:
@@ -638,9 +774,11 @@ class PathWalkState:
         lca = _lca(path_a, path_b)
         if not lca:
             return
-        self.ensure_path(path_a)
-        self.ensure_path(path_b)
-        if lca not in self.rows_by_path:
+        if not self._is_walk_blocked(path_a):
+            self.ensure_path(path_a)
+        if not self._is_walk_blocked(path_b):
+            self.ensure_path(path_b)
+        if lca not in self.rows_by_path and not self._is_walk_blocked(lca):
             self.ensure_path(lca)
 
 
@@ -886,11 +1024,17 @@ def _extend_path_walk_for_specs(
     if on_progress:
         on_progress(f"path-walk: {len(spec_list)} endpoint spec(s)")
     for prefix in _sorted_prefixes(spec_list):
+        if state._is_walk_blocked(prefix):
+            state._note_blocked_walk_skip(prefix)
+            continue
         state.ensure_path(prefix)
     for spec in spec_list:
         inst = _walk_target_from_spec(spec, state)
         if inst:
-            state.ensure_path(inst)
+            if state._is_walk_blocked(inst):
+                state._note_blocked_walk_skip(inst)
+            else:
+                state.ensure_path(inst)
     for subtree_root in expand_subtrees:
         root = str(subtree_root).strip()
         if not root:
@@ -911,6 +1055,9 @@ def _extend_path_walk_connect(
     if on_progress:
         on_progress(f"path-walk: {len(specs)} endpoint spec(s)")
     for prefix in _sorted_prefixes(specs):
+        if state._is_walk_blocked(prefix):
+            state._note_blocked_walk_skip(prefix)
+            continue
         state.ensure_path(prefix)
     seen_lca: Set[Tuple[str, str]] = set()
     for chk in request.checks:
@@ -920,6 +1067,8 @@ def _extend_path_walk_connect(
         if key in seen_lca:
             continue
         seen_lca.add(key)
+        if state._is_walk_blocked(a) and state._is_walk_blocked(b):
+            continue
         state.ensure_lca_subtree(a, b)
     state.flush_pending_misses()
 

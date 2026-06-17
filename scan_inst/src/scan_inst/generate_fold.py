@@ -52,9 +52,23 @@ _BEGIN_END_KW = re.compile(r"\b(begin|end)\b", re.IGNORECASE)
 _GENERATE_FOLD_HINT = re.compile(r"\bgenerate\b|\bgenvar\b", re.IGNORECASE)
 
 
+def body_without_generate_regions(body: str) -> str:
+    """Module body with ``generate``..``endgenerate`` regions removed (comments stripped)."""
+    from scan_inst.preprocess import strip_comments_for_instance_scan
+
+    clean = strip_comments_for_instance_scan(body)
+    return _GEN_BLOCK_RE.sub("", clean)
+
+
 def needs_generate_fold(body: str) -> bool:
-    """True when body may contain generate / genvar constructs worth folding."""
-    return bool(_GENERATE_FOLD_HINT.search(body))
+    """True when body has non-empty generate regions worth folding."""
+    from scan_inst.preprocess import strip_comments_for_instance_scan
+
+    clean = strip_comments_for_instance_scan(body)
+    for m in _GEN_BLOCK_RE.finditer(clean):
+        if m.group(1).strip():
+            return True
+    return False
 
 
 @dataclass(frozen=True)

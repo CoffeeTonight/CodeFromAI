@@ -11,6 +11,7 @@ from scan_inst.path_walk import (
     _inst_path_from_spec,
     _walk_target_from_spec,
     build_path_walk_state,
+    build_path_walk_state_from_specs,
     create_path_walk_index,
     run_path_walk_connect,
 )
@@ -56,6 +57,42 @@ def test_walk_target_is_full_spec_not_truncated_prefix(tmp_path: Path):
 
     assert _walk_target_from_spec(leaf, state) == leaf
     assert _inst_path_from_spec(leaf, state) == "SOC_TOP.u_blk.u_core"
+
+
+def test_deeper_prefix_walks_blocked_after_first_miss(tmp_path: Path):
+    """Only report the root miss; do not re-walk deeper endpoint prefixes."""
+    (tmp_path / "top.v").write_text("module SOC_TOP; endmodule\n", encoding="utf-8")
+    fl = tmp_path / "design.f"
+    fl.write_text(f"{(tmp_path / 'top.v').resolve()}\n", encoding="utf-8")
+    flr = parse_filelist(str(fl), index_cwd=str(tmp_path))
+    buf = io.StringIO()
+    index, mod_db = create_path_walk_index(flr, "SOC_TOP", defines={})
+    edge_calls: list[tuple[str, ...]] = []
+    orig_edge = mod_db.resolve_child_edge
+
+    def _count_edge(*args, **kwargs):
+        edge_calls.append(args)
+        return orig_edge(*args, **kwargs)
+
+    mod_db.resolve_child_edge = _count_edge  # type: ignore[method-assign]
+    build_path_walk_state_from_specs(
+        index,
+        "SOC_TOP",
+        [
+            "SOC_TOP.u_cpusystem_top.n1.n2.n3.n4.clk",
+            "SOC_TOP.u_cpusystem_top.n1.n2.n3.n4.rst",
+            "SOC_TOP.u_cpusystem_top.n1.n2.n3.n4.en",
+        ],
+        mod_db,
+        trace_stream=buf,
+    )
+    text = buf.getvalue()
+    assert text.count("miss inst=u_cpusystem_top under SOC_TOP") == 1
+    assert "skipped" in text and "deeper walk target" in text
+    cpusystem_lookups = [
+        call for call in edge_calls if len(call) >= 3 and call[2] == "u_cpusystem_top"
+    ]
+    assert len(cpusystem_lookups) == 1
 
 
 def test_recovered_walk_does_not_leave_stale_miss_in_trace(tmp_path: Path):

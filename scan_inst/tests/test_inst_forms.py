@@ -48,6 +48,13 @@ def test_needs_generate_fold_skips_plain_modules():
     assert prepare_body_for_instance_scan(plain, {}) is plain
 
 
+def test_needs_generate_fold_ignores_comment_and_empty_generate():
+    body = "// generate loop\n  child u0 ( );\n  generate\n  endgenerate\n"
+    assert not needs_generate_fold(body)
+    body2 = "genvar gi;\n  child u0 ( );\n  generate\n  endgenerate\n"
+    assert not needs_generate_fold(body2)
+
+
 def test_index_defers_generate_fold_to_instances_for(tmp_path):
     rtl = tmp_path / "g.v"
     rtl.write_text(

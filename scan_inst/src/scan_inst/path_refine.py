@@ -162,8 +162,10 @@ def _body_prefix_before_instance(
         _read_ident,
         _skip_balanced,
         _skip_sv_attributes,
+        slim_body_for_instance_scan,
     )
 
+    body = slim_body_for_instance_scan(body)
     clean = _ATTR_RE.sub(" ", body)
     clean = _BIND_LINE_RE.sub("", clean)
     n = len(clean)

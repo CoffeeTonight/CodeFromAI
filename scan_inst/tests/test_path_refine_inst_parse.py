@@ -42,6 +42,32 @@ def test_body_prefix_consume_hash_parity_with_inst_scan():
     assert "W_AFTER" in prefix
 
 
+def test_body_prefix_skips_ifdef_directive_lines_before_target():
+    """Parity with :func:`scan_hierarchy_instances` (directive lines stripped)."""
+    body = """
+      localparam W_BEFORE = 1;
+      ////////
+      `ifdef NO_A
+      A u_a
+      (
+      .aa (w_aa));
+      `endif
+      `ifndef NO_CPU
+      localparam W_CPU = 8;
+      CPUSYSTEM_TOP u_cpusystem_top
+      (
+      .clk(clk));
+      `endif
+      localparam W_AFTER = 9;
+    """
+    prefix, params = _body_prefix_before_instance(body, "u_cpusystem_top")
+    assert "W_BEFORE" in prefix
+    assert "W_CPU" in params
+    assert "W_AFTER" not in params
+    assert "ifdef" not in prefix
+    assert "NO_A" not in prefix
+
+
 def test_body_prefix_skips_comma_separated_inst_before_target():
     body = """
       localparam W_EARLY = 4;

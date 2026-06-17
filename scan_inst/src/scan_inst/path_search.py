@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import fnmatch
 from typing import List, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.index import DesignIndex
-from scan_inst.models import FlatRow, SearchHit
+from scan_inst.models import FlatRow, PortInfo, SearchHit
 from scan_inst.params import resolve_param_map
 from scan_inst.path_chain import attach_path_chains
 from scan_inst.path_refine import refine_param_ctx_for_path
 from scan_inst.port_scan import matching_ports, port_index_for_module
-from scan_inst.search import hit_from_row
+from scan_inst.search import _segment_glob_match, hit_from_row
 
 
 def hierarchy_glob_match(path: str, pattern: str) -> bool:
@@ -19,13 +18,10 @@ def hierarchy_glob_match(path: str, pattern: str) -> bool:
     pat_parts = pattern.split(".")
     if len(path_parts) != len(pat_parts):
         return False
-    for part, glob_part in zip(path_parts, pat_parts):
-        if any(ch in glob_part for ch in "*?[]"):
-            if not fnmatch.fnmatchcase(part, glob_part):
-                return False
-        elif part.lower() != glob_part.lower():
-            return False
-    return True
+    return all(
+        _segment_glob_match(part, glob_part)
+        for part, glob_part in zip(path_parts, pat_parts)
+    )
 
 
 def parse_hierarchy_port_pattern(
@@ -62,6 +58,38 @@ def _top_from_rows(rows: Sequence[FlatRow]) -> str:
     if not rows:
         return ""
     return rows[0].full_path.split(".", 1)[0]
+
+
+def _port_search_miss_note(
+    row: FlatRow,
+    port_pat: str,
+    port_index: Mapping[str, PortInfo],
+    *,
+    refine_note: str = "",
+) -> str:
+    """Explain a hierarchy match with no matching port (pattern vs RTL)."""
+    base_ports = sorted({info.base_name for info in port_index.values()})
+    parts: List[str] = []
+    if refine_note:
+        parts.append(refine_note)
+    parts.append(
+        f"port not found: '{port_pat}' on {row.module} ({row.file})"
+    )
+    if base_ports:
+        parts.append(
+            f"declared ports ({len(base_ports)}): {', '.join(base_ports[:20])}"
+        )
+        leaf = port_pat.split("[", 1)[0].split(".", 1)[0]
+        similar = [
+            p
+            for p in base_ports
+            if leaf.lower() in p.lower() or p.lower().startswith(leaf.lower())
+        ]
+        if similar:
+            parts.append(f"similar: {', '.join(similar[:8])}")
+    else:
+        parts.append("no ports parsed for this module (blackbox or parse limit)")
+    return "; ".join(parts)
 
 
 def search_hierarchy_path(
@@ -109,6 +137,23 @@ def search_hierarchy_path(
                 refine_note = refined.note
         port_index = port_index_for_module(row.file, row.module, ctx)
         matched = matching_ports(port_index, port_pat, param_ctx=ctx)
+        if not matched:
+            hit = hit_from_row(
+                row,
+                matched_name=port_pat,
+                match_kind="hierarchy-port-miss",
+                full_path=f"{row.full_path}.{port_pat}",
+            )
+            hit.port_name = port_pat
+            hit.port_found = False
+            hit.port_param_note = _port_search_miss_note(
+                row,
+                port_pat,
+                port_index,
+                refine_note=refine_note,
+            )
+            hits.append(hit)
+            continue
         for port_name in matched:
             info = port_index[port_name]
             hit = hit_from_row(

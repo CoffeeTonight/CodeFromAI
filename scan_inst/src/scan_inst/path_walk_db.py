@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.ignore_path import source_path_matches
-from scan_inst.index import DesignIndex, scan_preprocessed
+from scan_inst.index import (
+    DesignIndex,
+    _module_header_body,
+    _scan_module_body,
+    scan_preprocessed,
+)
 from scan_inst.inst_scan import expand_inst_names
 from scan_inst.manifest import path_stat
 from scan_inst.models import InstanceEdge, ModuleRecord
@@ -562,6 +567,48 @@ class PathWalkModuleDb:
         self._trace(f"pw-db tier1 scan {Path(key).name} -> {summary or '(none)'}")
         return out
 
+    def _instance_edges_for_hit(
+        self,
+        hit: ModuleRecord,
+        *,
+        fpath: str,
+        parent_ctx: Mapping[str, str],
+    ) -> List[InstanceEdge]:
+        """Tier-1 instance edges, including lazy generate-fold bodies."""
+        mod_name = hit.module_name
+        key = str(Path(fpath).resolve())
+        idx_rec = self._index.get_module(mod_name)
+        if (
+            idx_rec is not None
+            and not _is_placeholder_module(idx_rec)
+            and idx_rec.file_path == key
+        ):
+            return self._index.instances_for(mod_name, parent_ctx, {})
+        if not hit.needs_generate_fold:
+            return list(hit.instances)
+
+        from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
+
+        defs: Dict[str, str] = dict(self._defines)
+        text = preprocess_file_for_index(
+            Path(key),
+            self._include_dirs,
+            defs,
+            set(),
+            skip_path_patterns=self._skip,
+        )
+        if defs:
+            text = apply_ifdef_filter(text, defs)
+        _hdr, body = _module_header_body(text, mod_name)
+        if not body:
+            return list(hit.instances)
+        return _scan_module_body(
+            body,
+            hit.raw_params,
+            parent_ctx=parent_ctx,
+            compile_defines=defs,
+        )
+
     def _edge_matches(
         self,
         edges: Sequence[InstanceEdge],
@@ -695,9 +742,14 @@ class PathWalkModuleDb:
                     parent_mod, inst_leaf = expect_inst
                     if parent_mod == module_name:
                         pmap = resolve_param_map(hit.raw_params, parent=parent_ctx or {})
-                        edge = self._edge_matches(hit.instances, inst_leaf, pmap)
+                        tier_edges = self._instance_edges_for_hit(
+                            hit,
+                            fpath=fpath,
+                            parent_ctx=parent_ctx or {},
+                        )
+                        edge = self._edge_matches(tier_edges, inst_leaf, pmap)
                         if edge is None:
-                            insts = ", ".join(e.inst_name for e in hit.instances[:12])
+                            insts = ", ".join(e.inst_name for e in tier_edges[:12])
                             self._trace(
                                 f"pw-db   miss {Path(fpath).name}: "
                                 f"no inst {inst_leaf!r} (have: {insts or '(none)'})"
@@ -811,7 +863,12 @@ class PathWalkModuleDb:
                     )
                     continue
                 pmap = resolve_param_map(hit.raw_params, parent=parent_ctx)
-                edge = self._edge_matches(hit.instances, inst_leaf, pmap)
+                tier_edges = self._instance_edges_for_hit(
+                    hit,
+                    fpath=fpath,
+                    parent_ctx=parent_ctx,
+                )
+                edge = self._edge_matches(tier_edges, inst_leaf, pmap)
                 if edge is not None:
                     self._apply_file_modules(fpath, modules)
                     self._prefer_file[parent_module] = fpath
@@ -822,7 +879,7 @@ class PathWalkModuleDb:
                     self.write_module_index_snapshot()
                     return edge
                 insts = ", ".join(
-                    f"{e.inst_name}->{e.child_module}" for e in hit.instances[:12]
+                    f"{e.inst_name}->{e.child_module}" for e in tier_edges[:12]
                 )
                 self._trace(
                     f"pw-db   edge miss {Path(fpath).name}: "

@@ -18,7 +18,7 @@ from scan_inst.connectivity import ConnectivityBatchResult, ConnectivitySession
 from scan_inst.filelist import FilelistResult
 from scan_inst.ignore_path import resolve_ignore_path_patterns, source_path_matches
 from scan_inst.index import DesignIndex
-from scan_inst.inst_scan import expand_inst_names
+from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
 from scan_inst.lazy_scope import endpoint_specs_from_request, hierarchy_prefixes
 from scan_inst.library_scan import scan_library_modules
 from scan_inst.models import FlatRow, InstanceEdge
@@ -392,6 +392,24 @@ class PathWalkState:
         )
         return child_path
 
+    @staticmethod
+    def _inst_leaf_prefix(remainder: str) -> str:
+        """First hierarchy segment of *remainder* (handles ``c[0][1].d``)."""
+        seg, _ = _read_hier_inst_path(remainder, 0)
+        if seg:
+            return seg
+        return remainder.split(".", 1)[0]
+
+    @staticmethod
+    def _remainder_matches_inst(remainder: str, inst_name: str) -> bool:
+        if remainder == inst_name:
+            return True
+        prefix = inst_name + "."
+        return (
+            remainder.startswith(prefix)
+            or remainder.lower().startswith(prefix.lower())
+        )
+
     def _resolve_child_step(
         self,
         parent_path: str,
@@ -410,13 +428,13 @@ class PathWalkState:
         best_edge: Optional[InstanceEdge] = None
         for edge in edges:
             for name in expand_inst_names(edge.inst_name, "", pmap):
-                if remainder == name or remainder.startswith(name + "."):
+                if self._remainder_matches_inst(remainder, name):
                     if len(name) > len(best_name):
                         best_name = name
                         best_edge = edge
         if best_edge is not None:
             return best_name, best_edge
-        seg = remainder.split(".", 1)[0]
+        seg = self._inst_leaf_prefix(remainder)
         if not seg:
             return "", None
         edge = self._child_edge(parent_path, seg)
@@ -451,7 +469,7 @@ class PathWalkState:
             if edge is None or not inst_name:
                 row = self.rows_by_path.get(cur)
                 parent_mod = row.module if row else "?"
-                miss_leaf = remainder.split(".", 1)[0]
+                miss_leaf = self._inst_leaf_prefix(remainder)
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
                 cand = "; ".join(Path(f).name for f in snap[:8])
                 have = ""
@@ -476,6 +494,24 @@ class PathWalkState:
                                 f"(path-walk uses instance names, not module types)"
                             )
                             break
+                    if not type_hint:
+                        indexed = sorted(
+                            {
+                                e.inst_name
+                                for e in edges
+                                if e.inst_name.startswith(miss_leaf + "[")
+                                or (
+                                    e.inst_name.lower().startswith(
+                                        miss_lower + "["
+                                    )
+                                )
+                            }
+                        )
+                        if indexed:
+                            type_hint = (
+                                f"; hint: {miss_leaf!r} is an array instance — "
+                                f"use indexed name e.g. {indexed[0]!r}"
+                            )
                 self._queue_walk_miss(
                     cur,
                     miss_leaf,

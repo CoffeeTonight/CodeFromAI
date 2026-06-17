@@ -137,7 +137,7 @@ def _body_prefix_before_instance(
         while pos < n and clean[pos].isspace():
             pos += 1
         if pos >= n or clean[pos] != "(":
-            return pos
+            return start
         return _skip_balanced(clean, pos, "(", ")")
 
     while i < n:

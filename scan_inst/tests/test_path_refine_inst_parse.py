@@ -31,6 +31,17 @@ def test_body_prefix_matches_hierarchical_inst_leaf(tmp_path: Path):
     assert "W_LATE" not in prefix
 
 
+def test_body_prefix_consume_hash_parity_with_inst_scan():
+    """Invalid ``#`` (no ``(#...)``) must rewind to ``start``, not advance to ``pos``."""
+    body = """
+      localparam W_BEFORE = 1;
+      child # u_target ();
+      localparam W_AFTER = 2;
+    """
+    prefix = _body_prefix_before_instance(body, "u_target")
+    assert "W_AFTER" in prefix
+
+
 def test_body_prefix_skips_comma_separated_inst_before_target():
     body = """
       localparam W_EARLY = 4;

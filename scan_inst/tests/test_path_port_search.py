@@ -84,7 +84,15 @@ module leaf; endmodule
     }
 
     miss = search_hierarchy_path(rows, "top.u_mid0.nope", index)
-    assert miss == []
+    assert len(miss) == 1
+    assert miss[0].port_found is False
+    assert miss[0].match_kind == "hierarchy-port-miss"
+    assert miss[0].full_path == "top.u_mid0.nope"
+    assert "port not found" in miss[0].port_param_note
+    assert "clk" in miss[0].port_param_note
+
+    hier_miss = search_hierarchy_path(rows, "top.u_nope.clk", index)
+    assert hier_miss == []
 
 
 def test_param_port_symbolic_and_line(tmp_path):
@@ -188,7 +196,9 @@ endmodule
     assert "resolved" in hits[0].port_param_note
 
     miss = search_hierarchy_path(rows, "top.u0.a[9][9]", index)
-    assert miss == []
+    assert len(miss) == 1
+    assert miss[0].port_found is False
+    assert miss[0].match_kind == "hierarchy-port-miss"
 
 
 def test_param_port_literal_bounds_without_full_expand(tmp_path):
@@ -245,7 +255,9 @@ endmodule
     assert idx["a[M-1:0][N-1:0]"].param_note.startswith("unresolved")
 
     miss = search_hierarchy_path(rows, "top.u0.a[0][1]", index)
-    assert miss == []
+    assert len(miss) == 1
+    assert miss[0].port_found is False
+    assert miss[0].match_kind == "hierarchy-port-miss"
 
     sym = search_hierarchy_path(rows, "top.u0.a[M-1:0][N-1:0]", index)
     assert len(sym) == 1
@@ -278,10 +290,33 @@ endmodule
     assert late.param_ctx.get("W") == "16"
 
     early_hits = search_hierarchy_path(rows, "top.u_early.data[15]", index)
-    assert early_hits == []
+    assert len(early_hits) == 1
+    assert early_hits[0].port_found is False
+    assert early_hits[0].match_kind == "hierarchy-port-miss"
     late_hits = search_hierarchy_path(rows, "top.u_late.data[15]", index)
     assert len(late_hits) == 1
     assert "path-refined" in late_hits[0].port_param_note
+
+
+def test_hierarchy_glob_case_insensitive_literal(tmp_path):
+    rtl = tmp_path / "case.v"
+    rtl.write_text(
+        """
+module top;
+  mid u_mid0 ( );
+endmodule
+module mid ( input wire clk ); endmodule
+""",
+        encoding="utf-8",
+    )
+    text = preprocess_file(rtl, [], {})
+    index = DesignIndex.build({str(rtl): text})
+    _root, rows = elaborate(index, "top")
+
+    hits = search_hierarchy_path(rows, "top.U_MID0.clk", index)
+    assert len(hits) == 1
+    assert hits[0].port_found
+    assert hits[0].full_path == "top.u_mid0.clk"
 
 
 def test_inst_search_glob():

@@ -176,6 +176,7 @@ def _emit_ifdef_line_segments(
     defs: Mapping[str, str],
 ) -> List[str]:
     """Split one source line on inline `` `ifdef `` directives; emit active segments."""
+    line = strip_comments(line)
     segments: List[str] = []
     pos = 0
     while True:

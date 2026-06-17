@@ -30,6 +30,48 @@ def test_ifdef_filter_single_line():
     assert on == "assign link=src;"
 
 
+def test_ifdef_filter_ignores_directives_in_line_comments():
+    # `` `endif `` inside ``//`` must not pop the ifdef stack early.
+    src = (
+        "`ifndef NO_CPU\n"
+        "  CPUSYSTEM_TOP u_cpusystem_top (); // `endif\n"
+        "  B u_b ();\n"
+        "`endif\n"
+    )
+    out = apply_ifdef_filter(src, {})
+    assert "u_cpusystem_top" in out
+    assert "u_b" in out
+
+    src_else_trap = (
+        "`ifdef USE_A\n"
+        "  A u_a ();\n"
+        "// `else\n"
+        "  C u_c ();\n"
+        "`else\n"
+        "  B u_b ();\n"
+        "`endif\n"
+    )
+    out_a = apply_ifdef_filter(src_else_trap, {"USE_A": "1"})
+    assert "u_a" in out_a
+    assert "u_c" in out_a
+    assert "u_b" not in out_a
+    out_b = apply_ifdef_filter(src_else_trap, {"USE_A": "0"})
+    assert "u_b" in out_b
+    assert "u_a" not in out_b
+
+
+def test_ifdef_filter_skips_slash_comment_lines_before_ifdef():
+    src = """
+////////
+`ifdef NO_A
+  A u_a ();
+`endif
+"""
+    out = apply_ifdef_filter(src, {"NO_A": "1"})
+    assert "////////" not in out
+    assert "u_a" in out
+
+
 def test_ifdef_filter():
     src = """
 `ifdef USE_A

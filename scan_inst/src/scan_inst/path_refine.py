@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Mapping, Optional, Sequence
+from pathlib import Path
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from scan_inst.generate_fold import prepare_body_for_instance_scan
-from scan_inst.index import DesignIndex
+from scan_inst.index import DesignIndex, _ctx_key
 from scan_inst.inst_scan import iter_module_blocks, scan_hierarchy_instances
+from scan_inst.manifest import path_stat
 from scan_inst.models import InstanceEdge
 from scan_inst.params import collect_module_params, parse_param_pairs, resolve_param_map, split_module_header
 
@@ -38,26 +40,51 @@ class PathRefineResult:
     note: str = ""
 
 
+_ModuleChunkCacheKey = Tuple[int, str, str]
+_module_chunk_cache: Dict[_ModuleChunkCacheKey, Tuple[str, str, str]] = {}
+
+
+def _module_chunk_cache_key(index: DesignIndex, mod_name: str, path: str) -> _ModuleChunkCacheKey:
+    stat = path_stat(Path(path)) if path else None
+    token = f"{stat[0]}:{stat[1]}" if stat is not None else path
+    return (id(index), mod_name, token)
+
+
+def clear_module_chunk_cache() -> None:
+    _module_chunk_cache.clear()
+
+
 def _module_chunk(index: DesignIndex, mod_name: str) -> tuple[str, str, str]:
     rec = index.get_module(mod_name)
     if not rec:
         return "", "", ""
-    body = index.module_body(mod_name)
-    path = rec.file_path
-    if not path:
-        return "", "", body
-    try:
-        from pathlib import Path
+    path = rec.file_path or ""
+    cache_key = _module_chunk_cache_key(index, mod_name, path)
+    cached = _module_chunk_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
+    body = index.module_body(mod_name)
+    if not path:
+        out = ("", "", body)
+        _module_chunk_cache[cache_key] = out
+        return out
+    try:
         text = Path(path).read_text(encoding="utf-8", errors="ignore")
     except OSError:
-        return path, "", body
+        out = (path, "", body)
+        _module_chunk_cache[cache_key] = out
+        return out
     for block in iter_module_blocks(text):
         if block["name"] != mod_name:
             continue
         header, mod_body = split_module_header(block["chunk"])
-        return path, header, mod_body or body
-    return path, "", body
+        out = (path, header, mod_body or body)
+        _module_chunk_cache[cache_key] = out
+        return out
+    out = (path, "", body)
+    _module_chunk_cache[cache_key] = out
+    return out
 
 
 def _header_params(header: str) -> Dict[str, str]:
@@ -125,8 +152,8 @@ def _body_prefix_before_instance(
     inst_leaf: str,
     *,
     param_map: Optional[Mapping[str, str]] = None,
-) -> str:
-    """Return module body text that appears before ``inst_leaf`` declaration."""
+) -> Tuple[str, Dict[str, str]]:
+    """Return ``(body text before inst_leaf, params visible at that site)``."""
     from scan_inst.inst_scan import (
         _ATTR_RE,
         _BIND_LINE_RE,
@@ -143,6 +170,8 @@ def _body_prefix_before_instance(
     i = 0
     target = inst_leaf
     base_params = dict(param_map or {})
+    accumulated_params = dict(base_params)
+    param_scan_pos = 0
 
     def consume_hash(start: int) -> int:
         pos = start
@@ -201,10 +230,12 @@ def _body_prefix_before_instance(
         if k >= n or clean[k] not in "(;":
             i += 1
             continue
-        site_params = dict(base_params)
-        site_params.update(_params_in_text(clean[:decl_start]))
+        if decl_start > param_scan_pos:
+            accumulated_params.update(_params_in_text(clean[param_scan_pos:decl_start]))
+            param_scan_pos = decl_start
+        site_params = dict(accumulated_params)
         if _inst_matches_target(inst, dims, target, param_map=site_params):
-            return clean[:decl_start]
+            return clean[:decl_start], site_params
         if clean[k] == "(":
             k = _skip_balanced(clean, k, "(", ")")
         while k < n and clean[k].isspace():
@@ -227,13 +258,57 @@ def _body_prefix_before_instance(
                         k += 1
                 if k < n and clean[k] in "(;":
                     if _inst_matches_target(inst2, dims2, target, param_map=site_params):
-                        return clean[:decl_start]
+                        return clean[:decl_start], site_params
                     if clean[k] == "(":
                         k = _skip_balanced(clean, k, "(", ")")
             i = k2
             continue
         i = k
-    return clean
+    return clean, accumulated_params
+
+
+_InstanceScanCache = Dict[Tuple[str, str], List[InstanceEdge]]
+
+
+def _instance_edges_for_parent(
+    index: DesignIndex,
+    parent_mod: str,
+    parent_ctx: Mapping[str, str],
+    *,
+    scoped_params: Optional[Mapping[str, str]] = None,
+    scan_cache: Optional[_InstanceScanCache] = None,
+) -> List[InstanceEdge]:
+    rec = index.get_module(parent_mod)
+    if rec is None:
+        return []
+    if rec.stop_reason or rec.is_blackbox:
+        return list(rec.instances)
+
+    if scoped_params is not None:
+        raw = dict(scoped_params)
+    else:
+        raw = dict(rec.raw_params)
+    pmap = resolve_param_map(raw, parent=parent_ctx)
+    cache_key = (parent_mod, _ctx_key(pmap))
+    if scan_cache is not None:
+        cached = scan_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+    body = index.module_body(parent_mod)
+    if not body:
+        if rec.instances:
+            edges = list(rec.instances)
+            if scan_cache is not None:
+                scan_cache[cache_key] = edges
+            return edges
+        return []
+
+    folded = prepare_body_for_instance_scan(body, pmap)
+    edges = scan_hierarchy_instances(folded, param_map=pmap)
+    if scan_cache is not None:
+        scan_cache[cache_key] = edges
+    return edges
 
 
 def scoped_module_params(
@@ -245,8 +320,12 @@ def scoped_module_params(
     _path, header, body = _module_chunk(index, mod_name)
     params = dict(_header_params(header))
     if body:
-        prefix = _body_prefix_before_instance(body, inst_leaf, param_map=params)
-        params.update(_params_in_text(prefix))
+        _prefix, body_params = _body_prefix_before_instance(
+            body,
+            inst_leaf,
+            param_map=params,
+        )
+        params.update(body_params)
         return params
     rec = index.get_module(mod_name)
     return dict(rec.raw_params) if rec else params
@@ -259,9 +338,16 @@ def find_child_instance(
     parent_ctx: Mapping[str, str],
     *,
     scoped_params: Optional[Mapping[str, str]] = None,
+    scan_cache: Optional[_InstanceScanCache] = None,
 ) -> Optional[InstanceEdge]:
-    body = index.module_body(parent_mod)
-    if not body:
+    edges = _instance_edges_for_parent(
+        index,
+        parent_mod,
+        parent_ctx,
+        scoped_params=scoped_params,
+        scan_cache=scan_cache,
+    )
+    if not edges:
         return None
     if scoped_params is not None:
         raw = dict(scoped_params)
@@ -269,8 +355,7 @@ def find_child_instance(
         rec = index.get_module(parent_mod)
         raw = dict(rec.raw_params) if rec else {}
     pmap = resolve_param_map(raw, parent=parent_ctx)
-    folded = prepare_body_for_instance_scan(body, pmap)
-    for edge in scan_hierarchy_instances(folded, param_map=pmap):
+    for edge in edges:
         if _edge_matches_inst_leaf(edge, inst_leaf, param_map=pmap):
             return edge
     return None
@@ -298,6 +383,7 @@ def refine_param_ctx_for_path(
     module_ctx: Dict[str, str] = {}
     steps: List[PathRefineStep] = []
     current_mod = top
+    scan_cache: _InstanceScanCache = {}
 
     steps.append(
         PathRefineStep(
@@ -319,6 +405,7 @@ def refine_param_ctx_for_path(
             inst_leaf,
             module_ctx,
             scoped_params=scoped,
+            scan_cache=scan_cache,
         )
         if edge is None:
             return PathRefineResult(

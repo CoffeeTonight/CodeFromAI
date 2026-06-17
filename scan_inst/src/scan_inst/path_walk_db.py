@@ -191,6 +191,9 @@ class PathWalkModuleDb:
         self.files_validated: int = 0
         self.cache_regex_hits: int = 0
         self.cache_validated_hits: int = 0
+        self._folded_edges_cache: Dict[Tuple[str, str, str], List[InstanceEdge]] = {}
+        self._snapshot_dirty: bool = False
+        self._snapshot_written: bool = False
 
     @property
     def cache_root(self) -> Optional[Path]:
@@ -227,17 +230,27 @@ class PathWalkModuleDb:
     def module_to_files_snapshot(self) -> Dict[str, List[str]]:
         return {name: list(files) for name, files in self._module_to_files.items()}
 
-    def write_module_index_snapshot(self) -> Optional[Path]:
+    def write_module_index_snapshot(self, *, force: bool = False) -> Optional[Path]:
         if self._cache_root is None:
             return None
         out = self._cache_root / "module_index.tsv"
+        if not force and self._on_trace is None:
+            self._snapshot_dirty = True
+            return out
+        if not force and self._snapshot_written and not self._snapshot_dirty:
+            return out
         lines = ["module\tfiles"]
         for name in sorted(self._module_to_files):
             files = self._module_to_files[name]
             lines.append(f"{name}\t{';'.join(files)}")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self._snapshot_dirty = False
+        self._snapshot_written = True
         return out
+
+    def flush_module_index_snapshot(self) -> Optional[Path]:
+        return self.write_module_index_snapshot(force=True)
 
     def remember_index_modules(self) -> None:
         for name, rec in self._index.modules.items():
@@ -567,6 +580,27 @@ class PathWalkModuleDb:
         self._trace(f"pw-db tier1 scan {Path(key).name} -> {summary or '(none)'}")
         return out
 
+    def _invalidate_folded_edges_cache(
+        self,
+        *,
+        mod_names: Optional[Set[str]] = None,
+        file_path: str = "",
+    ) -> None:
+        if not self._folded_edges_cache:
+            return
+        if not mod_names and not file_path:
+            self._folded_edges_cache.clear()
+            return
+        drop_mods = mod_names or set()
+        file_key = str(Path(file_path).resolve()) if file_path else ""
+        stale = [
+            cache_key
+            for cache_key in self._folded_edges_cache
+            if cache_key[0] in drop_mods or (file_key and cache_key[2] == file_key)
+        ]
+        for cache_key in stale:
+            del self._folded_edges_cache[cache_key]
+
     def _instance_edges_for_hit(
         self,
         hit: ModuleRecord,
@@ -575,6 +609,8 @@ class PathWalkModuleDb:
         parent_ctx: Mapping[str, str],
     ) -> List[InstanceEdge]:
         """Tier-1 instance edges, including lazy generate-fold bodies."""
+        from scan_inst.index import _ctx_key
+
         mod_name = hit.module_name
         key = str(Path(fpath).resolve())
         idx_rec = self._index.get_module(mod_name)
@@ -586,6 +622,13 @@ class PathWalkModuleDb:
             return self._index.instances_for(mod_name, parent_ctx, {})
         if not hit.needs_generate_fold:
             return list(hit.instances)
+
+        fold_ctx = dict(self._defines)
+        fold_ctx.update(resolve_param_map(hit.raw_params, parent=parent_ctx))
+        fold_cache_key = (mod_name, _ctx_key(fold_ctx), key)
+        cached_edges = self._folded_edges_cache.get(fold_cache_key)
+        if cached_edges is not None:
+            return cached_edges
 
         from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
 
@@ -601,13 +644,16 @@ class PathWalkModuleDb:
             text = apply_ifdef_filter(text, defs)
         _hdr, body = _module_header_body(text, mod_name)
         if not body:
-            return list(hit.instances)
-        return _scan_module_body(
-            body,
-            hit.raw_params,
-            parent_ctx=parent_ctx,
-            compile_defines=defs,
-        )
+            edges = list(hit.instances)
+        else:
+            edges = _scan_module_body(
+                body,
+                hit.raw_params,
+                parent_ctx=parent_ctx,
+                compile_defines=defs,
+            )
+        self._folded_edges_cache[fold_cache_key] = edges
+        return edges
 
     def _edge_matches(
         self,
@@ -640,6 +686,7 @@ class PathWalkModuleDb:
 
     def _apply_file_modules(self, path: str, modules: Mapping[str, ModuleRecord]) -> None:
         key = str(Path(path).resolve())
+        prior = list(self._file_to_modules.get(key, []))
         for name, rec in modules.items():
             self._index.modules[name] = ModuleRecord(
                 module_name=name,
@@ -653,8 +700,11 @@ class PathWalkModuleDb:
                 stop_reason=rec.stop_reason,
             )
         self._index._rebuild_file_modules()
-        self._index._instance_cache.clear()
+        affected = set(prior) | set(modules)
+        self._index.invalidate_instance_cache_for_modules(sorted(affected))
         self._index._rebuild_default_ctx()
+        self._invalidate_folded_edges_cache(mod_names=affected, file_path=key)
+        self._snapshot_dirty = True
 
     def _index_has_resolved_module(
         self,

@@ -705,6 +705,16 @@ class DesignIndex:
         self._preprocessed_sources.clear()
         self._instance_cache.clear()
 
+    def invalidate_instance_cache_for_modules(self, mod_names: Sequence[str]) -> None:
+        """Drop cached instance edges for *mod_names* after incremental index updates."""
+        if not mod_names:
+            return
+        drop = set(mod_names)
+        with self._instance_cache_lock:
+            stale = [key for key in self._instance_cache if key[0] in drop]
+            for key in stale:
+                del self._instance_cache[key]
+
     def patch_files(
         self,
         changed_files: Sequence[str],

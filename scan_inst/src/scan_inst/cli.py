@@ -42,7 +42,7 @@ from scan_inst.connectivity import (
     print_connect_trace_reports,
     run_connectivity_request,
 )
-from scan_inst.path_walk import run_path_walk_connect
+from scan_inst.path_walk import clear_path_walk_suite_session, run_path_walk_connect
 from scan_inst.enable_diagnostics import (
     audit_run_on_full_index_enable_lines,
     find_nested_full_index_blocks,
@@ -682,6 +682,7 @@ def main(argv=None) -> int:
         bind_suite_recorder(timing_rec)
 
     exit_code = 0
+    clear_path_walk_suite_session()
     for test_entry, run_cfg in test_plan:
         if test_document is not None and test_entry is None:
             connect_req = resolve_connectivity_request(run_cfg)
@@ -777,6 +778,7 @@ def main(argv=None) -> int:
     if timing_rec is not None:
         timing_rec.emit_summary()
     bind_suite_recorder(None)
+    clear_path_walk_suite_session()
     if not cfg.quiet:
         hint = format_enable_root_cause_hint(
             saw_suite_trace=saw_suite_enable_trace,

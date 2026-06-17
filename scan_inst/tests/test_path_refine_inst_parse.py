@@ -15,7 +15,7 @@ def test_body_prefix_matches_array_inst_name(tmp_path: Path):
       child #( .W(W_EARLY) ) u_arr[0] ();
       localparam W_LATE = 32;
     """
-    prefix = _body_prefix_before_instance(body, "u_arr[0]")
+    prefix, _ = _body_prefix_before_instance(body, "u_arr[0]")
     assert "W_EARLY" in prefix
     assert "W_LATE" not in prefix
 
@@ -26,7 +26,7 @@ def test_body_prefix_matches_hierarchical_inst_leaf(tmp_path: Path):
       child genblk.u_target ();
       localparam W_LATE = 32;
     """
-    prefix = _body_prefix_before_instance(body, "u_target")
+    prefix, _ = _body_prefix_before_instance(body, "u_target")
     assert "W_EARLY" in prefix
     assert "W_LATE" not in prefix
 
@@ -38,7 +38,7 @@ def test_body_prefix_consume_hash_parity_with_inst_scan():
       child # u_target ();
       localparam W_AFTER = 2;
     """
-    prefix = _body_prefix_before_instance(body, "u_target")
+    prefix, _ = _body_prefix_before_instance(body, "u_target")
     assert "W_AFTER" in prefix
 
 
@@ -48,7 +48,7 @@ def test_body_prefix_skips_comma_separated_inst_before_target():
       child u_first (), u_target ();
       localparam W_LATE = 32;
     """
-    prefix = _body_prefix_before_instance(body, "u_target")
+    prefix, _ = _body_prefix_before_instance(body, "u_target")
     assert "W_EARLY" in prefix
     assert "W_LATE" not in prefix
 
@@ -73,6 +73,33 @@ def test_find_child_instance_matches_array_base_name(tmp_path: Path):
     assert edge is not None
     assert edge.child_module == "core"
     assert edge.inst_name.startswith("u_core[")
+
+
+def test_find_child_instance_falls_back_to_prescanned_instances(tmp_path: Path):
+    from scan_inst.path_refine import find_child_instance
+
+    rtl = tmp_path / "stop_parent.v"
+    rtl.write_text(
+        """
+        module top;
+          child u0 ();
+        endmodule
+        module child;
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    text = preprocess_file(rtl, [], {})
+    index = DesignIndex.build({str(rtl): text})
+    rec = index.get_module("top")
+    assert rec is not None and rec.instances
+    rec.stop_reason = "ignorePath"
+    rec.body = ""
+
+    edge = find_child_instance(index, "top", "u0", {})
+    assert edge is not None
+    assert edge.inst_name == "u0"
+    assert edge.child_module == "child"
 
 
 def test_find_child_instance_honors_empty_scoped_params(tmp_path: Path):

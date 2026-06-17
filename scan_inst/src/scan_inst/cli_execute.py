@@ -211,6 +211,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     [cfg.inst_trace.instance],
                     top=top_for_walk,
                     extra_defines=extra_defines,
+                    reuse_suite_session=cfg.flat_suite_step,
                     **pw_ignore,
                 )
             except ValueError as exc:
@@ -264,6 +265,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     [cone_label],
                     top=top_for_walk,
                     extra_defines=extra_defines,
+                    reuse_suite_session=cfg.flat_suite_step,
                     **pw_ignore,
                 )
             except ValueError as exc:
@@ -350,6 +352,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     fl,
                     top=top_for_walk,
                     extra_defines=extra_defines,
+                    reuse_suite_session=cfg.flat_suite_step,
                     **pw_ignore,
                 )
             except ValueError as exc:

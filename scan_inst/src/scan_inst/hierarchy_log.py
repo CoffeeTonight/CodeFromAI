@@ -2,14 +2,62 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import IO, List, Mapping, Optional, Sequence, TextIO
 
-from scan_inst.models import ConnectEndpoint, ConnectHop, FlatRow, PathChainLink
+from scan_inst.models import ConnectEndpoint, ConnectHop, FlatRow, InstanceEdge, ModuleRecord, PathChainLink
 
 _PREFIX = "[scan-inst hierarchy]"
 _PATH_WALK_PREFIX = "[scan-inst path-walk]"
+_ANSI_RED = "\033[31m"
+_ANSI_RESET = "\033[0m"
+_PATH_WALK_MISS_REASON_STOP_TOKENS = (
+    "; have:",
+    "; pw-db ",
+    "; hint:",
+    ")  parent ",
+    ")  (no parent",
+)
+
+
+def path_walk_stream_color_enabled(stream: TextIO) -> bool:
+    """Color miss reasons on interactive terminals only (not log files)."""
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("SCAN_INST_COLOR", "").lower() in {"0", "false", "no"}:
+        return False
+    try:
+        return stream.isatty()
+    except Exception:
+        return False
+
+
+def colorize_path_walk_miss_reason(message: str, *, enable: bool = True) -> str:
+    """Highlight the miss reason (``cause=…`` summary) in red ANSI when *enable*."""
+    if not enable or "miss inst=" not in message or "cause=" not in message:
+        return message
+    open_paren = message.find("(cause=")
+    if open_paren < 0:
+        return message
+    start = open_paren + 1
+    end = -1
+    for token in _PATH_WALK_MISS_REASON_STOP_TOKENS:
+        pos = message.find(token, start)
+        if pos >= 0 and (end < 0 or pos < end):
+            end = pos
+    if end < 0:
+        end = message.find(")", start)
+    if end < 0:
+        return message
+    return (
+        message[:start]
+        + _ANSI_RED
+        + message[start:end]
+        + _ANSI_RESET
+        + message[end:]
+    )
 
 
 def provenance_fields(
@@ -272,6 +320,123 @@ def format_path_walk_node_line(
     return f"{action} {path}  {format_row_provenance(row)}"
 
 
+def classify_path_walk_inst_miss(
+    *,
+    parent_rec: Optional[ModuleRecord],
+    miss_leaf: str,
+    edges: Sequence[InstanceEdge],
+    candidate_files: Sequence[str],
+) -> str:
+    """Short cause tag for a missing child instance edge during path-walk."""
+    miss_lower = miss_leaf.lower()
+    for edge in edges:
+        if edge.child_module.lower() == miss_lower:
+            return "type-not-inst"
+    for edge in edges:
+        if edge.inst_name.startswith(miss_leaf + "[") or edge.inst_name.lower().startswith(
+            miss_lower + "["
+        ):
+            return "array-index"
+    if parent_rec is None:
+        return "no-module"
+    if parent_rec.stop_reason or parent_rec.is_blackbox:
+        return "ignored"
+    if not parent_rec.file_path:
+        return "no-file"
+    if not candidate_files:
+        return "no-file"
+    if len(candidate_files) > 1:
+        return "dup-module"
+    return "no-inst"
+
+
+def classify_path_walk_child_miss(child_rec: Optional[ModuleRecord]) -> str:
+    """Short cause tag when the child module type could not be elaborated."""
+    if child_rec is None:
+        return "no-module"
+    if child_rec.stop_reason or child_rec.is_blackbox:
+        return "ignored"
+    if not child_rec.file_path:
+        return "no-file"
+    return "no-module"
+
+
+def path_walk_inst_miss_reason(
+    *,
+    parent_mod: str,
+    parent_rec: Optional[ModuleRecord],
+    miss_leaf: str,
+    edges: Sequence[InstanceEdge],
+    candidate_files: Sequence[str],
+) -> str:
+    """Human-readable miss line body with a leading ``cause=`` tag."""
+    cause = classify_path_walk_inst_miss(
+        parent_rec=parent_rec,
+        miss_leaf=miss_leaf,
+        edges=edges,
+        candidate_files=candidate_files,
+    )
+    have = ""
+    if edges:
+        have = "; ".join(f"{e.inst_name}->{e.child_module}" for e in edges[:8])
+    type_hint = ""
+    miss_lower = miss_leaf.lower()
+    if cause == "type-not-inst":
+        for edge in edges:
+            if edge.child_module.lower() == miss_lower:
+                type_hint = (
+                    f"; hint: {miss_leaf!r} is module type — "
+                    f"use inst name {edge.inst_name!r} "
+                    f"(path-walk uses instance names, not module types)"
+                )
+                break
+    elif cause == "array-index":
+        indexed = sorted(
+            {
+                e.inst_name
+                for e in edges
+                if e.inst_name.startswith(miss_leaf + "[")
+                or e.inst_name.lower().startswith(miss_lower + "[")
+            }
+        )
+        if indexed:
+            type_hint = (
+                f"; hint: {miss_leaf!r} is an array instance — "
+                f"use indexed name e.g. {indexed[0]!r}"
+            )
+    cand = "; ".join(Path(f).name for f in candidate_files[:8])
+    parts = [f"cause={cause}"]
+    if cause == "ignored" and parent_rec is not None:
+        if parent_rec.stop_reason:
+            parts.append(f"stop={parent_rec.stop_reason}")
+        elif parent_rec.is_blackbox:
+            parts.append("blackbox=1")
+    parts.append("instance edge not found in parent module")
+    if have:
+        parts.append(f"have: {have}")
+    reason = "; ".join(parts) + type_hint
+    if parent_mod:
+        reason += f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}"
+    return reason
+
+
+def path_walk_child_miss_reason(
+    *,
+    child_mod: str,
+    child_rec: Optional[ModuleRecord],
+) -> str:
+    cause = classify_path_walk_child_miss(child_rec)
+    parts = [f"cause={cause}", f"child module {child_mod!r} not loaded"]
+    if cause == "ignored" and child_rec is not None:
+        if child_rec.stop_reason:
+            parts.append(f"stop={child_rec.stop_reason}")
+        elif child_rec.is_blackbox:
+            parts.append("blackbox=1")
+    elif cause == "no-file" and child_rec is not None and not child_rec.file_path:
+        parts.append("rtl=(none)")
+    return "; ".join(parts)
+
+
 def format_path_walk_miss_line(
     parent_path: str,
     parent_row: FlatRow,
@@ -337,10 +502,16 @@ def emit_path_walk_log(
     *,
     stream: TextIO,
     prefix: str = _PATH_WALK_PREFIX,
+    color_miss: Optional[bool] = None,
 ) -> None:
     if not message:
         return
-    print(f"{prefix} {message}", file=stream, flush=True)
+    text = message
+    if color_miss is None:
+        color_miss = path_walk_stream_color_enabled(stream)
+    if color_miss:
+        text = colorize_path_walk_miss_reason(text)
+    print(f"{prefix} {text}", file=stream, flush=True)
 
 
 def emit_path_walk_node_log(

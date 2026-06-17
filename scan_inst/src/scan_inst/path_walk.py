@@ -29,6 +29,8 @@ from scan_inst.hierarchy_log import (
     emit_path_walk_spine_log,
     format_path_walk_miss_line,
     open_path_walk_trace_log,
+    path_walk_child_miss_reason,
+    path_walk_inst_miss_reason,
     path_walk_trace_show_message,
 )
 from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
@@ -223,7 +225,8 @@ class PathWalkState:
         parent = self.rows_by_path.get(parent_path)
         if parent is None:
             self._emit_walk(
-                f"miss inst={inst_leaf} under {parent_path} ({reason})  "
+                f"miss inst={inst_leaf} under {parent_path} "
+                f"(cause=no-parent; {reason})  "
                 f"(no parent elaboration row)"
             )
             return
@@ -541,59 +544,25 @@ class PathWalkState:
                 parent_mod = row.module if row else "?"
                 miss_leaf = self._inst_leaf_prefix(remainder)
                 snap = self.mod_db.module_to_files_snapshot().get(parent_mod, [])
-                cand = "; ".join(Path(f).name for f in snap[:8])
-                have = ""
-                type_hint = ""
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
-                if parent_rec is not None:
-                    edges = self.index.instances_for(
+                edges = (
+                    self.index.instances_for(
                         parent_mod,
                         row.param_ctx if row else {},
                         {},
                     )
-                    if edges:
-                        have = "; ".join(
-                            f"{e.inst_name}->{e.child_module}" for e in edges[:8]
-                        )
-                    miss_lower = miss_leaf.lower()
-                    for inst_edge in edges:
-                        if inst_edge.child_module.lower() == miss_lower:
-                            type_hint = (
-                                f"; hint: {miss_leaf!r} is module type — "
-                                f"use inst name {inst_edge.inst_name!r} "
-                                f"(path-walk uses instance names, not module types)"
-                            )
-                            break
-                    if not type_hint:
-                        indexed = sorted(
-                            {
-                                e.inst_name
-                                for e in edges
-                                if e.inst_name.startswith(miss_leaf + "[")
-                                or (
-                                    e.inst_name.lower().startswith(
-                                        miss_lower + "["
-                                    )
-                                )
-                            }
-                        )
-                        if indexed:
-                            type_hint = (
-                                f"; hint: {miss_leaf!r} is an array instance — "
-                                f"use indexed name e.g. {indexed[0]!r}"
-                            )
+                    if parent_rec is not None
+                    else []
+                )
                 self._queue_walk_miss(
                     cur,
                     miss_leaf,
-                    reason=(
-                        "instance edge not found in parent module"
-                        + (f"; have: {have}" if have else "")
-                        + type_hint
-                        + (
-                            f"; pw-db {parent_mod} files: {cand or '(tier0 none)'}"
-                            if parent_mod
-                            else ""
-                        )
+                    reason=path_walk_inst_miss_reason(
+                        parent_mod=parent_mod,
+                        parent_rec=parent_rec,
+                        miss_leaf=miss_leaf,
+                        edges=edges,
+                        candidate_files=snap,
                     ),
                     target_path=path,
                 )
@@ -605,7 +574,10 @@ class PathWalkState:
                 self._queue_walk_miss(
                     cur,
                     inst_name,
-                    reason=f"child module {child_mod!r} not loaded",
+                    reason=path_walk_child_miss_reason(
+                        child_mod=child_mod,
+                        child_rec=self.index.get_module(child_mod),
+                    ),
                     target_path=path,
                 )
                 return False

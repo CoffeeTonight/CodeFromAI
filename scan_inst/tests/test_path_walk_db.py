@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from scan_inst.filelist import parse_filelist
@@ -149,6 +150,60 @@ def test_path_walk_db_disk_cache_reuse(tmp_path: Path):
     db2.tier1_scan_file(str(fl.source_files[0]))
     assert db2.cache_validated_hits == 1
     assert db2.files_validated == 1
+
+
+def test_tier0_parallel_finds_module_without_waiting_for_all(tmp_path: Path):
+    """Target module hit should return early; background workers still close to disk db."""
+    files: list[Path] = []
+    for i in range(8):
+        rtl = tmp_path / f"stub_{i}.v"
+        rtl.write_text(f"module stub_{i} (); endmodule\n", encoding="utf-8")
+        files.append(rtl)
+    target = tmp_path / "target_parent.v"
+    target.write_text(
+        """
+        module child (); endmodule
+        module target_parent;
+          child u_child ();
+        endmodule
+        """,
+        encoding="utf-8",
+    )
+    files.append(target)
+    fl = tmp_path / "filelist.f"
+    fl.write_text("\n".join(str(p.resolve()) for p in files) + "\n", encoding="utf-8")
+    flr = parse_filelist(str(fl), index_cwd=str(tmp_path))
+    index = DesignIndex._assemble(
+        {},
+        path_patterns=[],
+        module_patterns=[],
+        preprocess_include_dirs=[str(p) for p in flr.include_dirs],
+        preprocess_defines=dict(flr.defines),
+    )
+    cache_dir = tmp_path / "pw-par"
+    cache_key = path_walk_db_cache_key(
+        [str(p) for p in flr.source_files],
+        defines=dict(flr.defines),
+        include_dirs=[str(p) for p in flr.include_dirs],
+    )
+    db = PathWalkModuleDb(
+        [str(p) for p in flr.source_files],
+        index,
+        include_dirs=[str(p) for p in flr.include_dirs],
+        defines=dict(flr.defines),
+        cache_dir=cache_dir,
+        cache_key=cache_key,
+        jobs=4,
+    )
+    t0 = time.perf_counter()
+    candidates = db._ensure_regex_candidates("target_parent")
+    elapsed = time.perf_counter() - t0
+    assert candidates
+    assert str(target.resolve()) in candidates
+    assert "target_parent" in db.module_to_files_snapshot()
+    db.drain_background_workers(wait_all=True)
+    assert db.files_regex_scanned >= len(files)
+    assert elapsed < 5.0
 
 
 def test_path_walk_walks_through_dup_module_files(tmp_path: Path):

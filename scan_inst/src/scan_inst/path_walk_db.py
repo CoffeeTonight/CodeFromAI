@@ -14,11 +14,13 @@ Disk layout::
 from __future__ import annotations
 
 import hashlib
+import os
 import pickle
 import re
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from scan_inst.ignore_path import source_path_matches
 from scan_inst.index import (
@@ -33,6 +35,8 @@ from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
 PATH_WALK_DB_VERSION = 9
+
+_PARALLEL_MIN_TIER0 = 4
 
 _MODULE_DECL_RE = re.compile(
     r"^\s*(?:module|interface|program)\s+([A-Za-z_]\w*)\b",
@@ -96,6 +100,95 @@ def path_walk_db_cache_key(
     return hasher.hexdigest()
 
 
+@dataclass(frozen=True)
+class _Tier0ScanJob:
+    path: str
+    cache_root: str
+    content_digest: str
+    skip_patterns: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _Tier0ScanResult:
+    path: str
+    names: Tuple[str, ...]
+    from_cache: bool
+    skipped: bool
+    read_failed: bool
+
+
+def _tier0_regex_sidecar_path(cache_root: str, path: str) -> Path:
+    return Path(cache_root) / "regex" / f"{_file_cache_token(path)}.pkl"
+
+
+def _tier0_load_sidecar_worker(
+    cache_root: str,
+    path: str,
+    content_digest: str,
+) -> Optional[Tuple[str, ...]]:
+    if not cache_root:
+        return None
+    sidecar = _tier0_regex_sidecar_path(cache_root, path)
+    if not sidecar.is_file():
+        return None
+    try:
+        with sidecar.open("rb") as fh:
+            obj = pickle.load(fh)
+    except (OSError, pickle.PickleError, EOFError, ValueError):
+        return None
+    if not isinstance(obj, _FileRegexCacheEntry):
+        return None
+    if not content_digest or content_digest != obj.content_digest:
+        return None
+    return tuple(obj.module_names)
+
+
+def _tier0_save_sidecar_worker(
+    cache_root: str,
+    path: str,
+    content_digest: str,
+    names: Sequence[str],
+) -> None:
+    if not cache_root or not content_digest:
+        return
+    sidecar = _tier0_regex_sidecar_path(cache_root, path)
+    entry = _FileRegexCacheEntry(content_digest, tuple(names))
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    tmp = sidecar.with_suffix(sidecar.suffix + ".tmp")
+    with tmp.open("wb") as fh:
+        pickle.dump(entry, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    tmp.replace(sidecar)
+
+
+def _tier0_worker_scan(job: _Tier0ScanJob) -> _Tier0ScanResult:
+    """Process-pool worker: read one RTL file, harvest decl names, persist regex sidecar."""
+    key = str(Path(job.path).resolve())
+    if job.skip_patterns and source_path_matches(key, job.skip_patterns):
+        return _Tier0ScanResult(key, (), False, True, False)
+
+    cached = _tier0_load_sidecar_worker(job.cache_root, key, job.content_digest)
+    if cached is not None:
+        return _Tier0ScanResult(key, cached, True, False, False)
+
+    try:
+        text = Path(key).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return _Tier0ScanResult(key, (), False, False, True)
+
+    names = tuple(tier0_regex_module_names(text))
+    _tier0_save_sidecar_worker(job.cache_root, key, job.content_digest, names)
+    return _Tier0ScanResult(key, names, False, False, False)
+
+
+def _resolve_pw_db_jobs(jobs: int, num_tasks: int) -> int:
+    if jobs < 0:
+        return 1
+    if jobs == 0:
+        cpu = os.cpu_count() or 1
+        return max(1, min(cpu, num_tasks))
+    return max(1, min(jobs, num_tasks))
+
+
 def tier0_regex_module_names(text: str) -> List[str]:
     """Fast declaration harvest (no preprocess). May include ifdef-gated names."""
     names: List[str] = []
@@ -154,6 +247,7 @@ class PathWalkModuleDb:
         file_via_filelist: Optional[Mapping[str, str]] = None,
         filelist_children: Optional[Mapping[str, Sequence[str]]] = None,
         path_digests: Optional[Mapping[str, str]] = None,
+        jobs: int = 0,
     ) -> None:
         self._sources = [str(Path(s).resolve()) for s in sources]
         self._path_digests: Optional[PathDigests] = (
@@ -196,6 +290,9 @@ class PathWalkModuleDb:
         self._folded_edges_cache: Dict[Tuple[str, str, str], List[InstanceEdge]] = {}
         self._snapshot_dirty: bool = False
         self._snapshot_written: bool = False
+        self._jobs = jobs
+        self._tier0_executor: Optional[Union[ProcessPoolExecutor, ThreadPoolExecutor]] = None
+        self._tier0_inflight: Dict[str, Future[_Tier0ScanResult]] = {}
 
     @property
     def cache_root(self) -> Optional[Path]:
@@ -394,14 +491,168 @@ class PathWalkModuleDb:
             scoped.insert(0, anchor)
         return scoped or list(self._sources)
 
-    def _tier0_scan_sources(self, sources: Sequence[str]) -> int:
-        added = 0
-        for src in sources:
-            key = str(Path(src).resolve())
-            if key not in self._regex_scanned:
+    def _tier0_executor_get(self) -> Union[ProcessPoolExecutor, ThreadPoolExecutor]:
+        if self._tier0_executor is not None:
+            return self._tier0_executor
+        workers = _resolve_pw_db_jobs(self._jobs, len(self._sources))
+        try:
+            self._tier0_executor = ProcessPoolExecutor(max_workers=workers)
+        except (OSError, PermissionError, RuntimeError):
+            self._tier0_executor = ThreadPoolExecutor(max_workers=workers)
+        return self._tier0_executor
+
+    def _tier0_make_job(self, path: str) -> _Tier0ScanJob:
+        digest = self._source_digest(path) or ""
+        cache_root = str(self._cache_root) if self._cache_root is not None else ""
+        return _Tier0ScanJob(
+            path=path,
+            cache_root=cache_root,
+            content_digest=digest,
+            skip_patterns=tuple(self._skip),
+        )
+
+    def _ingest_tier0_result(self, result: _Tier0ScanResult) -> None:
+        key = result.path
+        if key in self._regex_scanned:
+            return
+        self._regex_scanned.add(key)
+        if result.skipped:
+            self.files_regex_scanned += 1
+            self._trace(f"pw-db tier0 skip {Path(key).name}")
+            return
+        if result.read_failed:
+            self.files_regex_scanned += 1
+            self._trace(f"pw-db tier0 read-fail {Path(key).name}")
+            return
+        names = list(result.names)
+        if result.from_cache:
+            self.cache_regex_hits += 1
+            self._trace(
+                f"pw-db tier0 cache {Path(key).name} -> {','.join(names) or '(none)'}"
+            )
+        else:
+            self._trace(
+                f"pw-db tier0 scan {Path(key).name} -> {','.join(names) or '(none)'}"
+            )
+        self._note_regex_modules(key, names)
+        if not result.from_cache and self._cache_root is not None:
+            digest = self._source_digest(key)
+            if digest is not None:
+                self._save_regex_sidecar(key, names)
+        self.files_regex_scanned += 1
+        self._snapshot_dirty = True
+
+    def _tier0_drain_completed(self, *, block: bool = False, timeout: float = 0.0) -> int:
+        if not self._tier0_inflight:
+            return 0
+        if block and timeout <= 0:
+            done, _pending = wait(
+                list(self._tier0_inflight.values()),
+                return_when=FIRST_COMPLETED,
+            )
+        elif block:
+            done, _pending = wait(
+                list(self._tier0_inflight.values()),
+                return_when=FIRST_COMPLETED,
+                timeout=timeout,
+            )
+        else:
+            done = {f for f in self._tier0_inflight.values() if f.done()}
+
+        ingested = 0
+        for fut in done:
+            path_key = ""
+            for key, pending in list(self._tier0_inflight.items()):
+                if pending is fut:
+                    path_key = key
+                    del self._tier0_inflight[key]
+                    break
+            try:
+                result = fut.result()
+            except Exception as exc:  # noqa: BLE001 — worker boundary
+                if path_key:
+                    self._regex_scanned.add(path_key)
+                    self.files_regex_scanned += 1
+                    self._trace(f"pw-db tier0 worker-fail {Path(path_key).name}: {exc!r}")
+                continue
+            self._ingest_tier0_result(result)
+            ingested += 1
+        return ingested
+
+    def _tier0_submit(self, paths: Sequence[str]) -> int:
+        executor = self._tier0_executor_get()
+        submitted = 0
+        for raw in paths:
+            key = str(Path(raw).resolve())
+            if key in self._regex_scanned or key in self._tier0_inflight:
+                continue
+            job = self._tier0_make_job(key)
+            self._tier0_inflight[key] = executor.submit(_tier0_worker_scan, job)
+            submitted += 1
+        return submitted
+
+    def drain_background_workers(self, *, wait_all: bool = True) -> None:
+        """Ingest completed tier-0 workers; optionally wait for stragglers (no cancel)."""
+        if wait_all:
+            while self._tier0_inflight:
+                self._tier0_drain_completed(block=True, timeout=0.25)
+        else:
+            self._tier0_drain_completed(block=False)
+        if self._snapshot_dirty:
+            self.write_module_index_snapshot()
+
+    def shutdown_workers(self, *, wait: bool = True) -> None:
+        self.drain_background_workers(wait_all=wait)
+        if self._tier0_executor is not None:
+            self._tier0_executor.shutdown(wait=wait, cancel_futures=False)
+            self._tier0_executor = None
+
+    def _tier0_scan_sources_parallel(
+        self,
+        paths: Sequence[str],
+        *,
+        target_module: str = "",
+    ) -> int:
+        pending = [
+            str(Path(p).resolve())
+            for p in paths
+            if str(Path(p).resolve()) not in self._regex_scanned
+            and str(Path(p).resolve()) not in self._tier0_inflight
+        ]
+        if not pending:
+            self._tier0_drain_completed(block=False)
+            return 0
+
+        submitted = self._tier0_submit(pending)
+        while self._tier0_inflight:
+            self._tier0_drain_completed(block=True, timeout=0.1)
+            if target_module and target_module in self._module_to_files:
+                return submitted
+        return submitted
+
+    def _tier0_scan_sources(
+        self,
+        sources: Sequence[str],
+        *,
+        target_module: str = "",
+    ) -> int:
+        keys = [str(Path(src).resolve()) for src in sources]
+        pending = [k for k in keys if k not in self._regex_scanned and k not in self._tier0_inflight]
+        if not pending:
+            self._tier0_drain_completed(block=False)
+            return 0
+
+        workers = _resolve_pw_db_jobs(self._jobs, len(pending))
+        if workers <= 1 or len(pending) < _PARALLEL_MIN_TIER0:
+            added = 0
+            for key in pending:
                 self._tier0_scan_file(key)
                 added += 1
-        return added
+                if target_module and target_module in self._module_to_files:
+                    return added
+            return added
+
+        return self._tier0_scan_sources_parallel(pending, target_module=target_module)
 
     def _tier0_scan_file(self, path: str) -> List[str]:
         key = str(Path(path).resolve())
@@ -443,6 +694,8 @@ class PathWalkModuleDb:
     def _scan_remaining_sources_tier0(
         self,
         sources: Optional[Sequence[str]] = None,
+        *,
+        target_module: str = "",
     ) -> int:
         """Tier-0 scan sources not yet regex-indexed (scoped pool or full design)."""
         pool = (
@@ -450,7 +703,7 @@ class PathWalkModuleDb:
             if sources is not None
             else list(self._sources)
         )
-        return self._tier0_scan_sources(pool)
+        return self._tier0_scan_sources(pool, target_module=target_module)
 
     def _sort_module_files(
         self,
@@ -479,21 +732,49 @@ class PathWalkModuleDb:
         if scope_anchor:
             scoped_pool = self._scoped_sources_for_rtl(scope_anchor)
             if scoped_pool:
-                self._tier0_scan_sources(scoped_pool)
+                self._tier0_scan_sources(scoped_pool, target_module=module_name)
+                if module_name in self._module_to_files:
+                    files = list(self._module_to_files.get(module_name, []))
+                    return self._sort_module_files(
+                        module_name,
+                        files,
+                        scope_anchor=scope_anchor,
+                    )
 
         if not self._regex_queue:
-            self._regex_queue = [s for s in self._sources if s not in self._regex_scanned]
+            self._regex_queue = [
+                s
+                for s in self._sources
+                if s not in self._regex_scanned and s not in self._tier0_inflight
+            ]
 
+        workers = _resolve_pw_db_jobs(self._jobs, len(self._sources))
+        batch_size = max(workers * 4, _PARALLEL_MIN_TIER0)
         while module_name not in self._module_to_files and self._regex_queue:
-            nxt = self._regex_queue.pop(0)
-            self._tier0_scan_file(nxt)
+            batch: List[str] = []
+            while self._regex_queue and len(batch) < batch_size:
+                nxt = self._regex_queue.pop(0)
+                key = str(Path(nxt).resolve())
+                if key in self._regex_scanned or key in self._tier0_inflight:
+                    continue
+                batch.append(key)
+            if not batch:
+                self._tier0_drain_completed(block=True, timeout=0.1)
+                if not self._tier0_inflight:
+                    break
+                continue
+            self._tier0_scan_sources(batch, target_module=module_name)
+            if module_name in self._module_to_files:
+                break
 
         if module_name not in self._module_to_files:
-            for src in self._sources:
-                if src not in self._regex_scanned:
-                    self._tier0_scan_file(src)
-                if module_name in self._module_to_files:
-                    break
+            remaining = [
+                src
+                for src in self._sources
+                if src not in self._regex_scanned and src not in self._tier0_inflight
+            ]
+            if remaining:
+                self._tier0_scan_sources(remaining, target_module=module_name)
 
         files = list(self._module_to_files.get(module_name, []))
         return self._sort_module_files(
@@ -814,7 +1095,10 @@ class PathWalkModuleDb:
                     return True
             if pass_idx == 0:
                 if scoped_pool:
-                    pending = self._scan_remaining_sources_tier0(scoped_pool)
+                    pending = self._scan_remaining_sources_tier0(
+                        scoped_pool,
+                        target_module=module_name,
+                    )
                     if pending > 0:
                         self._trace(
                             f"pw-db tier0 expand module={module_name} "
@@ -829,7 +1113,7 @@ class PathWalkModuleDb:
                         continue
                 continue
             if pass_idx == 1:
-                pending = self._scan_remaining_sources_tier0()
+                pending = self._scan_remaining_sources_tier0(target_module=module_name)
                 if pending <= 0:
                     break
                 self._trace(
@@ -938,7 +1222,10 @@ class PathWalkModuleDb:
                 )
             if pass_idx == 0:
                 if scoped_pool:
-                    pending = self._scan_remaining_sources_tier0(scoped_pool)
+                    pending = self._scan_remaining_sources_tier0(
+                        scoped_pool,
+                        target_module=parent_module,
+                    )
                     if pending > 0:
                         self._trace(
                             f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
@@ -953,7 +1240,7 @@ class PathWalkModuleDb:
                         continue
                 continue
             if pass_idx == 1:
-                pending = self._scan_remaining_sources_tier0()
+                pending = self._scan_remaining_sources_tier0(target_module=parent_module)
                 if pending <= 0:
                     break
                 self._trace(

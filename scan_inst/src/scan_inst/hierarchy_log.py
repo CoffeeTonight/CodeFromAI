@@ -488,6 +488,30 @@ def format_path_walk_spine_lines(
     return lines
 
 
+def format_signal_tail_line(
+    *,
+    hit: bool,
+    kind: str,
+    parent_path: str,
+    tail: str,
+    target_path: str,
+    module: str,
+    rtl_file: str,
+    rtl_lines: int = 0,
+    check_ms: float = 0.0,
+) -> str:
+    """Log line when an endpoint suffix is resolved as port/wire rather than instance."""
+    status = "hit" if hit else "miss"
+    rtl_name = Path(rtl_file).name if rtl_file else "?"
+    target = f" target={target_path}" if target_path else ""
+    timing = f" check_ms={check_ms:.1f}" if check_ms > 0 else ""
+    lines_note = f" lines={rtl_lines}" if rtl_lines > 0 else ""
+    return (
+        f"signal-tail {status} kind={kind} scope={parent_path} tail={tail!r}"
+        f"{target} module={module} rtl={rtl_name}{lines_note}{timing}"
+    )
+
+
 def path_walk_trace_show_message(message: str) -> bool:
     """
     Whether a path-walk trace line should be emitted.
@@ -498,6 +522,8 @@ def path_walk_trace_show_message(message: str) -> bool:
     msg = message.strip()
     if not msg:
         return False
+    if msg.startswith("signal-tail "):
+        return True
     if msg.startswith("walk target="):
         return False
     if msg.startswith("pw-db v"):

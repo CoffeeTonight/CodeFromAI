@@ -96,3 +96,6 @@ def test_path_walk_no_miss_inst_for_internal_wire_c(tmp_path: Path):
     text = buf.getvalue()
     assert "miss inst=c under hc_verify_top.u_ifdef" not in text
     assert "miss inst=" not in text
+    assert "signal-tail hit kind=wire" in text
+    assert "tail='c'" in text
+    assert "target=hc_verify_top.u_ifdef.c" in text

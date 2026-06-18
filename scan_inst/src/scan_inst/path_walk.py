@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, TextIO, Tuple
@@ -28,6 +29,7 @@ from scan_inst.hierarchy_log import (
     emit_path_walk_log,
     emit_path_walk_spine_log,
     format_path_walk_miss_line,
+    format_signal_tail_line,
     open_path_walk_trace_log,
     path_walk_child_miss_reason,
     path_walk_inst_miss_reason,
@@ -519,29 +521,131 @@ class PathWalkState:
                 return True
         return False
 
-    def _is_signal_or_port_tail_miss(self, parent_path: str, remainder: str) -> bool:
+    def _rtl_line_count(self, row: FlatRow) -> int:
+        body = self.index.module_body(row.module)
+        if body:
+            return body.count("\n") + (1 if body.strip() else 0)
+        if not row.file:
+            return 0
+        try:
+            text = Path(row.file).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return 0
+        return text.count("\n") + (1 if text else 0)
+
+    def _classify_signal_tail(
+        self,
+        parent_path: str,
+        signal_name: str,
+        row: FlatRow,
+    ) -> Tuple[Optional[str], float]:
+        """Return (kind, check_ms) where kind is port|wire or None."""
+        t0 = time.perf_counter()
+
+        def _elapsed() -> float:
+            return (time.perf_counter() - t0) * 1000.0
+
+        if _port_exists(self.index, row, signal_name, top=self.top):
+            return "port", _elapsed()
+        if _net_exists_in_module(self.index, row, signal_name, top=self.top):
+            return "wire", _elapsed()
+        return None, _elapsed()
+
+    def _emit_signal_tail(
+        self,
+        *,
+        hit: bool,
+        kind: str,
+        parent_path: str,
+        tail: str,
+        target_path: str,
+        row: FlatRow,
+        check_ms: float,
+    ) -> None:
+        self._emit_walk(
+            format_signal_tail_line(
+                hit=hit,
+                kind=kind,
+                parent_path=parent_path,
+                tail=tail,
+                target_path=target_path,
+                module=row.module,
+                rtl_file=row.file,
+                rtl_lines=self._rtl_line_count(row),
+                check_ms=check_ms,
+            )
+        )
+
+    def _resolve_signal_tail(
+        self,
+        parent_path: str,
+        remainder: str,
+        *,
+        target_path: str = "",
+    ) -> bool:
         """
         True when *remainder* names a port/net in the parent module, not a missing instance.
 
-        Prefix walks over full endpoint specs (e.g. ``top.u_ifdef.c``) must not log
-        ``miss inst=c`` when ``c`` is an internal wire.
+        Emits ``signal-tail hit|miss`` trace lines (with rtl line count + check_ms).
         """
         if not remainder:
             return False
         row = self.rows_by_path.get(parent_path)
         if row is None:
             return False
-        if _port_exists(self.index, row, remainder, top=self.top):
+
+        kind, check_ms = self._classify_signal_tail(parent_path, remainder, row)
+        if kind is not None:
+            self._emit_signal_tail(
+                hit=True,
+                kind=kind,
+                parent_path=parent_path,
+                tail=remainder,
+                target_path=target_path,
+                row=row,
+                check_ms=check_ms,
+            )
             return True
-        if _net_exists_in_module(self.index, row, remainder, top=self.top):
-            return True
+
         miss_leaf = self._inst_leaf_prefix(remainder)
         if miss_leaf and miss_leaf != remainder:
-            if _port_exists(self.index, row, miss_leaf, top=self.top):
+            prefix_kind, prefix_ms = self._classify_signal_tail(parent_path, miss_leaf, row)
+            if prefix_kind is not None:
+                self._emit_signal_tail(
+                    hit=True,
+                    kind=f"{prefix_kind}-prefix",
+                    parent_path=parent_path,
+                    tail=remainder,
+                    target_path=target_path,
+                    row=row,
+                    check_ms=prefix_ms,
+                )
                 return True
-            if _net_exists_in_module(self.index, row, miss_leaf, top=self.top):
-                return True
+            check_ms = max(check_ms, prefix_ms)
+
+        self._emit_signal_tail(
+            hit=False,
+            kind="not-signal",
+            parent_path=parent_path,
+            tail=remainder,
+            target_path=target_path,
+            row=row,
+            check_ms=check_ms,
+        )
         return False
+
+    def _is_signal_or_port_tail_miss(
+        self,
+        parent_path: str,
+        remainder: str,
+        *,
+        target_path: str = "",
+    ) -> bool:
+        return self._resolve_signal_tail(
+            parent_path,
+            remainder,
+            target_path=target_path,
+        )
 
     def _longest_known_prefix(self, path: str) -> Tuple[str, str]:
         """Return the longest cached ancestor of *path* and the remaining suffix."""
@@ -703,7 +807,7 @@ class PathWalkState:
                             edges = list(parent_rec.instances)
                 if self._is_folded_inst_prefix_miss(miss_leaf, edges):
                     return False
-                if self._is_signal_or_port_tail_miss(cur, remainder):
+                if self._is_signal_or_port_tail_miss(cur, remainder, target_path=path):
                     return False
                 raw_source_has_inst = False
                 if parent_rec is not None and parent_rec.file_path and miss_leaf:
@@ -1051,7 +1155,7 @@ def path_walk_session_key(
 def clear_path_walk_suite_session() -> None:
     global _suite_session
     if _suite_session is not None:
-        _suite_session.mod_db.flush_module_index_snapshot()
+        _suite_session.mod_db.shutdown_workers(wait=True)
         from scan_inst.manifest import clear_digest_scope
         from scan_inst.path_refine import clear_module_chunk_cache
 
@@ -1399,6 +1503,7 @@ def run_path_walk_index(
                 f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
                 f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
             )
+        state.mod_db.drain_background_workers(wait_all=True)
         return index, state, top_name
     finally:
         if opened_log and trace_log_fh is not None:
@@ -1496,6 +1601,7 @@ def create_path_walk_index(
             str(k): list(v) for k, v in (fl.filelist_children or {}).items()
         },
         path_digests=path_digests,
+        jobs=jobs,
     )
     from scan_inst.progress import ProgressHeartbeat
 
@@ -1620,6 +1726,7 @@ def run_path_walk_connect(
         )
         batch = session.run_request(request, jobs=1)
         state.stats.checks_run = len(batch.results)
+        state.mod_db.drain_background_workers(wait_all=True)
         return batch, index, state
     finally:
         if opened_log and trace_log_fh is not None:

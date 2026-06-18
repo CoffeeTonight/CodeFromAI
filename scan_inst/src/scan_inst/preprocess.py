@@ -50,7 +50,8 @@ _INCLUDE_UNIT_CACHE: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]] =
 
 # Per-process source translation-unit cache after full preprocess.
 _SourcePreprocessKey = Tuple[str, int, int, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]]
-_SOURCE_PREPROCESS_CACHE: Dict[_SourcePreprocessKey, str] = {}
+_SourcePreprocessEntry = Tuple[str, Tuple[_DefineOp, ...]]
+_SOURCE_PREPROCESS_CACHE: Dict[_SourcePreprocessKey, _SourcePreprocessEntry] = {}
 
 
 def clear_include_unit_cache() -> None:
@@ -63,8 +64,32 @@ def _snapshot_include_cache() -> Dict[_IncludeCacheKey, Tuple[str, Tuple[_Define
     return dict(_INCLUDE_UNIT_CACHE)
 
 
-def _snapshot_source_preprocess_cache() -> Dict[_SourcePreprocessKey, str]:
+def _snapshot_source_preprocess_cache() -> Dict[_SourcePreprocessKey, _SourcePreprocessEntry]:
     return dict(_SOURCE_PREPROCESS_CACHE)
+
+
+def _defines_delta(
+    base: Mapping[str, str],
+    final: Mapping[str, str],
+) -> Tuple[_DefineOp, ...]:
+    """Ops to turn *base* into *final* (for preprocess cache replay)."""
+    ops: List[_DefineOp] = []
+    for name, val in final.items():
+        if base.get(name) != val:
+            ops.append(("set", name, val))
+    for name in base:
+        if name not in final:
+            ops.append(("undef", name, ""))
+    return tuple(ops)
+
+
+def _restore_source_preprocess_cache_hit(
+    defines: MutableMapping[str, str],
+    entry: _SourcePreprocessEntry,
+) -> str:
+    text, ops = entry
+    _apply_define_ops(defines, ops)
+    return text
 
 
 def _install_include_cache_snapshot(
@@ -77,7 +102,7 @@ def _install_include_cache_snapshot(
 
 def _install_preprocess_caches(
     include_snapshot: Dict[_IncludeCacheKey, Tuple[str, Tuple[_DefineOp, ...]]],
-    source_snapshot: Dict[_SourcePreprocessKey, str],
+    source_snapshot: Dict[_SourcePreprocessKey, _SourcePreprocessEntry],
 ) -> None:
     """Seed worker-local include + source preprocess caches."""
     _INCLUDE_UNIT_CACHE.clear()
@@ -585,7 +610,7 @@ def preprocess_file_for_index(
     if cache_key is not None:
         hit = _SOURCE_PREPROCESS_CACHE.get(cache_key)
         if hit is not None:
-            return hit
+            return _restore_source_preprocess_cache_hit(defines, hit)
     visiting = visiting or set()
     text = _preprocess_include_unit(
         path,
@@ -598,7 +623,10 @@ def preprocess_file_for_index(
     if lazy_index_ifdef():
         text = apply_ifdef_filter(text, defines)
     if cache_key is not None:
-        _SOURCE_PREPROCESS_CACHE[cache_key] = text
+        _SOURCE_PREPROCESS_CACHE[cache_key] = (
+            text,
+            _defines_delta(base_defines, defines),
+        )
     return text
 
 
@@ -620,7 +648,7 @@ def preprocess_file(
     if cache_key is not None:
         hit = _SOURCE_PREPROCESS_CACHE.get(cache_key)
         if hit is not None:
-            return hit
+            return _restore_source_preprocess_cache_hit(defines, hit)
     visiting = visiting or set()
     text = _preprocess_include_unit(
         path,
@@ -634,7 +662,10 @@ def preprocess_file(
     if re.search(r"^\s*bind\b", text, re.IGNORECASE | re.MULTILINE):
         text = _BIND_LINE_RE.sub("", text)
     if cache_key is not None:
-        _SOURCE_PREPROCESS_CACHE[cache_key] = text
+        _SOURCE_PREPROCESS_CACHE[cache_key] = (
+            text,
+            _defines_delta(base_defines, defines),
+        )
     return text
 
 

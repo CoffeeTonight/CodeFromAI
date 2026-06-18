@@ -267,6 +267,37 @@ def test_filelist_nested_F_uppercase(tmp_path: Path):
     assert len(fl.source_files) == 2
 
 
+def test_preprocess_cache_hit_replays_in_file_defines_for_ifdef():
+    """Second tier-1 preprocess must not drop `` `define `` state on cache hit."""
+    from scan_inst.preprocess import preprocess_file_for_index
+    from scan_inst.scan import scan_preprocessed
+
+    clear_include_unit_cache()
+    src = (
+        "`define USE_CPU 0\n"
+        "module top;\n"
+        "`ifdef USE_CPU\n"
+        "  CPUSYSTEM_TOP u_cpusystem_top ();\n"
+        "`endif\n"
+        "endmodule\n"
+    )
+    tmp = Path("/tmp/scan_inst_preprocess_cache_ifdef.v")
+    tmp.write_text(src, encoding="utf-8")
+
+    defs1: dict[str, str] = {}
+    text1 = preprocess_file_for_index(tmp, [], defs1)
+    out1 = apply_ifdef_filter(text1, defs1)
+    insts1 = [e.inst_name for e in scan_preprocessed(out1, str(tmp))["top"].instances]
+    assert insts1 == []
+
+    defs2: dict[str, str] = {}
+    text2 = preprocess_file_for_index(tmp, [], defs2)
+    out2 = apply_ifdef_filter(text2, defs2)
+    insts2 = [e.inst_name for e in scan_preprocessed(out2, str(tmp))["top"].instances]
+    assert defs2 == {"USE_CPU": "0"}
+    assert insts2 == []
+
+
 def test_end_to_end_cli(tmp_path: Path, capsys):
     (tmp_path / "a.v").write_text(
         "module top;\n  sub u_s ();\nendmodule\nmodule sub;\n  leaf u_l ();\nendmodule\nmodule leaf; endmodule\n",

@@ -977,9 +977,8 @@ class PathWalkModuleDb:
             set(),
             skip_path_patterns=self._skip,
         )
-        # Tier-1 must honour filelist defines (ifdef instance names, gated modules).
-        if defs:
-            text = apply_ifdef_filter(text, defs)
+        # Tier-1 must honour filelist + in-file defines (ifdef instance names, gated modules).
+        text = apply_ifdef_filter(text, defs)
         per_file = scan_preprocessed(text, key)
         out = {name: _record_lite(rec) for name, rec in per_file.items()}
         self._validated_memory[key] = out
@@ -1053,8 +1052,7 @@ class PathWalkModuleDb:
             set(),
             skip_path_patterns=self._skip,
         )
-        if defs:
-            text = apply_ifdef_filter(text, defs)
+        text = apply_ifdef_filter(text, defs)
         _hdr, body = _module_header_body(text, mod_name)
         if not body:
             edges = list(hit.instances)

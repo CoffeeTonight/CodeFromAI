@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.generate_fold import fold_generate_regions, prepare_body_for_instance_scan
 from scan_inst.params import (
@@ -512,6 +512,123 @@ def _collect_declared_net_names(body: str) -> Set[str]:
                 continue
             break
     return names
+
+
+def _net_base_in_assign_regex_fast(body: str, base: str) -> bool:
+    """Regex probe for assign/``<=`` drives — avoids full statement iteration."""
+    if not body or not base:
+        return False
+    clean = _clean_body(body)
+    esc = re.escape(base)
+    if re.search(
+        rf"\bassign\b(?:[^;]|\n)*?\b{esc}\b",
+        clean,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    if re.search(rf"\b{esc}\s*<=", clean, flags=re.IGNORECASE):
+        return True
+    if re.search(
+        rf"<=\s*(?:[^;]|\n)*?\b{esc}\b",
+        clean,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    return False
+
+
+def _net_name_bases(names: Iterable[str]) -> Set[str]:
+    out: Set[str] = set()
+    for name in names:
+        if not name:
+            continue
+        out.add(name)
+        out.add(name.split("[", 1)[0].split(".", 1)[0])
+    return out
+
+
+def collect_assign_net_names(
+    body: str,
+    *,
+    param_map: Mapping[str, str] | None = None,
+) -> Set[str]:
+    """
+    Net roots appearing in continuous/procedural drives (no adjacency graph).
+
+    Includes implicit nets created only by ``assign`` (no ``wire`` decl), matching
+    synthesizer behavior (lint may warn).
+    """
+    pmap = dict(param_map or {})
+    names: Set[str] = set()
+    for stmt in _iter_connect_statements(body):
+        if _stmt_starts_with(stmt, "assign"):
+            pos = _skip_ws(stmt, 6)
+            eq = _find_blocking_eq(stmt[pos:])
+            if eq is None:
+                continue
+            lhs = stmt[pos : pos + eq]
+            rhs = stmt[pos + eq + 1 :]
+            names.update(_local_connect_nodes(lhs, pmap))
+            names.update(extract_connect_nodes(rhs, pmap))
+            continue
+        nb = _nb_assign_from_stmt(stmt, param_map=pmap)
+        if nb is not None:
+            lhs, rhs = nb
+            names.update(lhs)
+            names.update(rhs)
+            continue
+        if _is_decl_alias_statement(stmt):
+            continue
+        eq = _find_blocking_eq(stmt)
+        if eq is not None:
+            names.update(_local_connect_nodes(stmt[:eq], pmap))
+            names.update(extract_connect_nodes(stmt[eq + 1 :], pmap))
+    return _net_name_bases(names)
+
+
+def net_base_in_assign_probe(
+    body: str,
+    base: str,
+    *,
+    param_map: Mapping[str, str] | None = None,
+) -> bool:
+    """Early-exit: does *base* appear as an assign/procedural drive endpoint?"""
+    if not body or not base:
+        return False
+    target = base.split("[", 1)[0].split(".", 1)[0]
+    if not target:
+        return False
+    if not _net_base_in_assign_regex_fast(body, target):
+        return False
+    pmap = dict(param_map or {})
+    for stmt in _iter_connect_statements(body):
+        if _stmt_starts_with(stmt, "assign"):
+            pos = _skip_ws(stmt, 6)
+            eq = _find_blocking_eq(stmt[pos:])
+            if eq is None:
+                continue
+            lhs = stmt[pos : pos + eq]
+            rhs = stmt[pos + eq + 1 :]
+            pools = (_local_connect_nodes(lhs, pmap), extract_connect_nodes(rhs, pmap))
+        else:
+            nb = _nb_assign_from_stmt(stmt, param_map=pmap)
+            if nb is not None:
+                pools = nb
+            elif _is_decl_alias_statement(stmt):
+                continue
+            else:
+                eq = _find_blocking_eq(stmt)
+                if eq is None:
+                    continue
+                pools = (
+                    _local_connect_nodes(stmt[:eq], pmap),
+                    extract_connect_nodes(stmt[eq + 1 :], pmap),
+                )
+        for group in pools:
+            for net in group:
+                if net.split("[", 1)[0].split(".", 1)[0] == target:
+                    return True
+    return False
 
 
 def _seed_adj_from_instance_ports(

@@ -223,6 +223,33 @@ def _is_placeholder_module(rec: Optional[ModuleRecord]) -> bool:
     return not bool(rec.file_path)
 
 
+RESOLVE_CONFIDENT = "confident"
+RESOLVE_RECOVERY = "recovery"
+ResolvePolicy = str
+
+
+@dataclass(frozen=True)
+class DeferredResolve:
+    """Work item for recovery-pass module/edge resolution."""
+
+    kind: str
+    module_name: str
+    scope_anchor: str
+    inst_leaf: str = ""
+    parent_ctx: Tuple[Tuple[str, str], ...] = ()
+    expect_inst: Optional[Tuple[str, str]] = None
+    child_module: str = ""
+    target_path: str = ""
+    reset_path: str = ""
+    reason: str = ""
+
+
+def _parent_ctx_key(ctx: Optional[Mapping[str, str]]) -> Tuple[Tuple[str, str], ...]:
+    if not ctx:
+        return ()
+    return tuple(sorted((str(k), str(v)) for k, v in ctx.items()))
+
+
 class PathWalkModuleDb:
     """
     Incremental module→files map (Tier 0) and per-file validated scan (Tier 1).
@@ -293,6 +320,8 @@ class PathWalkModuleDb:
         self._jobs = jobs
         self._tier0_executor: Optional[Union[ProcessPoolExecutor, ThreadPoolExecutor]] = None
         self._tier0_inflight: Dict[str, Future[_Tier0ScanResult]] = {}
+        self._defer_queue: List[DeferredResolve] = []
+        self._defer_seen: Set[Tuple[str, str, str, str, Optional[Tuple[str, str]]]] = set()
 
     @property
     def cache_root(self) -> Optional[Path]:
@@ -456,6 +485,59 @@ class PathWalkModuleDb:
             if key not in files:
                 files.append(key)
 
+    def _listing_for_rtl(self, rtl_file: str) -> str:
+        if not rtl_file:
+            return ""
+        anchor = str(Path(rtl_file).resolve())
+        listing = self._file_via_filelist.get(anchor, "")
+        if not listing:
+            listing = self._index.filelist_for(anchor) or ""
+        return listing
+
+    def _scoped_sources_for_listings(
+        self,
+        listings: Sequence[str],
+        *,
+        include_anchor_rtl: str = "",
+    ) -> List[str]:
+        reachable = {str(Path(fl).resolve()) for fl in listings if fl}
+        scoped: List[str] = []
+        for src in self._sources:
+            key = str(Path(src).resolve())
+            via = self._file_via_filelist.get(key, "") or self._index.filelist_for(key)
+            if via in reachable:
+                scoped.append(key)
+        if include_anchor_rtl:
+            anchor = str(Path(include_anchor_rtl).resolve())
+            if anchor not in scoped and anchor in self._sources:
+                scoped.insert(0, anchor)
+        return scoped
+
+    def _scoped_child_sources_for_rtl(self, rtl_file: str) -> List[str]:
+        """
+        RTL listed only in *direct* child filelists of the listing that contains *rtl_file*.
+
+        Confident resolve assumes instances live under child lists, not parent/sibling FLs.
+        """
+        listing = self._listing_for_rtl(rtl_file)
+        if not listing:
+            anchor = str(Path(rtl_file).resolve()) if rtl_file else ""
+            return [anchor] if anchor in self._sources else []
+        child_listings = [
+            str(Path(fl).resolve())
+            for fl in self._filelist_children.get(listing, ())
+        ]
+        if not child_listings:
+            return self._scoped_sources_for_listings([listing], include_anchor_rtl=rtl_file)
+        return self._scoped_sources_for_listings(child_listings)
+
+    def _scoped_pool_for_policy(self, rtl_file: str, *, policy: ResolvePolicy) -> List[str]:
+        if not rtl_file:
+            return list(self._sources)
+        if policy == RESOLVE_CONFIDENT:
+            return self._scoped_child_sources_for_rtl(rtl_file)
+        return self._scoped_sources_for_rtl(rtl_file)
+
     def _scoped_sources_for_rtl(self, rtl_file: str) -> List[str]:
         """
         RTL sources reachable from the filelist subtree that lists *rtl_file*.
@@ -465,11 +547,9 @@ class PathWalkModuleDb:
         """
         if not rtl_file:
             return list(self._sources)
-        anchor = str(Path(rtl_file).resolve())
-        listing = self._file_via_filelist.get(anchor, "")
+        listing = self._listing_for_rtl(rtl_file)
         if not listing:
-            listing = self._index.filelist_for(anchor)
-        if not listing:
+            anchor = str(Path(rtl_file).resolve())
             return [anchor] if anchor in self._sources else list(self._sources)
 
         reachable: Set[str] = {listing}
@@ -481,15 +561,48 @@ class PathWalkModuleDb:
                     reachable.add(child)
                     queue.append(child)
 
-        scoped: List[str] = []
-        for src in self._sources:
-            key = str(Path(src).resolve())
-            via = self._file_via_filelist.get(key, "") or self._index.filelist_for(key)
-            if via in reachable:
-                scoped.append(key)
-        if anchor not in scoped and anchor in self._sources:
-            scoped.insert(0, anchor)
+        scoped = self._scoped_sources_for_listings(reachable, include_anchor_rtl=rtl_file)
         return scoped or list(self._sources)
+
+    def defer_count(self) -> int:
+        return len(self._defer_queue)
+
+    def take_defer_queue(self) -> List[DeferredResolve]:
+        items = list(self._defer_queue)
+        self._defer_queue.clear()
+        return items
+
+    def _enqueue_defer(self, item: DeferredResolve) -> None:
+        key = (
+            item.kind,
+            item.module_name,
+            item.inst_leaf,
+            item.scope_anchor,
+            item.expect_inst,
+        )
+        if key in self._defer_seen:
+            return
+        self._defer_seen.add(key)
+        self._defer_queue.append(item)
+        child_fl = ""
+        if item.scope_anchor:
+            listing = self._listing_for_rtl(item.scope_anchor)
+            kids = self._filelist_children.get(listing, ())
+            if kids:
+                child_fl = Path(str(kids[0])).name
+        from scan_inst.hierarchy_log import format_confident_defer_line
+
+        self._trace(
+            format_confident_defer_line(
+                kind=item.kind,
+                module=item.module_name,
+                inst_leaf=item.inst_leaf,
+                scope_anchor=item.scope_anchor,
+                child_filelist=child_fl,
+                reason=item.reason,
+                target_path=item.target_path,
+            )
+        )
 
     def _tier0_executor_get(self) -> Union[ProcessPoolExecutor, ThreadPoolExecutor]:
         if self._tier0_executor is not None:
@@ -711,16 +824,20 @@ class PathWalkModuleDb:
         files: Sequence[str],
         *,
         scope_anchor: str = "",
+        policy: ResolvePolicy = RESOLVE_CONFIDENT,
+        scope_pool: Optional[Sequence[str]] = None,
     ) -> List[str]:
         ordered = list(dict.fromkeys(str(Path(f).resolve()) for f in files))
         preferred = self._prefer_file.get(module_name)
         if preferred and preferred in ordered:
             ordered = [preferred] + [f for f in ordered if f != preferred]
         if scope_anchor:
-            scoped = set(self._scoped_sources_for_rtl(scope_anchor))
+            if scope_pool is None:
+                scope_pool = self._scoped_pool_for_policy(scope_anchor, policy=policy)
+            scoped = set(scope_pool)
             in_scope = [f for f in ordered if f in scoped]
             out_scope = [f for f in ordered if f not in scoped]
-            ordered = in_scope + out_scope
+            ordered = in_scope + out_scope if policy == RESOLVE_RECOVERY else in_scope
         return ordered
 
     def _ensure_regex_candidates(
@@ -728,9 +845,10 @@ class PathWalkModuleDb:
         module_name: str,
         *,
         scope_anchor: str = "",
+        policy: ResolvePolicy = RESOLVE_CONFIDENT,
     ) -> List[str]:
         if scope_anchor:
-            scoped_pool = self._scoped_sources_for_rtl(scope_anchor)
+            scoped_pool = self._scoped_pool_for_policy(scope_anchor, policy=policy)
             if scoped_pool:
                 self._tier0_scan_sources(scoped_pool, target_module=module_name)
                 if module_name in self._module_to_files:
@@ -739,7 +857,11 @@ class PathWalkModuleDb:
                         module_name,
                         files,
                         scope_anchor=scope_anchor,
+                        policy=policy,
+                        scope_pool=scoped_pool,
                     )
+            if policy == RESOLVE_CONFIDENT:
+                return []
 
         if not self._regex_queue:
             self._regex_queue = [
@@ -777,10 +899,17 @@ class PathWalkModuleDb:
                 self._tier0_scan_sources(remaining, target_module=module_name)
 
         files = list(self._module_to_files.get(module_name, []))
+        scope_pool = (
+            self._scoped_pool_for_policy(scope_anchor, policy=policy)
+            if scope_anchor
+            else None
+        )
         return self._sort_module_files(
             module_name,
             files,
             scope_anchor=scope_anchor,
+            policy=policy,
+            scope_pool=scope_pool,
         )
 
     def _parent_instance_edges(
@@ -802,10 +931,12 @@ class PathWalkModuleDb:
         *,
         avoid_file: str = "",
         scope_anchor: str = "",
+        policy: ResolvePolicy = RESOLVE_CONFIDENT,
     ) -> List[str]:
         candidates = self._ensure_regex_candidates(
             module_name,
             scope_anchor=scope_anchor,
+            policy=policy,
         )
         if not candidates:
             return []
@@ -1020,12 +1151,15 @@ class PathWalkModuleDb:
         expect_inst: Optional[Tuple[str, str]] = None,
         parent_ctx: Optional[Mapping[str, str]] = None,
         scope_anchor: str = "",
+        policy: ResolvePolicy = RESOLVE_CONFIDENT,
+        target_path: str = "",
+        reset_path: str = "",
     ) -> bool:
         """
         Load *module_name* into the shared index from the best candidate file.
 
-        When *expect_inst* is ``(parent_module, inst_leaf)``, prefer a file whose
-        scanned parent body contains that instance edge.
+        *policy=confident* searches direct child filelists only and defers on miss.
+        *policy=recovery* may expand subtree/global pools to finish deferred work.
         """
         if self._index_has_resolved_module(
             module_name,
@@ -1039,26 +1173,45 @@ class PathWalkModuleDb:
         if rec is not None and rec.file_path and not _is_placeholder_module(rec):
             avoid = str(Path(rec.file_path).resolve())
 
+        scoped_pool = (
+            self._scoped_pool_for_policy(scope_anchor, policy=policy)
+            if scope_anchor
+            else None
+        )
         candidates = self._order_candidate_files(
             module_name,
             avoid_file=avoid,
             scope_anchor=scope_anchor,
+            policy=policy,
         )
         scope_note = ""
-        if scope_anchor:
-            scope_note = (
-                f" scope={len(self._scoped_sources_for_rtl(scope_anchor))} src(s)"
-            )
+        if scope_anchor and scoped_pool is not None:
+            label = "child" if policy == RESOLVE_CONFIDENT else "subtree"
+            scope_note = f" {label}_scope={len(scoped_pool)} src(s)"
         self._trace(
-            f"pw-db resolve module={module_name} candidates={len(candidates)}"
+            f"pw-db resolve policy={policy} module={module_name} "
+            f"candidates={len(candidates)}"
             + (f" expect_inst={expect_inst[1]!r}" if expect_inst else "")
             + scope_note
         )
+        if policy == RESOLVE_CONFIDENT and scope_anchor and not candidates:
+            self._enqueue_defer(
+                DeferredResolve(
+                    kind="module",
+                    module_name=module_name,
+                    scope_anchor=scope_anchor,
+                    parent_ctx=_parent_ctx_key(parent_ctx),
+                    expect_inst=expect_inst,
+                    target_path=target_path,
+                    reset_path=reset_path,
+                    reason="no-tier0-in-child-fl",
+                )
+            )
+            return False
+
         tried: Set[str] = set()
-        scoped_pool = (
-            self._scoped_sources_for_rtl(scope_anchor) if scope_anchor else None
-        )
-        for pass_idx in range(3):
+        max_pass = 2 if policy == RESOLVE_CONFIDENT else 3
+        for pass_idx in range(max_pass):
             for fpath in candidates:
                 if fpath in tried:
                     continue
@@ -1100,24 +1253,28 @@ class PathWalkModuleDb:
                         target_module=module_name,
                     )
                     if pending > 0:
+                        expand_label = (
+                            "child-fl" if policy == RESOLVE_CONFIDENT else "scoped"
+                        )
                         self._trace(
-                            f"pw-db tier0 expand module={module_name} "
-                            f"scoped +{pending} file(s) -> "
+                            f"pw-db tier0 expand policy={policy} module={module_name} "
+                            f"{expand_label} +{pending} file(s) -> "
                             f"{len(self._module_to_files.get(module_name, []))} candidate(s)"
                         )
                         candidates = self._order_candidate_files(
                             module_name,
                             avoid_file=avoid,
                             scope_anchor=scope_anchor,
+                            policy=policy,
                         )
                         continue
                 continue
-            if pass_idx == 1:
+            if pass_idx == 1 and policy == RESOLVE_RECOVERY:
                 pending = self._scan_remaining_sources_tier0(target_module=module_name)
                 if pending <= 0:
                     break
                 self._trace(
-                    f"pw-db tier0 expand module={module_name} "
+                    f"pw-db tier0 expand policy=recovery module={module_name} "
                     f"global +{pending} file(s) -> "
                     f"{len(self._module_to_files.get(module_name, []))} candidate(s)"
                 )
@@ -1125,9 +1282,25 @@ class PathWalkModuleDb:
                     module_name,
                     avoid_file=avoid,
                     scope_anchor=scope_anchor,
+                    policy=policy,
                 )
                 continue
             break
+
+        if policy == RESOLVE_CONFIDENT and scope_anchor:
+            self._enqueue_defer(
+                DeferredResolve(
+                    kind="module",
+                    module_name=module_name,
+                    scope_anchor=scope_anchor,
+                    parent_ctx=_parent_ctx_key(parent_ctx),
+                    expect_inst=expect_inst,
+                    target_path=target_path,
+                    reset_path=reset_path,
+                    reason="tier1-miss-child-fl",
+                )
+            )
+            return False
 
         if expect_inst is not None:
             return False
@@ -1142,6 +1315,9 @@ class PathWalkModuleDb:
         inst_leaf: str,
         *,
         current_file: str = "",
+        policy: ResolvePolicy = RESOLVE_CONFIDENT,
+        target_path: str = "",
+        reset_path: str = "",
     ) -> Optional[InstanceEdge]:
         """Tier-1 confirmed child edge, trying alternate decl files on miss."""
         avoid = current_file
@@ -1166,25 +1342,44 @@ class PathWalkModuleDb:
                     return edge
 
         scope_anchor = avoid
+        scoped_pool = (
+            self._scoped_pool_for_policy(scope_anchor, policy=policy)
+            if scope_anchor
+            else None
+        )
         candidates = self._order_candidate_files(
             parent_module,
             avoid_file=avoid,
             scope_anchor=scope_anchor,
+            policy=policy,
         )
         scope_note = ""
-        if scope_anchor:
-            scope_note = (
-                f" scope={len(self._scoped_sources_for_rtl(scope_anchor))} src(s)"
-            )
+        if scope_anchor and scoped_pool is not None:
+            label = "child" if policy == RESOLVE_CONFIDENT else "subtree"
+            scope_note = f" {label}_scope={len(scoped_pool)} src(s)"
         self._trace(
-            f"pw-db edge {parent_module}.{inst_leaf} "
+            f"pw-db edge policy={policy} {parent_module}.{inst_leaf} "
             f"candidates={len(candidates)}{scope_note}"
         )
+        if policy == RESOLVE_CONFIDENT and scope_anchor and not candidates:
+            self._enqueue_defer(
+                DeferredResolve(
+                    kind="edge",
+                    module_name=parent_module,
+                    scope_anchor=scope_anchor,
+                    inst_leaf=inst_leaf,
+                    parent_ctx=_parent_ctx_key(parent_ctx),
+                    expect_inst=(parent_module, inst_leaf),
+                    target_path=target_path,
+                    reset_path=reset_path,
+                    reason="no-tier0-in-child-fl",
+                )
+            )
+            return None
+
         tried: Set[str] = set()
-        scoped_pool = (
-            self._scoped_sources_for_rtl(scope_anchor) if scope_anchor else None
-        )
-        for pass_idx in range(3):
+        max_pass = 2 if policy == RESOLVE_CONFIDENT else 3
+        for pass_idx in range(max_pass):
             for fpath in candidates:
                 if fpath in tried:
                     continue
@@ -1227,24 +1422,28 @@ class PathWalkModuleDb:
                         target_module=parent_module,
                     )
                     if pending > 0:
+                        expand_label = (
+                            "child-fl" if policy == RESOLVE_CONFIDENT else "scoped"
+                        )
                         self._trace(
-                            f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
-                            f"scoped +{pending} file(s) -> "
+                            f"pw-db tier0 expand policy={policy} edge "
+                            f"{parent_module}.{inst_leaf} {expand_label} +{pending} file(s) -> "
                             f"{len(self._module_to_files.get(parent_module, []))} candidate(s)"
                         )
                         candidates = self._order_candidate_files(
                             parent_module,
                             avoid_file=avoid,
                             scope_anchor=scope_anchor,
+                            policy=policy,
                         )
                         continue
                 continue
-            if pass_idx == 1:
+            if pass_idx == 1 and policy == RESOLVE_RECOVERY:
                 pending = self._scan_remaining_sources_tier0(target_module=parent_module)
                 if pending <= 0:
                     break
                 self._trace(
-                    f"pw-db tier0 expand edge {parent_module}.{inst_leaf} "
+                    f"pw-db tier0 expand policy=recovery edge {parent_module}.{inst_leaf} "
                     f"global +{pending} file(s) -> "
                     f"{len(self._module_to_files.get(parent_module, []))} candidate(s)"
                 )
@@ -1252,9 +1451,25 @@ class PathWalkModuleDb:
                     parent_module,
                     avoid_file=avoid,
                     scope_anchor=scope_anchor,
+                    policy=policy,
                 )
                 continue
             break
+
+        if policy == RESOLVE_CONFIDENT and scope_anchor:
+            self._enqueue_defer(
+                DeferredResolve(
+                    kind="edge",
+                    module_name=parent_module,
+                    scope_anchor=scope_anchor,
+                    inst_leaf=inst_leaf,
+                    parent_ctx=_parent_ctx_key(parent_ctx),
+                    expect_inst=(parent_module, inst_leaf),
+                    target_path=target_path,
+                    reset_path=reset_path,
+                    reason="no-edge-in-child-fl",
+                )
+            )
         return None
 
     def find_module_decl_file(self, module_name: str) -> Optional[str]:

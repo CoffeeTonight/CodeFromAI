@@ -14,7 +14,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, TextIO, Tuple
 
-from scan_inst.connect_endpoints import _lca, _net_exists_in_module, _port_exists
+from scan_inst.connect_endpoints import (
+    DeclNetCache,
+    _lca,
+    _module_body_for_row,
+    _net_exists_in_module,
+    _port_exists,
+    net_exists_in_module_fast,
+    wire_tail_exists_fast,
+)
 from scan_inst.connect_request import ConnectivityRequest
 from scan_inst.connectivity import ConnectivityBatchResult, ConnectivitySession
 from scan_inst.filelist import FilelistResult
@@ -35,7 +43,12 @@ from scan_inst.hierarchy_log import (
     path_walk_inst_miss_reason,
     path_walk_trace_show_message,
 )
-from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
+from scan_inst.path_walk_db import (
+    RESOLVE_CONFIDENT,
+    RESOLVE_RECOVERY,
+    PathWalkModuleDb,
+    path_walk_db_cache_key,
+)
 from scan_inst.top_find import resolve_top_modules
 
 _MODULE_DEF_RE = re.compile(
@@ -145,6 +158,9 @@ class PathWalkState:
     _walk_blocked_prefixes: Set[str] = field(default_factory=set, repr=False)
     _walk_blocked_skips: int = field(default=0, repr=False)
     _failed_edge_cache: Set[Tuple[str, str]] = field(default_factory=set, repr=False)
+    _decl_net_cache: DeclNetCache = field(default_factory=dict, repr=False)
+    _module_body_cache: Dict[str, str] = field(default_factory=dict, repr=False)
+    _param_ctx_cache: Dict[str, Mapping[str, str]] = field(default_factory=dict, repr=False)
 
     def _trace_streams(self) -> List[TextIO]:
         out: List[TextIO] = []
@@ -421,6 +437,8 @@ class PathWalkState:
         expect_inst: Optional[Tuple[str, str]] = None,
         parent_ctx: Optional[Mapping[str, str]] = None,
         scope_anchor: str = "",
+        policy: str = RESOLVE_CONFIDENT,
+        target_path: str = "",
     ) -> bool:
         had = self.index.get_module(module_name)
         if not self.mod_db.ensure_module_in_index(
@@ -428,6 +446,8 @@ class PathWalkState:
             expect_inst=expect_inst,
             parent_ctx=parent_ctx,
             scope_anchor=scope_anchor,
+            policy=policy,
+            target_path=target_path,
         ):
             self._sync_db_stats()
             self._emit_walk(
@@ -445,7 +465,14 @@ class PathWalkState:
         self._sync_db_stats()
         return True
 
-    def _child_edge(self, parent_path: str, inst_leaf: str) -> Optional[InstanceEdge]:
+    def _child_edge(
+        self,
+        parent_path: str,
+        inst_leaf: str,
+        *,
+        target_path: str = "",
+        policy: str = RESOLVE_CONFIDENT,
+    ) -> Optional[InstanceEdge]:
         row = self.rows_by_path.get(parent_path)
         if row is None:
             return None
@@ -454,6 +481,9 @@ class PathWalkState:
             row.param_ctx,
             inst_leaf,
             current_file=row.file,
+            policy=policy,
+            target_path=target_path,
+            reset_path=parent_path,
         )
         if edge is not None:
             self._invalidate_walk_caches(module_name=row.module)
@@ -465,6 +495,8 @@ class PathWalkState:
         parent_path: str,
         inst_leaf: str,
         edge: InstanceEdge,
+        *,
+        policy: str = RESOLVE_CONFIDENT,
     ) -> Optional[str]:
         parent = self.rows_by_path.get(parent_path)
         if parent is None:
@@ -472,7 +504,12 @@ class PathWalkState:
         child_path = f"{parent_path}.{inst_leaf}"
         if child_path in self.rows_by_path:
             return child_path
-        if not self._load_module(edge.child_module, scope_anchor=parent.file):
+        if not self._load_module(
+            edge.child_module,
+            scope_anchor=parent.file,
+            target_path=child_path,
+            policy=policy,
+        ):
             return None
         rec = self.index.get_module(edge.child_module)
         if rec is None:
@@ -521,17 +558,33 @@ class PathWalkState:
                 return True
         return False
 
+    def _cached_module_body(self, row: FlatRow) -> str:
+        key = str(row.file or row.module)
+        hit = self._module_body_cache.get(key)
+        if hit is not None:
+            return hit
+        body = _module_body_for_row(self.index, row)
+        self._module_body_cache[key] = body
+        return body
+
+    def _cached_param_ctx(self, row: FlatRow) -> Mapping[str, str]:
+        hit = self._param_ctx_cache.get(row.full_path)
+        if hit is not None:
+            return hit
+        if row.param_ctx:
+            ctx = dict(row.param_ctx)
+        else:
+            from scan_inst.connect_endpoints import _port_param_ctx
+
+            ctx = dict(_port_param_ctx(self.index, row, self.top))
+        self._param_ctx_cache[row.full_path] = ctx
+        return ctx
+
     def _rtl_line_count(self, row: FlatRow) -> int:
-        body = self.index.module_body(row.module)
+        body = self._cached_module_body(row)
         if body:
             return body.count("\n") + (1 if body.strip() else 0)
-        if not row.file:
-            return 0
-        try:
-            text = Path(row.file).read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            return 0
-        return text.count("\n") + (1 if text else 0)
+        return 0
 
     def _classify_signal_tail(
         self,
@@ -545,9 +598,29 @@ class PathWalkState:
         def _elapsed() -> float:
             return (time.perf_counter() - t0) * 1000.0
 
-        if _port_exists(self.index, row, signal_name, top=self.top):
+        body = self._cached_module_body(row)
+        if wire_tail_exists_fast(body, signal_name, param_ctx=row.param_ctx or None):
+            return "wire", _elapsed()
+        ctx = self._cached_param_ctx(row)
+        if wire_tail_exists_fast(body, signal_name, param_ctx=ctx):
+            return "wire", _elapsed()
+        if _port_exists(
+            self.index,
+            row,
+            signal_name,
+            top=self.top,
+            param_ctx=ctx,
+        ):
             return "port", _elapsed()
-        if _net_exists_in_module(self.index, row, signal_name, top=self.top):
+        if net_exists_in_module_fast(
+            self.index,
+            row,
+            signal_name,
+            top=self.top,
+            cache=self._decl_net_cache,
+            param_ctx=ctx,
+            body=body,
+        ):
             return "wire", _elapsed()
         return None, _elapsed()
 
@@ -705,6 +778,9 @@ class PathWalkState:
         self,
         parent_path: str,
         remainder: str,
+        *,
+        target_path: str = "",
+        policy: str = RESOLVE_CONFIDENT,
     ) -> Tuple[str, Optional[InstanceEdge]]:
         """Match longest folded instance name at start of *remainder*."""
         step_key = (parent_path, remainder)
@@ -736,7 +812,12 @@ class PathWalkState:
             out = ("", None)
             self._resolve_step_cache[step_key] = out
             return out
-        edge = self._child_edge(parent_path, seg)
+        edge = self._child_edge(
+            parent_path,
+            seg,
+            target_path=target_path,
+            policy=policy,
+        )
         if edge is not None:
             self._failed_edge_cache.discard((parent_path, seg))
             out = (seg, edge)
@@ -747,7 +828,99 @@ class PathWalkState:
         self._resolve_step_cache[step_key] = out
         return out
 
-    def ensure_path(self, instance_path: str) -> bool:
+    def _reset_walk_subtree(self, prefix: str) -> None:
+        """Drop cached rows/caches under *prefix* so recovery can re-walk."""
+        if not prefix:
+            return
+        drop = [
+            path
+            for path in list(self.rows_by_path)
+            if path == prefix or path.startswith(prefix + ".")
+        ]
+        for path in drop:
+            del self.rows_by_path[path]
+        self._resolve_step_cache.clear()
+        self._failed_edge_cache.clear()
+        self._expanded_inst_cache.clear()
+        drop_blocks = [
+            block
+            for block in self._walk_blocked_prefixes
+            if block == prefix
+            or block.startswith(prefix + ".")
+            or prefix.startswith(block + ".")
+        ]
+        for block in drop_blocks:
+            self._walk_blocked_prefixes.discard(block)
+        if self._pending_misses:
+            self._pending_misses = [
+                miss
+                for miss in self._pending_misses
+                if not (
+                    miss.parent_path == prefix
+                    or miss.parent_path.startswith(prefix + ".")
+                    or miss.target_path == prefix
+                    or (
+                        miss.target_path
+                        and miss.target_path.startswith(prefix + ".")
+                    )
+                )
+            ]
+
+    def run_recovery_pass(self) -> int:
+        """Retry deferred confident misses with recovery policy (subtree + global)."""
+        items = self.mod_db.take_defer_queue()
+        if not items:
+            return 0
+        self._emit_walk(f"recovery-pass start defer={len(items)}")
+        for item in items:
+            parent_ctx = dict(item.parent_ctx)
+            if item.kind == "edge":
+                edge = self.mod_db.resolve_child_edge(
+                    item.module_name,
+                    parent_ctx,
+                    item.inst_leaf,
+                    current_file=item.scope_anchor,
+                    policy=RESOLVE_RECOVERY,
+                    target_path=item.target_path,
+                    reset_path=item.reset_path,
+                )
+                if edge is not None:
+                    self._invalidate_walk_caches(module_name=item.module_name)
+            elif item.kind == "module":
+                if self.mod_db.ensure_module_in_index(
+                    item.module_name,
+                    expect_inst=item.expect_inst,
+                    parent_ctx=parent_ctx,
+                    scope_anchor=item.scope_anchor,
+                    policy=RESOLVE_RECOVERY,
+                    target_path=item.target_path,
+                    reset_path=item.reset_path,
+                ):
+                    self._invalidate_walk_caches(module_name=item.module_name)
+
+        reset_prefixes = sorted(
+            {item.reset_path for item in items if item.reset_path},
+            key=len,
+        )
+        for prefix in reset_prefixes:
+            self._reset_walk_subtree(prefix)
+
+        targets = sorted({item.target_path for item in items if item.target_path})
+        ok_paths = 0
+        for path in targets:
+            if self.ensure_path(path, policy=RESOLVE_RECOVERY):
+                ok_paths += 1
+        self._emit_walk(
+            f"recovery-pass done paths_ok={ok_paths}/{len(targets)} defer={len(items)}"
+        )
+        return ok_paths
+
+    def ensure_path(
+        self,
+        instance_path: str,
+        *,
+        policy: str = RESOLVE_CONFIDENT,
+    ) -> bool:
         """Walk ``top.u_child...`` loading RTL files on demand."""
         path = instance_path.strip()
         if not path:
@@ -780,7 +953,12 @@ class PathWalkState:
                 cur = nxt
                 remainder = ""
                 break
-            inst_name, edge = self._resolve_child_step(cur, remainder)
+            inst_name, edge = self._resolve_child_step(
+                cur,
+                remainder,
+                target_path=path,
+                policy=policy,
+            )
             if edge is None or not inst_name:
                 row = self.rows_by_path.get(cur)
                 parent_mod = row.module if row else "?"
@@ -832,7 +1010,7 @@ class PathWalkState:
                 )
                 self.mod_db.write_module_index_snapshot()
                 return False
-            attached = self._attach_child(cur, inst_name, edge)
+            attached = self._attach_child(cur, inst_name, edge, policy=policy)
             if attached is None:
                 child_mod = edge.child_module or "?"
                 self._queue_walk_miss(
@@ -912,6 +1090,14 @@ def _walk_target_from_spec(spec: str, state: PathWalkState) -> str:
         port = ".".join(parts[i:])
         if _port_exists(state.index, row, port, top=state.top):
             return hier
+        if net_exists_in_module_fast(
+            state.index,
+            row,
+            port,
+            top=state.top,
+            cache=state._decl_net_cache,
+        ):
+            return hier
     return text
 
 
@@ -968,11 +1154,12 @@ def _inst_path_from_spec(
             if row is not None:
                 if _port_exists(state.index, row, remainder, top=state.top):
                     return cur
-                if _net_exists_in_module(
+                if net_exists_in_module_fast(
                     state.index,
                     row,
                     remainder,
                     top=state.top,
+                    cache=state._decl_net_cache,
                 ):
                     return cur
             return nxt
@@ -1503,6 +1690,7 @@ def run_path_walk_index(
                 f"tier0={state.stats.files_regex_scanned} tier1={state.stats.files_validated} "
                 f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
             )
+        state.run_recovery_pass()
         state.mod_db.drain_background_workers(wait_all=True)
         return index, state, top_name
     finally:
@@ -1620,7 +1808,11 @@ def create_path_walk_index(
             raise ValueError(f"top module {top!r} not found in filelist sources")
         if on_progress:
             on_progress(f"path-walk: seed top {top} ({Path(top_file).name})")
-        if not mod_db.ensure_module_in_index(top, scope_anchor=top_file):
+        if not mod_db.ensure_module_in_index(
+            top,
+            scope_anchor=top_file,
+            policy=RESOLVE_RECOVERY,
+        ):
             raise ValueError(f"top module {top!r} could not be loaded from {top_file}")
     return index, mod_db
 
@@ -1715,6 +1907,9 @@ def run_path_walk_connect(
                 f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
             )
 
+        state.run_recovery_pass()
+        state.mod_db.drain_background_workers(wait_all=True)
+
         session = ConnectivitySession(
             rows=state.rows(),
             index=index,
@@ -1726,7 +1921,6 @@ def run_path_walk_connect(
         )
         batch = session.run_request(request, jobs=1)
         state.stats.checks_run = len(batch.results)
-        state.mod_db.drain_background_workers(wait_all=True)
         return batch, index, state
     finally:
         if opened_log and trace_log_fh is not None:

@@ -488,6 +488,26 @@ def format_path_walk_spine_lines(
     return lines
 
 
+def format_confident_defer_line(
+    *,
+    kind: str,
+    module: str,
+    inst_leaf: str,
+    scope_anchor: str,
+    child_filelist: str,
+    reason: str,
+    target_path: str = "",
+) -> str:
+    anchor_name = Path(scope_anchor).name if scope_anchor else "?"
+    target = f" target={target_path}" if target_path else ""
+    child_fl = f" child_fl={child_filelist}" if child_filelist else ""
+    inst = f" inst={inst_leaf!r}" if inst_leaf else ""
+    return (
+        f"confident-miss defer kind={kind} module={module}{inst} "
+        f"anchor={anchor_name}{child_fl} reason={reason}{target}"
+    )
+
+
 def format_signal_tail_line(
     *,
     hit: bool,
@@ -523,6 +543,10 @@ def path_walk_trace_show_message(message: str) -> bool:
     if not msg:
         return False
     if msg.startswith("signal-tail "):
+        return True
+    if msg.startswith("confident-miss "):
+        return True
+    if msg.startswith("recovery-pass "):
         return True
     if msg.startswith("walk target="):
         return False

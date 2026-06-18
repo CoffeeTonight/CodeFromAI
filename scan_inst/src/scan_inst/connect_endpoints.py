@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from scan_inst.connect_scan import (
     ModuleConnectIndex,
+    _clean_body,
+    _collect_declared_net_names,
+    _net_base_in_assign_regex_fast,
+    _net_name_bases,
     apply_bind_connectivity,
     apply_empty_module_passthrough,
     build_module_connect_index,
+    collect_assign_net_names,
     collect_bind_records_for_module,
+    extract_connect_nodes,
+    net_base_in_assign_probe,
+    scan_instance_port_maps,
 )
 from scan_inst.hierarchy_log import format_row_provenance
 from scan_inst.index import DesignIndex
@@ -130,10 +138,40 @@ def _port_exists(
     port_name: str,
     *,
     top: str,
+    param_ctx: Optional[Mapping[str, str]] = None,
 ) -> bool:
-    ctx = _port_param_ctx(index, row, top)
+    ctx = (
+        dict(param_ctx)
+        if param_ctx is not None
+        else _port_param_ctx(index, row, top)
+    )
     port_index = port_index_for_design_module(index, row.module, ctx)
     return bool(matching_ports(port_index, port_name, param_ctx=ctx))
+
+
+def wire_tail_exists_fast(
+    body: str,
+    net_name: str,
+    *,
+    param_ctx: Optional[Mapping[str, str]] = None,
+) -> bool:
+    """
+    Cheapest wire/reg tail probe: decl/assign regex only (no param refine, no stmt walk).
+    """
+    if not body or not net_name:
+        return False
+    base = net_name.split("[", 1)[0].split(".", 1)[0]
+    if _net_base_declared_fast(body, base):
+        return True
+    if _net_base_in_assign_regex_fast(body, base):
+        return True
+    if param_ctx is not None and net_base_in_assign_probe(
+        body,
+        base,
+        param_map=param_ctx,
+    ):
+        return True
+    return False
 
 
 def _nearest_hierarchy_row(
@@ -248,6 +286,135 @@ def _module_body_for_row(index: DesignIndex, row: FlatRow) -> str:
     if rec.body:
         return rec.body
     return ""
+
+
+DeclNetCacheKey = Tuple[str, Tuple[Tuple[str, str], ...]]
+DeclNetCache = Dict[DeclNetCacheKey, Set[str]]
+
+
+def _decl_net_cache_key(row: FlatRow, ctx: Mapping[str, str]) -> DeclNetCacheKey:
+    from scan_inst.index import _ctx_key
+
+    return row.module, _ctx_key(ctx)
+
+
+def _net_base_declared_fast(body: str, base: str) -> bool:
+    """
+    Single-name declaration probe (wire/logic/reg/port) without full statement split.
+
+    Used on the path-walk signal-tail hot path before building a per-module decl cache.
+    """
+    if not body or not base:
+        return False
+    clean = _clean_body(body)
+    esc = re.escape(base)
+    pat = re.compile(
+        rf"(?:\b(?:input|output|inout|wire|logic|reg)\b\s*)"
+        rf"(?:\([^)]*\)\s*)?"
+        rf"(?:(?:\[[^\]]+\]\s*)*)"
+        rf"(?:{esc}\b|(?:(?:\\(?:[A-Za-z_]\w*|\S+)|[A-Za-z_]\w*)\s*,\s*)*{esc}\b)",
+        re.IGNORECASE,
+    )
+    return pat.search(clean) is not None
+
+
+def module_declared_net_names(
+    index: DesignIndex,
+    row: FlatRow,
+    *,
+    top: str,
+    cache: Optional[DeclNetCache] = None,
+    param_ctx: Optional[Mapping[str, str]] = None,
+    body: Optional[str] = None,
+    deep: bool = False,
+) -> Set[str]:
+    """Port + declared wire/logic/reg (+ optional assign/port-map nets; no connect graph)."""
+    ctx = (
+        dict(param_ctx)
+        if param_ctx is not None
+        else _port_param_ctx(index, row, top)
+    )
+    key = _decl_net_cache_key(row, ctx)
+    if cache is not None:
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+
+    names: Set[str] = set()
+    port_index = port_index_for_design_module(index, row.module, ctx)
+    for info in port_index.values():
+        names.update(info.names)
+    text = body if body is not None else _module_body_for_row(index, row)
+    if text:
+        names.update(_collect_declared_net_names(text))
+        if deep:
+            names.update(collect_assign_net_names(text, param_map=ctx))
+            for _inst, ports in scan_instance_port_maps(text, param_map=ctx).items():
+                for _port, expr in ports:
+                    names.update(_net_name_bases(extract_connect_nodes(expr, ctx)))
+    if cache is not None:
+        cache[key] = names
+    return names
+
+
+def net_exists_in_module_fast(
+    index: DesignIndex,
+    row: FlatRow,
+    net_name: str,
+    *,
+    top: str,
+    cache: Optional[DeclNetCache] = None,
+    param_ctx: Optional[Mapping[str, str]] = None,
+    body: Optional[str] = None,
+) -> bool:
+    """
+    Fast signal-tail existence check: ports, declarations, assign-driven implicit nets.
+
+    Wire/reg probes run before param-refine and before full statement walks.
+    Avoids :func:`build_module_connect_index` (assign/FF scan + UF compression).
+    """
+    if not net_name:
+        return False
+    base = net_name.split("[", 1)[0].split(".", 1)[0]
+    text = body if body is not None else _module_body_for_row(index, row)
+    if wire_tail_exists_fast(text, net_name, param_ctx=row.param_ctx or None):
+        return True
+    ctx = (
+        dict(param_ctx)
+        if param_ctx is not None
+        else (dict(row.param_ctx) if row.param_ctx else _port_param_ctx(index, row, top))
+    )
+    key = _decl_net_cache_key(row, ctx)
+    if cache is not None and key in cache:
+        names = cache[key]
+        return net_name in names or base in names
+    if text and wire_tail_exists_fast(text, net_name, param_ctx=ctx):
+        return True
+    if _port_exists(index, row, net_name, top=top, param_ctx=ctx):
+        return True
+    names = module_declared_net_names(
+        index,
+        row,
+        top=top,
+        cache=cache,
+        param_ctx=ctx,
+        body=text,
+        deep=False,
+    )
+    if net_name in names or base in names:
+        return True
+    if not text:
+        return False
+    names = module_declared_net_names(
+        index,
+        row,
+        top=top,
+        cache=cache,
+        param_ctx=ctx,
+        body=text,
+        deep=True,
+    )
+    return net_name in names or base in names
 
 
 def _net_exists_in_module(

@@ -6,8 +6,18 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator, Mapping, Optional, TextIO
+
+
+def log_timestamp() -> str:
+    """Local wall-clock stamp for stderr / run logs."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_scan_inst_log(message: str, *, prefix: str = "[scan-inst]") -> str:
+    return f"{log_timestamp()} {prefix} {message}"
 
 
 def format_duration(seconds: float) -> str:
@@ -114,7 +124,7 @@ class ProgressReporter:
     def phase(self, message: str) -> None:
         if not self._enabled:
             return
-        print(f"[scan-inst] {message}", file=self._stream, flush=True)
+        print(format_scan_inst_log(message), file=self._stream, flush=True)
 
     def set_filelist(self, filelist_path: str) -> None:
         with self._lock:

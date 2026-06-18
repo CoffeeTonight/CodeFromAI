@@ -1078,7 +1078,9 @@ def preprocess_sources(
             if on_progress:
                 on_progress(msg)
             else:
-                print(f"[scan-inst] {msg}", file=sys.stderr, flush=True)
+                from scan_inst.progress import format_scan_inst_log
+
+                print(format_scan_inst_log(msg), file=sys.stderr, flush=True)
             try:
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     for i, (key, text) in enumerate(
@@ -1109,7 +1111,9 @@ def preprocess_sources(
                 if on_progress:
                     on_progress(msg2)
                 else:
-                    print(f"[scan-inst] {msg2}", file=sys.stderr, flush=True)
+                    from scan_inst.progress import format_scan_inst_log
+
+                    print(format_scan_inst_log(msg2), file=sys.stderr, flush=True)
                 out = _run_preprocess_tasks_serial(
                     tasks,
                     on_progress=on_progress,

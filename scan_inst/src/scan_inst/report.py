@@ -14,7 +14,7 @@ from scan_inst.index import DesignIndex
 from scan_inst.hierarchy_log import format_hierarchy_rows_report
 from scan_inst.models import FlatRow, SearchHit
 from scan_inst.path_chain import format_path_chain_report
-from scan_inst.progress import format_duration
+from scan_inst.progress import format_duration, format_scan_inst_log
 
 
 def format_bytes(num: int) -> str:
@@ -219,7 +219,7 @@ def emit_run_report(
         return None
     write_run_report_log(report, log_path, append=append_log)
     if announce_log:
-        print(f"[scan-inst] report logged: {log_path}", file=target, flush=True)
+        print(format_scan_inst_log(f"report logged: {log_path}"), file=target, flush=True)
     return log_path
 
 

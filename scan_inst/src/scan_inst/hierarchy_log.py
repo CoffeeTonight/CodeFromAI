@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import IO, List, Mapping, Optional, Sequence, TextIO
 
 from scan_inst.models import ConnectEndpoint, ConnectHop, FlatRow, InstanceEdge, ModuleRecord, PathChainLink
+from scan_inst.progress import format_scan_inst_log
 
 _PREFIX = "[scan-inst hierarchy]"
 _PATH_WALK_PREFIX = "[scan-inst path-walk]"
@@ -140,13 +141,20 @@ def emit_hierarchy_rows_log(
     if not rows:
         return
     head = title or f"{len(rows)} instance(s)"
-    print(f"{_PREFIX} {head}", file=stream, flush=True)
+    print(format_scan_inst_log(head, prefix=_PREFIX), file=stream, flush=True)
     shown = list(rows) if limit is None or len(rows) <= limit else list(rows[:limit])
     for row in shown:
-        print(f"{_PREFIX}   {format_hierarchy_row_line(row)}", file=stream, flush=True)
+        print(
+            format_scan_inst_log(format_hierarchy_row_line(row), prefix=f"{_PREFIX}  "),
+            file=stream,
+            flush=True,
+        )
     if limit is not None and len(rows) > limit:
         print(
-            f"{_PREFIX}   ... {len(rows) - limit} more (see output TSV)",
+            format_scan_inst_log(
+                f"... {len(rows) - limit} more (see output TSV)",
+                prefix=f"{_PREFIX}  ",
+            ),
             file=stream,
             flush=True,
         )
@@ -197,7 +205,10 @@ def emit_path_provenance_log(
     if not path:
         return
     print(
-        f"{prefix} {format_path_provenance_line(label, path, rows_by_path)}",
+        format_scan_inst_log(
+            format_path_provenance_line(label, path, rows_by_path),
+            prefix=prefix,
+        ),
         file=stream,
         flush=True,
     )
@@ -300,9 +311,9 @@ def emit_scopes_provenance_log(
     if not scopes:
         return
     if title:
-        print(f"{prefix}   {title}", file=stream, flush=True)
+        print(format_scan_inst_log(title, prefix=f"{prefix}  "), file=stream, flush=True)
     for line in format_scopes_provenance_lines(scopes, rows_by_path, indent=indent):
-        print(f"{prefix}   {line}", file=stream, flush=True)
+        print(format_scan_inst_log(line, prefix=f"{prefix}  "), file=stream, flush=True)
 
 
 def path_spine_prefixes(path: str) -> List[str]:
@@ -522,7 +533,7 @@ def emit_path_walk_log(
         color_miss = path_walk_stream_color_enabled(stream)
     if color_miss:
         text = colorize_path_walk_miss_reason(text)
-    print(f"{prefix} {text}", file=stream, flush=True)
+    print(format_scan_inst_log(text, prefix=prefix), file=stream, flush=True)
 
 
 def emit_path_walk_node_log(
@@ -555,7 +566,7 @@ def emit_path_walk_miss_log(
         prefix=prefix,
     )
     for line in format_path_walk_spine_lines(parent_path, {parent_path: parent_row}):
-        print(f"{prefix} {line}", file=stream, flush=True)
+        print(format_scan_inst_log(line, prefix=prefix), file=stream, flush=True)
 
 
 def emit_path_walk_spine_log(
@@ -570,7 +581,7 @@ def emit_path_walk_spine_log(
         return
     emit_path_walk_log(f"{title} -> {path}", stream=stream, prefix=prefix)
     for line in format_path_walk_spine_lines(path, rows_by_path):
-        print(f"{prefix} {line}", file=stream, flush=True)
+        print(format_scan_inst_log(line, prefix=prefix), file=stream, flush=True)
 
 
 def format_path_link_provenance(link: PathChainLink) -> str:

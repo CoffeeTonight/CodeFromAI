@@ -17,11 +17,6 @@ _KEYWORDS = frozenset(
         "wire", "logic", "reg", "input", "output", "inout", "always", "initial",
     }
 )
-_INSTANCE_PREFIX_RE = re.compile(
-    rf"\b({_IDENT})\s+(?:#\([^()]*\)\s+)?({_IDENT})(?=\s*[\[(;])",
-    re.IGNORECASE,
-)
-
 _GEN_BLOCK_RE = re.compile(
     r"\bgenerate\b(.*?)\bendgenerate\b",
     re.IGNORECASE | re.DOTALL,
@@ -176,18 +171,60 @@ def _subst_index(text: str, var: str, index: int) -> str:
     return re.sub(rf"\b{re.escape(var)}\b", str(index), text)
 
 
+def _read_ident(text: str, i: int) -> Tuple[str, int]:
+    m = re.match(_IDENT, text[i:])
+    if not m:
+        return "", i
+    return m.group(0), i + m.end()
+
+
+def _looks_like_instance_tail(text: str, pos: int) -> bool:
+    """True when *pos* starts optional dims then ``(`` or ``;``."""
+    k = _skip_ws(text, pos)
+    if k < len(text) and text[k] == "[":
+        k = _skip_balanced(text, k, "[", "]")
+        k = _skip_ws(text, k)
+    return k < len(text) and text[k] in "(;"
+
+
 def _prefix_instance_names(body: str, prefix: str) -> str:
     """Prefix instance leaves in a folded generate fragment (``scope.u_cell``)."""
     if not prefix:
         return body
 
-    def repl(m: re.Match[str]) -> str:
-        cell, inst = m.group(1), m.group(2)
-        if cell.lower() in _KEYWORDS:
-            return m.group(0)
-        return f"{cell} {prefix}{inst}"
+    pieces: List[str] = []
+    n = len(body)
+    i = 0
+    last = 0
 
-    return _INSTANCE_PREFIX_RE.sub(repl, body)
+    while i < n:
+        cell, j = _read_ident(body, i)
+        if not cell or cell.lower() in _KEYWORDS:
+            i += 1
+            continue
+
+        k = _skip_ws(body, j)
+        if k < n and body[k] == "#":
+            k += 1
+            k = _skip_ws(body, k)
+            if k < n and body[k] == "(":
+                k = _skip_balanced(body, k, "(", ")")
+
+        inst_start = _skip_ws(body, k)
+        inst, inst_end = _read_ident(body, inst_start)
+        if not inst or not _looks_like_instance_tail(body, inst_end):
+            i += 1
+            continue
+
+        pieces.append(body[last:i])
+        pieces.append(body[i:inst_start])
+        pieces.append(prefix)
+        pieces.append(inst)
+        last = inst_end
+        i = inst_end
+
+    pieces.append(body[last:])
+    return "".join(pieces)
 
 
 def _for_loop_match(chunk: str) -> Optional[re.Match[str]]:

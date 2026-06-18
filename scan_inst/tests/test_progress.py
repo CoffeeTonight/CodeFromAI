@@ -8,10 +8,26 @@ from scan_inst.filelist import parse_filelist
 from scan_inst.progress import (
     ProgressHeartbeat,
     ProgressReporter,
+    format_scan_inst_log,
     format_work_location,
     progress_callback,
     split_progress_detail,
 )
+
+
+def test_format_scan_inst_log_includes_timestamp():
+    line = format_scan_inst_log("index: done")
+    assert line.startswith("20")
+    assert "[scan-inst] index: done" in line
+
+
+def test_progress_reporter_phase_includes_timestamp():
+    buf = io.StringIO()
+    reporter = ProgressReporter(stream=buf, enabled=True)
+    reporter.phase("cache: hit")
+    text = buf.getvalue()
+    assert text.startswith("20")
+    assert "[scan-inst] cache: hit" in text
 
 
 def test_format_work_location_includes_listing_filelist():

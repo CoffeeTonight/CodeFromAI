@@ -1,0 +1,79 @@
+# Obsidian vault layout — AST-friendly hierarchy for parsers & graph tools
+version: obsidian-ast-v1
+instruction_ko: >
+  프로젝트 vault는 번호 접두 폴더로 계층을 고정한다.
+  폴더 경로 = AST 노드 종류; graph.json = 전체 그래프 SSOT.
+  Markdown은 Obsidian (frontmatter, #태그, [[wikilinks]]); 구조 메타는 JSON/YAML.
+
+vault_root: projects/{id}/knowledge/obsidian
+
+layers:
+  "00-index":
+    role: vault_entry_and_ast_root
+    files:
+      PROJECT-MOC.md: project_map_of_content
+      graph.json: full_ast_graph_ssot
+  "01-milestones":
+    role: milestone_scope
+    pattern: "{milestone}/MOC.md"
+    sidecar: "{milestone}/milestone.json"
+  "02-stages":
+    role: verification_stage_and_gate_group
+    pattern: "{stage}/groups/{group}/"
+    gate_notes: [CHECK.md, RESPOND.md, MILESTONE.md]
+    sidecar: "{stage}/groups/{group}/gate.json"
+  "03-nodes":
+    role: node_hub_and_sidecar
+    pattern: "{node_id}.md"
+    sidecar: "{node_id}.json"
+  "04-skills":
+    role: skill_body_mirror
+    pattern: "{node_id}.md"
+    paper_intake_pattern: "paper-*.md"
+    paper_intake_spec: registry/paper_intake_skills_spec.yaml
+  "06-paper":
+    role: paper_completion_progress
+    files:
+      PROGRESS.md: mermaid_puzzle_diagram_with_percent
+      DRAFT.md: llm_paper_draft_output
+      paper_progress.json: progress_ast_sidecar
+    llm_judgment: projects/{id}/intake/paper_progress_judgment.json
+  "05-intake":
+    role: collected_sources_and_evidence
+    pattern: "sources/{source_id}.md"
+    files:
+      SOURCES-MOC.md: intake_map_of_content
+      intake.json: intake_ast_sidecar
+    runtime_mirror: projects/{id}/intake
+    runtime_artifacts:
+      - knowledge_sources.yaml
+      - knowledge_bundle.json
+      - knowledge_normalize_prompt.json
+      - knowledge_normalize_result.json
+
+wikilink_rules:
+  - path mirrors folder hierarchy (no extension)
+  - "[[00-index/PROJECT-MOC]]"
+  - "[[01-milestones/{M}/MOC]]"
+  - "[[02-stages/{stage}/groups/{group}/CHECK]]"
+  - "[[03-nodes/{node_id}]]"
+  - "[[04-skills/{node_id}]]"
+  - "[[05-intake/SOURCES-MOC]]"
+  - "[[06-paper/PROGRESS]]"
+  - "[[05-intake/sources/{source_id}]]"
+  - platform templates stay flat: "[[00-HUB]]", "[[01-GRAPH-FLOW]]"
+
+graph_json_contract: obsidian_ast_graph_v1
+graph_json_fields:
+  - project_id
+  - updated_at
+  - index
+  - milestones
+  - nodes
+  - edges
+
+runtime_mirror:
+  note: verification/ MD mirrors 02-stages gate notes (same Obsidian body)
+  check: projects/{id}/verification/{stage}/{group}/CHECK.md
+  respond: projects/{id}/verification/{stage}/{group}/RESPOND.md
+  milestone: projects/{id}/verification/{stage}/{group}/MILESTONE.md

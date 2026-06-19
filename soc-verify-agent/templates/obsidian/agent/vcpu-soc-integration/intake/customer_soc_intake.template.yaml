@@ -1,0 +1,92 @@
+# Customer SoC intake — agent fills from RTL + docs
+# Copy to: projects/VERIF-CPU-SOC/inputs/tags/{tag}/deployment/customer_soc_intake.yaml
+# Example: projects/VERIF-CPU-SOC/inputs/tags/main/deployment/customer_soc_intake.example.yaml
+# Derive:  {RTL_ROOT}/firmware/campaign/soc_hierarchy_{chip.name}.yaml
+# Schema:  [[agent/vcpu-soc-integration/02-INTAKE]]
+
+schema_version: vcpu-intake-v1
+updated_at: null
+updated_by: integration-agent
+
+chip:
+  name: null                    # e.g. acme_soc_v2
+  num_scpu: null                # max cpu_id (active + reserved)
+  init_done_addr: null          # 0x40000018 — from SoC spec
+  integration_mode: wrapper     # wrapper | injection
+
+rtl:
+  customer_top: null            # path/to/chip_top.v
+  interconnect_instance: null   # e.g. chip_top.u_axi_ic — confirm via scan-inst
+  filelist: null                # path/to/chip.f or -F list
+  rtl_root_override: null       # optional: absolute path to VerifCPU root (ops/intake_resolve.py)
+
+master:
+  enabled: 1
+  bus_type: null                # axi4lite | apb3 | …
+  bus_port: null                # init_done poll port prefix
+  note: "SCPU0 — cpu_id=0, no tap"
+
+# Agent MUST ask user for these paths before S4 (gen/icode).
+# See [[agent/vcpu-soc-integration/09-FIRMWARE-USER]]
+firmware:
+  user_provided: false          # true only after user answers path questionnaire
+  use_example_firmware: false   # true = default VerifCPU firmware/campaign/ (still diff soc_regs)
+  paths:
+    soc_regs_h: null              # e.g. {RTL_ROOT}/firmware/campaign/include/soc_regs.h
+    soc_platform_h: null
+    soc_init_seq_h: null
+    campaign_slots_yaml: null
+    phase_common: null            # dir or list: phase_a.c, phase_b.c
+    cpu_per_slot: {}              # role -> dir, e.g. sfr: .../cpu_sfr/
+    icodes_per_slot: {}           # role -> dir, e.g. sfr: .../icodes/sfr/
+    notes: null                   # external repo, branch, delivery tag
+  staging:
+    status: pending               # pending | staged — staged 후에만 S4
+    source_bundle: null           # user-delivered dir/tar path
+    file_map: []                  # optional [{src, dest, role, slot_name}]
+    num_active_scpu: null         # filled after S2c
+    num_scpu_total: null          # NUM_SCPU after config
+
+slaves: []
+# - name: SFR
+#   cpu_id: 1
+#   tap_port: 0
+#   bus_type: apb
+#   bus_port: S01_APB
+#   addr_base: 0x40000000
+#   addr_size: 0x1000
+#   role: sfr
+#   enabled: 1
+#   targets:
+#     - sym: SFR_CTRL
+#       addr: 0x40000000
+#       expect: 0x00000001
+#       icode: check_sfr_ctrl
+
+# Simulation — user documents env + how to run AFTER integration (S9).
+# See [[agent/vcpu-soc-integration/11-SIMULATION-USER]] and simulation_env.template.yaml
+simulation:
+  user_documented: false
+  use_verifcpu_default: false
+  environment:
+    setup: null                 # multiline: how to obtain sim env
+    verify_cmd: null            # one-liner env check
+    notes: null
+  run:
+    smoke_after_integration: null   # REQUIRED multiline command(s) after S7
+    customer_top: null
+    working_directory: null
+    env: {}
+  pass:
+    log_markers: []             # e.g. "chip_top_example: PASS"
+  run_smoke_in_s10_gate: false  # true = S10 slave_rw runs smoke_after_integration again
+  gate_tiers: {}                # optional: sim_single.sim_only / success_markers override
+  last_run: null
+
+questions_pending: []
+# - field: slaves[0].bus_port
+#   question: "Confirm APB port prefix on interconnect diagram"
+
+artifacts:
+  sfr_map: null                 # optional CSV under inputs/tags/{tag}/sfr/
+  address_map: null             # optional JSON

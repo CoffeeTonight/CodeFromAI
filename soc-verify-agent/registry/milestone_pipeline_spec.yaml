@@ -1,0 +1,76 @@
+# Milestone pipelines — ordered sub-steps → branch LangGraph
+# LLM may extend per-project under projects/{id}/meta/pipeline_graphs/
+
+version: milestone-pipeline-v1
+instruction_ko: >
+  큰 마일스톤 안의 작은 단계·순서 필수 검증을 파이프라인으로 정의한다.
+  ordered:true 이면 requires 선행 완료 없이 다음 노드 진입 불가.
+  branches 로 FAIL/INFO_GAP 시 분기 LangGraph 를 표현한다.
+
+compile_target: projects/{id}/meta/pipeline_graphs/{pipeline_id}.yaml
+
+pipelines:
+  M2_block_sanity:
+    milestone: M2
+    label_ko: "블록 sanity 순차 게이트"
+    ordered: true
+    entry: c_compile
+    nodes:
+      c_compile:
+        graph: verify_group
+        stage: sanity
+        group: c-compile
+        refresh:
+          cron: "0 6 * * 1"
+          events: [tag_refresh]
+      rtl_sim:
+        graph: verify_group
+        stage: sanity
+        group: rtl_sim
+        requires: [c_compile]
+        refresh:
+          events: [tag_refresh]
+    edges:
+      c_compile: [rtl_sim, on_fail]
+      rtl_sim: [END]
+    branches:
+      on_fail:
+        when:
+          node: c_compile
+          verdict_in: [FAIL, BLOCKED, INFO_GAP]
+        goto: meta_innovation_loop
+        reason: "sanity compile failed — main-LLM intervention"
+
+  M3_chip_bringup:
+    milestone: M3
+    label_ko: "chip 통합 smoke → system sim"
+    ordered: true
+    entry: gpio_ext
+    nodes:
+      gpio_ext:
+        graph: verify_group
+        stage: simulation
+        group: gpio_ext
+        refresh:
+          events: [milestone_advance, tag_refresh]
+      chip_regress:
+        graph: verify_group
+        stage: regression
+        group: default
+        requires: [gpio_ext]
+        refresh:
+          cron: "0 2 * * *"
+          events: [nightly_regress]
+    edges:
+      gpio_ext: [chip_regress, on_fail]
+      chip_regress: [END]
+    branches:
+      on_fail:
+        when:
+          node: gpio_ext
+          verdict_in: [FAIL]
+        goto: meta_innovation_loop
+
+schedule_defaults:
+  milestone_refresh_days: 30
+  step_tag_refresh: tag_refresh

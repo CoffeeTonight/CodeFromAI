@@ -1,18 +1,21 @@
 {
-  "workspace_id": "team-a-dv",
+  "workspace_id": "your-team-dv",
   "user": {
     "id": "dv-lead",
     "notify_channel": "slack:#soc-verify"
   },
   "confluence": {
-    "base_url": "https://confluence.example.com",
+    "mode": "dummy",
+    "base_url": "https://your-company.atlassian.net/wiki",
+    "deployment": "cloud",
     "auth": {
-      "token_env": "CONFLUENCE_TOKEN",
-      "user_env": "CONFLUENCE_USER"
+      "type": "api_token",
+      "user_env": "CONFLUENCE_USER_EMAIL",
+      "token_env": "CONFLUENCE_API_TOKEN"
     },
     "hints": {
       "project_discovery": {
-        "cql": "space=DV AND label=active-soc",
+        "cql": "space=DV AND label=active-soc AND type=page",
         "root_page_id": "123456789",
         "project_table_heading": "Active SoC Projects",
         "project_id_column": "Project ID"
@@ -20,12 +23,13 @@
       "milestone_section_heading": "Milestones",
       "field_map": {
         "git_url": "Git Repository",
+        "rtl_subdir": "RTL Subdirectory",
         "doc_rev": "Spec Revision",
         "doc_path": "Verification Spec",
         "jira_epic": "JIRA Epic"
       },
       "verification_group_table_heading": "Verification Groups",
-      "notes": "M3 groups live under child page 'M3 Verification'. GPIO team owns gpio_* groups."
+      "notes": "See platform/integrations/confluence_jira.example.json for full Confluence layout hints."
     }
   },
   "git": {
@@ -37,11 +41,15 @@
     }
   },
   "jira": {
-    "base_url": "https://jira.example.com",
+    "enabled": true,
+    "base_url": "https://your-company.atlassian.net",
+    "deployment": "cloud",
     "project_key": "SOC",
     "issue_type": "Verification",
     "auth": {
-      "token_env": "JIRA_TOKEN"
+      "type": "api_token",
+      "user_env": "JIRA_USER_EMAIL",
+      "token_env": "JIRA_API_TOKEN"
     },
     "field_map": {
       "completeness": "customfield_10010",
@@ -51,33 +59,70 @@
   },
   "llm": {
     "mode": "stub",
+    "md_only": true,
+    "openai_compatible": {
+      "base_url_env": "OPENAI_API_BASE",
+      "base_url_default": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "chat_completions_path": "/chat/completions",
+      "model": "gpt-4o",
+      "models": {
+        "sub_agent": "gpt-4o",
+        "graph_driver": "gpt-4o",
+        "validation_judge": "gpt-4o-mini",
+        "promote": "gpt-4o-mini"
+      },
+      "temperature": 0.2,
+      "max_tokens": 8192,
+      "timeout_seconds": 300
+    },
     "endpoint": "https://llm.corp.example/v1/soc-verify",
     "graph_endpoint": "https://llm.corp.example/v1/soc-verify/graph-driver",
     "promote_endpoint": "https://llm.corp.example/v1/soc-verify/promote",
     "graph_script_path": "platform/llm/company_graph_driver_example.py",
     "model": "soc-dv-agent",
-    "md_only": true,
     "auth": {
-      "token_env": "COMPANY_LLM_TOKEN"
-    },
-    "script_path": null,
-    "promote_script_path": null
+      "token_env": "OPENAI_API_KEY"
+    }
+  },
+  "knowledge": {
+    "auto_normalize_on_collect": false
   },
   "schedules": {
+    "default_milestone_plan": "soc-dv-4p-v1",
     "project_search_days": 7,
     "project_intake_days": 30,
+    "knowledge_collect_days": 7,
     "tag_refresh_days": 4,
     "monthly_intake_cron": "0 9 1 * *",
     "timezone": "Asia/Seoul"
   },
   "environment": {
-    "profile": "team-a-eda-2024",
+    "profile": "your-eda-farm-profile",
     "module_init": "/opt/eda/init_vcs2024.sh",
     "license_queue": "soc-dv-farm"
   },
   "paths": {
-    "obsidian_vault": "/home/user/vault/soc-verify",
+    "obsidian_vault": "/path/to/your/vault/soc-verify",
     "projects_root": "./projects"
+  },
+  "paper": {
+    "default_campaign": "paper_eval_2026",
+    "auto_tag_runs": true
+  },
+  "node_gates": {
+    "verify_group": {
+      "run_gate": {
+        "extra_checks": []
+      }
+    }
+  },
+  "node_triage": {
+    "verify_group": {
+      "run_gate": {
+        "fail_routes": {}
+      }
+    }
   },
   "overrides": {}
 }

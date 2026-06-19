@@ -3,21 +3,9 @@
 
 as_of: 2026-06-13
 source: dummy_confluence_snapshot
-note: "Confluence 미연동 — 검증용 더미 과제 3건, 4단계 SoC 일정(soc-dv-4p-v1)"
+note: "Confluence 미연동 — 검증용 더미 과제, 4단계 SoC 일정(soc-dv-4p-v1)"
 
 projects:
-  - id: AURORA-SOC
-    status: completed
-    confluence_page_id: "111100001"
-    title: "AURORA SoC — Automotive MCU (완료)"
-    git_url: git@example.com:rtl/aurora-soc.git
-    doc_rev: r5.0
-    doc_path: confluence/SOC/AURORA/verification-spec
-    jira_epic: SOC-2000
-    schedule_plan: soc-dv-4p-v1
-    completed_at: 2026-05-28
-    current_milestone: M4
-
   - id: EXAMPLE-SOC
     status: active
     confluence_page_id: "987654321"
@@ -29,23 +17,14 @@ projects:
     schedule_plan: soc-dv-4p-v1
     current_milestone: M3
 
-  - id: NEBULA-SOC
-    status: active
-    confluence_page_id: "222200002"
-    title: "NEBULA SoC — Edge AI Accelerator"
-    git_url: git@example.com:rtl/nebula-soc.git
-    doc_rev: r0.9
-    doc_path: confluence/SOC/NEBULA/verification-spec
-    jira_epic: SOC-3000
-    schedule_plan: soc-dv-4p-v1
-    current_milestone: M2
-
   - id: VERIF-CPU-SOC
     status: active
     confluence_page_id: "333300003"
     title: "VerifCPU SoC — RISC-V Verification CPU (Verilog)"
     git_url: git@github.com:CoffeeTonight/CodeFromAI.git
+    local_clone_path: ~/tools/__CFI
     rtl_subdir: VerifCPU/verif_cpu_verilog
+    scan_inst_subdir: scan_inst
     doc_rev: r1.0
     doc_path: confluence/SOC/VERIF-CPU/verification-spec
     jira_epic: SOC-4000

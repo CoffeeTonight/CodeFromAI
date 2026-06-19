@@ -4,7 +4,7 @@
 
 ## 게이트 원칙
 - **목적**: C firmware 생성·컴파일 + RTL elaborate(compile-only). **sim 미실행**.
-- **선행**: `cache.yaml` clone·`discovered.yaml` `rtl_subdir`로 workspace RTL 루트 확정
+- **선행**: `~/tools/__CFI` + `rtl_subdir`로 RTL 루트 확정 (`bootstrap_verifcpu_workspace.sh`)
 - **log 판정**: `runs/{run_id}/c-compile.log` 스캔 — exit code만으로 PASS 금지
   - EDA/C **표준 error 표식** 미검출 (Cadence `*E`/`*F`, Synopsys `Error-`/`Fatal-`, Questa `** Error:`, GCC `error:`/`fatal error:`, `make: ***`, UVM_ERROR 등)
   - 과제가 정의한 **성공 마커** 존재 (아래 참고 구현 참조)

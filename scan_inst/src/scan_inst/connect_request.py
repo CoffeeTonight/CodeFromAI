@@ -54,7 +54,7 @@ _OPTION_KEYS = frozenset(
 
 
 def _endpoint_display(raw: EndpointValue) -> str:
-    display, _, _ = parse_endpoint_elements(raw)
+    display, _, _, _ = parse_endpoint_elements(raw)
     return display
 
 
@@ -318,7 +318,12 @@ def _loop_value_for_json(values: Tuple[str, ...]) -> Any:
 
 
 def _map_options_for_json(expand: CheckExpandMeta) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+    if expand.map_kind == "waypoint-fanout":
+        out: Dict[str, Any] = {"kind": "waypoint-fanout"}
+        if expand.path_kind != "comb":
+            out["path_kind"] = expand.path_kind
+        return out
+    out = {}
     if expand.bit_align != "lsb":
         out["bit_align"] = expand.bit_align
     if expand.fanout_mode != "all":

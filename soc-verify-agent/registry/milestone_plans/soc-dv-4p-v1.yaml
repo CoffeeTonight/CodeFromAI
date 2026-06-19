@@ -1,0 +1,71 @@
+# SoC DV 4단계 — 기본(반도체 DV 문화)
+plan_id: soc-dv-4p-v1
+label_ko: "SoC DV 4단계 표준 계획"
+label_en: SoC DV Four-Phase Plan
+culture: semiconductor_dv
+id_pattern: "^M\\d+$"
+start: 2025-10-01
+end: 2026-06-30
+
+milestones:
+  - id: M1
+    order: 1
+    label_ko: "아키텍처·검증 계획"
+    label_en: Architecture & Verification Planning
+    window: [2025-10-01, 2025-11-30]
+    design_goal: "VPlan, TB 아키텍처, DV 환경·filelist 골격, coverage 계획"
+    dv_focus: [vplan, env_bringup, tb_architecture]
+    phase_tasks:
+      - "VPlan·coverage 목표 정리"
+      - "TB/filelist 골격·환경 변수 스텁"
+      - "마일스톤별 검증 그룹 매핑"
+
+  - id: M2
+    order: 2
+    label_ko: "블록 RTL·유닛 검증"
+    label_en: Block RTL & Unit DV
+    window: [2025-12-01, 2026-02-15]
+    design_goal: "IP RTL 통합·블록 동결, block UVM, sanity 게이트"
+    dv_focus: [ip_integration, block_uvm, sanity, lint_block]
+    phase_tasks:
+      - "블록 sanity (compile/sim) 게이트"
+      - "block UVM smoke·lint"
+      - "IP 통합 회귀 파일리스트"
+
+  - id: M3
+    order: 3
+    label_ko: "SoC 통합·시스템 검증"
+    label_en: SoC Integration & System DV
+    window: [2026-02-16, 2026-05-15]
+    design_goal: "탑 RTL 통합, chip-level sim, 회귀 확대, coverage 수집"
+    dv_focus: [chip_sim, subsystem_integration, regression_ramp, coverage_merge]
+    phase_tasks:
+      - "chip-level sim smoke"
+      - "서브시스템 통합·회귀 램프"
+      - "coverage merge·gap 리뷰"
+
+  - id: M4
+    order: 4
+    label_ko: "DV 사인오프·Tape-out"
+    label_en: DV Sign-off & Tape-out
+    window: [2026-05-16, 2026-06-30]
+    design_goal: "Coverage closure, release gate, tape-out handoff"
+    dv_focus: [coverage_closure, release_gate, nightly_regress, tapeout_handoff]
+    phase_tasks:
+      - "coverage closure·release gate"
+      - "nightly regress 안정화"
+      - "tape-out handoff 체크리스트"
+
+verification_timing:
+  sanity:
+    c-compile: {from: M2, through: M4, cadence: tag_refresh}
+    rtl_sim: {from: M2, through: M4, cadence: tag_refresh, after: c-compile}
+  consistency:
+    default: {primary: M2, mandatory_by: M3}
+  static:
+    default: {primary: M2, mandatory_by: M3}
+  simulation:
+    block: {start: M2, peak: M3, through: M4}
+    system: {start: M3, peak: M3, through: M4}
+  regression:
+    default: {pilot: M3, mandatory: M4}

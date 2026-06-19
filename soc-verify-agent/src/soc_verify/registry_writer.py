@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -77,4 +78,8 @@ def apply_promotion(
 
     scripts[script_name] = rec
     save_yaml(reg_path, reg)
+    (run_dir / "promote_outcome.json").write_text(
+        json.dumps(outcome, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return outcome

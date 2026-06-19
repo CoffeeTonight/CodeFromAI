@@ -12,15 +12,17 @@ User does NOT edit discovered.yaml by hand — fix Confluence or config hints.
 
 ## Dummy mode (no Confluence)
 
-`dummy_confluence_snapshot.yaml` — 3개 과제 더미 스냅샷:
+`dummy_confluence_snapshot.yaml` — 더미 스냅샷 (`confluence.mode: dummy`):
 
-| Project | Status | Current milestone | Phase |
-|---------|--------|-------------------|-------|
-| AURORA-SOC | **completed** (2026-05-28) | M4 | DV Sign-off & Tape-out |
-| EXAMPLE-SOC | in_progress | M3 | SoC Integration & System DV |
-| NEBULA-SOC | in_progress | M2 | Block RTL & Unit DV |
+| Project | Status | Current milestone |
+|---------|--------|-------------------|
+| EXAMPLE-SOC | in_progress | M3 |
+| VERIF-CPU-SOC | in_progress | M2 |
 
-4단계 일정 정의: `registry/soc_schedule_4p.yaml`
+Confluence/Jira 연동 예시: `platform/integrations/confluence_jira.example.json` · 설정 가이드: 루트 `README.md`
+
+마일스톤 plan 카탈로그: `registry/milestone_plans/index.yaml` (`soc-verify milestone plans`)
+프로젝트 선택: `projects/{id}/state.yaml` → `schedule_plan` (예: `soc-dv-4p-v1`, `agile-3p-v1`, `custom`)
 
 ## 정보 취득 일자 (acquisition)
 

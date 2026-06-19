@@ -1,7 +1,7 @@
 # Project — VERIF-CPU-SOC
 
 태그: `#project/VERIF-CPU-SOC` `#milestone/M2`  
-상위: [[00-HUB]] · 미션: [[MISSION_VERIF-CPU-SOC]] · 루프: [[03-COMPILED-AI-LOOP]]
+상위: [[00-HUB]] · 미션: [[MISSION_VERIF-CPU-SOC]] · **SoC 통합:** [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]] · 루프: [[03-COMPILED-AI-LOOP]]
 
 ---
 
@@ -81,9 +81,18 @@ flowchart LR
 
 ---
 
+## SoC 통합 (VCPU → 실칩)
+
+- 에이전트 vault: [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]]
+- 사람용 요약: `projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md`
+- VerifCPU SSOT: `vcpu_skill.md`, `howto_integrate.md` (RTL 패키지)
+
+---
+
 ## 위키 링크
 
 - [[MISSION_VERIF-CPU-SOC]]
+- [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]]
 - [[01-GRAPH-FLOW#verify_group]]
 - [[04-ARTIFACT-GRAPH]]
 - [[06-INDUSTRY-PATTERNS#regression-runners]]

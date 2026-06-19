@@ -11,6 +11,9 @@ from scan_inst.perf import (
     include_warm_enabled,
     log_large_module_skips,
     low_memory_auto_threshold,
+    pw_db_prefetch_enabled,
+    pw_db_prefetch_max_files,
+    pw_db_prefetch_wait_on_exit,
     slow_file_log_threshold_sec,
 )
 from scan_inst.preprocess import _define_active
@@ -67,6 +70,26 @@ _BEHAVIOR_ENV_VARS: Sequence[tuple[str, str, str]] = (
         "SCAN_INST_INCLUDE_WARM_MAX",
         "200",
         "max includes to warm (0=no limit)",
+    ),
+    (
+        "SCAN_INST_PW_DB_BUILD",
+        "off",
+        "post-verify full path-walk DB: off | after_verify",
+    ),
+    (
+        "SCAN_INST_PW_DB_PREFETCH",
+        "0",
+        "legacy alias: 1 => after_verify full DB build",
+    ),
+    (
+        "SCAN_INST_PW_DB_PREFETCH_WAIT",
+        "1",
+        "wait for tier-1 prefetch thread before returning (0=detach)",
+    ),
+    (
+        "SCAN_INST_PW_DB_PREFETCH_MAX",
+        "0",
+        "cap tier-1 prefetch files per run (0=no limit)",
     ),
     (
         "SCAN_INST_LOG_SLOW_FILES",

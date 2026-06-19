@@ -1,0 +1,21 @@
+contract: weekly_retries_v1
+weeks:
+  2026-W25:
+    total_retries: 114
+    branches:
+      verify_group:load_context->parity_check: 0
+      verify_group:parity_check->promote: 17
+      verify_group:promote->finalize_reproduction: 17
+      orchestrator:setup->plan_work: 3
+      orchestrator:plan_work->prepare_verify: 3
+      orchestrator:prepare_verify->dispatch_verify: 3
+      orchestrator:dispatch_verify->finalize: 3
+      verify_group:finalize_reproduction->finalize: 17
+      verify_group:setup->load_context: 0
+      verify_group:load_context->select_runner: 17
+      verify_group:select_runner->run_gate: 17
+      verify_group:run_gate->evaluate: 0
+      verify_group:evaluate->parity_check: 0
+      verify_group:run_gate->parity_check: 17
+      verify_group:load_context->finalize: 0
+last_updated: '2026-06-18'

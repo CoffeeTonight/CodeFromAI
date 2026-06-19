@@ -1,0 +1,69 @@
+# Per-node scorecards — main + sub graph nodes tracked by meta innovation loop
+
+version: node-scorecard-registry-v1
+instruction_ko: >
+  모든 메인/서브 그래프 노드마다 평가표. 실행마다 KPI 추이를
+  projects/{id}/scorecards/nodes/{graph}/{node}.yaml 에 append.
+
+kpi_fields:
+  - trust_score
+  - success_rate
+  - completeness
+  - beci_vector
+  - intervention_urgency
+  - retry_count
+  - verdict
+  - duration_ms
+
+graphs:
+  verify_group:
+    nodes:
+      setup: {sub_graph: false}
+      load_context: {sub_graph: false}
+      select_runner: {sub_graph: false}
+      run_gate: {sub_graph: true, child: run_gate}
+      diagnose_env: {sub_graph: true, child: bridge_loop}
+      patch_bridge: {sub_graph: true, child: bridge_loop}
+      evaluate: {sub_graph: false}
+      parity_check: {sub_graph: true, child: runner_loop}
+      run_codegen: {sub_graph: true, child: runner_loop}
+      promote: {sub_graph: true, child: promote}
+      finalize_reproduction: {sub_graph: false}
+      finalize: {sub_graph: false}
+      meta_collect: {sub_graph: false}
+      meta_score: {sub_graph: false}
+      meta_propose: {sub_graph: true, child: meta_propose}
+      meta_queue: {sub_graph: false}
+
+  setup_group:
+    nodes:
+      setup: {sub_graph: false}
+      milestone_context: {sub_graph: false}
+      register_skills: {sub_graph: false}
+      llm_adapt: {sub_graph: false}
+      llm_bootstrap_scripts: {sub_graph: false}
+      finalize: {sub_graph: false}
+
+  orchestrator:
+    nodes:
+      setup: {sub_graph: false}
+      plan_work: {sub_graph: false}
+      run_acquisition: {sub_graph: false}
+      prepare_verify: {sub_graph: false}
+      dispatch_verify: {sub_graph: false}
+      advance_work: {sub_graph: false}
+      finalize_reproduction_sequence: {sub_graph: false}
+      finalize: {sub_graph: false}
+
+  meta_innovation_loop:
+    nodes:
+      setup: {sub_graph: false}
+      collect_observations: {sub_graph: false}
+      beci_assess: {sub_graph: false}
+      skill_to_obsidian: {sub_graph: false}
+      subagent_verify: {sub_graph: false}
+      multi_llm_review: {sub_graph: false}
+      consensus_decide: {sub_graph: false}
+      dispatch_intervention: {sub_graph: false}
+      paper_data_maintain: {sub_graph: false}
+      finalize: {sub_graph: false}

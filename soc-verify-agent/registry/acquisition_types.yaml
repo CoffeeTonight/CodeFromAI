@@ -19,6 +19,22 @@ types:
     config_interval: schedules.project_intake_days
     default_interval_days: 30
 
+  knowledge_collect:
+    id: knowledge_collect
+    label_ko: "지식 수집 (Confluence/wiki/md)"
+    description: >
+      knowledge_sources + bundle → 05-intake Obsidian vault.
+      orchestrator run_acquisition when knowledge_sync due.
+    stored_in: projects/{id}/intake/knowledge_sync.yaml
+    block_path: knowledge_sync
+    config_interval: schedules.knowledge_collect_days
+    default_interval_days: 7
+    graph_node: orchestrator.run_acquisition
+    writes:
+      - projects/{id}/intake/knowledge_bundle.json
+      - projects/{id}/knowledge/obsidian/05-intake/
+      - projects/{id}/intake/knowledge_sync.yaml
+
   state_sync:
     id: state_sync
     label_ko: "과제 상태 동기화"

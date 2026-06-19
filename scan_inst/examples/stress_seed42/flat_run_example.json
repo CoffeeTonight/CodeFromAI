@@ -6,8 +6,11 @@
     "STRESS_ALT": "0"
   },
 
-  // Runnable example in this file: run_conn_check only (path-walk connect).
-  // Run: scan-inst flat_run_example.json  (from this directory)
+  // Runnable: run_conn_check only (path-walk). / 실행: path-walk 연결 검사만.
+  //   scan-inst flat_run_example.json
+  //
+  // Path-walk jobs / DB env → path_walk_example.json (this directory)
+  // path-walk jobs·DB env → path_walk_example.json (이 디렉터리)
 
   // --- run_on_full_index: full filelist index + elaboration dump ---
   // "run_on_full_index": {

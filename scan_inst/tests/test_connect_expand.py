@@ -57,19 +57,18 @@ def fanout_rtl(tmp_path: Path):
 
 
 def test_parse_concat_one_liner():
-    display, elements, is_list = parse_endpoint_elements("{top.a, 1'b0, top.b}")
+    display, elements, is_list, is_concat = parse_endpoint_elements(
+        "{top.a, 1'b0, top.b}"
+    )
     assert is_list
+    assert is_concat
     assert display == "{top.a, 1'b0, top.b}"
     assert elements == ("top.a", "1'b0", "top.b")
 
 
-def test_parse_list_with_literals():
-    display, elements, is_list = parse_endpoint_elements(
-        ["top.a", "1'b0", "top.b"]
-    )
-    assert is_list
-    assert "top.a" in elements
-    assert "1'b0" in elements
+def test_list_with_literals_rejected():
+    with pytest.raises(ValueError, match="concat form"):
+        build_expand_meta(["top.a", "1'b0", "top.b"], "top.bus_b[1:0]")
 
 
 def test_parse_connect_request_loop_without_kind():

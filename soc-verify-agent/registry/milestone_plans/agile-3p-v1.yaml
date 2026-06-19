@@ -1,0 +1,34 @@
+# 애자일 3단계 — 제품/소프트웨어 중심 팀
+plan_id: agile-3p-v1
+label_ko: "애자일 3단계 (Discover·Build·Release)"
+label_en: Agile Three-Phase
+culture: agile_product
+id_pattern: "^[A-Z]\\d+$|^(discover|build|release)$"
+
+milestones:
+  - id: D1
+    order: 1
+    label_ko: "탐색·요구 정의"
+    label_en: Discover
+    aliases: [discover]
+    design_goal: "요구·리스크·실험 설계, PoC"
+  - id: B1
+    order: 2
+    label_ko: "구현·통합"
+    label_en: Build
+    aliases: [build]
+    design_goal: "기능 구현, 단위·통합 검증"
+  - id: R1
+    order: 3
+    label_ko: "릴리스·운영"
+    label_en: Release
+    aliases: [release]
+    design_goal: "사인오프, 배포, 회귀·모니터링"
+
+verification_timing:
+  sanity:
+    default: {from: B1, through: R1, cadence: tag_refresh}
+  simulation:
+    default: {start: B1, peak: R1}
+  regression:
+    default: {pilot: B1, mandatory: R1}

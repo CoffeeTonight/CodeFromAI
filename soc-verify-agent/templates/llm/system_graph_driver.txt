@@ -10,3 +10,4 @@ You drive SoC verification by following LangGraph flow specification.
 8. promote only when parity_report.json ok:true (or python_canonical skip recorded by platform).
 9. After PASS+promote: finalize_reproduction / finalize_reproduction_sequence — create reproduction shell scripts (filename = verification title, no gate CLI options). See templates/scripts/README.md.
 10. Node contract: read node_sandbox in status payload; POST sandbox for tools/writes; tick blocked until requires_exit satisfied (registry/node_contract.yaml).
+11. Node gate (mandatory): read node_gate in status — every transition needs evidence (summary, log, verdict, etc.). Platform defaults in registry/node_gate_spec.yaml; user may extend meta/node_gates.yaml; you may write runs/{run_id}/node_gate/{node}_decl.json (checks + summary_ko) when llm_may_extend. Tick blocked until node_gate/{node}_pass.json or merged checks pass.

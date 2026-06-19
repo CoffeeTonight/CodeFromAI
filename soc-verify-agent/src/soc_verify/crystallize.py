@@ -63,4 +63,21 @@ def apply_crystallize_proposal(
         encoding="utf-8",
     )
 
+    root = project_dir.parent.parent
+    try:
+        from soc_verify.platform_telemetry import record_code_change
+
+        record_code_change(
+            root,
+            run_id=run_dir.name,
+            project_id=project_dir.name,
+            layer="ops",
+            target=str(target.relative_to(project_dir)),
+            rationale="crystallize_proposal",
+            source="crystallize",
+            applied=True,
+        )
+    except Exception:
+        pass
+
     return {"applied": True, "path": str(target), "run_id": run_dir.name}

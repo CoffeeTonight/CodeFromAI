@@ -1,0 +1,260 @@
+# Node gate — 모든 LangGraph 전이의 근거(evidence) 필수
+# merge: platform(이 파일 + node_contract) → user(meta/node_gates.yaml) → LLM(run decl)
+version: node-gate-v1
+instruction_ko: >
+  다음 노드로 넘어가려면 node gate 통과 필수.
+  근거는 요약 문서, 로그, verdict, judgment 등 노드 목적에 맞는 artifact.
+  사용자가 meta/node_gates.yaml 로 추가·강화 가능.
+  LLM은 runs/{run_id}/node_gate/{node}_decl.json 으로 목적에 맞게 checks 확장 가능(llm_may_extend).
+
+evidence_kinds:
+  document_summary: "요약 MD/JSON — intake, narrow, diagnosis"
+  env_log: "환경 실행·진단 로그"
+  verification_verdict: "gate verdict / validation judgment"
+  procedural_trace: "graph_trace·graph_step·execution_log"
+  user_defined: "사용자·LLM 선언 check"
+
+default_rules:
+  require_summary_ko: true
+  min_summary_chars: 8
+  pass_artifact: "runs/{run_id}/node_gate/{node}_pass.json"
+
+graphs:
+  verify_group:
+    llm_decl_glob: "projects/*/runs/*/node_gate/*_decl.json"
+    pass_glob: "projects/*/runs/*/node_gate/*_pass.json"
+    nodes:
+      setup:
+        purpose_ko: "run 디렉터리·experiment 태그 초기화"
+        llm_may_extend: false
+        platform_checks:
+          - {type: state_field_set, field: run_id}
+      load_context:
+        purpose_ko: "preflight·milestone·group_context 적절성"
+        llm_may_extend: true
+        platform_checks:
+          - {type: trace_contains, node: load_context}
+        outcome:
+          fail_when:
+            - {type: state_field_set, field: info_gap}
+          fail_class_default: info
+      select_runner:
+        purpose_ko: "trust 기반 runner(python|llm) 결정"
+        llm_may_extend: false
+        platform_checks:
+          - {type: state_field_set, field: runner}
+      run_gate:
+        purpose_ko: "CHECK 기준 gate 실행 — verdict 또는 sub_stop"
+        llm_may_extend: true
+        use_node_contract_exit: true
+        outcome:
+          pass_when:
+            - {type: state_field_equals, field: verdict, value: PASS}
+          fail_when:
+            - type: any_of
+              checks:
+                - {type: state_field_set, field: info_gap}
+                - {type: state_field_set, field: stalemate}
+                - {type: state_field_in, field: verdict, values: [FAIL, BLOCKED, INFO_GAP]}
+          fail_class_field: error_kind
+          fail_class_map:
+            env: env
+            tool: tool
+            verification: verification
+            none: none
+            llm: llm
+            info: info
+      parse_validation_items:
+        purpose_ko: "CHECK·log에서 goal item 추출"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      validation_judge:
+        purpose_ko: "item별 reproduce/narrow/exclude/continue 판단"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      apply_validation_plan:
+        purpose_ko: "judgment 적용 — narrow, exclude, repro prompt"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      run_pending_repro:
+        purpose_ko: "item repro 스크립트만 실행 (gate 아님)"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      diagnose_env:
+        purpose_ko: "env/tool 실패 RCA — CHECK 변경 금지"
+        llm_may_extend: true
+        use_node_contract_exit: true
+        outcome:
+          pass_when:
+            - {type: state_field_equals, field: error, value: ""}
+          fail_when:
+            - type: any_of
+              checks:
+                - {type: state_field_equals, field: error, value: bridge_round_cap}
+                - {type: state_field_set, field: stalemate}
+          fail_class_field: error
+          fail_class_map:
+            bridge_round_cap: bridge_cap
+          fail_class_default: stalemate
+      patch_bridge:
+        purpose_ko: "bridge crystallize·environment_profile"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      evaluate:
+        purpose_ko: "completeness C·open issues 평가"
+        llm_may_extend: false
+        use_node_contract_exit: true
+        outcome:
+          pass_when:
+            - {type: state_field_equals, field: verdict, value: PASS}
+            - {type: state_field_equals, field: open_issues, value: 0}
+          fail_when:
+            - {type: state_field_set, field: info_gap}
+            - {type: state_field_gt, field: open_issues, value: 0}
+          fail_class_default: default
+      parity_check:
+        purpose_ko: "llm_reference vs ops parity"
+        llm_may_extend: false
+        use_node_contract_exit: true
+        outcome:
+          pass_when:
+            - {type: state_field_equals, field: parity_ok, value: true}
+          fail_when:
+            - type: any_of
+              checks:
+                - {type: state_field_equals, field: error, value: codegen_round_cap}
+                - {type: state_field_equals, field: parity_ok, value: false}
+          fail_class_field: error
+          fail_class_map:
+            codegen_round_cap: codegen_cap
+          fail_class_default: parity_fail
+      run_codegen:
+        purpose_ko: "ops.py codegen — parity 전 promote 금지"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      promote:
+        purpose_ko: "trust·parity 근거 승격"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      finalize_reproduction:
+        purpose_ko: "step script·verification_sequence"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      finalize:
+        purpose_ko: "questions·erl_reflect 마무리"
+        llm_may_extend: true
+        platform_checks:
+          - {type: trace_contains, node: finalize}
+      meta_collect:
+        purpose_ko: "KPI·child evidence·scorecard 수집"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      meta_score:
+        purpose_ko: "improvement history 시계열"
+        llm_may_extend: false
+        platform_checks:
+          - {type: trace_contains, node: meta_score}
+      meta_propose:
+        purpose_ko: "구조화된 meta 변경 제안"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      meta_queue:
+        purpose_ko: "proposal 검증·큐잉"
+        llm_may_extend: false
+        platform_checks:
+          - {type: trace_contains, node: meta_queue}
+
+  setup_group:
+    nodes:
+      setup:
+        purpose_ko: "setup run·디렉터리 초기화"
+        llm_may_extend: false
+        platform_checks:
+          - {type: trace_contains, node: setup}
+          - {type: state_field_set, field: run_id}
+      milestone_context:
+        purpose_ko: "milestone·preflight 컨텍스트"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      register_skills:
+        purpose_ko: "skillset 등록"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      llm_adapt:
+        purpose_ko: "LLM 적응형 setup_adapt"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      llm_bootstrap_scripts:
+        purpose_ko: "beginner script bootstrap"
+        llm_may_extend: true
+        use_node_contract_exit: true
+        outcome:
+          fail_when:
+            - {type: state_field_set, field: bootstrap_failed}
+          fail_class_default: bootstrap_fail
+      finalize:
+        purpose_ko: "setup workflow 마무리"
+        llm_may_extend: false
+        use_node_contract_exit: true
+
+  meta_innovation_loop:
+    nodes:
+      setup:
+        purpose_ko: "meta innovation run 초기화"
+        llm_may_extend: false
+        platform_checks:
+          - {type: trace_contains, node: setup}
+          - {type: state_field_set, field: run_id}
+      collect_observations:
+        purpose_ko: "관측·신호 수집"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      beci_assess:
+        purpose_ko: "BECI 평가"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      skill_to_obsidian:
+        purpose_ko: "skill → obsidian manifest"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      subagent_verify:
+        purpose_ko: "subagent 검증"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      multi_llm_review:
+        purpose_ko: "다중 LLM 리뷰"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      consensus_decide:
+        purpose_ko: "합의 결정"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      dispatch_intervention:
+        purpose_ko: "개입 dispatch"
+        llm_may_extend: false
+        use_node_contract_exit: true
+      paper_data_maintain:
+        purpose_ko: "paper 데이터 유지"
+        llm_may_extend: true
+        use_node_contract_exit: true
+      finalize:
+        purpose_ko: "workflow 기록"
+        llm_may_extend: false
+        use_node_contract_exit: true
+
+  orchestrator:
+    nodes:
+      setup:
+        purpose_ko: "orchestrator run 초기화"
+        llm_may_extend: false
+        platform_checks:
+          - {type: state_field_set, field: run_id}
+      plan_work:
+        purpose_ko: "work queue 계획"
+        llm_may_extend: true
+        platform_checks:
+          - {type: trace_contains, node: plan_work}
+      finalize_reproduction_sequence:
+        purpose_ko: "전체 reproduction sequence"
+        llm_may_extend: true
+        use_node_contract_exit: true

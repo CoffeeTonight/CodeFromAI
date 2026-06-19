@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Set, TextIO, Tuple
@@ -80,6 +82,8 @@ class PathWalkStats:
     endpoint_specs_unique: int = 0
     walk_target_calls: int = 0
     walk_target_skipped: int = 0
+    walk_parallel_workers: int = 0
+    walk_parallel_branches: int = 0
 
 
 class ModuleFileResolver:
@@ -161,6 +165,7 @@ class PathWalkState:
     _decl_net_cache: DeclNetCache = field(default_factory=dict, repr=False)
     _module_body_cache: Dict[str, str] = field(default_factory=dict, repr=False)
     _param_ctx_cache: Dict[str, Mapping[str, str]] = field(default_factory=dict, repr=False)
+    _walk_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def _trace_streams(self) -> List[TextIO]:
         out: List[TextIO] = []
@@ -749,14 +754,9 @@ class PathWalkState:
         cached = self._expanded_inst_cache.get(cache_key)
         if cached is not None:
             return cached
-        if rec.instances and not rec.needs_generate_fold:
-            edges = list(rec.instances)
-        else:
-            edges = self.index.instances_for(row.module, row.param_ctx, {})
-            if not edges and row.param_ctx:
-                edges = self.index.instances_for(row.module, {}, {})
-            if not edges and rec.instances:
-                edges = list(rec.instances)
+        edges = self.index.instances_for_walk(row.module, row.param_ctx)
+        if not edges and row.param_ctx:
+            edges = self.index.instances_for_walk(row.module, {})
         pairs: List[Tuple[str, InstanceEdge]] = []
         for edge in edges:
             for name in expand_inst_names(edge.inst_name, "", pmap):
@@ -973,16 +973,10 @@ class PathWalkState:
                 parent_rec = self.index.get_module(parent_mod) if parent_mod else None
                 edges: List[InstanceEdge] = []
                 if parent_rec is not None:
-                    if parent_rec.instances and not parent_rec.needs_generate_fold:
-                        edges = list(parent_rec.instances)
-                    else:
-                        edges = self.index.instances_for(
-                            parent_mod,
-                            row.param_ctx if row else {},
-                            {},
-                        )
-                        if not edges and parent_rec.instances:
-                            edges = list(parent_rec.instances)
+                    ctx = row.param_ctx if row else {}
+                    edges = self.index.instances_for_walk(parent_mod, ctx)
+                    if not edges and ctx:
+                        edges = self.index.instances_for_walk(parent_mod, {})
                 if self._is_folded_inst_prefix_miss(miss_leaf, edges):
                     return False
                 if self._is_signal_or_port_tail_miss(cur, remainder, target_path=path):
@@ -1252,36 +1246,265 @@ def _sorted_unique_specs(specs: Sequence[str]) -> List[str]:
     return sorted(ordered, key=lambda p: (_path_depth(p), p))
 
 
+def _resolve_path_walk_jobs(jobs: int, num_tasks: int) -> int:
+    """Parallel hierarchy walk only when ``jobs`` is explicitly > 1."""
+    if jobs <= 1:
+        return 1
+    return max(1, min(jobs, num_tasks))
+
+
+def _path_trie_max_fanout(root: _PathTrieNode) -> int:
+    best = 1
+    stack: List[_PathTrieNode] = [root]
+    while stack:
+        node = stack.pop()
+        if len(node.children) > 1:
+            best = max(best, len(node.children))
+        stack.extend(node.children.values())
+    return best
+
+
+def _filter_specs_under_prefix(specs: Sequence[str], prefix: str) -> List[str]:
+    if not prefix:
+        return [str(s).strip() for s in specs if str(s).strip()]
+    dot = prefix + "."
+    return [
+        str(s).strip()
+        for s in specs
+        if str(s).strip() and (s == prefix or str(s).startswith(dot))
+    ]
+
+
+def _walk_one_endpoint_target(
+    state: PathWalkState,
+    spec: str,
+    walked_targets: Set[str],
+) -> None:
+    inst = _walk_target_from_spec(spec, state)
+    if not inst:
+        return
+    with state._walk_lock:
+        if inst in walked_targets:
+            state.stats.walk_target_skipped += 1
+            if state._is_walk_blocked(inst):
+                state._note_blocked_walk_skip(inst)
+            return
+        walked_targets.add(inst)
+        if state._is_walk_blocked(inst):
+            state._note_blocked_walk_skip(inst)
+            return
+        state.stats.walk_target_calls += 1
+        state.ensure_path(inst)
+
+
+def _walk_specs_shallow_first(
+    state: PathWalkState,
+    specs: Sequence[str],
+    walked_targets: Set[str],
+) -> None:
+    for spec in _sorted_unique_specs(specs):
+        _walk_one_endpoint_target(state, spec, walked_targets)
+
+
+def _ensure_trie_prefix(state: PathWalkState, path: str) -> None:
+    if not path or path == state.top:
+        with state._walk_lock:
+            state.ensure_root()
+        return
+    with state._walk_lock:
+        state.ensure_path(path)
+
+
+def _known_inst_leaves(state: PathWalkState, parent_path: str) -> Set[str]:
+    row = state.rows_by_path.get(parent_path)
+    if row is None:
+        return set()
+    rec = state.index.get_module(row.module)
+    if rec is None:
+        return set()
+    edges = state.index.instances_for_walk(row.module, row.param_ctx)
+    if not edges and row.param_ctx:
+        edges = state.index.instances_for_walk(row.module, {})
+    pmap = resolve_param_map(rec.raw_params, parent=row.param_ctx)
+    leaves: Set[str] = set()
+    for edge in edges:
+        for leaf in expand_inst_names(edge.inst_name, "", pmap):
+            leaves.add(leaf)
+    return leaves
+
+
+def _segment_matches_instance(
+    segment: str,
+    *,
+    leaves: Set[str],
+    edges: Sequence[InstanceEdge],
+) -> bool:
+    if segment in leaves:
+        return True
+    for leaf in leaves:
+        if leaf.startswith(segment + ".") or leaf.startswith(segment + "["):
+            return True
+    for edge in edges:
+        name = edge.inst_name
+        if name == segment or name.startswith(segment + ".") or name.startswith(segment + "["):
+            return True
+    return False
+
+
+def _is_instance_trie_branch(state: PathWalkState, node: _PathTrieNode) -> bool:
+    """True when trie children are distinct instance names under an elaborated parent."""
+    if len(node.children) <= 1:
+        return False
+    parent_path = node.full_path or state.top
+    row = state.rows_by_path.get(parent_path)
+    if row is None:
+        return False
+    rec = state.index.get_module(row.module)
+    if rec is None:
+        return False
+    edges = state.index.instances_for_walk(row.module, row.param_ctx)
+    if not edges and row.param_ctx:
+        edges = state.index.instances_for_walk(row.module, {})
+    if not edges:
+        return False
+    leaves = _known_inst_leaves(state, parent_path)
+    return all(
+        _segment_matches_instance(child.segment, leaves=leaves, edges=edges)
+        for child in node.children.values()
+    )
+
+
+def _walk_trie_parallel(
+    state: PathWalkState,
+    node: _PathTrieNode,
+    specs: Sequence[str],
+    walked_targets: Set[str],
+    *,
+    workers: int,
+    requested_jobs: int = 0,
+) -> None:
+    spec_list = [str(s).strip() for s in specs if str(s).strip()]
+    if not spec_list:
+        return
+
+    children = sorted(node.children.values(), key=lambda child: child.segment)
+    if not children:
+        _walk_specs_shallow_first(state, spec_list, walked_targets)
+        return
+
+    local_specs = [s for s in spec_list if s == node.full_path]
+    if local_specs:
+        _walk_specs_shallow_first(state, local_specs, walked_targets)
+
+    parallel_branch = (
+        len(children) > 1
+        and workers > 1
+        and node.full_path
+    )
+    if parallel_branch:
+        _ensure_trie_prefix(state, node.full_path)
+        parallel_branch = _is_instance_trie_branch(state, node)
+
+    if not parallel_branch:
+        for child in children:
+            child_specs = _filter_specs_under_prefix(spec_list, child.full_path)
+            _walk_trie_parallel(
+                state,
+                child,
+                child_specs,
+                walked_targets,
+                workers=workers,
+                requested_jobs=requested_jobs,
+            )
+        return
+
+    state.stats.walk_parallel_branches += 1
+    branch_workers = min(workers, len(children))
+    branch_labels = ",".join(child.segment for child in children)
+    jobs_note = (
+        f"requested_jobs={requested_jobs} workers={workers}"
+        if requested_jobs > workers
+        else f"jobs={workers}"
+    )
+    state._emit_walk(
+        f"parallel fork at={node.full_path} {jobs_note} "
+        f"pool={branch_workers} branches={branch_labels}"
+    )
+
+    def _child_task(slot: int, child: _PathTrieNode) -> None:
+        child_specs = _filter_specs_under_prefix(spec_list, child.full_path)
+        state._emit_walk(
+            f"parallel worker j={slot}/{branch_workers} "
+            f"branch={child.segment} from={node.full_path} "
+            f"specs={len(child_specs)}"
+        )
+        try:
+            _walk_trie_parallel(
+                state,
+                child,
+                child_specs,
+                walked_targets,
+                workers=workers,
+                requested_jobs=requested_jobs,
+            )
+        finally:
+            state._emit_walk(
+                f"parallel worker j={slot}/{branch_workers} "
+                f"branch={child.segment} from={node.full_path} done"
+            )
+
+    with ThreadPoolExecutor(max_workers=branch_workers) as pool:
+        futures = [
+            pool.submit(_child_task, slot, child)
+            for slot, child in enumerate(children, start=1)
+        ]
+        for fut in as_completed(futures):
+            fut.result()
+
+
 def _walk_endpoint_specs(
     state: PathWalkState,
     specs: Sequence[str],
+    *,
+    jobs: int = 0,
 ) -> None:
     """
     Walk endpoint specs with dedup + shallow-first order.
 
-    Replaces the old two-pass prefix sweep + per-spec walk.  Shared prefixes
-    are built once via :meth:`PathWalkState.ensure_path` incremental attach.
+    Shared prefixes are built once via :meth:`PathWalkState.ensure_path`.
+    At trie branch points (multiple child instance names), sibling subtrees
+    are walked in parallel up to ``jobs`` workers.
     """
     raw = [str(s).strip() for s in specs if str(s).strip()]
     state.stats.endpoint_specs_raw += len(raw)
     unique = _sorted_unique_specs(raw)
     state.stats.endpoint_specs_unique += len(unique)
+    if not unique:
+        return
+
     walked_targets: Set[str] = set()
-    for spec in unique:
-        inst = _walk_target_from_spec(spec, state)
-        if not inst:
-            continue
-        if inst in walked_targets:
-            state.stats.walk_target_skipped += 1
-            if state._is_walk_blocked(inst):
-                state._note_blocked_walk_skip(inst)
-            continue
-        walked_targets.add(inst)
-        if state._is_walk_blocked(inst):
-            state._note_blocked_walk_skip(inst)
-            continue
-        state.stats.walk_target_calls += 1
-        state.ensure_path(inst)
+    root = _path_trie_from_specs(unique, top=state.top)
+    fanout = _path_trie_max_fanout(root)
+    workers = _resolve_path_walk_jobs(jobs, fanout)
+    if workers > 1:
+        state.stats.walk_parallel_workers = workers
+        jobs_note = (
+            f"requested_jobs={jobs} workers={workers}"
+            if jobs > workers
+            else f"jobs={workers}"
+        )
+        state._emit_walk(
+            f"parallel walk enabled {jobs_note} fanout={fanout} "
+            f"unique_specs={len(unique)}"
+        )
+    _walk_trie_parallel(
+        state,
+        root,
+        unique,
+        walked_targets,
+        workers=workers,
+        requested_jobs=jobs,
+    )
 
 
 def _sorted_prefixes(specs: Sequence[str]) -> List[str]:
@@ -1444,15 +1667,17 @@ def _extend_path_walk_for_specs(
     *,
     expand_subtrees: Sequence[str] = (),
     on_progress: Optional[Callable[[str], None]] = None,
+    jobs: int = 0,
 ) -> None:
     spec_list = [str(s).strip() for s in specs if str(s).strip()]
     unique_n = len(_sorted_unique_specs(spec_list))
     if on_progress:
+        jobs_note = "off" if jobs <= 1 else str(jobs)
         on_progress(
             f"path-walk: {len(spec_list)} endpoint spec(s)"
-            f" ({unique_n} unique, trie walk)"
+            f" ({unique_n} unique, trie walk, jobs={jobs_note})"
         )
-    _walk_endpoint_specs(state, spec_list)
+    _walk_endpoint_specs(state, spec_list, jobs=jobs)
     for subtree_root in expand_subtrees:
         root = str(subtree_root).strip()
         if not root:
@@ -1468,15 +1693,17 @@ def _extend_path_walk_connect(
     request: ConnectivityRequest,
     *,
     on_progress: Optional[Callable[[str], None]] = None,
+    jobs: int = 0,
 ) -> None:
     specs = endpoint_specs_from_request(request)
     unique_n = len(_sorted_unique_specs(specs))
     if on_progress:
+        jobs_note = "off" if jobs <= 1 else str(jobs)
         on_progress(
             f"path-walk: {len(specs)} endpoint spec(s)"
-            f" ({unique_n} unique, trie walk)"
+            f" ({unique_n} unique, trie walk, jobs={jobs_note})"
         )
-    _walk_endpoint_specs(state, specs)
+    _walk_endpoint_specs(state, specs, jobs=jobs)
     seen_lca: Set[Tuple[str, str]] = set()
     for chk in request.checks:
         a = _walk_target_from_spec(chk.endpoint_a, state)
@@ -1528,6 +1755,7 @@ def build_path_walk_state_from_specs(
     trace_log_path: Optional[Path] = None,
     trace_log_fh: Optional[TextIO] = None,
     close_trace_log: bool = True,
+    jobs: int = 0,
 ) -> PathWalkState:
     """Walk endpoint specs; optionally expand instance subtrees for cone / inst-trace."""
     opened_log = False
@@ -1550,6 +1778,7 @@ def build_path_walk_state_from_specs(
             specs,
             expand_subtrees=expand_subtrees,
             on_progress=on_progress,
+            jobs=jobs,
         )
         return state
     finally:
@@ -1568,6 +1797,7 @@ def build_path_walk_state(
     trace_log_path: Optional[Path] = None,
     trace_log_fh: Optional[TextIO] = None,
     close_trace_log: bool = True,
+    jobs: int = 0,
 ) -> PathWalkState:
     opened_log = False
     if trace_log_fh is None and trace_log_path is not None:
@@ -1584,7 +1814,7 @@ def build_path_walk_state(
         )
         _wire_db_trace_to_state(mod_db, state)
         state.ensure_root()
-        _extend_path_walk_connect(state, request, on_progress=on_progress)
+        _extend_path_walk_connect(state, request, on_progress=on_progress, jobs=jobs)
         return state
     finally:
         if opened_log and close_trace_log and trace_log_fh is not None:
@@ -1608,6 +1838,7 @@ def run_path_walk_index(
     trace_stream: Optional[TextIO] = None,
     trace_log_path: Optional[Path] = None,
     reuse_suite_session: bool = False,
+    jobs: int = 0,
 ) -> Tuple[DesignIndex, PathWalkState, str]:
     """On-demand index + hierarchy rows for arbitrary endpoint specs."""
     trace_log_fh: Optional[TextIO] = None
@@ -1630,6 +1861,7 @@ def run_path_walk_index(
                 on_progress=on_progress,
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
+                jobs=jobs,
             )
             state = session.state
             _extend_path_walk_for_specs(
@@ -1637,6 +1869,7 @@ def run_path_walk_index(
                 specs,
                 expand_subtrees=expand_subtrees,
                 on_progress=on_progress,
+                jobs=jobs,
             )
             index = session.index
             top_name = session.top_name
@@ -1656,6 +1889,7 @@ def run_path_walk_index(
                 on_progress=on_progress,
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
+                jobs=jobs,
             )
             tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
             top_name = tops[0]
@@ -1668,6 +1902,7 @@ def run_path_walk_index(
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
                 close_trace_log=False,
+                jobs=jobs,
             )
         extra_roots = list(expand_subtrees)
         for spec in specs:
@@ -1691,11 +1926,38 @@ def run_path_walk_index(
                 f"cache={state.stats.cache_regex_hits}+{state.stats.cache_validated_hits}"
             )
         state.run_recovery_pass()
-        state.mod_db.drain_background_workers(wait_all=True)
+        _drain_path_walk_workers(state.mod_db)
         return index, state, top_name
     finally:
         if opened_log and trace_log_fh is not None:
             trace_log_fh.close()
+
+
+def _drain_path_walk_workers(mod_db: PathWalkModuleDb) -> None:
+    """Ingest tier-0 background work needed during verification (no full DB build)."""
+    mod_db.drain_background_workers(wait_all=True)
+
+
+def build_path_walk_db_full(mod_db: PathWalkModuleDb) -> int:
+    """
+    Post-verify full tier-1 DB build (opt-in via ``SCAN_INST_PW_DB_BUILD=after_verify``).
+
+    Returns the number of files queued for prefetch.
+    """
+    from scan_inst.perf import pw_db_build_mode, pw_db_prefetch_wait_on_exit
+
+    if pw_db_build_mode() != "after_verify":
+        return 0
+    queued = mod_db.start_background_tier1_prefetch()
+    mod_db.drain_background_workers(wait_all=pw_db_prefetch_wait_on_exit())
+    return queued
+
+
+def finalize_path_walk_suite_db() -> int:
+    """Run post-verify full DB build on the shared flat-suite session, if configured."""
+    if _suite_session is None:
+        return 0
+    return build_path_walk_db_full(_suite_session.mod_db)
 
 
 def create_path_walk_index(
@@ -1833,11 +2095,13 @@ def run_path_walk_connect(
     trace_stream: Optional[TextIO] = None,
     trace_log_path: Optional[Path] = None,
     reuse_suite_session: bool = False,
+    jobs: int = 0,
 ) -> Tuple[ConnectivityBatchResult, DesignIndex, PathWalkState]:
     """
     Path-walk batch connectivity: on-demand RTL + shared :class:`ConnectivitySession`.
 
-    Uses ``jobs=1`` internally so ``mod_cache`` is shared across all checks.
+    Hierarchy walk honors ``jobs`` at trie branch points; connect COI checks
+    still use ``jobs=1`` so ``mod_cache`` is shared across all checks.
     """
     defines = dict(fl.defines)
     defines.update(extra_defines or {})
@@ -1865,11 +2129,17 @@ def run_path_walk_connect(
                 on_progress=on_progress,
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
+                jobs=jobs,
             )
             index = session.index
             top_name = session.top_name
             state = session.state
-            _extend_path_walk_connect(state, request, on_progress=on_progress)
+            _extend_path_walk_connect(
+                state,
+                request,
+                on_progress=on_progress,
+                jobs=jobs,
+            )
         else:
             index, mod_db = create_path_walk_index(
                 fl,
@@ -1884,6 +2154,7 @@ def run_path_walk_connect(
                 on_progress=on_progress,
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
+                jobs=jobs,
             )
             tops = resolve_top_modules(index, top=top, filelist_tops=fl.top_modules)
             top_name = tops[0]
@@ -1897,6 +2168,7 @@ def run_path_walk_connect(
                 trace_stream=trace_stream,
                 trace_log_fh=trace_log_fh,
                 close_trace_log=False,
+                jobs=jobs,
             )
         state._sync_db_stats()
         if on_progress:
@@ -1908,7 +2180,7 @@ def run_path_walk_connect(
             )
 
         state.run_recovery_pass()
-        state.mod_db.drain_background_workers(wait_all=True)
+        _drain_path_walk_workers(state.mod_db)
 
         session = ConnectivitySession(
             rows=state.rows(),

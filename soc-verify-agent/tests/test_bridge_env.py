@@ -36,8 +36,8 @@ def test_route_after_run_env_goes_diagnose():
     assert route_after_run({"verdict": "FAIL", "error_kind": "tool"}) == "diagnose_env"
 
 
-def test_route_after_run_verification_retries_runner():
-    assert route_after_run({"verdict": "FAIL", "error_kind": "verification"}) == "select_runner"
+def test_route_after_run_verification_goes_validation_autonomy():
+    assert route_after_run({"verdict": "FAIL", "error_kind": "verification"}) == "parse_validation_items"
 
 
 def test_route_after_run_pass_evaluates():

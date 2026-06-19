@@ -23,7 +23,7 @@ def test_scan_hierarchy_instances_nested_named_param():
 def test_prefix_instance_names_nested_named_param():
     body = "A #(.b(2)) uA (.clk(clk));"
     out = _prefix_instance_names(body, "genblk.")
-    assert out == "A #(.b(2)) genblk.uA (.clk(clk));"
+    assert out == "A #(.b(2)) genblk.uA(.clk(clk));"
 
 
 def test_scan_and_prefix_multiple_named_params():
@@ -32,7 +32,7 @@ def test_scan_and_prefix_multiple_named_params():
     assert len(edges) == 1
     assert edges[0].param_overrides == {"b": "2", "c": "2-1"}
     out = _prefix_instance_names(body, "genblk.")
-    assert out == "A #(.b(2),.c(2-1)) genblk.uA (.clk(clk));"
+    assert out == "A #(.b(2),.c(2-1)) genblk.uA(.clk(clk));"
 
 
 def test_rg_regex_vs_fixed_string_for_nested_hash_param():

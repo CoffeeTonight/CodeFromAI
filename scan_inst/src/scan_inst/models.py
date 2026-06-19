@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
 @dataclass
@@ -149,6 +149,7 @@ class ConnectResult:
     note: str = ""
     check_id: str = ""
     sub_results: Tuple["ConnectResult", ...] = ()
+    waypoint_events: Tuple[Any, ...] = ()
 
 
 @dataclass

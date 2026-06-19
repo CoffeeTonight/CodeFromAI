@@ -27,10 +27,13 @@ class CheckExpandMeta:
     map_kind: str = ""
     bit_align: str = "lsb"
     fanout_mode: str = "all"
+    path_kind: str = "comb"
     elements_a: Tuple[str, ...] = ()
     elements_b: Tuple[str, ...] = ()
     list_a: bool = False
     list_b: bool = False
+    concat_a: bool = False
+    concat_b: bool = False
 
 
 @dataclass(frozen=True)
@@ -160,9 +163,9 @@ def _expand_looped_endpoint(
     return tuple(templates)
 
 
-def _parse_map_spec(raw: Any) -> Tuple[str, str, str]:
+def _parse_map_spec(raw: Any) -> Tuple[str, str, str, str]:
     if raw is None:
-        return "", "lsb", "all"
+        return "", "lsb", "all", "comb"
     if not isinstance(raw, dict):
         raise ValueError("'map' must be an object")
     kind = str(raw.get("kind") or raw.get("mode_kind") or "").strip().lower()
@@ -172,7 +175,10 @@ def _parse_map_spec(raw: Any) -> Tuple[str, str, str]:
     mode = str(raw.get("mode") or "all").strip().lower()
     if mode not in ("all", "any"):
         raise ValueError("map.mode must be 'all' or 'any'")
-    return kind, bit_align, mode
+    path_kind = str(raw.get("path_kind") or "comb").strip().lower()
+    if path_kind not in ("comb", "ff"):
+        raise ValueError("map.path_kind must be 'comb' or 'ff'")
+    return kind, bit_align, mode, path_kind
 
 
 def _bus_range_indices(inner: str, *, msb_first: bool = False) -> Optional[List[int]]:
@@ -289,6 +295,20 @@ def _fanout_pairs(
     ]
 
 
+def _reject_list_literals(
+    elements: Tuple[str, ...],
+    *,
+    is_list: bool,
+    is_concat: bool,
+    side: str,
+) -> None:
+    if is_list and not is_concat and _list_has_literal(elements):
+        raise ValueError(
+            f"endpoint {side}: Verilog literals require {{…}} concat form, not […] "
+            "(concat enforces MSB-first bit order; [] uses index zip only)"
+        )
+
+
 def _infer_map_kind(
     elements_a: Tuple[str, ...],
     elements_b: Tuple[str, ...],
@@ -296,11 +316,21 @@ def _infer_map_kind(
     *,
     list_a: bool,
     list_b: bool,
+    concat_a: bool,
+    concat_b: bool,
     has_loop: bool,
 ) -> str:
+    if map_kind == "concat":
+        if not (concat_a or concat_b):
+            raise ValueError(
+                "map.kind concat requires at least one {…} concat endpoint"
+            )
+        return "concat"
+    if map_kind == "waypoint-fanout":
+        return "waypoint-fanout"
     if map_kind:
         return map_kind
-    if _list_has_literal(elements_a) or _list_has_literal(elements_b):
+    if concat_a or concat_b:
         return "concat"
     len_a = len(elements_a)
     len_b = len(elements_b)
@@ -320,23 +350,25 @@ def _infer_map_kind(
     return "array"
 
 
-def parse_endpoint_elements(raw: EndpointValue) -> Tuple[str, Tuple[str, ...], bool]:
+def parse_endpoint_elements(
+    raw: EndpointValue,
+) -> Tuple[str, Tuple[str, ...], bool, bool]:
     """
-    Return (display_spec, elements, is_list_form).
+    Return (display_spec, elements, is_list_form, is_concat_form).
 
-    Scalar strings stay single-element; concat one-liners and lists expand.
+    Scalar strings stay single-element; ``{…}`` concat and ``[…]`` lists expand.
     """
     if isinstance(raw, (list, tuple)):
         elements = _normalize_list(raw)
         display = "[" + ", ".join(elements) + "]"
-        return display, elements, True
+        return display, elements, True, False
     text = str(raw).strip()
     if not text:
         raise ValueError("endpoint must be a non-empty string or list")
     if _is_concat_string(text):
         elements = _parse_concat_string(text)
-        return text, elements, True
-    return text, (text,), False
+        return text, elements, True, True
+    return text, (text,), False, False
 
 
 def _loop_expand_elements(
@@ -358,14 +390,17 @@ def build_expand_meta(
     loop: Any = None,
     map_spec: Any = None,
 ) -> CheckExpandMeta:
-    _, elements_a, list_a = parse_endpoint_elements(raw_a)
-    _, elements_b, list_b = parse_endpoint_elements(raw_b)
+    _, elements_a, list_a, concat_a = parse_endpoint_elements(raw_a)
+    _, elements_b, list_b, concat_b = parse_endpoint_elements(raw_b)
 
     loop_map = _parse_loop_map(loop) if loop else {}
-    map_kind, bit_align, fanout_mode = _parse_map_spec(map_spec)
+    map_kind, bit_align, fanout_mode, path_kind = _parse_map_spec(map_spec)
 
     final_a = _loop_expand_elements(elements_a, loop_map)
     final_b = _loop_expand_elements(elements_b, loop_map)
+
+    _reject_list_literals(final_a, is_list=list_a, is_concat=concat_a, side="a")
+    _reject_list_literals(final_b, is_list=list_b, is_concat=concat_b, side="b")
 
     kind = _infer_map_kind(
         final_a,
@@ -373,36 +408,37 @@ def build_expand_meta(
         map_kind,
         list_a=list_a,
         list_b=list_b,
+        concat_a=concat_a,
+        concat_b=concat_b,
         has_loop=bool(loop_map),
     )
-    if kind == "concat" and not (
-        _list_has_literal(final_a) or _list_has_literal(final_b)
-    ):
-        kind = "array"
 
     return CheckExpandMeta(
         loop=tuple(loop_map.items()),
         map_kind=kind,
         bit_align=bit_align,
         fanout_mode=fanout_mode,
+        path_kind=path_kind,
         elements_a=final_a,
         elements_b=final_b,
         list_a=list_a,
         list_b=list_b,
+        concat_a=concat_a,
+        concat_b=concat_b,
     )
 
 
 def needs_expansion(meta: Optional[CheckExpandMeta]) -> bool:
     if meta is None:
         return False
+    if meta.map_kind == "waypoint-fanout":
+        return True
     if meta.loop:
         return True
     if meta.map_kind in ("array", "fanout", "concat"):
         if len(meta.elements_a) > 1 or len(meta.elements_b) > 1:
             return True
-        if meta.map_kind == "concat" and (
-            _list_has_literal(meta.elements_a) or _list_has_literal(meta.elements_b)
-        ):
+        if meta.map_kind == "concat":
             return True
     return False
 
@@ -414,6 +450,11 @@ def expand_check_to_pairs(
     check_id: str = "",
     expand: Optional[CheckExpandMeta] = None,
 ) -> List[ExpandedPair]:
+    if expand is not None and expand.map_kind == "waypoint-fanout":
+        raise ValueError(
+            "waypoint-fanout checks are handled by ConnectivitySession.check, "
+            "not expand_check_to_pairs"
+        )
     if expand is None or not needs_expansion(expand):
         return [
             ExpandedPair(
@@ -429,15 +470,29 @@ def expand_check_to_pairs(
     bit_align = expand.bit_align
 
     if kind == "concat":
-        if _list_has_literal(elements_a):
-            return _concat_signal_pairs(elements_a, elements_b[0], bit_align=bit_align)
-        if _list_has_literal(elements_b):
-            pairs = _concat_signal_pairs(elements_b, elements_a, bit_align=bit_align)
+        if len(elements_b) == 1:
+            return _concat_signal_pairs(
+                elements_a,
+                elements_b[0],
+                bit_align=bit_align,
+            )
+        if len(elements_a) == 1:
+            pairs = _concat_signal_pairs(
+                elements_b,
+                elements_a[0],
+                bit_align=bit_align,
+            )
             return [
-                ExpandedPair(endpoint_a=p.endpoint_b, endpoint_b=p.endpoint_a, sub_id=p.sub_id)
+                ExpandedPair(
+                    endpoint_a=p.endpoint_b,
+                    endpoint_b=p.endpoint_a,
+                    sub_id=p.sub_id,
+                )
                 for p in pairs
             ]
-        kind = "array"
+        raise ValueError(
+            "concat map needs one {…} element list and one bus/scalar endpoint"
+        )
 
     if kind == "fanout":
         if len(elements_a) == 1 and len(elements_b) > 1:

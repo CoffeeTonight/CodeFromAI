@@ -1,7 +1,7 @@
 {
   "meta": {
     "tool": "scan_inst",
-    "scan_inst_root": "/home/user/Desktop/scan_inst",
+    "scan_inst_root": "/home/user/tools/__CFI/scan_inst",
     "mode": "check-connect-batch",
     "purpose": "coi_conn — connectivity 입력 값·케이스 카탈로그 (한 번에 전부 실행하지 않음)",
     "usage": "gate 실행 시 checks에서 2~3건 선택. expected_connected는 soc-verify gate 전용(scan_inst 미전달)",
@@ -287,7 +287,7 @@
       "design": "scan_inst/examples/stress_seed42",
       "filelist": "examples/stress_seed42/filelist.f",
       "top": "stress_top",
-      "index_cwd": "/home/user/Desktop/scan_inst",
+      "index_cwd": "/home/user/tools/__CFI/scan_inst",
       "check": {
         "id": "stress_port_port",
         "a": "stress_top.probe_in",

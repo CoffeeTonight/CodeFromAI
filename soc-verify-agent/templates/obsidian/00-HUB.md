@@ -10,12 +10,15 @@
 | 역할 | 읽을 노트 |
 |------|-----------|
 | LLM Sub-agent | [[SUB_AGENT]] → [[01-GRAPH-FLOW#verify_group]] → gate [[CHECK]] |
+| **VCPU→SoC 통합 에이전트** | [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]] |
 | Orchestrator LLM | [[ORCHESTRATOR]] → [[01-GRAPH-FLOW#orchestrator]] |
 | 전체 미션 (VERIF) | [[MISSION_VERIF-CPU-SOC]] |
 | 아키텍처 | [[02-LAYERS]] |
 | MD→Python 루프 | [[03-COMPILED-AI-LOOP]] |
 | **Runner·parity 계약** | [[07-TRUST-CONTRACT]] · **루프 다이어그램** [[08-RUNNER-LOOP]] |
 | **env/bridge 자율개선** | [[09-BRIDGE-LOOP]] |
+| **메타 그래프·KPI** | [[10-META-GRAPH]] |
+| **LangGraph 전체 순서도** | [[11-LANGGRAPH-SUMMARY]] |
 | 산출물 연결 | [[04-ARTIFACT-GRAPH]] |
 | 부족한 점·보완 | [[05-GAPS-REMEDIATION]] |
 | 산업 사례 | [[06-INDUSTRY-PATTERNS]] |

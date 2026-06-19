@@ -17,6 +17,7 @@ import hashlib
 import os
 import pickle
 import re
+import threading
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,7 @@ from scan_inst.manifest import PathDigests, path_content_digest
 from scan_inst.models import InstanceEdge, ModuleRecord
 from scan_inst.params import resolve_param_map
 
-PATH_WALK_DB_VERSION = 9
+PATH_WALK_DB_VERSION = 10
 
 _PARALLEL_MIN_TIER0 = 4
 
@@ -55,6 +56,7 @@ class _FileValidatedCacheEntry:
     content_digest: str
     defines_digest: str
     modules: Tuple[Tuple[str, ModuleRecord], ...]
+    include_closure_digest: str = ""
 
 
 def _defines_digest(defines: Mapping[str, str]) -> str:
@@ -275,6 +277,7 @@ class PathWalkModuleDb:
         filelist_children: Optional[Mapping[str, Sequence[str]]] = None,
         path_digests: Optional[Mapping[str, str]] = None,
         jobs: int = 0,
+        tier1_prefetch: Optional[bool] = None,
     ) -> None:
         self._sources = [str(Path(s).resolve()) for s in sources]
         self._path_digests: Optional[PathDigests] = (
@@ -320,6 +323,13 @@ class PathWalkModuleDb:
         self._jobs = jobs
         self._tier0_executor: Optional[Union[ProcessPoolExecutor, ThreadPoolExecutor]] = None
         self._tier0_inflight: Dict[str, Future[_Tier0ScanResult]] = {}
+        from scan_inst.perf import pw_db_prefetch_enabled
+
+        self._tier1_prefetch = (
+            tier1_prefetch if tier1_prefetch is not None else pw_db_prefetch_enabled()
+        )
+        self._tier1_prefetch_thread: Optional[threading.Thread] = None
+        self._tier1_scan_lock = threading.Lock()
         self._defer_queue: List[DeferredResolve] = []
         self._defer_seen: Set[Tuple[str, str, str, str, Optional[Tuple[str, str]]]] = set()
 
@@ -394,14 +404,37 @@ class PathWalkModuleDb:
             return None
         return self._cache_root / "regex" / f"{_file_cache_token(path)}.pkl"
 
-    def _validated_sidecar(self, path: str) -> Optional[Path]:
+    def _validated_sidecar(
+        self,
+        path: str,
+        *,
+        defines_digest: str,
+    ) -> Optional[Path]:
         if self._cache_root is None:
             return None
         return (
             self._cache_root
             / "validated"
-            / f"{_file_cache_token(path)}_{self._defines_digest}.pkl"
+            / f"{_file_cache_token(path)}_{defines_digest}.pkl"
         )
+
+    def _include_closure_digest(self, path: str) -> str:
+        from scan_inst.preprocess import _collect_include_closure
+
+        closure, _ = _collect_include_closure(
+            [path],
+            self._include_dirs,
+            skip_path_patterns=self._skip,
+        )
+        hasher = hashlib.sha256()
+        for inc in sorted({str(p.resolve()) for p in closure}):
+            hasher.update(inc.encode())
+            hasher.update(b"\0")
+            digest = self._source_digest(inc)
+            if digest is not None:
+                hasher.update(digest.encode())
+            hasher.update(b"\0")
+        return hasher.hexdigest()[:16]
 
     def _load_regex_sidecar(self, path: str) -> Optional[_FileRegexCacheEntry]:
         sidecar = self._regex_sidecar(path)
@@ -433,8 +466,14 @@ class PathWalkModuleDb:
             pickle.dump(entry, fh, protocol=pickle.HIGHEST_PROTOCOL)
         tmp.replace(sidecar)
 
-    def _load_validated_sidecar(self, path: str) -> Optional[Dict[str, ModuleRecord]]:
-        sidecar = self._validated_sidecar(path)
+    def _load_validated_sidecar(
+        self,
+        path: str,
+        *,
+        defines_digest: str,
+        include_closure_digest: str,
+    ) -> Optional[Dict[str, ModuleRecord]]:
+        sidecar = self._validated_sidecar(path, defines_digest=defines_digest)
         if sidecar is None or not sidecar.is_file():
             return None
         try:
@@ -447,7 +486,12 @@ class PathWalkModuleDb:
         live = self._source_digest(path)
         if live is None or live != obj.content_digest:
             return None
-        if obj.defines_digest != self._defines_digest:
+        if obj.defines_digest != defines_digest:
+            return None
+        if (
+            include_closure_digest
+            and obj.include_closure_digest != include_closure_digest
+        ):
             return None
         return {name: _record_lite(rec) for name, rec in obj.modules}
 
@@ -455,8 +499,11 @@ class PathWalkModuleDb:
         self,
         path: str,
         modules: Mapping[str, ModuleRecord],
+        *,
+        defines_digest: str,
+        include_closure_digest: str,
     ) -> None:
-        sidecar = self._validated_sidecar(path)
+        sidecar = self._validated_sidecar(path, defines_digest=defines_digest)
         if sidecar is None:
             return
         digest = self._source_digest(path)
@@ -464,8 +511,9 @@ class PathWalkModuleDb:
             return
         entry = _FileValidatedCacheEntry(
             digest,
-            self._defines_digest,
+            defines_digest,
             tuple((n, _record_lite(r)) for n, r in sorted(modules.items())),
+            include_closure_digest,
         )
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         tmp = sidecar.with_suffix(sidecar.suffix + ".tmp")
@@ -704,6 +752,57 @@ class PathWalkModuleDb:
             submitted += 1
         return submitted
 
+    def start_background_tier1_prefetch(
+        self,
+        *,
+        sources: Optional[Sequence[str]] = None,
+    ) -> int:
+        """
+        Tier-1 validated scan for files not yet needed by the active walk.
+
+        Opt-in via ``tier1_prefetch`` / ``SCAN_INST_PW_DB_PREFETCH=1``.  Warms
+        in-memory validated map and disk sidecars for later hierarchy queries.
+        """
+        if not self._tier1_prefetch or self._tier1_prefetch_thread is not None:
+            return 0
+        from scan_inst.perf import pw_db_prefetch_max_files
+
+        pool = (
+            [str(Path(s).resolve()) for s in sources]
+            if sources is not None
+            else list(self._sources)
+        )
+        pending = [
+            key
+            for key in pool
+            if key not in self._validated_memory
+            and (not self._skip or not source_path_matches(key, self._skip))
+        ]
+        cap = pw_db_prefetch_max_files()
+        if cap > 0:
+            pending = pending[:cap]
+        if not pending:
+            return 0
+
+        work = list(pending)
+
+        def _run_prefetch() -> None:
+            for key in work:
+                try:
+                    self.tier1_scan_file(key)
+                except Exception as exc:  # noqa: BLE001 — background best-effort
+                    self._trace(f"pw-db tier1 prefetch-fail {Path(key).name}: {exc!r}")
+
+        self._set_phase("prefetch", detail=f"{len(work)} file(s)")
+        self._tier1_prefetch_thread = threading.Thread(
+            target=_run_prefetch,
+            name="pw-db-tier1-prefetch",
+            daemon=True,
+        )
+        self._tier1_prefetch_thread.start()
+        self._trace(f"pw-db tier1 prefetch start ({len(work)} file(s))")
+        return len(work)
+
     def drain_background_workers(self, *, wait_all: bool = True) -> None:
         """Ingest completed tier-0 workers; optionally wait for stragglers (no cancel)."""
         if wait_all:
@@ -711,6 +810,9 @@ class PathWalkModuleDb:
                 self._tier0_drain_completed(block=True, timeout=0.25)
         else:
             self._tier0_drain_completed(block=False)
+        if wait_all and self._tier1_prefetch_thread is not None:
+            self._tier1_prefetch_thread.join()
+            self._tier1_prefetch_thread = None
         if self._snapshot_dirty:
             self.write_module_index_snapshot()
 
@@ -918,12 +1020,7 @@ class PathWalkModuleDb:
         parent_ctx: Mapping[str, str],
     ) -> List[InstanceEdge]:
         """Tier-1 prescanned edges when available; else lazy fold via the index."""
-        rec = self._index.get_module(module_name)
-        if rec is None:
-            return []
-        if not rec.needs_generate_fold:
-            return list(rec.instances)
-        return self._index.instances_for(module_name, parent_ctx, {})
+        return self._index.instances_for_walk(module_name, parent_ctx)
 
     def _order_candidate_files(
         self,
@@ -951,46 +1048,60 @@ class PathWalkModuleDb:
     def tier1_scan_file(self, path: str) -> Dict[str, ModuleRecord]:
         """Light preprocess + instance scan for one translation unit."""
         key = str(Path(path).resolve())
-        self._set_phase("parsing", detail=Path(key).name)
-        mem = self._validated_memory.get(key)
-        if mem is not None:
-            return mem
+        with self._tier1_scan_lock:
+            mem = self._validated_memory.get(key)
+            if mem is not None:
+                return mem
 
-        disk = self._load_validated_sidecar(key)
-        if disk is not None:
-            self.cache_validated_hits += 1
-            self._validated_memory[key] = disk
-            self.files_validated += 1
-            summary = ",".join(
-                f"{n}({len(r.instances)}inst)" for n, r in sorted(disk.items())
+            self._set_phase("parsing", detail=Path(key).name)
+
+            from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
+
+            defs: Dict[str, str] = dict(self._defines)
+            text = preprocess_file_for_index(
+                Path(key),
+                self._include_dirs,
+                defs,
+                set(),
+                skip_path_patterns=self._skip,
             )
-            self._trace(f"pw-db tier1 cache {Path(key).name} -> {summary or '(none)'}")
-            return disk
+            effective_digest = _defines_digest(defs)
+            include_digest = self._include_closure_digest(key)
 
-        from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
+            disk = self._load_validated_sidecar(
+                key,
+                defines_digest=effective_digest,
+                include_closure_digest=include_digest,
+            )
+            if disk is not None:
+                self.cache_validated_hits += 1
+                self._validated_memory[key] = disk
+                self.files_validated += 1
+                summary = ",".join(
+                    f"{n}({len(r.instances)}inst)" for n, r in sorted(disk.items())
+                )
+                self._trace(f"pw-db tier1 cache {Path(key).name} -> {summary or '(none)'}")
+                return disk
 
-        defs: Dict[str, str] = dict(self._defines)
-        text = preprocess_file_for_index(
-            Path(key),
-            self._include_dirs,
-            defs,
-            set(),
-            skip_path_patterns=self._skip,
-        )
-        # Tier-1 must honour filelist + in-file defines (ifdef instance names, gated modules).
-        text = apply_ifdef_filter(text, defs)
-        per_file = scan_preprocessed(text, key)
-        out = {name: _record_lite(rec) for name, rec in per_file.items()}
-        self._validated_memory[key] = out
-        self._save_validated_sidecar(key, out)
-        self.files_validated += 1
-        for name in out:
-            self._note_regex_modules(key, [name])
-        summary = ",".join(
-            f"{n}({len(r.instances)}inst)" for n, r in sorted(out.items())
-        )
-        self._trace(f"pw-db tier1 scan {Path(key).name} -> {summary or '(none)'}")
-        return out
+            # Tier-1 must honour filelist + in-file defines (ifdef instance names, gated modules).
+            text = apply_ifdef_filter(text, defs)
+            per_file = scan_preprocessed(text, key)
+            out = {name: _record_lite(rec) for name, rec in per_file.items()}
+            self._validated_memory[key] = out
+            self._save_validated_sidecar(
+                key,
+                out,
+                defines_digest=effective_digest,
+                include_closure_digest=include_digest,
+            )
+            self.files_validated += 1
+            for name in out:
+                self._note_regex_modules(key, [name])
+            summary = ",".join(
+                f"{n}({len(r.instances)}inst)" for n, r in sorted(out.items())
+            )
+            self._trace(f"pw-db tier1 scan {Path(key).name} -> {summary or '(none)'}")
+            return out
 
     def _invalidate_folded_edges_cache(
         self,
@@ -1035,13 +1146,6 @@ class PathWalkModuleDb:
         ):
             return self._index.instances_for(mod_name, parent_ctx, {})
 
-        fold_ctx = dict(self._defines)
-        fold_ctx.update(resolve_param_map(hit.raw_params, parent=parent_ctx))
-        fold_cache_key = (mod_name, _ctx_key(fold_ctx), key)
-        cached_edges = self._folded_edges_cache.get(fold_cache_key)
-        if cached_edges is not None:
-            return cached_edges
-
         from scan_inst.preprocess import apply_ifdef_filter, preprocess_file_for_index
 
         defs: Dict[str, str] = dict(self._defines)
@@ -1052,6 +1156,13 @@ class PathWalkModuleDb:
             set(),
             skip_path_patterns=self._skip,
         )
+        fold_ctx = dict(defs)
+        fold_ctx.update(resolve_param_map(hit.raw_params, parent=parent_ctx))
+        fold_cache_key = (mod_name, _ctx_key(fold_ctx), key)
+        cached_edges = self._folded_edges_cache.get(fold_cache_key)
+        if cached_edges is not None:
+            return cached_edges
+
         text = apply_ifdef_filter(text, defs)
         _hdr, body = _module_header_body(text, mod_name)
         if not body:

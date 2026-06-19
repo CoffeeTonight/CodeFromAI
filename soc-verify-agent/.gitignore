@@ -1,0 +1,9 @@
+secrets.env
+config.local.json
+.pytest_cache/
+__pycache__/
+*.egg-info/
+projects/*/runs/
+projects/*/workspace/
+runs/
+.venv/

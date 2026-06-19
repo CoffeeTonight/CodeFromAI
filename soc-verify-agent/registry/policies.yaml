@@ -22,6 +22,13 @@ node_contract:
   enforce_sandbox_writes: true
   audit_trace_transitions: true
 
+meta_graph:
+  diagram: templates/obsidian/10-META-GRAPH.md
+  spec: registry/meta_graph_spec.yaml
+  auto_apply_low_risk: false
+  graph_source_never_auto_apply: true
+  kpi_history_max: 200
+
 bridge_loop:
   diagram: templates/obsidian/09-BRIDGE-LOOP.md
   max_bridge_rounds: 8

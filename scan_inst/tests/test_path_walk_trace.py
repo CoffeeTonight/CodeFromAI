@@ -38,6 +38,12 @@ def test_path_walk_trace_filter_hides_search_keeps_hits():
     assert path_walk_trace_show_message("pw-db   edge hit B.C via b.v -> child 'C'")
     assert path_walk_trace_show_message("miss inst=C under A.B (instance edge not found)")
     assert path_walk_trace_show_message(
+        "parallel fork at=top.u_soc jobs=4 pool=2 branches=u_cpusystem,u_ifdef"
+    )
+    assert path_walk_trace_show_message(
+        "parallel worker j=1/2 branch=u_cpusystem from=top.u_soc specs=3"
+    )
+    assert path_walk_trace_show_message(
         "signal-tail hit kind=wire scope=top.u_ifdef tail='c' target=top.u_ifdef.c "
         "module=mid_ifdef rtl=soc.v lines=42 check_ms=1.2"
     )

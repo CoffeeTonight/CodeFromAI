@@ -1,0 +1,26 @@
+{
+  "queued_at": "2026-06-18",
+  "run_id": "5e3880e7b9aa",
+  "validation": {
+    "ok": true,
+    "issues": [],
+    "contract": "meta_validate_v1"
+  },
+  "proposal": {
+    "contract": "meta_change_proposal_v1",
+    "run_id": "5e3880e7b9aa",
+    "summary": "mechanical_stub — schema-valid placeholder; no auto-apply",
+    "changes": [
+      {
+        "layer": "md",
+        "target": "verification/simulation/gpio_ext/RUN.md",
+        "rationale": "mechanical_stub_for_meta_queue",
+        "evidence": [
+          "improvement_snapshot"
+        ],
+        "approval": "human_or_review"
+      }
+    ]
+  },
+  "status": "queued"
+}

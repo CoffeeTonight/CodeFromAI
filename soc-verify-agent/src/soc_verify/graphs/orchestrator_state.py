@@ -8,7 +8,13 @@ from typing import Annotated, Any, Literal, TypedDict
 
 class WorkItem(TypedDict, total=False):
     kind: Literal["acquisition", "verify"]
-    acq: Literal["project_search", "project_intake", "state_sync", "tag_watch"]
+    acq: Literal[
+        "project_search",
+        "project_intake",
+        "knowledge_collect",
+        "state_sync",
+        "tag_watch",
+    ]
     project_id: str
     stage: str
     group: str
@@ -37,3 +43,7 @@ class OrchestratorState(TypedDict, total=False):
     info_gap_message: str
     verdict: str
     error: str
+
+    experiment_campaign: str
+    experiment_condition: str
+    experiment_hypothesis: str

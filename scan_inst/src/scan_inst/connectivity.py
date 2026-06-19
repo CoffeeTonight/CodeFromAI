@@ -48,6 +48,7 @@ __all__ = [
     "check_connectivity",
     "check_connectivity_batch",
     "emit_connect_trace_log",
+    "flatten_connect_results",
     "format_connect_hop",
     "format_connect_result_row",
     "format_connect_results_tsv",
@@ -124,6 +125,15 @@ def emit_connect_trace_log(
     rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> None:
     """Emit endpoint provenance and path evidence for one connect result."""
+    if result.sub_results:
+        for sub in result.sub_results:
+            emit_connect_trace_log(
+                sub,
+                stream=stream,
+                check_prefix=sub.check_id or check_prefix,
+                rows_by_path=rows_by_path,
+            )
+        return
     from scan_inst.hierarchy_log import (
         emit_scopes_provenance_log,
         format_endpoint_provenance_line,
@@ -188,6 +198,21 @@ def emit_connect_trace_log(
             )
 
 
+def flatten_connect_results(
+    results: Sequence[ConnectResult],
+) -> List[ConnectResult]:
+    """Expand aggregate checks into per-bit / per-index leaf rows for output."""
+    out: List[ConnectResult] = []
+    for result in results:
+        if result.waypoint_events:
+            out.append(result)
+        elif result.sub_results:
+            out.extend(flatten_connect_results(result.sub_results))
+        else:
+            out.append(result)
+    return out
+
+
 def print_connect_trace_reports(
     results: Sequence[ConnectResult],
     *,
@@ -196,10 +221,11 @@ def print_connect_trace_reports(
     rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> None:
     """Print human-readable path-evidence blocks for terminal or log file."""
-    if not results:
+    leaf_results = flatten_connect_results(results)
+    if not leaf_results:
         return
     print(f"\n--- {title} ---", file=stream, flush=True)
-    for result in results:
+    for result in leaf_results:
         if result.check_id:
             print(f"# check_id: {result.check_id}", file=stream, flush=True)
         print(
@@ -414,6 +440,33 @@ class ConnectivitySession:
         expand: Optional[Any] = None,
     ) -> ConnectResult:
         t0 = time.perf_counter()
+        if expand is not None and expand.map_kind == "waypoint-fanout":
+            from scan_inst.waypoint_fanout import run_waypoint_fanout_check
+
+            result, _events = run_waypoint_fanout_check(
+                list(expand.elements_a),
+                list(expand.elements_b),
+                rows=self.rows,
+                index=self.index,
+                top=self.top,
+                path_kind=expand.path_kind,
+                defines=self._effective_defines,
+                over_approximate_if=self.over_approximate_if
+                if self.over_approximate_if is not None
+                else True,
+                check_id=check_id,
+                endpoint_a=endpoint_a,
+                endpoint_b=endpoint_b,
+            )
+            from scan_inst.verification_timing import record_connect_check
+
+            record_connect_check(
+                check_id=check_id,
+                endpoint_a=endpoint_a,
+                endpoint_b=endpoint_b,
+                elapsed_sec=time.perf_counter() - t0,
+            )
+            return result
         pairs = expand_check_to_pairs(
             endpoint_a,
             endpoint_b,
@@ -760,15 +813,30 @@ def format_connect_results_tsv(
     modules_cached: Optional[int] = None,
     rows_by_path: Optional[Mapping[str, FlatRow]] = None,
 ) -> str:
+    from scan_inst.waypoint_fanout import format_waypoint_fanout_tsv
+
+    leaf_results = flatten_connect_results(results)
     lines = [
         "check_id\tendpoint_a\tendpoint_b\tconnected\tmode\tnote\terrors\thops\t"
         "a_rtl\ta_via_filelist\ta_filelist_chain\t"
         "b_rtl\tb_via_filelist\tb_filelist_chain",
         *(
             format_connect_result_row(r, rows_by_path=rows_by_path)
-            for r in results
+            for r in leaf_results
         ),
     ]
+    waypoint_blocks: List[str] = []
+    for result in leaf_results:
+        if not result.waypoint_events:
+            continue
+        if result.check_id:
+            waypoint_blocks.append(f"# waypoint_fanout\t{result.check_id}")
+        waypoint_blocks.append(
+            format_waypoint_fanout_tsv(result.waypoint_events).rstrip("\n")
+        )
+    if waypoint_blocks:
+        lines.append("# --- waypoint-fanout trace ---")
+        lines.extend(waypoint_blocks)
     if modules_cached is not None:
         lines.append(f"# modules_cached\t{modules_cached}")
     return "\n".join(lines) + "\n"

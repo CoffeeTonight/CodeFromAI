@@ -1,0 +1,53 @@
+# Paper completion progress — mechanical readiness + LLM judgment, vault diagram with %%
+version: paper-progress-v1
+contract: paper_progress_v1
+instruction_ko: >
+  실험 통계화는 퍼즐 조립. mechanical readiness(수치) + LLM judgment(부족 서술)를
+  06-paper/PROGRESS.md mermaid 다이어그램에 %%로 유지한다. (논문 산문이 아니라 증거·통계 축적)
+
+vault_layer: "06-paper"
+vault_files:
+  progress_md: projects/{id}/knowledge/obsidian/06-paper/PROGRESS.md
+  progress_json: projects/{id}/knowledge/obsidian/06-paper/paper_progress.json
+runtime:
+  llm_prompt: projects/{id}/intake/paper_progress_prompt.json
+  llm_judgment: projects/{id}/intake/paper_progress_judgment.json
+
+default_campaign: paper_eval_2026
+llm_skill: paper-progress-judge
+
+pipeline_stages:
+  - id: intake
+    label_ko: 수집·정리
+    wikilink: "05-intake/SOURCES-MOC"
+  - id: experiment
+    label_ko: 실험 설계
+    dimensions: [experiment_design]
+  - id: evaluation
+    label_ko: Evaluation gates
+    dimensions: [evaluation_gates]
+  - id: telemetry
+    label_ko: Telemetry·LLM
+    dimensions: [telemetry_baseline, llm_provenance]
+  - id: ablation
+    label_ko: Ablation·개선
+    dimensions: [self_improvement]
+  - id: reproducibility
+    label_ko: 재현성
+    dimensions: [reproducibility]
+  - id: export
+    label_ko: Export
+    dimensions: [export_artifacts]
+  - id: draft
+    label_ko: 초안 (선택, 통계화 이후)
+    from_sections: true
+
+judgment_contract: paper_progress_judgment_v1
+judgment_fields:
+  - overall_percent
+  - mechanical_percent
+  - puzzle_pieces
+  - section_gaps
+  - top_gaps
+  - next_commands
+  - llm_summary_ko

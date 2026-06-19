@@ -52,6 +52,12 @@ class BindRecord:
     ports: List[Tuple[str, str]]
 
 
+@dataclass(frozen=True)
+class ConnectEdgeProv:
+    line: int
+    kind: str
+
+
 @dataclass
 class ModuleConnectIndex:
     """Pre-compressed intra-module connectivity + fast hierarchy hooks."""
@@ -63,6 +69,9 @@ class ModuleConnectIndex:
     expr_roots: Dict[str, FrozenSet[str]] = field(default_factory=dict)
     hier_links: Dict[str, List[Tuple[str, str]]] = field(default_factory=dict)
     hier_ref_targets: Dict[Tuple[str, str], Set[str]] = field(default_factory=dict)
+    edge_prov: Dict[Tuple[str, str], ConnectEdgeProv] = field(default_factory=dict)
+    inst_stmt_lines: Dict[str, int] = field(default_factory=dict)
+    ff_net_lines: Dict[str, int] = field(default_factory=dict)
 
 
 def _clean_body(body: str) -> str:
@@ -406,11 +415,50 @@ def _cached_expr_roots(
     return roots
 
 
-def _add_undirected(adj: Dict[str, Set[str]], a: str, b: str) -> None:
+def _edge_prov_key(a: str, b: str) -> Tuple[str, str]:
+    return (a, b) if a <= b else (b, a)
+
+
+def _record_edge_prov(
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]],
+    a: str,
+    b: str,
+    *,
+    line: int,
+    kind: str,
+) -> None:
+    if edge_prov is None or not a or not b or a == b:
+        return
+    key = _edge_prov_key(a, b)
+    if key not in edge_prov:
+        edge_prov[key] = ConnectEdgeProv(line=line, kind=kind)
+
+
+def _add_undirected(
+    adj: Dict[str, Set[str]],
+    a: str,
+    b: str,
+    *,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    line: int = 0,
+    kind: str = "",
+) -> None:
     if not a or not b or a == b:
         return
     adj.setdefault(a, set()).add(b)
     adj.setdefault(b, set()).add(a)
+    if edge_prov is not None and line > 0 and kind:
+        _record_edge_prov(edge_prov, a, b, line=line, kind=kind)
+
+
+def lookup_edge_prov(
+    mod_idx: ModuleConnectIndex,
+    from_net: str,
+    to_net: str,
+) -> Optional[ConnectEdgeProv]:
+    ra = mod_idx.net_rep.get(from_net, from_net)
+    rb = mod_idx.net_rep.get(to_net, to_net)
+    return mod_idx.edge_prov.get(_edge_prov_key(ra, rb))
 
 
 def _range_to_bit_indices(
@@ -802,6 +850,9 @@ def _expand_assign_bit_links(
     param_map: Mapping[str, str],
     decl_widths: Mapping[str, List[int]],
     decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    line: int = 0,
+    kind: str = "",
 ) -> None:
     """Add per-bit edges for vector / part-select assigns (``arr = bus[9:0]``)."""
     pmap = dict(param_map)
@@ -819,7 +870,14 @@ def _expand_assign_bit_links(
     if not a_sfx or not b_sfx or len(a_sfx) != len(b_sfx):
         return
     for asx, bsx in zip(a_sfx, b_sfx):
-        _add_undirected(adj, a_base + asx, b_base + bsx)
+        _add_undirected(
+            adj,
+            a_base + asx,
+            b_base + bsx,
+            edge_prov=edge_prov,
+            line=line,
+            kind=kind,
+        )
 
 
 class _UnionFind:
@@ -1653,6 +1711,8 @@ def _parse_comb_assign_piece(
     param_map: Mapping[str, str] | None = None,
     zero_nets: Mapping[str, int] | None = None,
     over_approximate_if: bool = True,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
 ) -> None:
     pmap = dict(param_map or {})
     piece = _strip_case_item_label(piece)
@@ -1669,7 +1729,14 @@ def _parse_comb_assign_piece(
         return
     for a in _local_connect_nodes(piece[:eq], pmap):
         for b in rhs_roots:
-            _add_undirected(adj, a, b)
+            _add_undirected(
+                adj,
+                a,
+                b,
+                edge_prov=edge_prov,
+                line=stmt_line,
+                kind="comb-always",
+            )
 
 
 def _parse_folded_case_body(
@@ -1768,6 +1835,8 @@ def _parse_comb_always_stmt(
     zero_nets: Mapping[str, int] | None = None,
     module_body: str = "",
     over_approximate_if: bool = True,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
 ) -> None:
     if not _is_combinational_always(stmt):
         return
@@ -1833,6 +1902,8 @@ def _parse_comb_always_stmt(
             param_map=pmap,
             zero_nets=zero_nets,
             over_approximate_if=over_approximate_if,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
         )
     for inner in deferred:
         if inner:
@@ -1843,6 +1914,8 @@ def _parse_comb_always_stmt(
                 param_map=pmap,
                 zero_nets=zero_nets,
                 over_approximate_if=over_approximate_if,
+                edge_prov=edge_prov,
+                stmt_line=stmt_line,
             )
 
 
@@ -1854,6 +1927,8 @@ def _parse_comb_if_or_assign_piece(
     param_map: Mapping[str, str] | None = None,
     zero_nets: Mapping[str, int] | None = None,
     over_approximate_if: bool = True,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
 ) -> None:
     pmap = dict(param_map or {})
     if_split = _split_if_else(inner)
@@ -1869,6 +1944,8 @@ def _parse_comb_if_or_assign_piece(
                     param_map=pmap,
                     zero_nets=zero_nets,
                     over_approximate_if=over_approximate_if,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
                 )
         elif truth is False:
             if else_part:
@@ -1879,6 +1956,8 @@ def _parse_comb_if_or_assign_piece(
                     param_map=pmap,
                     zero_nets=zero_nets,
                     over_approximate_if=over_approximate_if,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
                 )
         elif over_approximate_if:
             if then_part:
@@ -1889,6 +1968,8 @@ def _parse_comb_if_or_assign_piece(
                     param_map=pmap,
                     zero_nets=zero_nets,
                     over_approximate_if=over_approximate_if,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
                 )
             if else_part:
                 _parse_comb_if_or_assign_piece(
@@ -1898,6 +1979,8 @@ def _parse_comb_if_or_assign_piece(
                     param_map=pmap,
                     zero_nets=zero_nets,
                     over_approximate_if=over_approximate_if,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
                 )
         elif else_part:
             _parse_comb_if_or_assign_piece(
@@ -1907,6 +1990,8 @@ def _parse_comb_if_or_assign_piece(
                 param_map=pmap,
                 zero_nets=zero_nets,
                 over_approximate_if=over_approximate_if,
+                edge_prov=edge_prov,
+                stmt_line=stmt_line,
             )
         return
     _parse_comb_assign_piece(
@@ -1915,6 +2000,8 @@ def _parse_comb_if_or_assign_piece(
         param_map=pmap,
         zero_nets=zero_nets,
         over_approximate_if=over_approximate_if,
+        edge_prov=edge_prov,
+        stmt_line=stmt_line,
     )
 
 
@@ -2043,15 +2130,45 @@ def _merge_split_else_stmts(stmts: Sequence[str]) -> List[str]:
     return out
 
 
-def _iter_connect_statements(body: str) -> List[str]:
-    flat: List[str] = []
-    for stmt in _merge_split_else_stmts(split_statements(_clean_body(body))):
+def _offset_line(body: str, offset: int) -> int:
+    if offset <= 0:
+        return 1
+    return body[:offset].count("\n") + 1
+
+
+def _stmt_offset(body: str, stmt: str, search_from: int = 0) -> int:
+    needle = stmt.strip()
+    if not needle:
+        return -1
+    pos = body.find(needle, search_from)
+    if pos >= 0:
+        return pos
+    short = needle[: min(64, len(needle))]
+    return body.find(short, search_from)
+
+
+def _iter_connect_statements_with_lines(body: str) -> Iterable[Tuple[str, int]]:
+    clean = _clean_body(body)
+    search_from = 0
+    for stmt in _merge_split_else_stmts(split_statements(clean)):
         pieces = _flatten_connect_statements(stmt)
         if pieces:
-            flat.extend(pieces)
+            for piece in pieces:
+                pos = _stmt_offset(clean, piece, search_from)
+                line = _offset_line(clean, pos) if pos >= 0 else 0
+                yield piece, line
+                if pos >= 0:
+                    search_from = pos + 1
         elif _is_primitive_gate_statement(stmt):
-            flat.append(stmt.strip())
-    return flat
+            pos = _stmt_offset(clean, stmt, search_from)
+            line = _offset_line(clean, pos) if pos >= 0 else 0
+            yield stmt.strip(), line
+            if pos >= 0:
+                search_from = pos + 1
+
+
+def _iter_connect_statements(body: str) -> List[str]:
+    return [stmt for stmt, _line in _iter_connect_statements_with_lines(body)]
 
 
 def _register_hier_assign(
@@ -2085,6 +2202,8 @@ def _parse_assign_stmt(
     over_approximate_if: bool = True,
     decl_widths: Optional[Mapping[str, List[int]]] = None,
     decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
 ) -> None:
     pmap = dict(param_map or {})
     if not _stmt_starts_with(stmt, "assign"):
@@ -2115,7 +2234,14 @@ def _parse_assign_stmt(
     md_suffixes = dict(decl_md_suffixes or {})
     for a in _local_connect_nodes(lhs, pmap):
         for b in rhs_roots:
-            _add_undirected(adj, a, b)
+            _add_undirected(
+                adj,
+                a,
+                b,
+                edge_prov=edge_prov,
+                line=stmt_line,
+                kind="assign",
+            )
             _expand_assign_bit_links(
                 a,
                 b,
@@ -2123,6 +2249,9 @@ def _parse_assign_stmt(
                 param_map=pmap,
                 decl_widths=widths,
                 decl_md_suffixes=md_suffixes,
+                edge_prov=edge_prov,
+                line=stmt_line,
+                kind="assign",
             )
 
 
@@ -2163,15 +2292,28 @@ def _parse_ff_assign_piece(
     adj: Dict[str, Set[str]],
     *,
     param_map: Mapping[str, str] | None = None,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
+    ff_net_lines: Optional[Dict[str, int]] = None,
 ) -> None:
     piece = _strip_case_item_label(piece)
     pair = _nb_assign_from_stmt(piece, param_map=param_map)
     if not pair:
         return
     lhs, rhs = pair
+    if ff_net_lines is not None and stmt_line > 0:
+        for net in lhs | rhs:
+            ff_net_lines.setdefault(net, stmt_line)
     for q in lhs:
         for d in rhs:
-            _add_undirected(adj, q, d)
+            _add_undirected(
+                adj,
+                q,
+                d,
+                edge_prov=edge_prov,
+                line=stmt_line,
+                kind="always_ff",
+            )
 
 
 def _selector_wildcard_assigned(
@@ -2250,6 +2392,9 @@ def _parse_ff_inner_piece(
     *,
     param_map: Mapping[str, str] | None = None,
     module_body: str = "",
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
+    ff_net_lines: Optional[Dict[str, int]] = None,
 ) -> None:
     pmap = dict(param_map or {})
     pos = _skip_ws(inner, 0)
@@ -2282,23 +2427,58 @@ def _parse_ff_inner_piece(
         if truth is True:
             if then_part:
                 _parse_ff_inner_piece(
-                    then_part, adj, consts, param_map=pmap, module_body=module_body
+                    then_part,
+                    adj,
+                    consts,
+                    param_map=pmap,
+                    module_body=module_body,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
+                    ff_net_lines=ff_net_lines,
                 )
         elif truth is False:
             if else_part:
                 _parse_ff_inner_piece(
-                    else_part, adj, consts, param_map=pmap, module_body=module_body
+                    else_part,
+                    adj,
+                    consts,
+                    param_map=pmap,
+                    module_body=module_body,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
+                    ff_net_lines=ff_net_lines,
                 )
         elif else_part:
             _parse_ff_inner_piece(
-                else_part, adj, consts, param_map=pmap, module_body=module_body
+                else_part,
+                adj,
+                consts,
+                param_map=pmap,
+                module_body=module_body,
+                edge_prov=edge_prov,
+                stmt_line=stmt_line,
+                ff_net_lines=ff_net_lines,
             )
         elif then_part and _if_condition_has_relational(cond):
             _parse_ff_inner_piece(
-                then_part, adj, consts, param_map=pmap, module_body=module_body
+                then_part,
+                adj,
+                consts,
+                param_map=pmap,
+                module_body=module_body,
+                edge_prov=edge_prov,
+                stmt_line=stmt_line,
+                ff_net_lines=ff_net_lines,
             )
         return
-    _parse_ff_assign_piece(inner, adj, param_map=pmap)
+    _parse_ff_assign_piece(
+        inner,
+        adj,
+        param_map=pmap,
+        edge_prov=edge_prov,
+        stmt_line=stmt_line,
+        ff_net_lines=ff_net_lines,
+    )
 
 
 def _parse_ff_statement_list(
@@ -2308,6 +2488,9 @@ def _parse_ff_statement_list(
     *,
     param_map: Mapping[str, str] | None = None,
     module_body: str = "",
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
+    ff_net_lines: Optional[Dict[str, int]] = None,
 ) -> None:
     pmap = dict(param_map or {})
     last_nb: Dict[str, str] = {}
@@ -2328,10 +2511,24 @@ def _parse_ff_statement_list(
             continue
         deferred.append(inner)
     for inner in dict.fromkeys(last_nb.values()):
-        _parse_ff_assign_piece(inner, adj, param_map=pmap)
+        _parse_ff_assign_piece(
+            inner,
+            adj,
+            param_map=pmap,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
+            ff_net_lines=ff_net_lines,
+        )
     for inner in deferred:
         _parse_ff_inner_piece(
-            inner, adj, sel_consts, param_map=pmap, module_body=module_body
+            inner,
+            adj,
+            sel_consts,
+            param_map=pmap,
+            module_body=module_body,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
+            ff_net_lines=ff_net_lines,
         )
 
 
@@ -2342,6 +2539,9 @@ def _parse_ff_stmt(
     consts: Mapping[str, int] | None = None,
     param_map: Mapping[str, str] | None = None,
     module_body: str = "",
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    stmt_line: int = 0,
+    ff_net_lines: Optional[Dict[str, int]] = None,
 ) -> None:
     if not _is_sequential_statement(stmt):
         return
@@ -2354,7 +2554,14 @@ def _parse_ff_stmt(
         if else_body:
             if batch:
                 _parse_ff_statement_list(
-                    batch, adj, sel_consts, param_map=pmap, module_body=module_body
+                    batch,
+                    adj,
+                    sel_consts,
+                    param_map=pmap,
+                    module_body=module_body,
+                    edge_prov=edge_prov,
+                    stmt_line=stmt_line,
+                    ff_net_lines=ff_net_lines,
                 )
                 batch = []
             _parse_ff_statement_list(
@@ -2363,12 +2570,22 @@ def _parse_ff_stmt(
                 sel_consts,
                 param_map=pmap,
                 module_body=module_body,
+                edge_prov=edge_prov,
+                stmt_line=stmt_line,
+                ff_net_lines=ff_net_lines,
             )
             continue
         batch.append(inner)
     if batch:
         _parse_ff_statement_list(
-            batch, adj, sel_consts, param_map=pmap, module_body=module_body
+            batch,
+            adj,
+            sel_consts,
+            param_map=pmap,
+            module_body=module_body,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
+            ff_net_lines=ff_net_lines,
         )
 
 
@@ -2430,6 +2647,7 @@ def scan_assign_adjacency(
     over_approximate_if: bool = True,
     decl_widths: Optional[Mapping[str, List[int]]] = None,
     decl_md_suffixes: Optional[Mapping[str, List[str]]] = None,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
 ) -> Dict[str, Set[str]]:
     pmap = dict(param_map or {})
     consts = _collect_const_assigns(body, param_map=pmap)
@@ -2453,7 +2671,7 @@ def scan_assign_adjacency(
     md_suffixes = _collect_decl_md_suffixes(body, pmap)
     for name, suffixes in (decl_md_suffixes or {}).items():
         md_suffixes.setdefault(name, list(suffixes))
-    for stmt in _iter_connect_statements(body):
+    for stmt, stmt_line in _iter_connect_statements_with_lines(body):
         _parse_assign_stmt(
             stmt,
             adj,
@@ -2464,6 +2682,8 @@ def scan_assign_adjacency(
             over_approximate_if=over_approximate_if,
             decl_widths=widths,
             decl_md_suffixes=md_suffixes,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
         )
         _parse_decl_alias_stmt(stmt, adj, param_map=pmap, zero_nets=zero_nets)
         _parse_primitive_gate_stmt(stmt, adj)
@@ -2475,6 +2695,8 @@ def scan_assign_adjacency(
             zero_nets=zero_nets,
             module_body=body,
             over_approximate_if=over_approximate_if,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
         )
     const_driven = _collect_const_driven_lhs(body, param_map=pmap)
     if const_driven:
@@ -2723,8 +2945,11 @@ def scan_ff_adjacency(
     *,
     ff_barrier: bool = False,
     param_map: Mapping[str, str] | None = None,
+    edge_prov: Optional[Dict[Tuple[str, str], ConnectEdgeProv]] = None,
+    ff_net_lines: Optional[Dict[str, int]] = None,
 ) -> Dict[str, Set[str]]:
-    if ff_barrier:
+    record_meta = edge_prov is not None or ff_net_lines is not None
+    if ff_barrier and not record_meta:
         return {}
     pmap = dict(param_map or {})
     consts = _collect_const_assigns(body, param_map=pmap)
@@ -2737,10 +2962,19 @@ def scan_ff_adjacency(
         consts.update(grown)
     pmap = _enriched_param_map(pmap, consts)
     adj: Dict[str, Set[str]] = {}
-    for stmt in _iter_connect_statements(body):
+    for stmt, stmt_line in _iter_connect_statements_with_lines(body):
         _parse_ff_stmt(
-            stmt, adj, consts=consts, param_map=pmap, module_body=body
+            stmt,
+            adj,
+            consts=consts,
+            param_map=pmap,
+            module_body=body,
+            edge_prov=edge_prov,
+            stmt_line=stmt_line,
+            ff_net_lines=ff_net_lines,
         )
+    if ff_barrier:
+        return {}
     return adj
 
 
@@ -2786,15 +3020,24 @@ def scan_instance_port_maps(
     body: str,
     *,
     param_map: Mapping[str, str] | None = None,
+    inst_stmt_lines: Optional[Dict[str, int]] = None,
 ) -> Dict[str, List[Tuple[str, str]]]:
     pmap = dict(param_map or {})
     out: Dict[str, List[Tuple[str, str]]] = {}
-    for stmt in split_statements(_clean_body(body)):
+    for stmt, stmt_line in _iter_connect_statements_with_lines(body):
         leaves = _flatten_connect_statements(stmt)
         if not leaves:
             leaves = [stmt]
         for leaf in leaves:
-            _parse_instance_stmts_comma_chain(leaf, out, pmap)
+            if not _is_instance_statement(leaf):
+                continue
+            _parse_instance_stmts_comma_chain(
+                leaf,
+                out,
+                pmap,
+                inst_stmt_lines=inst_stmt_lines,
+                stmt_line=stmt_line,
+            )
     return out
 
 
@@ -2818,6 +3061,9 @@ def _parse_instance_stmts_comma_chain(
     stmt: str,
     out: Dict[str, List[Tuple[str, str]]],
     pmap: Mapping[str, str],
+    *,
+    inst_stmt_lines: Optional[Dict[str, int]] = None,
+    stmt_line: int = 0,
 ) -> None:
     """``cell u0 (...), u1 (...);`` within one statement."""
     from scan_inst.inst_scan import _read_hier_inst_path, expand_inst_names
@@ -2854,6 +3100,8 @@ def _parse_instance_stmts_comma_chain(
                     (port, _array_bundle_port_expr(leaf, expr))
                     for port, expr in ports
                 ]
+            if inst_stmt_lines is not None and stmt_line > 0:
+                inst_stmt_lines.setdefault(leaf, stmt_line)
         nxt = _skip_ws(stmt, nxt)
         if nxt < len(stmt) and stmt[nxt] == ",":
             pos = _skip_ws(stmt, nxt + 1)
@@ -3138,6 +3386,7 @@ def build_module_connect_index(
     decl_md_suffixes = _collect_decl_md_suffixes(text, full_pmap)
     for name, suffixes in (port_decl_md_suffixes or {}).items():
         decl_md_suffixes.setdefault(name, list(suffixes))
+    raw_edge_prov: Dict[Tuple[str, str], ConnectEdgeProv] = {}
     assign_adj = scan_assign_adjacency(
         text,
         hier_links=hier_links,
@@ -3146,6 +3395,7 @@ def build_module_connect_index(
         over_approximate_if=over_approximate_if,
         decl_widths=decl_widths,
         decl_md_suffixes=decl_md_suffixes,
+        edge_prov=raw_edge_prov,
     )
     for base, suffixes in decl_md_suffixes.items():
         if not suffixes:
@@ -3170,8 +3420,20 @@ def build_module_connect_index(
         decl_widths=decl_widths,
         decl_md_suffixes=decl_md_suffixes,
     )
-    ff_adj = scan_ff_adjacency(text, ff_barrier=ff_barrier, param_map=full_pmap)
-    inst_ports = scan_instance_port_maps(text, param_map=full_pmap)
+    ff_net_lines: Dict[str, int] = {}
+    ff_adj = scan_ff_adjacency(
+        text,
+        ff_barrier=ff_barrier,
+        param_map=full_pmap,
+        edge_prov=raw_edge_prov,
+        ff_net_lines=ff_net_lines,
+    )
+    inst_stmt_lines: Dict[str, int] = {}
+    inst_ports = scan_instance_port_maps(
+        text,
+        param_map=full_pmap,
+        inst_stmt_lines=inst_stmt_lines,
+    )
     expr_cache_seed: Dict[str, FrozenSet[str]] = {}
     _seed_adj_from_instance_ports(
         assign_adj,
@@ -3200,6 +3462,16 @@ def build_module_connect_index(
         for net in nets:
             rep = net_rep.get(net, net)
             rep_hier_targets.setdefault((inst, port), set()).add(rep)
+    rep_edge_prov: Dict[Tuple[str, str], ConnectEdgeProv] = {}
+    for (a, b), prov in raw_edge_prov.items():
+        ra = net_rep.get(a, a)
+        rb = net_rep.get(b, b)
+        key = _edge_prov_key(ra, rb)
+        rep_edge_prov.setdefault(key, prov)
+    rep_ff_net_lines: Dict[str, int] = {}
+    for net, line in ff_net_lines.items():
+        rep = net_rep.get(net, net)
+        rep_ff_net_lines.setdefault(rep, line)
     return ModuleConnectIndex(
         inst_ports=dict(inst_ports),
         net_rep=net_rep,
@@ -3208,6 +3480,9 @@ def build_module_connect_index(
         expr_roots=expr_cache,
         hier_links=rep_hier_links,
         hier_ref_targets=rep_hier_targets,
+        edge_prov=rep_edge_prov,
+        inst_stmt_lines=dict(inst_stmt_lines),
+        ff_net_lines=rep_ff_net_lines,
     )
 
 

@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
-from urllib import error, request
 
-from soc_verify.config import UserConfig, load_user_config
+from soc_verify.config import load_user_config
 from soc_verify.graph_spec import api_endpoints, load_flow_spec, node_spec
 from soc_verify.node_contract import sandbox_payload_for_node, validate_exit_contract
-from soc_verify.llm_runner import LlmInvokeResult, _http_post_json, _llm_config, _read_template
+from soc_verify.node_gate import enrich_sandbox_payload, node_gate_payload
+from soc_verify.node_triage import triage_payload
+from soc_verify.llm_runner import LlmInvokeResult, _read_template, invoke_llm_chat
 
 
 def build_graph_llm_payload(
@@ -28,12 +28,16 @@ def build_graph_llm_payload(
     spec = load_flow_spec(root)
     ns = node_spec(spec, graph_id, node_id) or {}
     apis = api_endpoints(spec, root=str(root.resolve()), host=http_host, port=http_port)
+    graph_slice = (spec.get("graphs") or {}).get(graph_id) or {}
 
     payload: dict[str, Any] = {
         "contract": "langgraph_flow_driver",
         "instruction": (spec.get("instruction_ko") or "").strip(),
         "flow_spec_file": str((root / "registry" / "graph_flow_spec.yaml").resolve()),
-        "flow_spec": spec,
+        "flow_spec": {
+            "version": spec.get("version"),
+            "graphs": {graph_id: graph_slice},
+        },
         "current": {
             "graph": graph_id,
             "node": node_id,
@@ -51,6 +55,12 @@ def build_graph_llm_payload(
                 "fix_round",
                 "round",
                 "info_gap",
+                "milestone_plan",
+                "current_milestone",
+                "user_skillset",
+                "skills_registered",
+                "skill_ids",
+                "validation_sequence_action",
             )
             if k in state_snapshot
         },
@@ -65,12 +75,26 @@ def build_graph_llm_payload(
         "node_contract_file": str((root / "registry" / "node_contract.yaml").resolve()),
     }
 
-    payload["node_sandbox"] = sandbox_payload_for_node(
+    payload["node_sandbox"] = enrich_sandbox_payload(
+        sandbox_payload_for_node(
+            root,
+            graph_id,
+            node_id,
+            state=state_snapshot,
+            run_dir=run_dir,
+        )
+    )
+    try:
+        gate_cfg = load_user_config(root)
+    except FileNotFoundError:
+        gate_cfg = None
+    payload["node_gate"] = node_gate_payload(
         root,
         graph_id,
         node_id,
         state=state_snapshot,
         run_dir=run_dir,
+        config=gate_cfg,
     )
     payload["exit_contract"] = validate_exit_contract(
         root,
@@ -79,6 +103,14 @@ def build_graph_llm_payload(
         state=state_snapshot,
         run_dir=run_dir,
     ).to_dict()
+    payload["node_triage"] = triage_payload(
+        root,
+        graph_id,
+        node_id,
+        state=state_snapshot,
+        run_dir=run_dir,
+        config=gate_cfg,
+    )
 
     if run_dir and run_dir.is_dir():
         md = run_dir / "md_only_prompt.md"
@@ -101,15 +133,13 @@ def invoke_llm_from_graph(
     run_dir: Path | None = None,
     config: UserConfig | None = None,
 ) -> LlmInvokeResult:
-    """LangGraph node boundary → POST company LLM with full flow spec."""
+    """LangGraph node boundary → unified LLM dispatch (openai_compatible / http / script)."""
     if config is None:
         try:
             config = load_user_config(root)
         except FileNotFoundError:
             config = UserConfig(raw={"llm": {"mode": "stub"}}, path=root / "config.json")
 
-    lc = _llm_config(config)
-    mode = str(lc.get("mode", "stub"))
     payload = build_graph_llm_payload(
         root=root,
         session_id=session_id,
@@ -124,7 +154,13 @@ def invoke_llm_from_graph(
     invoke_path = out_dir / f"llm_invoke_{node_id}.json"
     invoke_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    system = _read_template("system_graph_driver.txt")
+    if graph_id == "setup_group":
+        template_name = "system_setup_adaptive.txt"
+    elif graph_id == "meta_innovation_loop":
+        template_name = "system_meta_innovation.txt"
+    else:
+        template_name = "system_graph_driver.txt"
+    system = _read_template(template_name)
     if not system:
         system = (
             "You are the SoC verification agent. Follow registry/graph_flow_spec.yaml exactly. "
@@ -132,44 +168,12 @@ def invoke_llm_from_graph(
             "Verification logic: md_only_prompt_md only."
         )
 
-    graph_endpoint = lc.get("graph_endpoint") or lc.get("endpoint")
-    if mode == "http" and graph_endpoint:
-        token = os.environ.get((lc.get("auth") or {}).get("token_env", ""), "")
-        try:
-            resp = _http_post_json(
-                str(graph_endpoint),
-                {
-                    "model": lc.get("model", "soc-dv-agent"),
-                    "task": "langgraph_flow_driver",
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-                    ],
-                },
-                token=token,
-            )
-            return LlmInvokeResult(mode=mode, invoked=True, verdict=None, message="graph_llm_ok", raw=resp)
-        except (error.URLError, TimeoutError, json.JSONDecodeError) as e:
-            return LlmInvokeResult(mode=mode, invoked=False, verdict=None, message=f"graph_llm_error:{e}")
-
-    if mode == "script" and lc.get("graph_script_path", lc.get("script_path")):
-        import subprocess
-        import sys
-
-        script = Path(str(lc.get("graph_script_path") or lc["script_path"]))
-        if script.is_file():
-            proc = subprocess.run(
-                [sys.executable, str(script), "--payload", str(invoke_path)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            return LlmInvokeResult(
-                mode=mode,
-                invoked=True,
-                verdict=None,
-                message="graph_script_ok",
-                raw={"returncode": proc.returncode, "stderr": proc.stderr[-300:]},
-            )
-
-    return LlmInvokeResult(mode=mode, invoked=False, verdict=None, message="awaiting_llm_graph_driver")
+    return invoke_llm_chat(
+        config,
+        root=root,
+        task="graph_driver",
+        system=system,
+        user_content=json.dumps(payload, ensure_ascii=False),
+        http_task="langgraph_flow_driver",
+        endpoint_keys=("graph_endpoint", "endpoint"),
+    )

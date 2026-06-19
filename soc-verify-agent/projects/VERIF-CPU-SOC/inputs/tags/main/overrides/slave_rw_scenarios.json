@@ -1,0 +1,157 @@
+{
+  "schema": "slave_rw_scenarios_v1",
+  "rtl_subdir": "VerifCPU/verif_cpu_verilog",
+  "tiers": [
+    {
+      "id": "sim_single",
+      "label": "Firmware single-beat R/W on 3 slaves (simple_soc)",
+      "make_target": "soc",
+      "sim_only": {
+        "compile": [
+          "make sim_build/tb_soc_dut.vvp"
+        ],
+        "run": [
+          "vvp sim_build/tb_soc_dut.vvp"
+        ]
+      },
+      "expected_checks": 3,
+      "success_markers": [
+        "[SUCCESS] SoC verification campaign completed",
+        "TOTAL: PASS=3 FAIL=0"
+      ],
+      "slaves": [
+        {
+          "name": "SFR",
+          "bus": "apb3",
+          "base": "0x40000000",
+          "cpu_id": 1,
+          "role": "sfr",
+          "enabled": 1
+        },
+        {
+          "name": "SRAM",
+          "bus": "ahb_lite",
+          "base": "0x80000000",
+          "cpu_id": 2,
+          "role": "sram",
+          "enabled": 1
+        },
+        {
+          "name": "UART",
+          "bus": "axi4lite",
+          "base": "0xC0000000",
+          "cpu_id": 3,
+          "role": "uart",
+          "enabled": 1
+        }
+      ],
+      "tb_refs": [
+        "tb/tb_soc_dut.v",
+        "rtl/simple_soc.v",
+        "firmware/campaign/common/phase_a.c"
+      ],
+      "optional_chip_top": {
+        "make_target": "chip-top-example",
+        "note": "4-slave TB-direct R/W; requires CAMPAIGN_NUM_SCPU>=37 and chip_top u_sync binding",
+        "success_markers": [
+          "chip_top_example: PASS",
+          "Checklist: 16 passed / 0 failed"
+        ]
+      }
+    },
+    {
+      "id": "sim_burst",
+      "label": "AMBA bridge burst-capable master smoke",
+      "make_target": "soc-bus-all",
+      "sim_only": {
+        "compile": [
+          "make sim_build/tb_soc_bus_all.vvp"
+        ],
+        "run": [
+          "vvp sim_build/tb_soc_bus_all.vvp",
+          "python3 tools/verify_amba_bus_vcd.py sim_build/tb_soc_bus_all.vcd"
+        ]
+      },
+      "expected_checks": 11,
+      "success_markers": [
+        "[SUCCESS] All AMBA bridge variants OK",
+        "Checklist: 11 passed / 0 failed"
+      ],
+      "bridge_variants": [
+        "APB2",
+        "APB3",
+        "APB4",
+        "APB5",
+        "AHB-Lite",
+        "AHB5-Lite",
+        "AHB full",
+        "AXI4-Lite",
+        "AXI3 full",
+        "AXI4 full",
+        "AXI5 full"
+      ],
+      "tb_refs": [
+        "tb/tb_soc_bus_all.v",
+        "tools/verify_amba_bus_vcd.py"
+      ]
+    },
+    {
+      "id": "sim_cpu_sync",
+      "label": "3-CPU vsync barrier + parallel slave bus R/W",
+      "make_target": "full_campaign",
+      "sim_only": {
+        "prerequisite": "sanity c-compile (tb_full_campaign.vvp + firmware hex)",
+        "run": [
+          "vvp sim_build/tb_full_campaign.vvp"
+        ]
+      },
+      "expected_checks": 43,
+      "success_markers": [
+        "Sync parallel bus SFR",
+        "Sync parallel bus SRAM",
+        "Sync parallel bus UART",
+        "Checklist: 43 passed / 0 failed"
+      ],
+      "sync": {
+        "barrier_id": 10,
+        "participant_mask": "0x7",
+        "pc_offset": "0x380",
+        "tb_configure": "sync_configure(8'd10, 64'd7)"
+      },
+      "firmware_refs": [
+        "firmware/campaign/cpu_sfr/sync_barrier.c",
+        "firmware/campaign/cpu_sram/sync_barrier.c",
+        "firmware/campaign/cpu_uart/sync_barrier.c",
+        "firmware/campaign/common/phase_a.c"
+      ],
+      "insn_refs": [
+        "vsync",
+        "load_soc_addr",
+        "rv_lw",
+        "rv_sw",
+        "vassert_id"
+      ]
+    }
+  ],
+  "integration_smoke": {
+    "command": "export RTL_ROOT=\"${RTL_ROOT:-$(pwd)}\"\ncd \"$RTL_ROOT\"\nmake chip-top-example 2>&1 | tee sim_smoke.log",
+    "success_markers": [
+      "chip_top_example: PASS",
+      "Checklist: 16 passed / 0 failed"
+    ],
+    "working_directory": "{RTL_ROOT}",
+    "env": {
+      "RTL_ROOT": "{cache.clone.path}/VerifCPU/verif_cpu_verilog"
+    },
+    "run_in_s10_gate": false,
+    "note": "S9 user smoke — run_in_s10_gate false by default"
+  },
+  "integration": {
+    "mode": "wrapper",
+    "top": "chip_top_example",
+    "filelist": "filelists/eda/test/chip_top_example/manifest.list",
+    "customer_top": "tb/chip_top_example.v"
+  },
+  "source": "crystallize_from_intake",
+  "intake_tag": "main"
+}

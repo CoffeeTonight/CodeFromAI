@@ -1,0 +1,18 @@
+{
+  "queued_at": "2026-06-18",
+  "run_id": "2fbf3aa22f27",
+  "validation": {
+    "ok": false,
+    "issues": [
+      "no_changes_listed"
+    ],
+    "contract": "meta_validate_v1"
+  },
+  "proposal": {
+    "contract": "meta_change_proposal_v1",
+    "run_id": "2fbf3aa22f27",
+    "summary": "verdict_exists",
+    "changes": []
+  },
+  "status": "rejected"
+}

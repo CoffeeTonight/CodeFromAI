@@ -107,6 +107,50 @@ def test_path_walk_endif_label_same_line_cpusystem(tmp_path: Path):
     assert _run(tmp_path, files, "SOC_TOP.u_cpusystem_top", top="SOC_TOP")
 
 
+def test_instances_for_walk_prefers_tier1_outside_generate(tmp_path: Path):
+    """``needs_generate_fold`` must not discard tier-1 instances outside ``generate``."""
+    soc = tmp_path / "soc.v"
+    soc.write_text(
+        "module SOC_TOP;\n"
+        "CPUSYSTEM_TOP u_cpusystem_top (.clk(clk));\n"
+        "genvar gi;\n"
+        "generate\n"
+        "  for (gi = 0; gi < 2; gi++) begin : gen_blk\n"
+        "    LEAF u_leaf (.clk(clk));\n"
+        "  end\n"
+        "endgenerate\n"
+        "endmodule\n",
+        encoding="utf-8",
+    )
+    from scan_inst.index import DesignIndex
+    from scan_inst.path_walk_db import PathWalkModuleDb, path_walk_db_cache_key
+
+    fl = tmp_path / "design.f"
+    fl.write_text(str(soc.resolve()) + "\n", encoding="utf-8")
+    flr = parse_filelist(str(fl), index_cwd=str(tmp_path))
+    index = DesignIndex._assemble(
+        {},
+        path_patterns=[],
+        module_patterns=[],
+        preprocess_include_dirs=[str(p) for p in flr.include_dirs],
+        preprocess_defines=dict(flr.defines),
+    )
+    db = PathWalkModuleDb(
+        [str(p) for p in flr.source_files],
+        index,
+        include_dirs=[str(p) for p in flr.include_dirs],
+        defines=dict(flr.defines),
+        no_cache=True,
+    )
+    scanned = db.tier1_scan_file(str(soc.resolve()))
+    db._apply_file_modules(str(soc.resolve()), scanned)
+    rec = index.get_module("SOC_TOP")
+    assert rec is not None
+    assert rec.needs_generate_fold
+    names = {e.inst_name for e in index.instances_for_walk("SOC_TOP", {})}
+    assert "u_cpusystem_top" in names
+
+
 def test_index_tier1_finds_cpusystem_outside_nonempty_generate(tmp_path: Path):
     """Instances outside ``generate`` must appear in tier-1 even when fold is deferred."""
     soc = tmp_path / "soc.v"
@@ -141,6 +185,60 @@ def test_index_tier1_finds_cpusystem_outside_nonempty_generate(tmp_path: Path):
     assert "u_cpusystem_top" in names
     assert "u_a" in names
     assert not any(e.inst_name.startswith("gen_blk") for e in rec.instances)
+
+
+def test_path_walk_combined_ifdef_comment_generate_param_override(tmp_path: Path):
+    """Nested ``ifdef``/``ifndef``/``elsif`` + comments + generate + ``#(.a(2),.b(2-1))``."""
+    files = {
+        "soc.v": (
+            "module SOC_TOP;\n"
+            "////////\n"
+            "// `endif trap in line comment\n"
+            "`ifndef ASD\n"
+            "A u_A\n"
+            "(\n"
+            ".aa (w_aa));\n"
+            "`elsif USE_B\n"
+            "B u_B (.bb(w_bb));\n"
+            "`else\n"
+            "STUB u_stub ();\n"
+            "`endif//ASD\n"
+            "/*\n"
+            "`ifdef FAKE\n"
+            "FAKE u_fake ();\n"
+            "`endif\n"
+            "*/\n"
+            "CPUSYSTEM_TOP u_cpusystem_top\n"
+            "(\n"
+            ".clk(clk));\n"
+            "BCD #(.a(2),.b(2-1)) u_BCD (.clk(clk));\n"
+            "genvar gi;\n"
+            "generate\n"
+            "  for (gi = 0; gi < 2; gi++) begin : gen_blk\n"
+            "`ifdef GEN_LEAF\n"
+            "    LEAF #(.idx(gi)) u_leaf (.clk(clk)); // `endif in comment\n"
+            "`elsif GEN_ALT\n"
+            "    ALT u_alt ();\n"
+            "`else\n"
+            "    BCD #(.a(gi),.b(2-1)) u_BCD_gen (.clk(clk));\n"
+            "`endif\n"
+            "  end\n"
+            "endgenerate\n"
+            "endmodule\n"
+        ),
+        "cpu.v": "module CPUSYSTEM_TOP; endmodule\n",
+        "a.v": "module A; endmodule\n",
+        "b.v": "module B; endmodule\n",
+        "stub.v": "module STUB; endmodule\n",
+        "bcd.v": "module BCD; endmodule\n",
+        "leaf.v": "module LEAF; endmodule\n",
+        "alt.v": "module ALT; endmodule\n",
+    }
+    assert _run(tmp_path, files, "SOC_TOP.u_A", top="SOC_TOP")
+    assert _run(tmp_path, files, "SOC_TOP.u_cpusystem_top", top="SOC_TOP")
+    assert _run(tmp_path, files, "SOC_TOP.u_BCD", top="SOC_TOP")
+    assert _run(tmp_path, files, "SOC_TOP.gen_blk[0].u_BCD_gen", top="SOC_TOP")
+    assert _run(tmp_path, files, "SOC_TOP.gen_blk[1].u_BCD_gen", top="SOC_TOP")
 
 
 def test_path_walk_generate_fold_child_before_index_apply(tmp_path: Path):

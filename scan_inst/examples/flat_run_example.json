@@ -6,8 +6,11 @@
     "STRESS_ALT": "0"
   },
 
-  // Runnable example: run_conn_check only. Run from examples/:
+  // Runnable: run_conn_check only (path-walk). / path-walk 연결 검사 예제.
   //   scan-inst flat_run_example.json
+  //
+  // Path-walk jobs / DB env → stress_seed42/path_walk_example.json
+  // path-walk jobs·DB env → stress_seed42/path_walk_example.json
 
   // --- run_on_full_index ---
   // "run_on_full_index": {

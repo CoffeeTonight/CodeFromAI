@@ -4,8 +4,11 @@ project_id: VERIF-CPU-SOC
 source: dummy_confluence_snapshot
 confluence_page_id: "333300003"
 title: "VerifCPU SoC — RISC-V Verification CPU (Verilog)"
+# Upstream monorepo (git pull 대상). 로컬 개발 SSOT는 local_clone_path.
 git_url: git@github.com:CoffeeTonight/CodeFromAI.git
+local_clone_path: ~/tools/__CFI
 rtl_subdir: VerifCPU/verif_cpu_verilog
+scan_inst_subdir: scan_inst
 doc_rev: r1.0
 doc_path: confluence/SOC/VERIF-CPU/verification-spec
 jira_epic: SOC-4000

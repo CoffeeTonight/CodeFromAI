@@ -1,0 +1,26 @@
+# Paper evaluation set — fixed gates for empirical claims
+version: evaluation-manifest-v1
+paper_title_slug: soc-verify-agent-self-improve
+campaign_default: paper_eval_2026
+
+gates:
+  - project_id: EXAMPLE-SOC
+    stage: simulation
+    group: gpio_ext
+    role: bootstrap
+    notes: Canonical demo gate — parity + meta-graph tail
+  - project_id: VERIF-CPU-SOC
+    stage: static
+    group: coi_conn
+    role: industry_scale
+    notes: Optional — skip if project absent
+
+success_criteria:
+  verdict: PASS
+  min_improvement_index: 0.75
+  min_trust_score: 0.70
+
+export:
+  formats: [csv, methods_md, methods_json]
+  include_llm_telemetry: true
+  include_branch_scorecards: true

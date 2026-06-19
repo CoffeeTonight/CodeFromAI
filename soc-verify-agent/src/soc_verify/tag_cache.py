@@ -24,6 +24,35 @@ def should_refresh_tag(cache: dict[str, Any], today: date | None = None) -> bool
     return today >= _parse_date(str(next_refresh))
 
 
+def touch_tag_refresh(
+    project_dir: Path,
+    cache: dict[str, Any] | None = None,
+    *,
+    today: date | None = None,
+    interval_days: int | None = None,
+) -> dict[str, Any]:
+    """Extend tag refresh policy without changing tag (no git fetch)."""
+    today = today or date.today()
+    if cache is None:
+        cache = load_yaml(project_dir / "cache.yaml")
+    tag_block = cache.get("tag") or {}
+    current = str(tag_block.get("value") or "unknown")
+    policy = tag_block.get("refresh_policy") or {}
+    interval = (
+        interval_days
+        if interval_days is not None
+        else int(policy.get("interval_days", DEFAULT_TAG_REFRESH_DAYS))
+    )
+    clone_path = (cache.get("clone") or {}).get("path")
+    return apply_tag_replace(
+        project_dir,
+        current,
+        clone_path=str(clone_path) if clone_path else None,
+        today=today,
+        interval_days=interval,
+    )
+
+
 def apply_tag_replace(
     project_dir: Path,
     new_tag: str,

@@ -1,8 +1,5 @@
-# Platform schema — copy to verification/{stage}/{group}/manifest.yaml
-stage: simulation          # sanity | consistency | static | simulation | regression
-group: my_group             # must match folder name
-milestone: M2          # M1~M4 — registry/soc_schedule_4p.yaml 참조
-schedule: 2026-06-20
-depends_on: [sanity]
-gates: [compile, sim]
-owner: dv-team
+stage: simulation
+group: example_group
+milestone: M2          # plan별 id — soc-verify milestone plans 로 확인
+status: active         # scheduled | active
+schedule: tag_refresh  # tag_refresh | milestone | YYYY-MM-DD

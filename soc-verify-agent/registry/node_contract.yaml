@@ -56,6 +56,50 @@ graphs:
           - "projects/*/patterns/**"
         forbidden_actions:
           - write_ops
+      parse_validation_items:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/validation_items.json"
+      validation_judge:
+        actor: llm_assisted
+        inline_llm: true
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/validation_judge_prompt.json"
+        allowed_tools:
+          - read_check_md
+          - read_validation_items
+          - write_validation_judgment
+        allowed_write_globs:
+          - "projects/*/runs/*/**"
+        forbidden_actions:
+          - change_check_criteria
+          - promote
+      apply_validation_plan:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/validation_judgment.json"
+          - type: file_exists
+            path: "{run_dir}/validation_narrow.md"
+        allowed_write_globs:
+          - "projects/*/meta/validation_state.yaml"
+          - "projects/*/runs/*/**"
+          - "projects/*/scripts/repro_*.sh"
+      run_pending_repro:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/validation_repro_results.json"
+        allowed_tools:
+          - run_item_repro_script
+        allowed_write_globs:
+          - "projects/*/runs/*/**"
+        forbidden_actions:
+          - run_gate
+          - promote
+          - change_check_criteria
       run_gate:
         actor: llm_when_runner_llm
         requires_exit:
@@ -140,6 +184,169 @@ graphs:
       finalize:
         actor: platform
         requires_exit: []
+      meta_collect:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/improvement_signal.json"
+          - type: file_exists
+            path: "{run_dir}/improvement_snapshot.json"
+          - type: file_exists
+            path: "{run_dir}/branch_scorecard.json"
+          - type: file_exists
+            path: "{run_dir}/child_graph_evidence.json"
+      meta_score:
+        actor: platform
+        requires_exit: []
+      meta_propose:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/meta_change_proposal.json"
+        allowed_tools:
+          - read_improvement_snapshot
+          - write_meta_proposal
+        allowed_write_globs:
+          - "projects/*/runs/*/**"
+          - "projects/*/meta_proposals/**"
+        forbidden_actions:
+          - edit_graph_source_direct
+          - auto_apply_policy
+      meta_queue:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{run_dir}/meta_change_queued.json"
+
+  meta_innovation_loop:
+    forbidden_global:
+      - edit_langgraph_source
+      - edit_registry_policies
+      - skip_multi_llm_consensus
+    nodes:
+      setup:
+        actor: platform
+        requires_exit: []
+      collect_observations:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/observations.json"
+      beci_assess:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/beci_assessment.json"
+      skill_to_obsidian:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/skill_obsidian_manifest.json"
+        allowed_write_globs:
+          - "projects/*/knowledge/obsidian/**"
+          - "projects/*/runs/meta_innovation/*/**"
+      subagent_verify:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/subagent_verify.json"
+        allowed_write_globs:
+          - "projects/*/ops/*/*.py"
+          - "projects/*/runs/meta_innovation/*/**"
+      multi_llm_review:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/reviewer_a.json"
+          - type: file_exists
+            path: "{mil_run_dir}/reviewer_b.json"
+          - type: file_exists
+            path: "{mil_run_dir}/reviewer_c.json"
+        allowed_write_globs:
+          - "projects/*/runs/meta_innovation/*/**"
+      consensus_decide:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/meta_innovation_decision.json"
+      dispatch_intervention:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/dispatch_intervention.json"
+      paper_data_maintain:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/paper_data_update.json"
+        allowed_write_globs:
+          - "projects/*/improvement/**"
+          - "projects/*/scorecards/**"
+          - "projects/*/meta_innovation/**"
+          - "registry/paper_campaigns.yaml"
+      finalize:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{mil_run_dir}/meta_innovation_workflow.json"
+
+  setup_group:
+    forbidden_global:
+      - edit_langgraph_source
+      - edit_registry_policies
+    nodes:
+      setup:
+        actor: platform
+        requires_exit: []
+      milestone_context:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{setup_run_dir}/milestone_context.json"
+      register_skills:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{setup_run_dir}/skills_registered.json"
+      llm_adapt:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{setup_run_dir}/setup_adapt.json"
+        allowed_tools:
+          - read_file
+          - write_setup_adapt
+          - write_tool_script
+        allowed_write_globs:
+          - "projects/*/runs/setup/*/**"
+          - "projects/*/tools/*.py"
+          - "projects/*/tools/**/*.py"
+        forbidden_actions:
+          - edit_graph_source
+          - edit_registry_policies
+      llm_bootstrap_scripts:
+        actor: llm_assisted
+        requires_exit:
+          - type: file_exists
+            path: "{setup_run_dir}/bootstrap_finalize.json"
+          - type: file_exists
+            path: "{project_dir}/scripts/run_beginner.sh"
+        allowed_tools:
+          - read_file
+          - write_beginner_script
+          - write_scripts_readme
+        allowed_write_globs:
+          - "projects/*/scripts/run_beginner.sh"
+          - "projects/*/scripts/README.md"
+          - "projects/*/runs/setup/*/**"
+        forbidden_actions:
+          - gate_cli_options
+          - edit_graph_source
+      finalize:
+        actor: platform
+        requires_exit:
+          - type: file_exists
+            path: "{setup_run_dir}/setup_workflow.json"
 
   orchestrator:
     forbidden_global:

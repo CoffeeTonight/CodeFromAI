@@ -1014,6 +1014,35 @@ class DesignIndex:
             return "ignorePath"
         return ""
 
+    def instances_for_walk(
+        self,
+        mod_name: str,
+        parent_ctx: Mapping[str, str],
+    ) -> List[InstanceEdge]:
+        """
+        Path-walk instance edges: tier-1 prescanned insts plus folded generate bodies.
+
+        Tier-1 already records instances declared outside ``generate`` even when
+        ``needs_generate_fold`` is set; do not drop them in favour of a full
+        ``instances_for`` rescan (slow preprocess + possible ifdef divergence).
+        """
+        rec = self.modules.get(mod_name)
+        if not rec or rec.stop_reason or rec.is_blackbox:
+            return list(rec.instances) if rec else []
+        if not rec.needs_generate_fold:
+            return list(rec.instances)
+        base = list(rec.instances)
+        folded = self.instances_for(mod_name, parent_ctx, {})
+        if not folded:
+            return base
+        seen = {edge.inst_name for edge in base}
+        out = list(base)
+        for edge in folded:
+            if edge.inst_name not in seen:
+                out.append(edge)
+                seen.add(edge.inst_name)
+        return out
+
     def instances_for(
         self,
         mod_name: str,

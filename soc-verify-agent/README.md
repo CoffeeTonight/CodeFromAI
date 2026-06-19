@@ -9,24 +9,171 @@ Multi-project SoC verification agent framework implementing:
 - **INFO_GAP** hard stop (exit 4)
 - **Promotion**: trust_report first, LLM `promote_decision.md`, `registry_writer.py` only writes registry
 - **Completeness**: `(1-e)(1-t)(1-i)(1-l)`
+- **Meta-graph tail**: KPI snapshot + structured change proposals (`meta_collect` → `meta_queue`); LangGraph source never auto-applied
 
 ## Layout
 
 ```
 soc-verify-agent/
-├── config.json           # USER: Confluence hints, JIRA, git, schedules, env
-├── config.schema.json
-├── registry/policies.yaml  # PLATFORM: completeness thresholds, trust, loop
+├── config.json              # YOUR workspace (gitignore 권장 — config.example.json에서 복사)
+├── config.example.json      # 전체 설정 템플릿
+├── config.schema.json       # JSON 스키마
+├── platform/integrations/   # Confluence·Jira 예시 (아래 설정 가이드)
+├── registry/policies.yaml   # PLATFORM: completeness, trust, loop
 ├── projects/{id}/
-│   ├── discovered.yaml     # auto from Confluence (platform)
-│   ├── verification/{stage}/{group}/  # USER MD: CHECK.md, RESPOND.md
-│   └── ops/{stage}/{group}.py         # crystallized execution (per project)
-├── platform/               # intake, jira stubs
-├── templates/
+│   ├── discovered.yaml      # Confluence intake 결과 (플랫폼 작성)
+│   ├── verification/...     # USER MD: CHECK.md, RESPOND.md
+│   └── ops/...              # crystallized execution
 └── src/soc_verify/
 ```
 
 See `docs/ARCHITECTURE.md` for platform vs user vs verification split.
+
+---
+
+## Confluence & Jira 설정
+
+플랫폼은 **루트 `config.json`** 만 읽습니다. 토큰·비밀번호는 JSON에 넣지 않고 **환경 변수 이름**만 적습니다.
+
+### 1. 예시 파일
+
+| 파일 | 내용 |
+|------|------|
+| [`platform/integrations/confluence_jira.example.json`](platform/integrations/confluence_jira.example.json) | Confluence URL, CQL, `field_map`, Jira `customfield_*`, Cloud/Server 변형 |
+| [`platform/integrations/openai_compatible_llm.example.json`](platform/integrations/openai_compatible_llm.example.json) | OpenAI 호환 LLM API (`/v1/chat/completions`) — OpenAI, Ollama, vLLM, Azure, LiteLLM |
+| [`platform/integrations/secrets.env.example`](platform/integrations/secrets.env.example) | `CONFLUENCE_*`, `JIRA_*`, `OPENAI_*` 환경 변수 템플릿 |
+| [`config.example.json`](config.example.json) | 위 항목을 포함한 전체 workspace 설정 |
+
+### 2. 사용 환경에 맞게 수정 (최소 절차)
+
+```bash
+cd soc-verify-agent
+
+# 1) workspace 설정 복사
+cp config.example.json config.json
+
+# 2) 자격 증명 (repo 밖 / gitignore)
+cp platform/integrations/secrets.env.example secrets.env
+# secrets.env 편집 후:
+set -a && source secrets.env && set +a
+
+# 3) config.json 편집 — 아래 항목을 회사 환경에 맞게 변경
+```
+
+**Confluence (`config.json` → `confluence`)**
+
+| 항목 | 바꿀 것 |
+|------|---------|
+| `mode` | 개발·CI: `"dummy"` (스냅샷 intake). 운영 Confluence 연동 시: `"live"` |
+| `base_url` | Cloud: `https://<회사>.atlassian.net/wiki` · Server: `https://confluence.corp.internal` |
+| `deployment` | `"cloud"` 또는 `"server"` |
+| `auth.user_env` / `auth.token_env` | `secrets.env`에 넣은 변수명과 일치 |
+| `hints.project_discovery.cql` | Confluence 고급 검색에서 과제 페이지를 찾는 CQL (먼저 UI에서 테스트) |
+| `hints.field_map` | Confluence 표 **열 헤더 문자열** → `discovered.yaml` 키 매핑 |
+
+**Jira (`config.json` → `jira`)**
+
+| 항목 | 바꿀 것 |
+|------|---------|
+| `enabled` | JIRA 자동 보고 사용 시 `true` |
+| `base_url` | Cloud: `https://<회사>.atlassian.net` · Server: `https://jira.corp.internal` |
+| `project_key` | 예: `SOC`, `DV` |
+| `field_map.*` | Jira **관리 → 이슈 → 사용자 정의 필드**에서 `customfield_XXXXX` ID 확인 |
+| `issue_type` | 프로젝트에 정의된 이슈 유형 이름 |
+
+상세 필드·API 경로 예시는 `platform/integrations/confluence_jira.example.json`의 `server_dc_variant` 블록을 참고하세요.
+
+### 3. Confluence dummy 모드 (토큰 없이 개발)
+
+```json
+"confluence": { "mode": "dummy", ... }
+```
+
+intake는 [`platform/intake/dummy_confluence_snapshot.yaml`](platform/intake/dummy_confluence_snapshot.yaml)을 사용해 `registry/active_projects.yaml`과 `projects/*/discovered.yaml`을 갱신합니다.
+
+### 4. JIRA dry-run
+
+검증 run 후 completeness가 허용할 때만 이슈를 올립니다 (`registry/policies.yaml` → `jira_complete_min`).
+
+```bash
+python platform/ops/jira_post.py \
+  --root . \
+  --project EXAMPLE-SOC \
+  --run-dir projects/EXAMPLE-SOC/runs/<run_id>
+```
+
+`jira.enabled: false`이면 스크립트는 payload만 출력하고 실제 POST는 하지 않습니다 (stub).
+
+### 5. 체크리스트
+
+- [ ] `config.json`에 실제 URL·project_key·CQL 반영
+- [ ] `secrets.env` 생성 후 env 로드 (JSON에 토큰 없음)
+- [ ] Confluence `field_map`이 실제 페이지 표 헤더와 일치
+- [ ] Jira `customfield_*` ID를 운영 Jira에서 확인
+- [ ] `soc-verify --root . schedule`로 acquisition 주기 확인
+
+---
+
+## OpenAI compatible LLM 설정
+
+회사 전용 HTTP 브리지 대신 **OpenAI 호환 Chat Completions API** (`POST /v1/chat/completions`)를 쓰는 경우:
+
+### 1. 예시 파일
+
+[`platform/integrations/openai_compatible_llm.example.json`](platform/integrations/openai_compatible_llm.example.json) — provider별 `base_url`·`model` (OpenAI, Ollama, vLLM, Azure, LiteLLM).
+
+### 2. config.json
+
+`openai_compatible_llm.example.json`의 `config_json_snippet.llm`을 복사하거나, `config.example.json`의 `llm` 블록을 참고합니다.
+
+```json
+"llm": {
+  "mode": "openai_compatible",
+  "md_only": true,
+  "openai_compatible": {
+    "base_url_env": "OPENAI_API_BASE",
+    "base_url_default": "https://api.openai.com/v1",
+    "api_key_env": "OPENAI_API_KEY",
+    "chat_completions_path": "/chat/completions",
+    "model": "gpt-4o",
+    "temperature": 0.2,
+    "max_tokens": 8192
+  }
+}
+```
+
+### 3. secrets.env
+
+```bash
+OPENAI_API_BASE=https://api.openai.com/v1   # Ollama: http://localhost:11434/v1
+OPENAI_API_KEY=sk-...
+```
+
+Ollama 로컬은 `OPENAI_API_KEY=ollama` (임의 문자열)로 동작하는 경우가 많습니다.
+
+### 4. 동작
+
+| `llm.mode` | 설명 |
+|------------|------|
+| `stub` | LLM 미호출 — run 디렉터리에 artifact 수동 작성 (기본·테스트) |
+| `openai_compatible` | `system_sub_agent.txt` + MD-only user → Chat Completions → `verdict_{group}.json` 파싱 |
+| `http` | 회사 커스텀 API (`endpoint`가 `verdict` JSON 반환) |
+| `script` | `platform/llm/company_bridge_example.py` 등 외부 스크립트 |
+
+응답에 ` ```json { "status": "PASS", ... } ``` ` 형태의 verdict가 있어야 자동으로 `verdict_*.json`이 작성됩니다. 없으면 `runs/{id}/llm_response.txt`에 raw 응답이 저장됩니다.
+
+### 5. Provider 빠른 참조
+
+| Provider | `OPENAI_API_BASE` | `model` 예 |
+|----------|-------------------|------------|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o` |
+| Ollama | `http://localhost:11434/v1` | `llama3.1` |
+| vLLM | `http://localhost:8000/v1` | 배포 모델명 |
+| Azure OpenAI | `https://{resource}.openai.azure.com/openai/deployments/{dep}` | deployment 이름 |
+
+상세는 `openai_compatible_llm.example.json`의 `providers` 블록을 참고하세요.
+
+---
 
 ## Quick start
 
@@ -35,7 +182,7 @@ cd soc-verify-agent
 pip install -e ".[dev]"
 pytest tests/ -q
 soc-verify --root . run                              # orchestrator: acquisition + due verify
-soc-verify --root . verify EXAMPLE-SOC simulation gpio_ext  # single job via orchestrator
+soc-verify --root . verify EXAMPLE-SOC simulation gpio_ext
 soc-verify --root . schedule                         # acquisition due status
 soc-verify --root . stages --project EXAMPLE-SOC
 soc-verify --root . tag-replace EXAMPLE-SOC v1.0.2
@@ -52,8 +199,113 @@ soc-verify --root . tag-replace EXAMPLE-SOC v1.0.2
 
 See `docs/RESEARCH.md` for adoption notes.
 
+## Setup (설정 허브 TUI — 초기·변경 모두)
+
+```bash
+soc-verify setup                 # 설정 허브 메뉴 (섹션 선택 · 0 종료)
+soc-verify setup paper           # 통계화: 캠페인 · %% · readiness · (선택) 초안
+soc-verify setup llm             # LLM API
+soc-verify setup schedules       # knowledge_collect 주기 등
+soc-verify setup --status        # 진행 체크리스트
+./scripts/setup.sh
+```
+
+## Paper factory (실험 통계화)
+
+검증 run을 condition·gate·repro 단위로 **통계·증거화** — 태깅 → telemetry → readiness(%%) → export.
+**Grok 없이** `paper-factory` CLI·셸 스크립트·Python API (`docs/PAPER_FACTORY.md`).
+CLI 이름 `paper-factory`는 유지; 개념은 **통계화** (논문 산문 작성과 구분).
+
+```bash
+# 실험 조건 붙여 verify
+soc-verify --root . verify EXAMPLE-SOC simulation gpio_ext \
+  --campaign paper_eval_2026 --condition treatment_full --hypothesis H1
+
+# 캠페인 진행률 (evaluation_manifest gates)
+soc-verify --root . paper status --campaign paper_eval_2026
+
+# 논문 준비도 (%% 남음, 부족 데이터, 섹션별 작성 가능 여부)
+paper-factory assess --campaign paper_eval_2026 --write
+# 동일: soc-verify --root . paper readiness --campaign paper_eval_2026 --write
+
+# verify 명령 제안 + 전체 리포트
+paper-factory suggest --campaign paper_eval_2026
+paper-factory run --campaign paper_eval_2026 --write
+
+# 논문용 CSV + Methods + readiness 자동 생성
+paper-factory export --campaign paper_eval_2026
+
+# 기존 run 수동 태깅
+soc-verify --root . experiment EXAMPLE-SOC <run_id> --campaign paper_eval_2026
+```
+
+| 산출물 | 용도 |
+|--------|------|
+| `runs/{id}/experiment_run.json` | campaign / condition / hypothesis |
+| `runs/{id}/llm_telemetry.jsonl` | model, tokens, latency |
+| `runs/{id}/env_pin.json` | git commit, pip freeze hash, config sha256 |
+| `export-paper` → `runs.csv`, `methods.md` | Methods·Results 표 |
+| `paper readiness` → `paper_readiness.md` | 몇 %% 남았는지, gap 목록 |
+| Grok skill `/paper-factory` | 준비도 평가 → verify 제안 → export → 초안 |
+
+명세: `registry/evaluation_manifest.yaml`, `registry/experiment_spec.yaml`, `registry/paper_readiness_spec.yaml`
+
+## Meta-graph & self-improvement KPIs
+
+After each `verify_group` run (`finalize` → `meta_*` chain):
+
+| Artifact | Role |
+|----------|------|
+| `runs/{id}/improvement_signal.json` | Observed run metrics |
+| `runs/{id}/improvement_snapshot.json` | `improvement_index`, deltas vs previous/baseline |
+| `projects/{id}/improvement/history.yaml` | Time series per stage/group |
+| `runs/{id}/meta_change_proposal.json` | LLM structured changes (layer, target, evidence) |
+| `projects/{id}/meta_proposals/{run_id}.json` | Validated proposal queue |
+
+- Spec: `registry/meta_graph_spec.yaml` · Diagrams: `templates/obsidian/10-META-GRAPH.md`, **`11-LANGGRAPH-SUMMARY.md`**
+- Per-branch scorecards: `branch_scorecard.json` (trust, C/I/E/B, commands, weekly retries) · Child evidence: `child_graph_evidence.json`
+- `graph_source` (`src/soc_verify/graphs/*.py`) requires human approval — never auto-applied (`policies.yaml` → `meta_graph.graph_source_never_auto_apply`)
+
 ## Integration
 
-- **Obsidian**: `templates/obsidian/` → vault `05-Agents/` — 시작 [[00-HUB]](templates/obsidian/00-HUB.md) (연결·갭·산업 비교)
+- **Obsidian**: `templates/obsidian/` → vault `05-Agents/` — 시작 [[00-HUB]](templates/obsidian/00-HUB.md)
 - **Sub-agent**: writes `sub_stop.json`, never reports PASS without artifacts
-- **JIRA**: add `ops/jira_post.py` per project (not included in stub)
+- **JIRA**: `platform/ops/jira_post.py` (dry-run stub; enable via `jira.enabled`)
+
+---
+
+## VERIF-CPU-SOC — VCPU→SoC 통합 (진입점)
+
+VerifCPU 예제 PASS 이후 **내 SoC top**에 SCPU 검증 블록을 올리고 gate까지 통과하는 절차입니다.  
+순서: **통합 S0–S8 → 사용자 smoke sim (S9) → gate (S10)**.
+
+| 대상 | 문서 | 용도 |
+|------|------|------|
+| **사람 (시작)** | [`projects/VERIF-CPU-SOC/USER-PROCEDURE.md`](projects/VERIF-CPU-SOC/USER-PROCEDURE.md) | 단계별 절차서 — **여기서 시작** |
+| 사람 (상세) | [`projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md`](projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md) | 체크리스트·명령 예 |
+| LLM 에이전트 | [`templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md`](templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md) | Obsidian vault SSOT (S0–S10) |
+| 스크립트 | [`projects/VERIF-CPU-SOC/scripts/README.md`](projects/VERIF-CPU-SOC/scripts/README.md) | gate·bootstrap·runbook |
+
+**최초 1회 (5분):**
+
+```bash
+export PROJECT_DIR=/path/to/soc-verify-agent/projects/VERIF-CPU-SOC
+cd "$PROJECT_DIR"
+./scripts/bootstrap_verifcpu_workspace.sh    # 기본 RTL: ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+cd inputs/tags && ./copy_new_tag.sh my_chip   # intake scaffold (기본=빈 template)
+```
+
+| 경로 | 역할 |
+|------|------|
+| `~/tools/__CFI/VerifCPU/verif_cpu_verilog` | **RTL_ROOT** — CPU 설계·`howto_integrate.md`·`vcpu_skill.md` |
+| `~/tools/__CFI/scan_inst` | COI gate (`scan-inst`) |
+
+| 스크립트 | 역할 |
+|----------|------|
+| [`bootstrap_verifcpu_workspace.sh`](projects/VERIF-CPU-SOC/scripts/bootstrap_verifcpu_workspace.sh) | `__CFI` 바인딩 + `cache.yaml` 갱신 (필요 시 git clone) |
+| [`copy_new_tag.sh`](projects/VERIF-CPU-SOC/inputs/tags/copy_new_tag.sh) | 새 tag scaffold (`--example`은 dry-run 참고만) |
+| [`crystallize_gate_from_intake.py`](projects/VERIF-CPU-SOC/scripts/crystallize_gate_from_intake.py) | intake → `overrides/*.json` (S10 전) |
+
+Intake SSOT: `inputs/tags/{tag}/deployment/customer_soc_intake.yaml`  
+예시(dry-run): [`customer_soc_intake.example.yaml`](projects/VERIF-CPU-SOC/inputs/tags/main/deployment/customer_soc_intake.example.yaml)  
+빈 스키마: [`customer_soc_intake.template.yaml`](templates/obsidian/agent/vcpu-soc-integration/intake/customer_soc_intake.template.yaml)

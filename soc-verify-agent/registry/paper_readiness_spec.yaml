@@ -1,0 +1,49 @@
+# Paper readiness rubric — typical systems + empirical evaluation papers
+version: paper-readiness-v1
+instruction_ko: >
+  일반적인 시스템/실험 논문(Methods, Evaluation, Ablation, Reproducibility)에 필요한
+  데이터 충족률을 가중 합산한다. 100% = export-paper 후 Results 초안 작성 가능.
+
+weights:
+  experiment_design: 0.20
+  evaluation_gates: 0.20
+  telemetry_baseline: 0.15
+  llm_provenance: 0.10
+  self_improvement: 0.15
+  reproducibility: 0.10
+  export_artifacts: 0.10
+
+thresholds:
+  min_runs_per_condition: 5
+  min_total_runs: 10
+  min_conditions: 2
+  min_gates_passing_ratio: 0.80
+  min_llm_telemetry_coverage: 0.50
+  min_ablation_linked: 3
+  min_code_changes: 5
+  min_user_feedback: 2
+  min_days_since_baseline: 1
+
+required_conditions:
+  - control
+  - treatment_full
+
+paper_sections:
+  - id: abstract
+    requires: [export_artifacts, evaluation_gates]
+  - id: introduction
+    requires: []
+  - id: related_work
+    requires: []
+  - id: system_design
+    requires: [reproducibility]
+  - id: methods
+    requires: [experiment_design, llm_provenance, telemetry_baseline]
+  - id: evaluation
+    requires: [evaluation_gates, experiment_design]
+  - id: ablation
+    requires: [self_improvement]
+  - id: discussion
+    requires: [export_artifacts]
+  - id: reproducibility
+    requires: [reproducibility, export_artifacts]

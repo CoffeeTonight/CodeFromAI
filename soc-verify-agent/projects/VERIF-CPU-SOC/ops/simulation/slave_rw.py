@@ -15,6 +15,7 @@ from _verifcpu import (  # noqa: E402
     EXIT_FAIL,
     EXIT_PASS,
     EXIT_TOOL_ERROR,
+    _log_stamp,
     fw_artifact_manifest,
     fw_artifacts_unchanged,
     init_log,
@@ -23,6 +24,9 @@ from _verifcpu import (  # noqa: E402
     run_cmd,
     write_verdict,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from intake_resolve import load_slave_rw_scenarios, project_tag  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _slave_rw import GATE, PREREQ_MARKERS, SOC_DUT_VVP, judge_slave_rw_log  # noqa: E402
@@ -33,7 +37,7 @@ BUS_ALL_VCD = "sim_build/tb_soc_bus_all.vcd"
 
 
 def _tier_banner(tier: str) -> str:
-    return f"\n{'=' * 72}\n# tier={tier}\n"
+    return f"\n{'=' * 72}\n# {_log_stamp()}\n# tier={tier}\n"
 
 
 def _append_log(log_path: Path, text: str) -> None:
@@ -43,6 +47,18 @@ def _append_log(log_path: Path, text: str) -> None:
 
 def _missing_prereqs(root: Path) -> list[str]:
     return [rel for rel in PREREQ_MARKERS if not (root / rel).is_file()]
+
+
+def _run_integration_smoke(root: Path, scenarios: dict[str, Any], log_path: Path) -> None:
+    smoke = scenarios.get("integration_smoke") or {}
+    if not smoke.get("run_in_s10_gate"):
+        return
+    cmd = str(smoke.get("command") or "").strip()
+    if not cmd:
+        return
+    _append_log(log_path, _tier_banner("integration_smoke"))
+    cmd = cmd.replace("{RTL_ROOT}", str(root))
+    run_cmd(["bash", "-lc", f"export RTL_ROOT={root}; {cmd}"], cwd=root, log_path=log_path)
 
 
 def main() -> int:
@@ -68,6 +84,9 @@ def main() -> int:
             artifacts={"log": str(log_path)},
         )
         return EXIT_FAIL
+
+    tag = project_tag(project_dir)
+    scenarios = load_slave_rw_scenarios(project_dir, tag=tag)
 
     missing = _missing_prereqs(root)
     if missing:
@@ -95,17 +114,20 @@ def main() -> int:
 
     fw_before = fw_artifact_manifest(root)
     init_log(log_path, gate=GATE, rtl_root_path=root)
+    _append_log(
+        log_path,
+        f"# scenarios={json.dumps({'source': scenarios.get('source'), 'intake_tag': scenarios.get('intake_tag')})}\n",
+    )
 
-    # --- compile (extra beyond c-compile) ---
+    _run_integration_smoke(root, scenarios, log_path)
+
     _append_log(log_path, _tier_banner("compile"))
     run_cmd(["make", SOC_DUT_VVP], cwd=root, log_path=log_path)
     run_cmd(["make", BUS_ALL_VVP], cwd=root, log_path=log_path)
 
-    # --- tier 1: single R/W (simple_soc — SFR/SRAM/UART firmware) ---
     _append_log(log_path, _tier_banner("sim_single"))
     run_cmd(["vvp", SOC_DUT_VVP], cwd=root, log_path=log_path)
 
-    # --- tier 2: burst bridge ---
     _append_log(log_path, _tier_banner("sim_burst"))
     run_cmd(["vvp", BUS_ALL_VVP], cwd=root, log_path=log_path)
     run_cmd(
@@ -114,14 +136,13 @@ def main() -> int:
         log_path=log_path,
     )
 
-    # --- tier 3: cpu sync (sim-only full campaign) ---
     _append_log(log_path, _tier_banner("sim_cpu_sync"))
     run_cmd(["vvp", FULL_VVP], cwd=root, log_path=log_path)
 
     fw_after = fw_artifact_manifest(root)
     fw_hits = fw_artifacts_unchanged(fw_before, fw_after)
 
-    scan, tiers = judge_slave_rw_log(log_path)
+    scan, tiers = judge_slave_rw_log(log_path, scenarios=scenarios)
     if fw_hits:
         scan = type(scan)(ok=False, hits=scan.hits + fw_hits)
 
@@ -132,6 +153,7 @@ def main() -> int:
         "firmware_before": fw_before,
         "firmware_after": fw_after,
         "tiers": tier_summary,
+        "scenarios_source": scenarios.get("source"),
     }
 
     if not scan.ok:

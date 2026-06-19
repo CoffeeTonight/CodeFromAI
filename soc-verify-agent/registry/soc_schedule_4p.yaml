@@ -1,6 +1,8 @@
-# 4단계 SoC 개발 표준 일정 (플랫폼 참조). 산업계 DV 용어 기반.
+# 4단계 SoC 개발 표준 일정 (레거시 alias).
+# Canonical: registry/milestone_plans/soc-dv-4p-v1.yaml — index: registry/milestone_plans/index.yaml
 
 plan_id: soc-dv-4p-v1
+plan_ref: milestone_plans/soc-dv-4p-v1.yaml
 label_ko: "SoC DV 4단계 표준 계획"
 label_en: "SoC DV Four-Phase Plan"
 start: 2025-10-01

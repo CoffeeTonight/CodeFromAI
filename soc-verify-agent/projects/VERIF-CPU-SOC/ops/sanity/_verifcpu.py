@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +137,10 @@ _VVP_TAIL_COMPLETION: list[re.Pattern[str]] = [
 _DEFAULT_TAIL_LINES = 20
 
 
+def _log_stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
 @dataclass
 class LogJudgment:
     ok: bool
@@ -153,25 +158,20 @@ class LogJudgment:
 
 
 def rtl_root(project_dir: Path) -> Path:
-    discovered = load_yaml(project_dir / "discovered.yaml")
-    cache = load_yaml(project_dir / "cache.yaml")
-    clone = (cache.get("clone") or {}).get("path")
-    if not clone:
-        raise FileNotFoundError("cache.yaml missing clone.path")
-    clone_path = Path(str(clone))
-    if not clone_path.is_dir():
-        raise FileNotFoundError(f"clone path not found: {clone_path}")
-    sub = str(discovered.get("rtl_subdir") or "").strip()
-    root = clone_path / sub if sub else clone_path
-    if not (root / "example.sh").is_file():
-        raise FileNotFoundError(f"VerifCPU root not found (no example.sh): {root}")
-    return root
+    import sys
+
+    ops_parent = project_dir / "ops"
+    if str(project_dir) not in sys.path:
+        sys.path.insert(0, str(project_dir))
+    from ops.intake_resolve import resolve_rtl_root
+
+    return resolve_rtl_root(project_dir)
 
 
 def init_log(log_path: Path, *, gate: str, rtl_root_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(
-        f"# gate={gate}\n# rtl_root={rtl_root_path}\n",
+        f"# gate={gate}\n# rtl_root={rtl_root_path}\n# started={_log_stamp()}\n",
         encoding="utf-8",
     )
 
@@ -185,6 +185,7 @@ def append_cmd_log(
 ) -> None:
     block = (
         f"\n{'=' * 72}\n"
+        f"# {_log_stamp()}\n"
         f"$ {' '.join(cmd)}\n"
         f"(cwd={cwd})\n"
         f"exit={proc.returncode}\n\n"
@@ -204,6 +205,7 @@ def _append_timeout_log(
 ) -> None:
     block = (
         f"\n{'=' * 72}\n"
+        f"# {_log_stamp()}\n"
         f"$ {' '.join(cmd)}\n"
         f"(cwd={cwd})\n"
         f"exit=TIMEOUT\n\n"

@@ -1,0 +1,25 @@
+# Milestone plan catalog — 조직/문화별 단계 정의를 선택한다.
+version: milestone-plans-index-v1
+default_plan: soc-dv-4p-v1
+
+plans:
+  - id: soc-dv-4p-v1
+    file: soc-dv-4p-v1.yaml
+    label_ko: "SoC DV 4단계 (M1~M4)"
+    label_en: SoC DV Four-Phase
+    culture: semiconductor_dv
+  - id: agile-3p-v1
+    file: agile-3p-v1.yaml
+    label_ko: "애자일 3단계 (Discover·Build·Release)"
+    label_en: Agile Three-Phase
+    culture: agile_product
+  - id: waterfall-5p-v1
+    file: waterfall-5p-v1.yaml
+    label_ko: "워터폴 5단계"
+    label_en: Waterfall Five-Phase
+    culture: waterfall_engineering
+  - id: custom
+    file: null
+    label_ko: "프로젝트 자체 정의 (state.yaml milestones)"
+    label_en: Project-defined inline milestones
+    culture: custom

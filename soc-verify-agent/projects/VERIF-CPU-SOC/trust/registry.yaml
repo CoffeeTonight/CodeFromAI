@@ -19,11 +19,21 @@ scripts:
     successes: 0
     one_shot_success_rate: 0.0
     last_tag: ''
+  coi_hierarchy.py:
+    script: coi_hierarchy.py
+    status: draft
+    trust_score: 0.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 0.0
+    last_tag: ''
   coi_conn.py:
     script: coi_conn.py
     status: draft
     trust_score: 0.0
-    version: 0.2.0
+    version: 0.3.0
     tied_to_tag: true
     runs: 0
     successes: 0

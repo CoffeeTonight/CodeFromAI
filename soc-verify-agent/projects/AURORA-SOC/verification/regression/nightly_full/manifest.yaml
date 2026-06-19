@@ -1,7 +1,0 @@
-stage: regression
-group: nightly_full
-milestone: M4
-schedule: 2026-05-20
-depends_on: [sanity, simulation]
-gates: [regress, coverage]
-owner: dv-team-a

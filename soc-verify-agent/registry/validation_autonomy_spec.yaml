@@ -1,0 +1,71 @@
+# SoC-level validation autonomy — goal metrics & per-item LLM judgment
+# IP block: coverage-driven. SoC integration: validation-driven (checklist tiers, goal numerics).
+version: validation-autonomy-v1
+instruction_ko: >
+  coverage는 IP UVM에 유용. SoC 통합 검증은 goal 수치·checklist item 단위 validation.
+  goal 미달 item에 대해 LLM이 reproduce / narrow_cause / repro_script / exclude / continue_rest 판단.
+  LangGraph verify_group: parse_validation_items → validation_judge → apply_validation_plan.
+
+paradigm:
+  ip_block:
+    driver: coverage_closure
+    metrics: [code_coverage, functional_coverage, assertion_density]
+  soc_level:
+    driver: validation_goals
+    metrics: [checklist_pass_fail, tier_markers, goal_numeric, gate_verdict]
+    note: "목표 수치 미달 item을 좁혀 재현·제외·나머지 자동 진행"
+
+item_sources:
+  - id: check_md_tiers
+    path: "verification/{stage}/{group}/CHECK.md"
+    parse: tier_table_and_pass_conditions
+  - id: run_log
+    path: "runs/{run_id}/*.{log,out}"
+    parse: checklist_counts_tier_markers_cmd_exit
+  - id: verdict_json
+    path: "runs/{run_id}/verdict_{group}.json"
+
+judge_actions:
+  reproduce:
+    label_ko: "해당 item만 재현 실행"
+    writes: [validation_item_repro_prompt.json, scripts/repro_{item_id}.sh]
+  narrow_cause:
+    label_ko: "오류 원인 사용자용 요약"
+    writes: [validation_narrow.md]
+  repro_script:
+    label_ko: "재현 스크립트 생성·갱신"
+    writes: [scripts/repro_{item_id}.sh, verification_sequence.yaml]
+  exclude:
+    label_ko: "항목 제외(트래킹) 후 시퀀스 계속"
+    writes: [meta/validation_state.yaml]
+  continue_rest:
+    label_ko: "실패 item 보류·나머지 gate 자동 진행"
+    writes: [meta/validation_state.yaml]
+
+sequence_actions:
+  - halt
+  - retry_gate
+  - continue_remaining
+  - partial_accept
+
+state_files:
+  project: projects/{id}/meta/validation_state.yaml
+  run_items: runs/{run_id}/validation_items.json
+  run_judgment: runs/{run_id}/validation_judgment.json
+  run_narrow: runs/{run_id}/validation_narrow.md
+
+mechanical_fallback:
+  sequence_action: retry_gate
+  note: "LLM judgment(source=llm)만 continue_remaining/partial_accept 허용"
+
+pending_repro:
+  description: "reproduce/repro_script 판정 item — run_pending_repro 노드가 scripts/repro_*.sh 실행"
+
+graph_nodes:
+  verify_group:
+    - parse_validation_items
+    - validation_judge
+    - apply_validation_plan
+    - run_pending_repro
+  orchestrator:
+    - validation_sequence_filter

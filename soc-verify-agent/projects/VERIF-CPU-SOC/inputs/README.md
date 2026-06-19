@@ -18,7 +18,16 @@ inputs/tags/{tag}/
 ## tag가 바뀔 때
 
 1. `cache.yaml`의 `tag.value` 확인 (예: `v1.2.0`)
-2. `inputs/tags/{새tag}/` 폴더 생성 (이전 tag 복사 가능)
+2. **스캐폴드 복사** — gen이 만들지 **않는** MD·YAML 포함:
+
+```bash
+cd projects/VERIF-CPU-SOC/inputs/tags
+./copy_new_tag.sh <NEW_TAG>
+# 또는: ./copy_new_tag.sh <NEW_TAG> --from main
+```
+
+원본: `inputs/tags/_scaffold/` · 가이드: `templates/obsidian/agent/vcpu-soc-integration/12-EXAMPLE-SCAFFOLD.md`
+
 3. `manifest.yaml` 갱신 — 파일 경로·종류·rev 기록
 4. `reports/index.yaml`의 `tag` / `inputs_manifest` 경로 맞추기
 5. `ops/report/generate_reports.py` 재실행
@@ -37,7 +46,7 @@ ops·에이전트는 manifest만 스캔해도 “이 tag에 어떤 외부 입력
 
 ## overrides 예
 
-- `overrides/coi_conn_checks.json` → `runs/{run_id}/`로 복사 후 `coi_conn.py` 실행
-- `overrides/slave_rw_scenarios.json` — 시나리오 튜닝 (향후)
+- `overrides/coi_conn_checks.json` ← `crystallize_gate_from_intake.py` (intake top/filelist)
+- `overrides/slave_rw_scenarios.json` ← 동일 (intake slaves·sim markers·gate_tiers)
 
 검증 **결과**는 `reports/` · `runs/`에, **입력**은 `inputs/`에 분리합니다.

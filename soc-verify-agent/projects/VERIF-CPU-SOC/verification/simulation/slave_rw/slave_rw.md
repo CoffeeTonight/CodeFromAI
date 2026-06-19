@@ -9,7 +9,8 @@
 
 | 항목 | 원칙 |
 |------|------|
-| RTL SSOT | `~/tools/CodeFromAI/VerifCPU/verif_cpu_verilog` (또는 tag workspace `VerifCPU/verif_cpu_verilog`) |
+| RTL SSOT | `~/tools/__CFI/VerifCPU/verif_cpu_verilog` — `bootstrap_verifcpu_workspace.sh` |
+| intake override | `inputs/tags/{tag}/overrides/slave_rw_scenarios.json` — `crystallize_gate_from_intake.py` |
 | 선행 | `depends_on: [sanity]` — c-compile `./example.sh gen` + `tb_full_campaign.vvp` |
 | tier | **single** → **burst** → **cpu_sync** (순서 고정, 각각 compile/sim log 마커) |
 | 판정 | **log 스캔** (exit code만 PASS 금지). EDA/C error 표식 + checklist 실패 0 + tier 성공 마커 |
@@ -20,7 +21,8 @@
 | 문서 | 용도 |
 |------|------|
 | `README.md` | custom insn (`vsync`, `vhw_force`), sync barrier, Makefile 타깃, 43-check 캠페인 |
-| `howto_integrate.md` | chip_top / manifest integration, bridge 배선 |
+| [`howto_integrate2yourSoC.md`](../../../howto_integrate2yourSoC.md) | **기본 예제 → 내 SoC** 이식 절차·gate 연계 (SSOT) |
+| `howto_integrate.md` | chip_top / manifest integration, bridge **신호** 배선 |
 | `vcpu_skill.md` | manifest 계약, `soc_regs.h`, BUS_LAYOUT, chip-top 16-check |
 | `firmware/campaign/include/verif_insns.h` | 펌웨어 매크로 SSOT |
 | `firmware/campaign/include/soc_regs.h` | slave 주소 (`SFR_CTRL`, `SRAM_MARKER`, `UART_BAUD`, …) |

@@ -1,0 +1,142 @@
+# Child graphs — multi-step nodes with evidence gates (input / procedural / output)
+version: child-graph-spec-v1
+instruction_ko: >
+  부모 LangGraph 노드가 여러 작업을 수행할 때 논리적 child graph로 분해한다.
+  다음 child step으로 넘어가려면 input·procedural·output 증거가 모두 충족되어야 한다.
+  Runtime routing SSOT는 src/soc_verify/graphs/*.py — 이 파일은 계약·메타그래프용.
+
+evidence_kinds:
+  input: "입력물 적절성 — preflight, MD payload, trust/registry"
+  procedural: "절차적 증거 — graph_step, node_contract tick, round limits"
+  output: "산출물 증거 — verdict, report, crystallize artifact"
+
+child_graphs:
+  verify_group:
+    run_gate:
+      parent_function: soc_verify.graphs.verify_group.run_gate
+      state_type: soc_verify.graphs.state.VerifyGroupState
+      steps:
+        - id: prepare_inputs
+          evidence:
+            input:
+              - type: any_of
+                checks:
+                  - {type: file_exists, path: "{run_dir}/md_only_prompt.md"}
+                  - {type: state_field_equals, field: runner, value: python}
+              - {type: file_exists, path: "{run_dir}/graph_step.json"}
+            procedural:
+              - {type: state_field_set, field: group_context}
+            output:
+              - {type: any_of, checks: [{type: file_exists, path: "{run_dir}/llm_invoke.json"}, {type: state_field_equals, field: runner, value: python}]}
+        - id: execute_runner
+          evidence:
+            input:
+              - {type: state_field_set, field: runner}
+            procedural:
+              - {type: trace_contains, node: run_gate}
+            output:
+              - {type: file_exists, path: "{run_dir}/verdict_{group}.json"}
+        - id: classify_failure
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/verdict_{group}.json"}
+            procedural:
+              - {type: events_bumped, field: gates_run}
+            output:
+              - {type: state_field_set, field: error_kind}
+
+    bridge_loop:
+      parent_nodes: [diagnose_env, patch_bridge]
+      steps:
+        - id: diagnose
+          parent_node: diagnose_env
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/env_diagnosis_prompt.json"}
+            procedural:
+              - {type: error_kind_in, values: [env, tool]}
+            output:
+              - {type: file_exists, path: "{run_dir}/env_diagnosis.md"}
+        - id: patch
+          parent_node: patch_bridge
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/bridge_patch_proposal.md"}
+            procedural:
+              - {type: trace_contains, node: patch_bridge}
+            output:
+              - {type: state_field_set, field: bridge_round}
+
+    runner_loop:
+      parent_nodes: [parity_check, run_codegen]
+      steps:
+        - id: snapshot_reference
+          parent_node: parity_check
+          evidence:
+            input:
+              - {type: state_field_equals, field: verdict, value: PASS}
+            procedural:
+              - {type: policy_true, path: registry/policies.yaml, key: runner_contract.mandatory_parity_before_promote}
+            output:
+              - {type: any_of, checks: [{type: file_exists, path: "{run_dir}/parity_report.json"}, {type: json_field_true, path: "{run_dir}/parity_report.json", field: ok}]}
+        - id: codegen_ops
+          parent_node: run_codegen
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/parity_report.json"}
+            procedural:
+              - {type: round_under_max, field: codegen_round, max_key: runner_contract.max_codegen_rounds}
+            output:
+              - {type: file_exists, path: "{ops_path}"}
+
+    promote:
+      parent_function: soc_verify.graphs.verify_group.promote_node
+      steps:
+        - id: trust_evaluate
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/parity_report.json"}
+            procedural:
+              - {type: parity_ok_or_skip}
+            output:
+              - {type: file_exists, path: "{run_dir}/trust_report.json"}
+        - id: promote_decision
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/trust_report.json"}
+            output:
+              - {type: file_exists, path: "{run_dir}/promote_decision.md"}
+        - id: crystallize_registry
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/promote_decision.md"}
+            output:
+              - type: any_of
+                checks:
+                  - {type: file_exists, path: "{run_dir}/crystallize_proposal.md"}
+                  - {type: file_exists, path: "{run_dir}/promote_outcome.json"}
+
+    meta_propose:
+      parent_function: soc_verify.graphs.verify_group.meta_propose_node
+      steps:
+        - id: read_kpi
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/improvement_snapshot.json"}
+              - {type: file_exists, path: "{run_dir}/branch_scorecard.json"}
+            output:
+              - {type: file_exists, path: "{run_dir}/meta_collect_prompt.json"}
+        - id: draft_proposal
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/meta_collect_prompt.json"}
+            output:
+              - {type: file_exists, path: "{run_dir}/meta_change_proposal.json"}
+        - id: validate_schema
+          evidence:
+            input:
+              - {type: file_exists, path: "{run_dir}/meta_change_proposal.json"}
+            procedural:
+              - {type: meta_proposal_valid}
+            output:
+              - {type: file_exists, path: "{run_dir}/meta_change_queued.json"}

@@ -1,0 +1,44 @@
+# User-defined node guide — TUI가 위치·내용을 받아 Obsidian MD + 구조화 JSON/YAML 생성
+version: node-guide-v3
+instruction_ko: >
+  모든 Markdown 산출물은 Obsidian 호환 (YAML frontmatter, #태그, [[wikilinks]]).
+  vault 폴더는 AST 파싱 친화 계층 (00-index … 05-intake).
+  구조화 메타·파이프라인·manifest는 YAML/JSON. 폴더 직접 복사 없음.
+
+tui_command: "soc-verify node-guide --project ID"
+setup_section: nodes
+
+ast_spec: registry/obsidian_ast_spec.yaml
+markdown_contract: obsidian_ast_v1
+markdown_rules:
+  - YAML frontmatter (type, ast_layer, project_id, tags)
+  - 태그: `#project/{id}` `#node/{id}` `#gate/{stage}/{group}`
+  - wikilinks mirror folder path: [[03-nodes/{id}]], [[02-stages/{stage}/groups/{group}/CHECK]]
+  - verification/ MD = 02-stages gate notes 와 동일 Obsidian 본문 (런타임 미러)
+
+structured_artifacts:
+  - projects/{id}/meta/node_guides/{node_id}.yaml
+  - projects/{id}/meta/node_guides/registry.yaml
+  - projects/{id}/meta/pipeline_graphs/user_{milestone}.yaml
+  - projects/{id}/verification/{stage}/{group}/manifest.yaml
+  - projects/{id}/knowledge/obsidian/00-index/graph.json
+  - projects/{id}/knowledge/obsidian/03-nodes/{node_id}.json
+  - projects/{id}/knowledge/obsidian/02-stages/{stage}/groups/{group}/gate.json
+
+obsidian_writes:
+  index_moc: projects/{id}/knowledge/obsidian/00-index/PROJECT-MOC.md
+  graph_json: projects/{id}/knowledge/obsidian/00-index/graph.json
+  milestone_moc: projects/{id}/knowledge/obsidian/01-milestones/{milestone}/MOC.md
+  node_hub: projects/{id}/knowledge/obsidian/03-nodes/{node_id}.md
+  skill: projects/{id}/knowledge/obsidian/04-skills/{node_id}.md
+  check: projects/{id}/knowledge/obsidian/02-stages/{stage}/groups/{group}/CHECK.md
+  respond: projects/{id}/knowledge/obsidian/02-stages/{stage}/groups/{group}/RESPOND.md
+  milestone: projects/{id}/knowledge/obsidian/02-stages/{stage}/groups/{group}/MILESTONE.md
+  index_json: projects/{id}/knowledge/obsidian/03-nodes/{node_id}.json
+  gate_json: projects/{id}/knowledge/obsidian/02-stages/{stage}/groups/{group}/gate.json
+
+runtime_mirror:
+  check: projects/{id}/verification/{stage}/{group}/CHECK.md
+  respond: projects/{id}/verification/{stage}/{group}/RESPOND.md
+  milestone: projects/{id}/verification/{stage}/{group}/MILESTONE.md
+  skill_registry: projects/{id}/skills/{node_id}/SKILL.md

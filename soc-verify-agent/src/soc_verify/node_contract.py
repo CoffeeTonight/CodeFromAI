@@ -90,6 +90,21 @@ def build_contract_context(
         if rid:
             orch_run_dir = str(root / "runs" / "orchestrator" / str(rid))
 
+    setup_run_dir = ""
+    mil_run_dir = ""
+    if graph_id == "setup_group" and project_dir:
+        rid = state.get("run_id", "")
+        if rid:
+            setup_run_dir = str(project_dir / "runs" / "setup" / str(rid))
+        elif run_dir:
+            setup_run_dir = str(run_dir.resolve())
+    if graph_id == "meta_innovation_loop" and project_dir:
+        rid = state.get("run_id", "")
+        if rid:
+            mil_run_dir = str(project_dir / "runs" / "meta_innovation" / str(rid))
+        elif run_dir:
+            mil_run_dir = str(run_dir.resolve())
+
     return {
         "root": str(root.resolve()),
         "project_id": project_id,
@@ -100,6 +115,8 @@ def build_contract_context(
         "ops_path": ops_path,
         "bridge_path": bridge_path,
         "orch_run_dir": orch_run_dir,
+        "setup_run_dir": setup_run_dir,
+        "mil_run_dir": mil_run_dir,
         "runner": state.get("runner", ""),
         "runner_mode": state.get("runner_mode", ""),
     }
@@ -201,7 +218,12 @@ def audit_trace_sequence(
     graph_id: str,
     completed_node: str,
     root: Path,
+    from_node: str = "",
 ) -> ContractCheckResult:
+    """Validate edge into completed_node. Prefer explicit from_node (session meta)."""
+    if from_node:
+        return validate_transition(root, graph_id, from_node, completed_node)
+
     if run_dir is None or not run_dir.is_dir():
         return ContractCheckResult(ok=True, node=completed_node, phase="trace")
 
@@ -280,4 +302,5 @@ def sandbox_payload_for_node(
         "runner": state.get("runner"),
         "runner_mode": state.get("runner_mode"),
         "run_dir": str(run_dir) if run_dir else "",
+        "node_gate_file": str((root / "registry" / "node_gate_spec.yaml").resolve()),
     }

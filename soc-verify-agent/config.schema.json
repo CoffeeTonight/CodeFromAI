@@ -21,13 +21,25 @@
       "type": "object",
       "required": ["base_url", "hints"],
       "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["dummy", "live"],
+          "default": "dummy",
+          "description": "dummy = platform/intake/dummy_confluence_snapshot.yaml; live = REST API (when implemented)"
+        },
         "base_url": { "type": "string", "format": "uri" },
+        "deployment": {
+          "type": "string",
+          "enum": ["cloud", "server"],
+          "default": "cloud"
+        },
         "auth": {
           "type": "object",
-          "description": "Credential reference only — not secrets in repo",
+          "description": "Credential reference only — set values via secrets.env, never in config.json",
           "properties": {
-            "token_env": { "type": "string", "default": "CONFLUENCE_TOKEN" },
-            "user_env": { "type": "string", "default": "CONFLUENCE_USER" }
+            "type": { "type": "string", "enum": ["api_token", "personal_access_token"] },
+            "token_env": { "type": "string", "default": "CONFLUENCE_API_TOKEN" },
+            "user_env": { "type": "string", "default": "CONFLUENCE_USER_EMAIL" }
           }
         },
         "hints": {
@@ -81,13 +93,21 @@
       "type": "object",
       "required": ["base_url", "project_key"],
       "properties": {
+        "enabled": { "type": "boolean", "default": false },
         "base_url": { "type": "string", "format": "uri" },
+        "deployment": {
+          "type": "string",
+          "enum": ["cloud", "server"],
+          "default": "cloud"
+        },
         "project_key": { "type": "string" },
         "issue_type": { "type": "string", "default": "Verification" },
         "auth": {
           "type": "object",
           "properties": {
-            "token_env": { "type": "string", "default": "JIRA_TOKEN" }
+            "type": { "type": "string", "enum": ["api_token", "personal_access_token"] },
+            "token_env": { "type": "string", "default": "JIRA_API_TOKEN" },
+            "user_env": { "type": "string", "default": "JIRA_USER_EMAIL" }
           }
         },
         "field_map": {
@@ -104,7 +124,34 @@
       "type": "object",
       "description": "Company LLM bridge — reads MD-only + graph_step.json",
       "properties": {
-        "mode": { "type": "string", "enum": ["stub", "http", "script"], "default": "stub" },
+        "mode": {
+          "type": "string",
+          "enum": ["stub", "http", "script", "openai_compatible"],
+          "default": "stub"
+        },
+        "openai_compatible": {
+          "type": "object",
+          "description": "OpenAI Chat Completions API — see platform/integrations/openai_compatible_llm.example.json",
+          "properties": {
+            "base_url_env": { "type": "string", "default": "OPENAI_API_BASE" },
+            "base_url_default": { "type": "string", "default": "https://api.openai.com/v1" },
+            "api_key_env": { "type": "string", "default": "OPENAI_API_KEY" },
+            "chat_completions_path": { "type": "string", "default": "/chat/completions" },
+            "model": { "type": "string" },
+            "models": {
+              "type": "object",
+              "properties": {
+                "sub_agent": { "type": "string" },
+                "graph_driver": { "type": "string" },
+                "promote": { "type": "string" },
+                "reproduction": { "type": "string" }
+              }
+            },
+            "temperature": { "type": "number" },
+            "max_tokens": { "type": "integer" },
+            "timeout_seconds": { "type": "integer" }
+          }
+        },
         "endpoint": { "type": "string", "description": "HTTP API for sub-agent verify" },
         "graph_endpoint": {
           "type": "string",

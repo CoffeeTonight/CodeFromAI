@@ -10,7 +10,7 @@ from scan_inst.params import resolve_param_map
 from scan_inst.path_chain import attach_path_chains
 from scan_inst.path_refine import refine_param_ctx_for_path
 from scan_inst.port_scan import matching_ports, port_index_for_module
-from scan_inst.search import _segment_glob_match, hit_from_row
+from scan_inst.search import _segment_match, hit_from_row
 
 
 def hierarchy_glob_match(
@@ -24,7 +24,7 @@ def hierarchy_glob_match(
     if len(path_parts) != len(pat_parts):
         return False
     return all(
-        _segment_glob_match(
+        _segment_match(
             part,
             glob_part,
             case_insensitive=case_insensitive,

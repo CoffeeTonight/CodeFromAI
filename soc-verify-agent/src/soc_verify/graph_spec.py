@@ -36,6 +36,25 @@ def next_nodes_from_spec(spec: dict[str, Any], graph_id: str, node_id: str) -> l
     return list(edges.get(node_id) or [])
 
 
+def topology_from_spec(spec: dict[str, Any], graph_id: str) -> dict[str, Any]:
+    """Derive LLM topology hint from graph_flow_spec — single source of truth."""
+    graphs = spec.get("graphs") or {}
+    g = graphs.get(graph_id) or {}
+    node_defs = g.get("nodes") or {}
+    nodes = list(node_defs.keys()) if isinstance(node_defs, dict) else list(node_defs)
+    topo: dict[str, Any] = {
+        "graph": graph_id,
+        "entry": str(g.get("entry") or (nodes[0] if nodes else "")),
+        "nodes": nodes,
+        "edges": dict(g.get("edges") or {}),
+    }
+    if graph_id == "verify_group":
+        topo["runner_loop_diagram"] = "templates/obsidian/08-RUNNER-LOOP.md"
+    elif graph_id == "setup_group":
+        topo["adaptive_setup_diagram"] = "templates/llm/system_setup_adaptive.txt"
+    return topo
+
+
 def api_endpoints(spec: dict[str, Any], *, root: str = ".", host: str = "127.0.0.1", port: int = 8765) -> dict[str, str]:
     api = spec.get("api") or {}
     cli = str(api.get("cli_base", "soc-verify graph")).format(root=root)

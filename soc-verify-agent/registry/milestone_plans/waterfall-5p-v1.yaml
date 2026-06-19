@@ -1,0 +1,43 @@
+# 워터폴 5단계 — 대형 엔지니어링/인프라 프로젝트
+plan_id: waterfall-5p-v1
+label_ko: "워터폴 5단계"
+label_en: Waterfall Five-Phase
+culture: waterfall_engineering
+id_pattern: "^W\\d+$|^(req|design|impl|verify|deploy)$"
+
+milestones:
+  - id: W1
+    order: 1
+    label_ko: "요구사항"
+    label_en: Requirements
+    aliases: [req]
+  - id: W2
+    order: 2
+    label_ko: "설계"
+    label_en: Design
+    aliases: [design]
+  - id: W3
+    order: 3
+    label_ko: "구현"
+    label_en: Implementation
+    aliases: [impl]
+  - id: W4
+    order: 4
+    label_ko: "검증"
+    label_en: Verification
+    aliases: [verify]
+  - id: W5
+    order: 5
+    label_ko: "배포"
+    label_en: Deployment
+    aliases: [deploy]
+
+verification_timing:
+  sanity:
+    default: {from: W3, through: W5}
+  static:
+    default: {primary: W3, mandatory_by: W4}
+  simulation:
+    default: {start: W4, peak: W4, through: W5}
+  regression:
+    default: {mandatory: W5}

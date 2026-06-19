@@ -35,6 +35,18 @@ class UserConfig:
         return int((self.raw.get("schedules") or {}).get("project_intake_days", 30))
 
     @property
+    def knowledge_collect_days(self) -> int:
+        return int((self.raw.get("schedules") or {}).get("knowledge_collect_days", 7))
+
+    @property
+    def knowledge_auto_normalize(self) -> bool:
+        return bool((self.raw.get("knowledge") or {}).get("auto_normalize_on_collect", False))
+
+    @property
+    def default_milestone_plan(self) -> str:
+        return str((self.raw.get("schedules") or {}).get("default_milestone_plan", "soc-dv-4p-v1"))
+
+    @property
     def confluence_hints(self) -> dict[str, Any]:
         return (self.raw.get("confluence") or {}).get("hints") or {}
 

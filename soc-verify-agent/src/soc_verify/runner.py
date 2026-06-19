@@ -15,6 +15,7 @@ from soc_verify.constants import (
     EXIT_TOOL_ERROR,
 )
 from soc_verify.bridge_env import apply_profile_to_environ
+from soc_verify.execution_log import append_execution_log, snapshot_run_backup
 from soc_verify.models import InfoGapError, Verdict, load_yaml
 
 
@@ -28,20 +29,28 @@ def run_python_script(
     if not script_path.is_file():
         raise InfoGapError(f"Script not found: {script_path}", field="script")
 
+    argv = [
+        sys.executable,
+        str(script_path),
+        "--project",
+        str(project_dir),
+        "--run-dir",
+        str(run_dir),
+    ]
     proc = subprocess.run(
-        [
-            sys.executable,
-            str(script_path),
-            "--project",
-            str(project_dir),
-            "--run-dir",
-            str(run_dir),
-        ],
+        argv,
         capture_output=True,
         text=True,
         timeout=7200,
         check=False,
         env=apply_profile_to_environ(project_dir),
+    )
+    append_execution_log(
+        run_dir,
+        command=argv,
+        node="run_gate",
+        exit_code=proc.returncode,
+        artifact_paths=[str(run_dir / f"verdict_{gate}.json")],
     )
 
     verdict_path = run_dir / f"verdict_{gate}.json"
@@ -70,6 +79,11 @@ def run_python_script(
     )
     verdict_path.write_text(json.dumps(verdict.to_dict(), indent=2), encoding="utf-8")
     (run_dir / f"{gate}.log").write_text(proc.stdout + proc.stderr, encoding="utf-8")
+    snapshot_run_backup(
+        run_dir,
+        label="run_gate",
+        paths=[verdict_path, run_dir / f"{gate}.log"],
+    )
     return verdict
 
 

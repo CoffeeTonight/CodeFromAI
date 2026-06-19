@@ -807,6 +807,14 @@ def main(argv=None) -> int:
     if timing_rec is not None:
         timing_rec.emit_summary()
     bind_suite_recorder(None)
+    from scan_inst.path_walk import finalize_path_walk_suite_db
+
+    suite_db_queued = finalize_path_walk_suite_db()
+    if suite_db_queued and not cfg.quiet:
+        print(
+            f"run: path-walk DB build queued {suite_db_queued} file(s) after verify",
+            file=sys.stderr,
+        )
     clear_path_walk_suite_session()
     if not cfg.quiet:
         hint = format_enable_root_cause_hint(

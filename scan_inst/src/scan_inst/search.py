@@ -55,6 +55,44 @@ def _glob_match(text: str, pattern: str, *, case_insensitive: bool) -> bool:
     return fnmatch.fnmatchcase(text, pattern)
 
 
+_SEGMENT_REGEX_CACHE: Dict[tuple[str, bool], re.Pattern[str]] = {}
+
+
+def _segment_uses_regex(pattern: str) -> bool:
+    if pattern.startswith("re:"):
+        return True
+    return any(ch in pattern for ch in "+(){}|^$\\")
+
+
+def _compile_segment_regex(
+    pattern: str,
+    *,
+    case_insensitive: bool,
+) -> re.Pattern[str]:
+    raw = pattern[3:] if pattern.startswith("re:") else pattern
+    key = (raw, case_insensitive)
+    compiled = _SEGMENT_REGEX_CACHE.get(key)
+    if compiled is None:
+        flags = re.IGNORECASE if case_insensitive else 0
+        compiled = re.compile(raw, flags)
+        _SEGMENT_REGEX_CACHE[key] = compiled
+    return compiled
+
+
+def _regex_segment_match(
+    segment: str,
+    pattern: str,
+    *,
+    case_insensitive: bool = False,
+) -> bool:
+    return (
+        _compile_segment_regex(pattern, case_insensitive=case_insensitive).fullmatch(
+            segment
+        )
+        is not None
+    )
+
+
 def _segment_glob_match(
     segment: str,
     pattern: str,
@@ -71,7 +109,32 @@ def _segment_glob_match(
     return segment == pattern
 
 
+def _segment_match(
+    segment: str,
+    pattern: str,
+    *,
+    case_insensitive: bool = False,
+) -> bool:
+    if _segment_uses_regex(pattern):
+        return _regex_segment_match(
+            segment,
+            pattern,
+            case_insensitive=case_insensitive,
+        )
+    return _segment_glob_match(
+        segment,
+        pattern,
+        case_insensitive=case_insensitive,
+    )
+
+
 def _name_match(name: str, pattern: str, *, case_insensitive: bool = False) -> bool:
+    if _segment_uses_regex(pattern):
+        return _regex_segment_match(
+            name,
+            pattern,
+            case_insensitive=case_insensitive,
+        )
     if any(ch in pattern for ch in "*?[]"):
         return _glob_match(name, pattern, case_insensitive=case_insensitive)
     if any(ch in pattern for ch in ".^$+?{}|()\\"):
@@ -86,6 +149,80 @@ def _uses_path_pattern(pattern: str) -> bool:
     return "." in pattern
 
 
+_PATH_ELLIPSIS = ".."
+
+
+def _tokenize_path_pattern(pattern: str) -> List[str]:
+    """Split on ``.``; consecutive dots form a single ``..`` ellipsis token."""
+    tokens: List[str] = []
+    i = 0
+    acc: List[str] = []
+
+    def flush() -> None:
+        if acc:
+            tokens.append("".join(acc))
+            acc.clear()
+
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == ".":
+            if i + 1 < len(pattern) and pattern[i + 1] == ".":
+                flush()
+                tokens.append(_PATH_ELLIPSIS)
+                i += 2
+                while i < len(pattern) and pattern[i] == ".":
+                    i += 1
+            else:
+                flush()
+                i += 1
+        else:
+            acc.append(ch)
+            i += 1
+    flush()
+    return tokens
+
+
+def _match_path_tokens(
+    path_parts: Sequence[str],
+    tokens: Sequence[str],
+    *,
+    case_insensitive: bool = False,
+    pi: int = 0,
+    ti: int = 0,
+) -> bool:
+    if ti >= len(tokens):
+        return pi == len(path_parts)
+    tok = tokens[ti]
+    if tok == _PATH_ELLIPSIS:
+        if ti == len(tokens) - 1:
+            return pi < len(path_parts)
+        for skip in range(1, len(path_parts) - pi + 1):
+            if _match_path_tokens(
+                path_parts,
+                tokens,
+                case_insensitive=case_insensitive,
+                pi=pi + skip,
+                ti=ti + 1,
+            ):
+                return True
+        return False
+    if pi >= len(path_parts):
+        return False
+    if not _segment_match(
+        path_parts[pi],
+        tok,
+        case_insensitive=case_insensitive,
+    ):
+        return False
+    return _match_path_tokens(
+        path_parts,
+        tokens,
+        case_insensitive=case_insensitive,
+        pi=pi + 1,
+        ti=ti + 1,
+    )
+
+
 def path_pattern_match(
     full_path: str,
     pattern: str,
@@ -95,29 +232,32 @@ def path_pattern_match(
     """
     Match hierarchy paths.
 
-    - ``*niu*`` — any path segment matches (ordered subsequence).
-    - ``*ab.*c*.asd*`` — dot splits segment globs; each must appear in order.
-    - ``soc.ab.c.asd`` — also matches via whole-path ``fnmatch``.
+    - ``*niu*`` (no dots) — any single path segment matches the glob.
+    - ``a.b.*c`` — exactly three segments from root; ``*`` only spans node names.
+    - ``top.a..*c`` — ``..`` crosses one or more intermediate segments.
+    - ``er_[0-9]+[xyz]`` — regex segment when ``+ ( ) { } | ^ $ \\`` appear;
+      optional ``re:`` prefix; compiled once per pattern string.
     """
     if not pattern:
         return False
-    if _glob_match(full_path, pattern, case_insensitive=case_insensitive):
-        return True
-    pat_parts = [part for part in pattern.split(".") if part]
-    if not pat_parts:
+    tokens = _tokenize_path_pattern(pattern)
+    if not tokens:
         return False
     path_parts = full_path.split(".")
-    pi = 0
-    for seg in path_parts:
-        if pi >= len(pat_parts):
-            break
-        if _segment_glob_match(
-            seg,
-            pat_parts[pi],
-            case_insensitive=case_insensitive,
-        ):
-            pi += 1
-    return pi == len(pat_parts)
+    if len(tokens) == 1 and tokens[0] != _PATH_ELLIPSIS:
+        return any(
+            _segment_match(
+                seg,
+                tokens[0],
+                case_insensitive=case_insensitive,
+            )
+            for seg in path_parts
+        )
+    return _match_path_tokens(
+        path_parts,
+        tokens,
+        case_insensitive=case_insensitive,
+    )
 
 
 def row_matches_search_pattern(

@@ -1,2 +1,3 @@
 [console_scripts]
+paper-factory = soc_verify.paper_factory_cli:main
 soc-verify = soc_verify.cli:main

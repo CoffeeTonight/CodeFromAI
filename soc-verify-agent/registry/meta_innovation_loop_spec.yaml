@@ -1,0 +1,64 @@
+# Meta Innovation Loop (메타 혁신 루프) — main-LLM 자율 개입
+# Runtime: meta_innovation_loop graph · observes all main/sub graph nodes
+
+version: meta-innovation-loop-v1
+instruction_ko: >
+  main-LLM이 전체 파이프라인을 관찰·주관하며 BECI(B/E/C/I) 수식으로 개입 지점을 판단한다.
+  사용자는 과제·검증 방법론을 SKILL.md로 제공; LLM은 Obsidian MD로 변환·유지하고
+  스킬 로직을 Python sub-agent로 검증한다.
+  최종 개입 결정은 서로 다른 LLM ≥3명의 결론 합의 후에만 확정.
+
+min_llm_reviews: 3
+reviewer_roles:
+  - id: reviewer_a
+    focus: "C/I anomaly — completeness & info gap regression"
+  - id: reviewer_b
+    focus: "E/B anomaly — environment & bridge stability"
+  - id: reviewer_c
+    focus: "intervention cost vs paper KPI delta"
+
+beci_formula:
+  description: >
+    Intervention urgency U ∈ [0,1]. Higher U → main-LLM should intervene at node.
+    BECI pronunciation order: B=Bridge, E=Environment, C=Completeness, I=Info-gap.
+  weights:
+    B: 0.20
+    E: 0.25
+    C: 0.30
+    I: 0.25
+  intervene_threshold: 0.45
+  trend_boost: 0.15
+  trend_fields: [completeness, trust_score, verdict_pass, parity_ok]
+
+triggers:
+  default_schedule:
+    cron: "0 3 * * 0"
+    label_ko: "주간 메타 혁신 루프"
+  manual: true
+  events:
+    - tag_refresh
+    - milestone_advance
+    - verification_fail_streak
+    - paper_campaign_due
+
+user_contract:
+  input: "projects/{id}/skills/**/SKILL.md"
+  llm_maintains: "projects/{id}/knowledge/obsidian/**/*.md"
+  subagent_output: "projects/{id}/ops/**"
+
+paper_data:
+  maintained_by: llm
+  artifacts:
+    - projects/{id}/improvement/history.yaml
+    - projects/{id}/scorecards/history.yaml
+    - projects/{id}/meta_innovation/history.yaml
+    - registry/paper_campaigns.yaml
+
+consensus:
+  required_reviews: 3
+  decision_file: meta_innovation_decision.json
+  review_files:
+    - reviewer_a.json
+    - reviewer_b.json
+    - reviewer_c.json
+  disagree_policy: majority_with_evidence

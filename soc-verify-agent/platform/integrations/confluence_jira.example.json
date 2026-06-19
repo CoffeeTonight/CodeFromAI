@@ -1,0 +1,117 @@
+{
+  "_guide": "예시 파일입니다. 실제 토큰·비밀번호는 넣지 마세요. config.json 작성 방법은 README.md 'Confluence & Jira 설정' 참고.",
+  "workspace_id": "acme-soc-dv-team",
+
+  "confluence": {
+    "mode": "live",
+    "base_url": "https://acme.atlassian.net/wiki",
+    "deployment": "cloud",
+    "auth": {
+      "type": "api_token",
+      "user_env": "CONFLUENCE_USER_EMAIL",
+      "token_env": "CONFLUENCE_API_TOKEN"
+    },
+    "api": {
+      "rest_base": "/wiki/rest/api",
+      "content_path": "/content/{page_id}",
+      "cql_path": "/content/search?cql={cql}"
+    },
+    "hints": {
+      "project_discovery": {
+        "cql": "space=DV AND label=active-soc AND type=page",
+        "root_page_id": "123456789",
+        "project_table_heading": "Active SoC Projects",
+        "project_id_column": "Project ID",
+        "status_column": "Status",
+        "milestone_column": "Current Milestone"
+      },
+      "milestone_section_heading": "Milestones",
+      "verification_group_table_heading": "Verification Groups",
+      "field_map": {
+        "git_url": "Git Repository",
+        "rtl_subdir": "RTL Subdirectory",
+        "doc_rev": "Spec Revision",
+        "doc_path": "Verification Spec",
+        "jira_epic": "JIRA Epic",
+        "schedule_plan": "Schedule Plan"
+      },
+      "notes": "Confluence 표 헤더가 회사마다 다르면 field_map 값만 실제 페이지 열 이름으로 바꾸세요. CQL은 Confluence 검색에서 먼저 테스트합니다."
+    },
+    "dummy_fallback": {
+      "enabled": true,
+      "snapshot": "platform/intake/dummy_confluence_snapshot.yaml",
+      "use_when": "mode=dummy 또는 live API 실패 시 개발용"
+    }
+  },
+
+  "jira": {
+    "enabled": true,
+    "base_url": "https://acme.atlassian.net",
+    "deployment": "cloud",
+    "project_key": "SOC",
+    "issue_type": "Verification",
+    "auth": {
+      "type": "api_token",
+      "user_env": "JIRA_USER_EMAIL",
+      "token_env": "JIRA_API_TOKEN"
+    },
+    "api": {
+      "rest_base": "/rest/api/3",
+      "create_issue_path": "/issue",
+      "search_path": "/search/jql"
+    },
+    "reporting": {
+      "post_when": "completeness_decision.jira_allowed",
+      "withhold_below_completeness": 0.8,
+      "link_to_epic_field": "parent",
+      "default_labels": ["soc-verify", "automated"]
+    },
+    "field_map": {
+      "summary": "summary",
+      "description": "description",
+      "epic_link": "customfield_10014",
+      "completeness": "customfield_10010",
+      "verdict": "customfield_10011",
+      "tag": "customfield_10012",
+      "gate": "customfield_10013",
+      "run_id": "customfield_10015"
+    },
+    "issue_templates": {
+      "verification_pass": {
+        "summary": "[{project_id}] {stage}/{group} PASS (C={completeness})",
+        "labels": ["verify-pass"]
+      },
+      "verification_fail": {
+        "summary": "[{project_id}] {stage}/{group} FAIL",
+        "labels": ["verify-fail"]
+      }
+    },
+    "notes": "customfield_* ID는 Jira 설정 → 이슈 → 필드에서 확인. Server/DC는 /rest/api/2 와 필드 ID가 다를 수 있습니다."
+  },
+
+  "server_dc_variant": {
+    "_guide": "Atlassian Cloud가 아니라 Confluence/Jira Server·Data Center인 경우 아래처럼 바꿉니다.",
+    "confluence": {
+      "base_url": "https://confluence.corp.internal",
+      "deployment": "server",
+      "auth": {
+        "type": "personal_access_token",
+        "token_env": "CONFLUENCE_PAT"
+      },
+      "api": {
+        "rest_base": "/rest/api"
+      }
+    },
+    "jira": {
+      "base_url": "https://jira.corp.internal",
+      "deployment": "server",
+      "auth": {
+        "type": "personal_access_token",
+        "token_env": "JIRA_PAT"
+      },
+      "api": {
+        "rest_base": "/rest/api/2"
+      }
+    }
+  }
+}

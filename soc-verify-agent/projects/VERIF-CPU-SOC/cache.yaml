@@ -7,9 +7,9 @@ tag:
   replace_decision: replace
   previous_tag: ''
 clone:
-  path: /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main
+  path: /home/user/tools/__CFI
   valid_for_tag: main
-  fetched_at: '2026-06-14'
+  fetched_at: '2026-06-19'
 sanity:
   last_verdict: null
   last_run: null

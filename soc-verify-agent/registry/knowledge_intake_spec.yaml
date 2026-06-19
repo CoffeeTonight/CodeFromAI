@@ -1,0 +1,46 @@
+# Knowledge intake — Confluence/wiki/doc/md → uniform Obsidian MD (LLM)
+version: knowledge-intake-v2
+contract: knowledge_intake_v1
+paper_intake_skills: registry/paper_intake_skills_spec.yaml
+
+source_types:
+  - id: confluence
+    label_ko: Confluence 페이지 (URL 또는 page_id)
+    fields: [url, page_id, export_path]
+  - id: wiki
+    label_ko: Wiki / intranet URL
+    fields: [url]
+  - id: markdown
+    label_ko: 로컬 Markdown 파일
+    fields: [path]
+  - id: markdown_dir
+    label_ko: Markdown 디렉터리 (재귀 *.md)
+    fields: [path]
+  - id: doc
+    label_ko: 기타 문서 (txt/html/pdf 경로 — 텍스트만)
+    fields: [path]
+  - id: discovered
+    label_ko: discovered.yaml 메타 (자동)
+    fields: []
+
+output:
+  repo_template: templates/obsidian/projects/{project_id}.md
+  repo_mission_template: templates/obsidian/MISSION_{project_id}.md
+  vault_subpath: "05-Agents/projects/{project_id}.md"
+  intake_dir: projects/{project_id}/intake
+  obsidian_intake_moc: projects/{project_id}/knowledge/obsidian/05-intake/SOURCES-MOC.md
+  obsidian_intake_json: projects/{project_id}/knowledge/obsidian/05-intake/intake.json
+  obsidian_source_note: projects/{project_id}/knowledge/obsidian/05-intake/sources/{source_id}.md
+
+limits:
+  max_chars_per_source: 32000
+  max_total_chars: 120000
+  max_files_per_dir: 40
+
+obsidian_sections:
+  - project_header
+  - overview
+  - milestones
+  - verification_gates
+  - sources_index
+  - links_to_hub

@@ -20,4 +20,4 @@
 
 ## 실행 주기
 - **M2~M4**: git tag 갱신(4일)마다 반드시 실행
-- 현재 과제: **M2 (Block RTL & Unit DV)** — tag `main`, CodeFromAI monorepo
+- 현재 과제: **M2 (Block RTL & Unit DV)** — tag `main`, RTL `~/tools/__CFI/VerifCPU/verif_cpu_verilog`

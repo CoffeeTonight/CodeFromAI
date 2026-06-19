@@ -1,5 +1,0 @@
-check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops
-sfr_clk_to_sram_clk	chip_top_example.u_periph_sfr.PCLK	chip_top_example.u_periph_sram.HCLK	True	port-port	connected; 5 module(s)		[parent-up] chip_top_example.u_periph_sfr:PCLK -> chip_top_example:soc_clk (port map u_periph_sfr.PCLK = soc_clk in parent chip_top_example) | [child-down] chip_top_example:soc_clk -> chip_top_example.u_periph_sram:HCLK (instance u_periph_sram port .HCLK in chip_top_example)
-sfr_paddr_to_sram_haddr	chip_top_example.u_periph_sfr.PADDR	chip_top_example.u_periph_sram.HADDR	False	port-port	no path; 5 module(s)		
-orch_to_pool	chip_top_example.u_orch	chip_top_example.u_pool	False	hierarchy-hierarchy	same or ancestor/descendant (no port trace)		
-# modules_cached	5

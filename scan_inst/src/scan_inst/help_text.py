@@ -46,6 +46,10 @@ environment:
   SCAN_INST_INCLUDE_WARM      opt-in include warm before parallel preprocess
   SCAN_INST_NO_INCLUDE_WARM   skip include discovery/warm entirely
   SCAN_INST_INCLUDE_WARM_MAX  max includes to warm (default 200; 0 = no limit)
+  SCAN_INST_PW_DB_BUILD       off | after_verify (full tier-1 DB after conn/cone/trace)
+  SCAN_INST_PW_DB_PREFETCH    legacy alias: 1 => after_verify
+  SCAN_INST_PW_DB_PREFETCH_WAIT  wait for post-verify DB build (default 1; 0=detach)
+  SCAN_INST_PW_DB_PREFETCH_MAX   cap post-verify DB files per run (0 = no limit)
   SCAN_INST_LOG_SLOW_FILES    log per-file preprocess/scan timing (1=10s, or seconds)
   SCAN_INST_LOW_MEMORY_AUTO   auto fused index above N sources (default 1500; 0=off)
   HCH_INDEX_CWD               default --index-cwd for -F filelists"""
@@ -97,11 +101,30 @@ Search mode
 
   Structured search object (``search`` as object)::
     instance (string|array)       Match inst_leaf (and module if search-module)
-    path (string|array)           Match full_path segment subsequence
+    path (string|array)           Full-path segment globs (see syntax below)
     hierarchy_path (string|array)   Fixed-depth hierarchy + optional port verify
     case_insensitive (bool)         Per-query case policy (default: false)
     search_module (bool)          Also match module type names
     search_subtree (bool)         Include instances under matched hierarchies
+
+  Path pattern syntax (``search.path``, dotted ``--search``)::
+    ``.``       Next hierarchy segment — fixed depth, aligned from root (top first).
+    ``..``      One or more intermediate segments; the only token that spans hops.
+    ``*`` ``?`` Globs within a single node name; ``*`` never crosses ``.``.
+    Regex       Per-segment when ``+ ( ) { } | ^ $ \\`` appear, or ``re:`` prefix
+                (compiled once per pattern; e.g. ``er_[0-9]+[xyz]``).
+    No dots     Any one path segment may match (e.g. ``*niu*``).
+
+    ``a.b.*c``                  Exactly three segments from root.
+    ``top.u_spine.*``           Exactly three segments; third is any child name.
+    ``top.E*..*log.*cpu*``      ``E*``, then 1+ hops, then ``*log*``, then ``*cpu*``
+                                on the next segment (adjacent to ``*log*``).
+    ``top.E*..*log..*cpu*``     Same, but at least one segment between ``*log*`` and
+                                ``*cpu*``.
+
+    Patterns do not skip segments via ``*`` alone; use ``..`` for variable depth.
+    ``--search-path`` / ``hierarchy_path``: same ``.`` / ``..`` / ``*`` rules, plus
+    optional trailing port segment (e.g. ``top.u_*.clk``).
 
   Legacy flat ``search`` string: comma-separated patterns; dotted patterns
   route to path matching, plain patterns to instance matching.
@@ -287,13 +310,15 @@ Example (flat)
 Legacy tests[] array is still accepted (enable supported per entry).
 
 Bundled examples (run from examples/stress_seed42):
-  flat_run_example.json   (JSONC: // comments; one runnable step + commented templates)
-  stress_42_d8.suite.json (all steps enabled)
-  ../search_example.json  (all search features; copy into stress_seed42/ or use --example)
+  flat_run_example.json    (JSONC: // comments; one runnable step + commented templates)
+  path_walk_example.json   (path-walk jobs + SCAN_INST_PW_DB_* env; EN+KO table in header)
+  stress_42_d8.suite.json  (all steps enabled)
+  search_example.json      (all search features; or scan-inst --example)
 
   cd examples/stress_seed42
   scan-inst flat_run_example.json
-  scan-inst --example && scan-inst search_example.json
+  scan-inst path_walk_example.json
+  scan-inst search_example.json
 
 Connectivity — batch (single-test / legacy)
 -------------------------------------------
@@ -471,6 +496,26 @@ Output
 ------
   TSV with header:
     check_id  endpoint_a  endpoint_b  connected  mode  note  errors  hops
+
+  Expanded checks (``[]``, ``{}``, ``loop``) emit one row per sub-check with
+  resolved bit/index endpoints (e.g. ``bus[0]  top.a0  top.bus_b[0]``), not
+  only the aggregate parent row. ``--connect-trace`` uses the same flattening.
+
+  ``{…}`` concat (not ``[…]``) enforces Verilog MSB-first bit order; literals
+  are padding only. ``[…]`` uses index zip (``bit_align``); literals in ``[…]``
+  are rejected — use ``{…}`` for exact ordered bit mapping.
+
+Waypoint fanout trace (``map.kind: waypoint-fanout``)
+-----------------------------------------------------
+  ``a`` = fanout origin list (port/net/inst; inst expands to all ports).
+  ``b`` = waypoint list (port/net/inst prefix). Traversal continues through
+  waypoints; TSV adds ``waypoint_hit`` / ``waypoint_qualified`` / ``rtl_line``.
+  Optional ``map.path_kind``: ``comb`` (default) or ``ff``.
+
+  Example::
+
+    {"id": "wp", "a": ["top.drv"], "b": ["top.u_blk"],
+     "map": {"kind": "waypoint-fanout", "path_kind": "ff"}}
 
 Error policy
 ------------

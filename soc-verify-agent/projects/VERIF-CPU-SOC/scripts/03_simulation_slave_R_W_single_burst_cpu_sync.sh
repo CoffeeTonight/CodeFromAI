@@ -10,6 +10,13 @@ RUN_DIR_SUFFIX="03_simulation_slave_R_W_single_burst_cpu_sync"
 source "$(dirname "$0")/_run_gate.sh"
 
 require_cmd python3
+
+INTAKE="${PROJECT_DIR}/inputs/tags/${TAG}/deployment/customer_soc_intake.yaml"
+if [[ -f "${INTAKE}" ]]; then
+  log "crystallize slave_rw override from intake"
+  python3 "${PROJECT_DIR}/scripts/crystallize_gate_from_intake.py" --project "${PROJECT_DIR}" --tag "${TAG}"
+fi
+
 init_run_dir "${RUN_DIR_SUFFIX}"
 
 run_gate "${VERIFICATION_TITLE}" \

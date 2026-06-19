@@ -1,0 +1,223 @@
+# DRY-RUN REFERENCE ONLY — do NOT use as production customer_soc_intake.yaml
+#
+# New tags: copy_new_tag.sh uses customer_soc_intake.template.yaml (gates false).
+# Use this file with: copy_new_tag.sh <TAG> --example  OR read agent_runbook for commands.
+# Production: copy fields into customer_soc_intake.yaml and reset user_provided/user_documented.
+# Schema: templates/obsidian/agent/vcpu-soc-integration/02-INTAKE
+# Agent vault: templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB
+#
+# RTL_ROOT resolution (local SSOT):
+#   ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+#   = cache.yaml clone.path (~/tools/__CFI) + discovered.yaml rtl_subdir
+
+schema_version: vcpu-intake-v1
+updated_at: 2026-06-18
+updated_by: example-scaffold
+
+chip:
+  name: example_chip
+  num_scpu: 37                    # max cpu_id (DMA 37 in soc_hierarchy_example)
+  init_done_addr: 0x40000018
+  integration_mode: wrapper       # chip_top_example.v smoke first
+
+rtl:
+  customer_top: tb/chip_top_example.v
+  interconnect_instance: chip_top_example.u_axi_ic
+  filelist: filelists/eda/test/chip_top_example/manifest.list
+  rtl_root_override: null
+
+master:
+  enabled: 1
+  bus_type: axi4lite
+  bus_port: S00_AXI
+  note: "SCPU0 — cpu_id=0, init_done poll"
+
+firmware:
+  user_provided: true
+  use_example_firmware: true      # default VerifCPU firmware/campaign/ tree
+  paths:
+    soc_regs_h: "{RTL_ROOT}/firmware/campaign/include/soc_regs.h"
+    soc_platform_h: "{RTL_ROOT}/firmware/campaign/include/soc_platform.h"
+    soc_init_seq_h: "{RTL_ROOT}/firmware/campaign/include/soc_init_seq.h"
+    campaign_slots_yaml: "{RTL_ROOT}/firmware/campaign/campaign_slots.yaml"
+    phase_common: "{RTL_ROOT}/firmware/campaign/common"
+    cpu_per_slot:
+      sfr: "{RTL_ROOT}/firmware/campaign/cpu_sfr"
+      sram: "{RTL_ROOT}/firmware/campaign/cpu_sram"
+      uart: "{RTL_ROOT}/firmware/campaign/cpu_uart"
+    icodes_per_slot:
+      sfr: "{RTL_ROOT}/firmware/campaign/icodes/sfr"
+      sram: "{RTL_ROOT}/firmware/campaign/icodes/sram"
+      uart: "{RTL_ROOT}/firmware/campaign/icodes/uart"
+    notes: "Example bundle — replace with user-delivered paths for real SoC"
+  staging:
+    status: staged
+    source_bundle: null           # use_example_firmware: no external bundle
+    file_map: []
+    num_active_scpu: 3
+    num_scpu_total: 37
+
+slaves:
+  - name: SFR
+    cpu_id: 1
+    tap_port: 0
+    bus_type: apb3
+    bus_port: S01_APB
+    addr_base: 0x40000000
+    addr_size: 0x1000
+    role: sfr
+    enabled: 1
+    targets:
+      - sym: SFR_CTRL
+        addr: 0x40000000
+        expect: 0x00000001
+        icode: check_sfr_ctrl
+      - sym: SFR_CFG
+        addr: 0x40000004
+        expect: 0x000000FF
+        icode: check_sfr_mask
+
+  - name: SRAM
+    cpu_id: 2
+    tap_port: 1
+    bus_type: ahb_lite
+    bus_port: M02_AHB
+    addr_base: 0x80000000
+    addr_size: 0x10000
+    role: sram
+    enabled: 1
+    targets:
+      - sym: SRAM_MARKER
+        addr: 0x80000000
+        expect: 0xDEADBEEF
+        icode: check_sram_marker
+
+  - name: UART
+    cpu_id: 3
+    tap_port: 2
+    bus_type: axi4lite
+    bus_port: S03_AXI
+    addr_base: 0xC0000000
+    addr_size: 0x1000
+    role: uart
+    enabled: 1
+    targets:
+      - sym: UART_BAUD
+        addr: 0xC0000000
+        expect: 0x00000080
+        icode: check_uart_baud
+
+  - name: DMA_CH3
+    cpu_id: 37
+    tap_port: 36              # tap_port ≠ cpu_id (reserved slot — hierarchy only)
+    bus_type: axi4lite
+    bus_port: S37_AXI
+    addr_base: 0x4A000000
+    addr_size: 0x1000
+    role: noop
+    enabled: 0                 # reserved in campaign_slots — hierarchy only for chip-top yaml
+
+simulation:
+  user_documented: true
+  use_verifcpu_default: true
+  environment:
+    setup: |
+      # VerifCPU iverilog reference env (replace for site EDA)
+      sudo apt install -y iverilog gcc-riscv64-unknown-elf
+      cd "$RTL_ROOT" && python3 -m pip install -r requirements.txt
+    verify_cmd: |
+      iverilog -V && vvp -V && riscv64-unknown-elf-gcc --version
+    notes: "Questa/VCS/Xcelium — replace setup/run; keep log_markers aligned with your TB"
+  run:
+    smoke_after_integration: |
+      export RTL_ROOT="${RTL_ROOT:-$(pwd)}"
+      cd "$RTL_ROOT"
+      make chip-top-example 2>&1 | tee sim_smoke.log
+    customer_top: null
+    working_directory: "{RTL_ROOT}"
+    env:
+      RTL_ROOT: "{cache.clone.path}/VerifCPU/verif_cpu_verilog"
+  pass:
+    log_markers:
+      - "chip_top_example: PASS"
+      - "Checklist: 16 passed / 0 failed"
+  run_smoke_in_s10_gate: false
+  gate_tiers: {}
+  last_run: null
+
+questions_pending: []
+
+artifacts:
+  sfr_map: null
+  address_map: null
+  hierarchy_derive: firmware/campaign/soc_hierarchy_example_chip.yaml  # = soc_hierarchy_{chip.name}.yaml
+
+# Optional — LLM execution map (expand {RTL_ROOT} from cache.yaml + discovered.yaml)
+agent_runbook:
+  s2a_scaffold_new_tag: |
+    cd {SOC_VERIFY_ROOT}/projects/VERIF-CPU-SOC/inputs/tags
+    ./copy_new_tag.sh <NEW_TAG>                    # template (gates false)
+    # dry-run only: ./copy_new_tag.sh <NEW_TAG> --example
+    # See templates/obsidian/agent/vcpu-soc-integration/12-EXAMPLE-SCAFFOLD.md
+  resolve_rtl_root: |
+    # ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+    export RTL_ROOT="{cache.clone.path}/VerifCPU/verif_cpu_verilog"
+  s1_example_regression: |
+    cd "$RTL_ROOT"
+    ./example.sh gen
+    make full_campaign
+    make chip-top-example
+  s3_derive_hierarchy: |
+    cd "$RTL_ROOT/firmware/campaign"
+    cp soc_hierarchy_example.yaml soc_hierarchy_example_chip.yaml
+    # edit soc_name + slaves[] from intake above
+  s4_generate: |
+    cd "$RTL_ROOT/firmware/campaign"
+    make config NUM_SCPU=37
+    cd "$RTL_ROOT" && ./example.sh gen
+    make -C firmware/campaign soc_init icodes
+  s5_bus_connect: |
+    cd "$RTL_ROOT/firmware/campaign"
+    python3 gen_soc_bus_connect.py --yaml soc_hierarchy_example_chip.yaml
+  s6_chip_gen_vh: |
+    cd "$RTL_ROOT/firmware/campaign"
+    python3 gen_tb_campaign.py --yaml soc_hierarchy_example_chip.yaml
+  s8_probe: |
+    cd "$RTL_ROOT"
+    python3 tools/probe_icodes.py
+  s9_smoke: |
+    cd "$RTL_ROOT"
+    make chip-top-example 2>&1 | tee sim_smoke.log
+    grep -E 'chip_top_example: PASS|16 passed' sim_smoke.log
+  s10_gates: |
+    cd {SOC_VERIFY_ROOT}/projects/VERIF-CPU-SOC
+    python3 scripts/crystallize_gate_from_intake.py --intake inputs/tags/main/deployment/customer_soc_intake.example.yaml
+    ./scripts/run_VERIF-CPU-SOC_verification_sequence.sh
+
+# ./example.sh gen — what is regenerated (SSOT sources are NOT deleted)
+gen_regeneration:
+  overwritten_each_gen:
+    - include/tb_full_campaign_gen.vh
+    - include/campaign_manifest.vh
+    - include/campaign_params.vh
+    - include/campaign_scale.vh
+    - include/icode_map.vh
+    - include/soc_init_seq.vh
+    - firmware/campaign/build/*.bin
+    - firmware/full_campaign_*.hex
+    - filelists/ and scripts/ (via make filelists)
+  not_part_of_example_sh_gen:
+    - include/chip_top_example_gen.vh   # gen_tb_campaign.py --yaml
+    - include/verif_soc_bus_connect.vh  # gen_soc_bus_connect.py --yaml (or make bus_connect with BUS_LAYOUT)
+  preserved_ssot:
+    - firmware/campaign/campaign_slots.yaml
+    - firmware/campaign/include/soc_regs.h
+    - firmware/campaign/common/ cpu_*/ icodes/
+    - firmware/campaign/soc_hierarchy_*.yaml
+    - rtl/*.v tb/*.v (except generated verif_vcpu_soc_cell.v when layout changes)
+  copy_on_new_tag_folder_not_gen:
+    - inputs/tags/{tag}/README.md
+    - inputs/tags/{tag}/manifest.yaml
+    - inputs/tags/{tag}/deployment/integration_notes.md
+    - inputs/tags/{tag}/deployment/questions_pending.md
+    - inputs/tags/{tag}/deployment/customer_soc_intake.yaml

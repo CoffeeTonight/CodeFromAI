@@ -1,6 +1,0 @@
-project_id: NEBULA-SOC
-discovered_from: discovered.yaml
-environment_profile: team-b-eda-2024
-sync:
-  fetched_at: 2026-06-13
-  source: [discovered.yaml, state.yaml]

@@ -1,0 +1,23 @@
+# Experiment tagging — campaign / condition / hypothesis for paper factory
+version: experiment-spec-v1
+
+conditions:
+  control:
+    description: Baseline — meta-graph off or stub LLM
+    tags: {meta_graph: false}
+  treatment_full:
+    description: Full platform — meta-graph + parity loop
+    tags: {meta_graph: true, parity: true}
+  treatment_meta_only:
+    description: Meta-graph tail without auto-apply
+    tags: {meta_graph: true, auto_apply: false}
+
+hypothesis_templates:
+  H1: "Meta-graph proposals improve improvement_index vs control"
+  H2: "Bridge loop reduces E-rate (env failures)"
+  H3: "Parity loop increases runner_python rate"
+
+env_overrides:
+  SOC_VERIFY_CAMPAIGN: campaign
+  SOC_VERIFY_CONDITION: condition
+  SOC_VERIFY_HYPOTHESIS: hypothesis

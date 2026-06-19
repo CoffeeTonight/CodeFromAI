@@ -6,7 +6,7 @@ import json
 import uuid
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
@@ -48,13 +48,69 @@ from soc_verify.config import load_user_config
 from soc_verify.crystallize import apply_crystallize_proposal
 from soc_verify.graph_step import append_graph_trace, write_graph_step
 from soc_verify.group_context import load_group_context, llm_brief_payload
-from soc_verify.llm_runner import invoke_promote_decision, invoke_reproduction_finalize, invoke_sub_agent
+from soc_verify.graphs.validation_nodes import (
+    apply_validation_plan_node,
+    parse_validation_items_node,
+    run_pending_repro_node,
+    validation_judge_node,
+)
+from soc_verify.graphs.verify_helpers import project_dir as _project_dir_from_state
+from soc_verify.graphs.verify_helpers import run_dir as _run_dir_from_state
+from soc_verify.graphs.verify_routing import (
+    route_after_apply_validation,
+    route_after_diagnose,
+    route_after_eval,
+    route_after_load,
+    route_after_parity,
+    route_after_run,
+)
+from soc_verify.llm_runner import (
+    invoke_promote_decision,
+    invoke_reproduction_finalize,
+    invoke_sub_agent,
+)
 from soc_verify.parity_eval import (
     LLM_REFERENCE_NAME,
     parity_allows_promote,
     run_parity_check,
     snapshot_llm_reference,
     write_parity_report,
+)
+from soc_verify.improvement_eval import (
+    append_branch_history,
+    append_history,
+    build_snapshot,
+    collect_run_signals,
+    write_improvement_signal,
+    write_improvement_snapshot,
+)
+from soc_verify.improvement_ablation import (
+    append_ablation_history,
+    build_ablation_record,
+    write_ablation,
+)
+from soc_verify.feedback_rubric import score_all_questions, write_question_quality
+from soc_verify.platform_telemetry import record_platform_use
+from soc_verify.experiment import register_campaign_run, resolve_experiment_tags, write_experiment_run
+from soc_verify.repro_bundle import build_repro_bundle, build_repro_manifest
+from soc_verify.child_graph_runtime import validate_child_after_complete
+from soc_verify.branch_scorecard import (
+    append_project_scorecard_history,
+    build_all_branch_scorecards,
+    write_branch_scorecard,
+)
+from soc_verify.child_graph import validate_all_child_graphs
+from soc_verify.meta_graph import (
+    META_PROPOSAL_NAME,
+    apply_low_risk_artifacts,
+    build_meta_collect_payload,
+    load_meta_proposal,
+    load_meta_spec,
+    queue_meta_proposal,
+    validate_meta_proposal,
+    ensure_meta_queue_artifact,
+    write_mechanical_meta_proposal,
+    write_meta_collect_prompt,
 )
 from soc_verify.reproduction_scripts import (
     build_gate_reproduction_prompt,
@@ -63,22 +119,32 @@ from soc_verify.reproduction_scripts import (
 )
 from soc_verify.milestone_gate import check_milestone_gate
 from soc_verify.models import load_yaml
-from soc_verify.tag_cache import should_refresh_tag
+from soc_verify.node_gate import NodeGateBlocked, finalize_node_gate, validate_node_gate
+from soc_verify.tag_cache import should_refresh_tag, touch_tag_refresh
 
 
 def _project_dir(state: VerifyGroupState) -> Path:
-    return Path(state["project_dir"])
+    return _project_dir_from_state(state)
 
 
 def _run_dir(state: VerifyGroupState) -> Path:
-    return _project_dir(state) / "runs" / state["run_id"]
+    return _run_dir_from_state(state)
 
 
 def setup(state: VerifyGroupState) -> dict[str, Any]:
     run_id = state.get("run_id") or uuid.uuid4().hex[:12]
     as_of = state.get("as_of") or date.today().isoformat()
-    run_dir = _project_dir(state) / "runs" / run_id
+    project_dir = _project_dir(state)
+    run_dir = project_dir / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    root = project_dir.parent.parent
+    tags = resolve_experiment_tags(
+        root,
+        campaign=state.get("experiment_campaign", ""),
+        condition=state.get("experiment_condition", ""),
+        hypothesis=state.get("experiment_hypothesis", ""),
+    )
+    write_experiment_run(run_dir, tags)
     return {
         "run_id": run_id,
         "as_of": as_of,
@@ -100,52 +166,48 @@ def setup(state: VerifyGroupState) -> dict[str, Any]:
     }
 
 
+def _load_context_info_gap(state: VerifyGroupState, message: str) -> dict[str, Any]:
+    append_graph_trace(
+        _run_dir(state),
+        {"node": "load_context", "graph": "verify_group", "info_gap": True, "message": message},
+    )
+    return {
+        "info_gap": True,
+        "info_gap_message": message,
+        "verdict": "INFO_GAP",
+    }
+
+
 def load_context(state: VerifyGroupState) -> dict[str, Any]:
     project_dir = _project_dir(state)
     gaps = preflight_project(project_dir)
     if gaps:
-        return {
-            "info_gap": True,
-            "info_gap_message": ", ".join(gaps),
-            "verdict": "INFO_GAP",
-        }
+        return _load_context_info_gap(state, ", ".join(gaps))
     stage = state.get("stage", "")
     if not stage or not is_valid_stage(stage):
-        return {
-            "info_gap": True,
-            "info_gap_message": f"Invalid or missing stage: {stage!r}",
-            "verdict": "INFO_GAP",
-        }
+        return _load_context_info_gap(state, f"Invalid or missing stage: {stage!r}")
     cache = load_yaml(project_dir / "cache.yaml")
     if should_refresh_tag(cache):
-        return {
-            "info_gap": True,
-            "info_gap_message": "tag_watch due — orchestrator must refresh tag before verify",
-            "verdict": "INFO_GAP",
-        }
+        touch_tag_refresh(project_dir, cache)
+        cache = load_yaml(project_dir / "cache.yaml")
 
     group_dir = find_group_dir(project_dir, stage, state["group"])
     if not group_dir:
-        return {
-            "info_gap": True,
-            "info_gap_message": f"Missing verification/{stage}/{state['group']}",
-            "verdict": "INFO_GAP",
-        }
+        return _load_context_info_gap(
+            state, f"Missing verification/{stage}/{state['group']}"
+        )
 
     try:
         assert_preflight(project_dir, group_dir)
     except InfoGapError as e:
-        return {
-            "info_gap": True,
-            "info_gap_message": str(e),
-            "verdict": "INFO_GAP",
-        }
+        return _load_context_info_gap(state, str(e))
 
     manifest = load_yaml(group_dir / "manifest.yaml")
     state_data = load_yaml(project_dir / "state.yaml")
-    ok, msg = check_milestone_gate(manifest, state_data)
+    root = project_dir.parent.parent
+    ok, msg = check_milestone_gate(manifest, state_data, root=root)
     if not ok:
-        return {"info_gap": True, "info_gap_message": msg, "verdict": "INFO_GAP"}
+        return _load_context_info_gap(state, msg)
 
     ctx = state.get("group_context") or load_group_context(group_dir)
     append_graph_trace(
@@ -159,15 +221,18 @@ def select_runner_node(state: VerifyGroupState) -> dict[str, Any]:
     if state.get("info_gap"):
         return {}
 
+    run_dir = _run_dir(state)
     project_dir = _project_dir(state)
     stage = state["stage"]
     group = state["group"]
     script_path = resolve_group_script(project_dir, stage, group)
     script_name = script_path.name if script_path else f"{group}.py"
 
-    loop = load_loop_guard(_run_dir(state))
+    loop = load_loop_guard(run_dir)
     if loop.stalemate or state.get("force_mode") == "llm_full":
-        return {"runner": "llm", "script_name": script_name, "force_mode": "llm_full"}
+        out = {"runner": "llm", "script_name": script_name, "force_mode": "llm_full"}
+        append_graph_trace(run_dir, {"node": "select_runner", **out})
+        return out
 
     meta = {}
     meta_path = project_dir / "meta.yaml"
@@ -193,12 +258,17 @@ def select_runner_node(state: VerifyGroupState) -> dict[str, Any]:
         runner_mode = "python_canonical"
     else:
         runner_mode = str(state.get("runner_mode") or "llm_tools")
-    return {
+    out = {
         "runner": runner,
         "runner_mode": runner_mode,
         "script_name": script_name,
         "round": state.get("round", 0) + 1,
     }
+    append_graph_trace(
+        run_dir,
+        {"node": "select_runner", "runner": runner, "runner_mode": runner_mode},
+    )
+    return out
 
 
 def run_gate(state: VerifyGroupState) -> dict[str, Any]:
@@ -350,6 +420,19 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
             "verdict": "INFO_GAP",
         }
 
+    root = project_dir.parent.parent
+    write_graph_step(
+        run_dir,
+        graph="verify_group",
+        node="run_gate",
+        group=group,
+        stage=stage,
+        runner="python",
+        fix_round=int(state.get("fix_round", 0)),
+        orchestrator_run_id=state.get("orchestrator_run_id", ""),
+        root=root,
+    )
+
     try:
         verdict = run_python_script(
             script_path,
@@ -396,6 +479,15 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
         events = bump_events(events, bump_kind)
         sig = build_signature(verdict=verdict)
         loop = record_failure(run_dir, sig)
+        append_graph_trace(
+            run_dir,
+            {
+                "node": "run_gate",
+                "runner": "python",
+                "verdict": verdict.status,
+                "error_kind": fail_kind,
+            },
+        )
         return {
             "gate_results": gate_results,
             "trust_score": score,
@@ -407,6 +499,10 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
             "fix_round": state.get("fix_round", 0) + 1,
         }
 
+    append_graph_trace(
+        run_dir,
+        {"node": "run_gate", "runner": "python", "verdict": "PASS", "error_kind": "none"},
+    )
     return {
         "gate_results": gate_results,
         "trust_score": score,
@@ -549,7 +645,7 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
             dst.write_text(text, encoding="utf-8")
 
     append_graph_trace(run_dir, {"node": "diagnose_env", "error_kind": state.get("error_kind")})
-    return {"runner": "llm", "runner_mode": "llm_diagnose_env"}
+    return {"runner": "llm", "runner_mode": "llm_diagnose_env", "error": ""}
 
 
 def patch_bridge_node(state: VerifyGroupState) -> dict[str, Any]:
@@ -580,6 +676,8 @@ def patch_bridge_node(state: VerifyGroupState) -> dict[str, Any]:
                 "blocking": "no",
             }
         ]
+    else:
+        out["error"] = ""
     return out
 
 
@@ -638,6 +736,19 @@ def promote_node(state: VerifyGroupState) -> dict[str, Any]:
                     "crystallize": crystallize_out,
                 },
             )
+            child_ev = validate_child_after_complete(
+                root,
+                "verify_group",
+                "promote",
+                state=dict(state),
+                run_dir=run_dir,
+            )
+            if not child_ev.ok:
+                return {
+                    "promote_outcome": outcome,
+                    "trust_score": result.trust_score,
+                    "child_evidence_blocked": child_ev.to_dict(),
+                }
             return {"promote_outcome": outcome, "trust_score": result.trust_score}
 
     return {}
@@ -898,6 +1009,16 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
 
     reflect_from_run_dir(project_dir, run_dir, state.get("group", ""))
 
+    append_graph_trace(
+        run_dir,
+        {
+            "node": "finalize",
+            "graph": "verify_group",
+            "verdict": state.get("verdict"),
+            "info_gap": bool(state.get("info_gap")),
+        },
+    )
+
     return {
         "completeness": metrics.score,
         "questions": questions,
@@ -906,55 +1027,260 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
     }
 
 
-def route_after_load(state: VerifyGroupState) -> Literal["select_runner", "finalize"]:
-    if state.get("info_gap"):
-        return "finalize"
-    return "select_runner"
+def meta_collect_node(state: VerifyGroupState) -> dict[str, Any]:
+    """Gather run signals + change hints for meta-graph (platform)."""
+    project_dir = _project_dir(state)
+    run_dir = _run_dir(state)
+    root = project_dir.parent.parent
+    state_dict = dict(state)
+    child_summary = validate_all_child_graphs(
+        root, "verify_group", state=state_dict, run_dir=run_dir
+    )
+    scorecard = build_all_branch_scorecards(
+        root,
+        project_dir,
+        run_dir,
+        state_dict,
+        child_summary=child_summary,
+    )
+    write_branch_scorecard(run_dir, scorecard)
+    append_project_scorecard_history(project_dir, scorecard)
+
+    signals = collect_run_signals(run_dir, state_dict)
+    write_improvement_signal(run_dir, signals)
+    snapshot = build_snapshot(project_dir, run_dir, signals, as_of=state.get("as_of"))
+    write_improvement_snapshot(run_dir, snapshot)
+    payload = build_meta_collect_payload(
+        root=root,
+        project_dir=project_dir,
+        run_dir=run_dir,
+        signals=signals,
+        snapshot=snapshot.to_dict(),
+        state=dict(state),
+    )
+    write_meta_collect_prompt(run_dir, payload)
+    append_graph_trace(run_dir, {"node": "meta_collect", "improvement_index": snapshot.improvement_index})
+    return {"improvement_index": snapshot.improvement_index}
 
 
-def route_after_run(
-    state: VerifyGroupState,
-) -> Literal["select_runner", "evaluate", "diagnose_env", "finalize"]:
-    if state.get("info_gap") or state.get("error_kind") == "info":
-        return "finalize"
-    if state.get("verdict") == "PASS":
-        return "evaluate"
-    if state.get("stalemate"):
-        return "finalize"
-    kind = str(state.get("error_kind", "verification"))
-    if kind in ("env", "tool"):
-        return "diagnose_env"
-    return "select_runner"
+def meta_score_node(state: VerifyGroupState) -> dict[str, Any]:
+    """Persist KPI time series — platform only."""
+    project_dir = _project_dir(state)
+    run_dir = _run_dir(state)
+    root = project_dir.parent.parent
+    state_dict = dict(state)
+    sig_path = run_dir / "improvement_signal.json"
+    snap_dict: dict[str, Any] = {}
+    if sig_path.is_file():
+        signals = json.loads(sig_path.read_text(encoding="utf-8"))
+        snap = build_snapshot(project_dir, run_dir, signals, as_of=state.get("as_of"))
+        append_history(project_dir, snap)
+        snap_dict = snap.to_dict()
+
+    sc_path = run_dir / "branch_scorecard.json"
+    scorecard: dict[str, Any] = {}
+    if sc_path.is_file():
+        scorecard = json.loads(sc_path.read_text(encoding="utf-8"))
+        append_branch_history(
+            project_dir,
+            run_id=str(state.get("run_id", run_dir.name)),
+            stage=str(state.get("stage", "")),
+            group=str(state.get("group", "")),
+            branch_scorecard=scorecard,
+        )
+
+    if snap_dict:
+        ablation = build_ablation_record(
+            project_dir,
+            run_dir,
+            run_id=str(state.get("run_id", run_dir.name)),
+            stage=str(state.get("stage", "")),
+            group=str(state.get("group", "")),
+            snapshot=snap_dict,
+            branch_scorecard=scorecard or None,
+        )
+        write_ablation(run_dir, ablation)
+        append_ablation_history(project_dir, ablation)
+
+    qq = score_all_questions(list(state.get("questions") or []))
+    write_question_quality(run_dir, qq)
+
+    branches = scorecard.get("branches") or []
+    mean_success = None
+    if branches:
+        mean_success = sum(float(b.get("success_rate", 0)) for b in branches) / len(branches)
+
+    record_platform_use(
+        root,
+        kind="verify_group_complete",
+        graph_id="verify_group",
+        run_id=str(state.get("run_id", run_dir.name)),
+        verdict=str(state.get("verdict", "UNKNOWN")),
+        trust_score=float(state.get("trust_score", 0.0)) or None,
+        success_rate=mean_success,
+        project_id=str(state.get("project_id", "")),
+        stage=str(state.get("stage", "")),
+        group=str(state.get("group", "")),
+        extra={"improvement_index": state.get("improvement_index"), "question_sharpness": qq.get("mean_sharpness")},
+    )
+
+    purpose = f"verify_group {state.get('stage')}/{state.get('group')} verdict={state.get('verdict')}"
+    manifest = build_repro_manifest(
+        root,
+        run_dir=run_dir,
+        project_dir=project_dir,
+        purpose=purpose,
+        graph_id="verify_group",
+        run_id=str(state.get("run_id", run_dir.name)),
+        state=state_dict,
+    )
+    build_repro_bundle(root, run_dir, manifest)
+
+    exp = resolve_experiment_tags(
+        root,
+        campaign=state.get("experiment_campaign", ""),
+        condition=state.get("experiment_condition", ""),
+        hypothesis=state.get("experiment_hypothesis", ""),
+    )
+    register_campaign_run(
+        root,
+        exp,
+        run_meta={
+            "run_id": str(state.get("run_id", run_dir.name)),
+            "graph_id": "verify_group",
+            "project_id": str(state.get("project_id", "")),
+            "stage": str(state.get("stage", "")),
+            "group": str(state.get("group", "")),
+            "verdict": str(state.get("verdict", "")),
+            "improvement_index": state.get("improvement_index"),
+        },
+    )
+
+    append_graph_trace(run_dir, {"node": "meta_score", "index": state.get("improvement_index")})
+    return {}
 
 
-def route_after_diagnose(state: VerifyGroupState) -> Literal["patch_bridge", "finalize"]:
-    if state.get("error") in ("bridge_round_cap",):
-        return "finalize"
-    if state.get("stalemate"):
-        return "finalize"
-    return "patch_bridge"
+def meta_propose_node(state: VerifyGroupState) -> dict[str, Any]:
+    """LLM proposes structured changes — meta_change_proposal.json."""
+    project_dir = _project_dir(state)
+    run_dir = _run_dir(state)
+    root = project_dir.parent.parent
+    stage = state["stage"]
+    group = state["group"]
+    ctx = state.get("group_context") or {}
+
+    step_path = write_graph_step(
+        run_dir,
+        graph="verify_group",
+        node="meta_propose",
+        group=group,
+        stage=stage,
+        runner="llm",
+        fix_round=int(state.get("fix_round", 0)),
+        orchestrator_run_id=state.get("orchestrator_run_id", ""),
+        extra={
+            "meta_graph_spec": "registry/meta_graph_spec.yaml",
+            "meta_graph_diagram": "templates/obsidian/10-META-GRAPH.md",
+            "langgraph_summary": "templates/obsidian/11-LANGGRAPH-SUMMARY.md",
+            "required_artifacts": ["meta_change_proposal.json"],
+            "reads": ["meta_collect_prompt.json", "improvement_snapshot.json"],
+        },
+    )
+
+    tpl = root / "templates" / "meta_change_proposal.md"
+    if tpl.is_file() and not (run_dir / "meta_change_proposal.md").is_file():
+        text = tpl.read_text(encoding="utf-8")
+        for key in ("run_id", "project_id", "stage", "group"):
+            text = text.replace(f"{{{{{key}}}}}", str(state.get(key, state.get("project_id", ""))))
+        (run_dir / "meta_change_proposal.md").write_text(text, encoding="utf-8")
+
+    try:
+        config = load_user_config(root)
+    except FileNotFoundError:
+        config = None
+
+    llm_result = invoke_sub_agent(
+        run_dir,
+        group_context=ctx,
+        graph_step_path=step_path,
+        root=root,
+        config=config,
+    )
+    proposal_path = run_dir / META_PROPOSAL_NAME
+    if not proposal_path.is_file():
+        write_mechanical_meta_proposal(
+            run_dir,
+            run_id=str(state.get("run_id", run_dir.name)),
+            stage=stage,
+            group=group,
+            root=root,
+        )
+    else:
+        try:
+            existing = json.loads(proposal_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = {}
+        if not (existing.get("changes") or []):
+            write_mechanical_meta_proposal(
+                run_dir,
+                run_id=str(state.get("run_id", run_dir.name)),
+                stage=stage,
+                group=group,
+                root=root,
+            )
+
+    ensure_meta_queue_artifact(project_dir, run_dir, root=root)
+    append_graph_trace(run_dir, {"node": "meta_propose"})
+    return {"runner": "llm", "runner_mode": "llm_meta_propose"}
 
 
-def route_after_eval(
-    state: VerifyGroupState,
-) -> Literal["select_runner", "parity_check", "promote", "finalize"]:
-    if state.get("info_gap"):
-        return "finalize"
-    if state.get("open_issues", 0) > 0:
-        return "select_runner"
-    if state.get("verdict") == "PASS" and state.get("continue_improvement"):
-        return "select_runner"
-    if state.get("verdict") == "PASS":
-        return "parity_check"
-    return "finalize"
+def meta_queue_node(state: VerifyGroupState) -> dict[str, Any]:
+    """Validate proposal, queue patches — never auto-apply graph_source."""
+    project_dir = _project_dir(state)
+    run_dir = _run_dir(state)
+    root = project_dir.parent.parent
+    spec = load_meta_spec(root)
 
+    proposal = load_meta_proposal(run_dir)
+    if proposal is None:
+        stub = {
+            "queued_at": date.today().isoformat(),
+            "run_id": state.get("run_id", run_dir.name),
+            "validation": {"ok": False, "issues": ["no_meta_change_proposal"]},
+            "proposal": None,
+            "status": "skipped",
+        }
+        (run_dir / "meta_change_queued.json").write_text(
+            json.dumps(stub, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        append_graph_trace(run_dir, {"node": "meta_queue", "queued": False, "reason": "no_proposal"})
+        return {"meta_queued": False}
 
-def route_after_parity(state: VerifyGroupState) -> Literal["promote", "run_codegen", "finalize"]:
-    if state.get("parity_ok"):
-        return "promote"
-    if state.get("error") == "codegen_round_cap":
-        return "finalize"
-    return "run_codegen"
+    validation = validate_meta_proposal(proposal, spec)
+    outcome = queue_meta_proposal(project_dir, run_dir, proposal, validation)
+
+    apply_result: dict[str, Any] = {"applied": [], "skipped": []}
+    try:
+        policies = load_policies(root)
+    except Exception:
+        policies = {}
+    if validation.get("ok") and (policies.get("meta_graph") or {}).get("auto_apply_low_risk"):
+        apply_result = apply_low_risk_artifacts(project_dir, proposal, spec)
+
+    append_graph_trace(
+        run_dir,
+        {
+            "node": "meta_queue",
+            "queued": outcome.get("queued"),
+            "validation_ok": validation.get("ok"),
+            "applied": apply_result.get("applied"),
+        },
+    )
+    return {
+        "meta_queued": bool(outcome.get("queued")),
+        "meta_queue_path": outcome.get("path"),
+    }
 
 
 _VERIFY_NODES = (
@@ -962,6 +1288,10 @@ _VERIFY_NODES = (
     "load_context",
     "select_runner",
     "run_gate",
+    "parse_validation_items",
+    "validation_judge",
+    "apply_validation_plan",
+    "run_pending_repro",
     "diagnose_env",
     "patch_bridge",
     "evaluate",
@@ -970,6 +1300,10 @@ _VERIFY_NODES = (
     "promote",
     "finalize_reproduction",
     "finalize",
+    "meta_collect",
+    "meta_score",
+    "meta_propose",
+    "meta_queue",
 )
 
 
@@ -979,6 +1313,10 @@ def _build_verify_group_state_graph() -> StateGraph:
     g.add_node("load_context", load_context)
     g.add_node("select_runner", select_runner_node)
     g.add_node("run_gate", run_gate)
+    g.add_node("parse_validation_items", parse_validation_items_node)
+    g.add_node("validation_judge", validation_judge_node)
+    g.add_node("apply_validation_plan", apply_validation_plan_node)
+    g.add_node("run_pending_repro", run_pending_repro_node)
     g.add_node("diagnose_env", diagnose_env_node)
     g.add_node("patch_bridge", patch_bridge_node)
     g.add_node("evaluate", evaluate_node)
@@ -987,12 +1325,20 @@ def _build_verify_group_state_graph() -> StateGraph:
     g.add_node("promote", promote_node)
     g.add_node("finalize_reproduction", finalize_reproduction_node)
     g.add_node("finalize", finalize_node)
+    g.add_node("meta_collect", meta_collect_node)
+    g.add_node("meta_score", meta_score_node)
+    g.add_node("meta_propose", meta_propose_node)
+    g.add_node("meta_queue", meta_queue_node)
 
     g.set_entry_point("setup")
     g.add_edge("setup", "load_context")
     g.add_conditional_edges("load_context", route_after_load)
     g.add_edge("select_runner", "run_gate")
     g.add_conditional_edges("run_gate", route_after_run)
+    g.add_edge("parse_validation_items", "validation_judge")
+    g.add_edge("validation_judge", "apply_validation_plan")
+    g.add_edge("apply_validation_plan", "run_pending_repro")
+    g.add_conditional_edges("run_pending_repro", route_after_apply_validation)
     g.add_conditional_edges("diagnose_env", route_after_diagnose)
     g.add_edge("patch_bridge", "select_runner")
     g.add_conditional_edges("evaluate", route_after_eval)
@@ -1000,7 +1346,11 @@ def _build_verify_group_state_graph() -> StateGraph:
     g.add_edge("run_codegen", "parity_check")
     g.add_edge("promote", "finalize_reproduction")
     g.add_edge("finalize_reproduction", "finalize")
-    g.add_edge("finalize", END)
+    g.add_edge("finalize", "meta_collect")
+    g.add_edge("meta_collect", "meta_score")
+    g.add_edge("meta_score", "meta_propose")
+    g.add_edge("meta_propose", "meta_queue")
+    g.add_edge("meta_queue", END)
     return g
 
 
@@ -1026,8 +1376,14 @@ def run_verify_group(
     thread_id: str = "default",
     orchestrator_run_id: str = "",
     group_context: dict[str, Any] | None = None,
+    experiment_campaign: str = "",
+    experiment_condition: str = "",
+    experiment_hypothesis: str = "",
+    max_steps: int = 80,
 ) -> dict[str, Any]:
-    graph = build_verify_group_graph()
+    """Run verify_group with node gate enforcement between every step."""
+    root = project_dir.parent.parent
+    graph = build_verify_group_graph_interruptible()
     initial: VerifyGroupState = {
         "project_id": project_id or project_dir.name,
         "project_dir": str(project_dir.resolve()),
@@ -1038,5 +1394,51 @@ def run_verify_group(
         initial["orchestrator_run_id"] = orchestrator_run_id
     if group_context:
         initial["group_context"] = group_context
+    if experiment_campaign:
+        initial["experiment_campaign"] = experiment_campaign
+    if experiment_condition:
+        initial["experiment_condition"] = experiment_condition
+    if experiment_hypothesis:
+        initial["experiment_hypothesis"] = experiment_hypothesis
     config = {"configurable": {"thread_id": thread_id}}
-    return graph.invoke(initial, config=config)
+
+    graph.invoke(initial, config)
+    last_completed = ""
+    for _ in range(max_steps):
+        snap = graph.get_state(config)
+        next_nodes = list(snap.next) if snap.next else []
+        if not next_nodes:
+            break
+        pending = next_nodes[0]
+        state_values = dict(snap.values) if snap.values else {}
+        run_dir = _run_dir_from_state(state_values) if state_values.get("run_id") else None
+
+        if last_completed:
+            prev_gate = validate_node_gate(
+                root,
+                "verify_group",
+                last_completed,
+                state=state_values,
+                run_dir=run_dir,
+            )
+            if not prev_gate.ok:
+                raise NodeGateBlocked(prev_gate)
+
+        graph.invoke(None, config)
+        snap_after = graph.get_state(config)
+        state_after = dict(snap_after.values) if snap_after.values else {}
+        run_dir_after = _run_dir_from_state(state_after) if state_after.get("run_id") else None
+
+        gate = finalize_node_gate(
+            root,
+            "verify_group",
+            pending,
+            state=state_after,
+            run_dir=run_dir_after,
+        )
+        if not gate.ok:
+            raise NodeGateBlocked(gate)
+        last_completed = pending
+
+    final = graph.get_state(config)
+    return dict(final.values) if final.values else {}

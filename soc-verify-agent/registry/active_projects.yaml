@@ -9,19 +9,10 @@ acquisition:
       interval_days: 7
       next_refresh: 2026-06-20
 projects:
-  - id: AURORA-SOC
-    active: false
-    status: completed
-    completed_at: 2026-05-28
-    current_milestone: M4
   - id: EXAMPLE-SOC
     active: true
     status: in_progress
     current_milestone: M3
-  - id: NEBULA-SOC
-    active: true
-    status: in_progress
-    current_milestone: M2
   - id: VERIF-CPU-SOC
     active: true
     status: in_progress

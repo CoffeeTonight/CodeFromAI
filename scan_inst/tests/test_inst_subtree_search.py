@@ -47,9 +47,23 @@ module sram_ctrl; endmodule
 
 def test_path_pattern_dotted_glob():
     path = "top.u_ab_block.c_ctrl.asd_wrap"
-    assert path_pattern_match(path, "*ab.*c*.asd*")
-    assert path_pattern_match("soc.ab.c.asd", "*ab.*c*.asd*")
-    assert not path_pattern_match("top.u_other", "*ab.*c*.asd*")
+    assert path_pattern_match(path, "top.*ab.*c*.asd*")
+    assert path_pattern_match("soc.ab.c.asd", "soc.*ab.*c*.asd*")
+    assert not path_pattern_match("top.u_other", "top.*ab.*c*.asd*")
+    assert not path_pattern_match(path, "*ab.*c*.asd*")
+
+
+def test_path_pattern_fixed_depth_not_subsequence():
+    deep = "top.E_blk.mid.deep.u_log_blk.u_cpu"
+    assert not path_pattern_match(deep, "E*.*log.*cpu*")
+    assert not path_pattern_match(deep, "top.E*.*log.*cpu*")
+    assert path_pattern_match(deep, "top.E*..*log.*cpu*")
+    assert not path_pattern_match(deep, "top.E*..*log..*cpu*")
+
+
+def test_path_pattern_ellipsis_requires_hops():
+    assert path_pattern_match("top.a.b.c", "top.a..c")
+    assert not path_pattern_match("top.a.c", "top.a..c")
 
 
 def test_search_dotted_glob_pattern(tmp_path):
@@ -73,7 +87,7 @@ module asd_leaf; endmodule
     index = DesignIndex.build({str(rtl): text})
     _root, rows = elaborate(index, "top")
 
-    hits = search("*ab.*c*.asd*", rows=rows)
+    hits = search("top.*ab.*c*.asd*", rows=rows)
     assert {h.full_path for h in hits} == {"top.u_ab_block.c_ctrl.asd_wrap"}
 
 

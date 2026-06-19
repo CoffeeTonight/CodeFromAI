@@ -79,23 +79,9 @@ def full_examples_rtl(tmp_path: Path):
     return _elab(verilog, tmp_path)
 
 
-def test_concat_list_with_multiple_literals_expands_two_pairs():
-    meta = build_expand_meta(
-        ["top.a", "1'b0", "2'h0", "top.b"],
-        "top.bus2[1:0]",
-    )
-    assert needs_expansion(meta)
-    assert meta.map_kind == "concat"
-    pairs = expand_check_to_pairs(
-        "[top.a, 1'b0, 2'h0, top.b]",
-        "top.bus2[1:0]",
-        expand=meta,
-    )
-    assert len(pairs) == 2
-    assert pairs[0].endpoint_a == "top.a"
-    assert pairs[0].endpoint_b == "top.bus2[1]"
-    assert pairs[1].endpoint_a == "top.b"
-    assert pairs[1].endpoint_b == "top.bus2[0]"
+def test_concat_list_with_literals_rejected():
+    with pytest.raises(ValueError, match="concat form"):
+        build_expand_meta(["top.a", "1'b0", "2'h0", "top.b"], "top.bus2[1:0]")
 
 
 def test_concat_oneliner_with_3h7_literal():
@@ -113,18 +99,22 @@ def test_concat_oneliner_with_3h7_literal():
     assert pairs[1].endpoint_a == "top.b"
 
 
-def test_concat_list_literals_connectivity(concat_literal_rtl):
+def test_concat_string_literals_connectivity(concat_literal_rtl):
     index, rows, top = concat_literal_rtl
-    cases = [
-        {"a": ["top.a", "1'b0", "2'h0", "top.b"], "b": "top.bus2[1:0]"},
-        {"a": "{top.a, 1'b0, 2'h0, 3'h7, top.b}", "b": "top.bus2[1:0]"},
-    ]
-    for chk in cases:
-        req = parse_connect_request_json({"checks": [chk]})
-        batch = run_connectivity_request(req, rows=rows, index=index, top=top)
-        r = batch.results[0]
-        assert r.connected, f"failed {chk}: {r.errors} {r.note}"
-        assert len(r.sub_results) == 2
+    req = parse_connect_request_json(
+        {
+            "checks": [
+                {
+                    "a": "{top.a, 1'b0, 2'h0, 3'h7, top.b}",
+                    "b": "top.bus2[1:0]",
+                }
+            ]
+        }
+    )
+    batch = run_connectivity_request(req, rows=rows, index=index, top=top)
+    r = batch.results[0]
+    assert r.connected, f"errors={r.errors} note={r.note}"
+    assert len(r.sub_results) == 2
 
 
 def test_all_documented_examples_end_to_end(full_examples_rtl):
@@ -137,11 +127,6 @@ def test_all_documented_examples_end_to_end(full_examples_rtl):
                 {
                     "id": "array",
                     "a": ["top.a", "top.b"],
-                    "b": "top.bus_b[1:0]",
-                },
-                {
-                    "id": "concat_list",
-                    "a": ["top.a", "1'b0", "2'h0", "top.b"],
                     "b": "top.bus_b[1:0]",
                 },
                 {
@@ -172,9 +157,9 @@ def test_all_documented_examples_end_to_end(full_examples_rtl):
     )
     batch = run_connectivity_request(req, rows=rows, index=index, top=top)
     by_id = {r.check_id: r for r in batch.results}
-    assert len(by_id) == 8
+    assert len(by_id) == 7
 
-    for cid in ("simple", "fanout", "array", "concat_list", "concat_str", "loop_range", "loop_list"):
+    for cid in ("simple", "fanout", "array", "concat_str", "loop_range", "loop_list"):
         r = by_id[cid]
         assert r.connected, f"{cid}: errors={r.errors} note={r.note}"
 

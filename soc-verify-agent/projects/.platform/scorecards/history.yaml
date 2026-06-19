@@ -1,0 +1,663 @@
+contract: scorecard_history_v1
+runs:
+- run_id: 74e12c0921c8
+  as_of: '2026-06-16'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 7672f66d95d1
+  as_of: '2026-06-16'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 83a84f0f7a4e
+  as_of: '2026-06-16'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: eecd667a98d4
+  as_of: '2026-06-16'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 1c7583c9875d
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 2f7cd48f578d
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 554ab7bb1a20
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: d0ae2e491d42
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: e52c89c7a84e
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 48ae3ed57bdf
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: de2539804e7a
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 7d3900f67650
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: e884614187b6
+  as_of: '2026-06-17'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: a04471563c0b
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 95bbb451192b
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 64fd9cdd76ce
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 760d4f63643f
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 59439a64db2d
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 32316c48365d
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 0ee339e97b9b
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 2f019f1fcd80
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: dc6c545532d0
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: ae355f6578ec
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 683f341a5143
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 3901ad73cc93
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: b0cabcf9149b
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: d25cea9cdf54
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 2337c936da34
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 2b6ef81e89d8
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: ab7e8b3ec7f0
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 340082d4197d
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 149cbe6c52fa
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: d5bfd1ca4f72
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+last_updated: '2026-06-18'

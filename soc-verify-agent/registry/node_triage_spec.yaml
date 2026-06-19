@@ -1,0 +1,86 @@
+# Node triage — outcome fail 후 전략 (platform → user → LLM plan)
+version: node-triage-v1
+instruction_ko: >
+  Gate 통과 후 outcome이 fail이면 fail_class별 전략으로 라우팅.
+  검증 item triage는 validation_judgment.json (validation_autonomy).
+  기타 노드는 node_triage/{node}_plan.json (LLM) 또는 meta/node_triage.yaml (user).
+
+plan_contract: node_triage_plan_v1
+plan_path: "runs/{run_id}/node_triage/{node}_plan.json"
+user_override: "projects/{id}/meta/node_triage.yaml"
+
+# LLM만 허용하는 완화 전략 (mechanical/user 기본은 retry/halt)
+llm_only_sequence_actions:
+  - continue_remaining
+  - partial_accept
+
+graphs:
+  verify_group:
+    nodes:
+      run_gate:
+        triage_enabled: true
+        fail_routes:
+          env: diagnose_env
+          tool: diagnose_env
+          verification: parse_validation_items
+          info: finalize
+          llm: parse_validation_items
+          none: parse_validation_items
+          stalemate: finalize
+          default: parse_validation_items
+        pass_route: evaluate
+      load_context:
+        triage_enabled: true
+        fail_routes:
+          info: finalize
+          default: finalize
+        pass_route: select_runner
+      evaluate:
+        triage_enabled: true
+        fail_routes:
+          open_issues: select_runner
+          continue_improvement: select_runner
+          info: finalize
+          default: finalize
+        pass_route: parity_check
+      parity_check:
+        triage_enabled: true
+        fail_routes:
+          parity_fail: run_codegen
+          codegen_cap: finalize
+          default: run_codegen
+        pass_route: promote
+      apply_validation_plan:
+        triage_enabled: true
+        strategy_field: validation_sequence_action
+        action_routes:
+          retry_gate: select_runner
+          continue_remaining: evaluate_if_pass_else_finalize
+          partial_accept: evaluate_if_pass_else_finalize
+          halt: finalize
+          default: finalize
+      run_pending_repro:
+        triage_enabled: true
+        strategy_field: validation_sequence_action
+        action_routes:
+          retry_gate: select_runner
+          continue_remaining: evaluate_if_pass_else_finalize
+          partial_accept: evaluate_if_pass_else_finalize
+          halt: finalize
+          default: finalize
+      diagnose_env:
+        triage_enabled: true
+        fail_routes:
+          bridge_cap: finalize
+          stalemate: finalize
+          default: patch_bridge
+        pass_route: patch_bridge
+
+  setup_group:
+    nodes:
+      llm_bootstrap_scripts:
+        triage_enabled: true
+        fail_routes:
+          bootstrap_fail: finalize
+          default: finalize
+        pass_route: finalize

@@ -20,6 +20,7 @@
 | [[ORCHESTRATOR]] | Main agent 페르소나 |
 | [[SUB_AGENT]] | Sub-agent 페르소나 |
 | [[MISSION_VERIF-CPU-SOC]] | VERIF 전체 미션 프롬프트 |
+| [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]] | VCPU → 고객 SoC **통합 에이전트** |
 | [[projects/VERIF-CPU-SOC]] | 프로젝트 gate 그래프 |
 
 ---

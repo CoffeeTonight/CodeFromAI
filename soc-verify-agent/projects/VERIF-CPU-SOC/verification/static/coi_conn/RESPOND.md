@@ -14,7 +14,7 @@
 
 ## scan_inst / ops 불일치
 1. CHECK·**coi_conn.md** 게이트 원칙 유지
-2. `pip install -e /home/user/Desktop/scan_inst` 및 PATH 확인
+2. `pip install -e ~/tools/__CFI/scan_inst` 및 PATH 확인
 3. 과제 filelist/top에 맞게 `ops/static/coi_conn.py` crystallize
 
 ## INFO_GAP

@@ -40,7 +40,9 @@ def refresh_project_search(root: Path, config: UserConfig, today: date | None = 
             )
         registry["projects"] = projects
         registry["source"] = snap.get("source", "dummy_confluence_snapshot")
-        registry["schedule_plan"] = "soc-dv-4p-v1"
+        from soc_verify.milestone_plans import default_plan_id
+
+        registry["schedule_plan"] = default_plan_id(root)
 
     stamp = stamp_refresh_policy(today, days)
     registry["as_of"] = today.isoformat()

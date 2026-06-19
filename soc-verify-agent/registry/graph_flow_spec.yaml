@@ -33,10 +33,14 @@ graphs:
         action: run_id·work_index 초기화
       plan_work:
         actor: platform
-        action: acquisition due + verification_groups_due → work_queue
+        action: >
+          acquisition due + verification_groups_due → work_queue.
+          meta/validation_state.yaml exclude 반영(validation_sequence_filter).
       run_acquisition:
         actor: platform
-        action: project_search/intake/state_sync/tag_watch 갱신
+        action: >
+          project_search / project_intake / knowledge_collect(Confluence·wiki·md→05-intake) /
+          state_sync / tag_watch 갱신. knowledge_collect는 schedules.knowledge_collect_days due 시만.
       prepare_verify:
         actor: platform
         action: tag·milestone 게이트, group_context 로드
@@ -98,6 +102,54 @@ graphs:
         reads: [graph_step.json, md_only_prompt.md]
         writes: ["verdict_{group}.json", sub_stop.json]
         llm_trigger: true
+      parse_validation_items:
+        actor: platform
+        action: >
+          SoC validation — CHECK.md goal/tier + run log에서 item 추출 (IP coverage 아님).
+          validation_items.json — checklist failed, tier marker, goal 수치.
+        reads:
+          - verification/{stage}/{group}/CHECK.md
+          - runs/{run_id}/*.log
+          - runs/{run_id}/verdict_{group}.json
+        writes:
+          - runs/{run_id}/validation_items.json
+      validation_judge:
+        actor: llm_assisted
+        inline_llm: true
+        action: >
+          item별 LLM 판단 — reproduce | narrow_cause | repro_script | exclude | continue_rest.
+          sequence_action: halt | retry_gate | continue_remaining | partial_accept.
+        reads:
+          - runs/{run_id}/validation_items.json
+          - verification/{stage}/{group}/CHECK.md
+          - verification/{stage}/{group}/RESPOND.md
+        writes:
+          - runs/{run_id}/validation_judge_prompt.json
+          - runs/{run_id}/validation_judgment.json
+        llm_trigger: true
+      apply_validation_plan:
+        actor: platform
+        action: >
+          judgment 적용 — validation_narrow.md(사용자용 원인 요약),
+          meta/validation_state.yaml(exclude/defer), item repro prompt.
+        reads:
+          - runs/{run_id}/validation_judgment.json
+        writes:
+          - runs/{run_id}/validation_narrow.md
+          - projects/{id}/meta/validation_state.yaml
+          - runs/{run_id}/validation_item_repro_*.json
+          - scripts/repro_*.sh
+      run_pending_repro:
+        actor: platform
+        action: >
+          pending_repro item 스크립트만 sandbox 실행 — gate CLI·full regression 금지.
+          scripts/repro_{item_id}.sh 가 있으면 bash 실행, 없으면 missing_script 기록.
+        reads:
+          - projects/{id}/meta/validation_state.yaml
+          - projects/{id}/scripts/repro_*.sh
+        writes:
+          - runs/{run_id}/validation_repro_results.json
+          - runs/{run_id}/repro_*.log
       diagnose_env:
         actor: llm_assisted
         action: >
@@ -170,11 +222,58 @@ graphs:
       finalize:
         actor: platform
         action: questions_pending, erl_reflect
+      meta_collect:
+        actor: platform
+        action: >
+          run KPI 수집 — improvement_signal/snapshot, change_hints, meta_collect_prompt.
+          LangGraph 소스는 읽기만; 수정 제안은 meta_propose로 위임.
+        reads:
+          - runs/{run_id}/graph_trace.jsonl
+          - registry/meta_graph_spec.yaml
+        writes:
+          - runs/{run_id}/improvement_signal.json
+          - runs/{run_id}/improvement_snapshot.json
+          - runs/{run_id}/branch_scorecard.json
+          - runs/{run_id}/child_graph_evidence.json
+          - runs/{run_id}/meta_collect_prompt.json
+      meta_score:
+        actor: platform
+        action: projects/{id}/improvement/history.yaml 시계열 append
+        writes:
+          - projects/{id}/improvement/history.yaml
+      meta_propose:
+        actor: llm_assisted
+        action: >
+          구조화된 변경 제안 — meta_change_proposal.json (layer·target·evidence).
+          graph_source(src/soc_verify/graphs/*.py)는 human_required, auto-apply 금지.
+        reads:
+          - templates/obsidian/10-META-GRAPH.md
+          - registry/meta_graph_spec.yaml
+          - runs/{run_id}/meta_collect_prompt.json
+          - runs/{run_id}/improvement_snapshot.json
+        writes:
+          - runs/{run_id}/meta_change_proposal.json
+        llm_trigger: true
+      meta_queue:
+        actor: platform
+        action: >
+          proposal 검증·큐잉 — projects/{id}/meta_proposals/{run_id}.json.
+          auto_apply_low_risk=false 기본; graph_source 절대 자동 적용 안 함.
+        reads:
+          - runs/{run_id}/meta_change_proposal.json
+          - registry/meta_graph_spec.yaml
+        writes:
+          - runs/{run_id}/meta_change_queued.json
+          - projects/{id}/meta_proposals/{run_id}.json
     edges:
       setup: [load_context]
       load_context: [select_runner, finalize]
       select_runner: [run_gate]
-      run_gate: [select_runner, evaluate, diagnose_env, finalize]
+      run_gate: [select_runner, evaluate, diagnose_env, parse_validation_items, finalize]
+      parse_validation_items: [validation_judge]
+      validation_judge: [apply_validation_plan]
+      apply_validation_plan: [run_pending_repro]
+      run_pending_repro: [select_runner, evaluate, finalize]
       diagnose_env: [patch_bridge, finalize]
       patch_bridge: [select_runner]
       evaluate: [select_runner, parity_check, finalize]
@@ -182,6 +281,135 @@ graphs:
       run_codegen: [parity_check]
       promote: [finalize_reproduction]
       finalize_reproduction: [finalize]
+      finalize: [meta_collect]
+      meta_collect: [meta_score]
+      meta_score: [meta_propose]
+      meta_propose: [meta_queue]
+      meta_queue: []
+
+  setup_group:
+    id: setup_group
+    entry: setup
+    description: >
+      과제 적응형 onboarding — 마일스톤 맥락·사용자 검증 스킬셋·LLM 생성 도구/초보자 스크립트.
+      큰 흐름만 플랫폼이 정의하고, 노드별 실행 가능 artifact는 LLM이 sandbox에서 생성.
+    nodes:
+      setup:
+        actor: platform
+        action: run_dir·skills/scripts/tools 디렉터리 초기화
+      milestone_context:
+        actor: platform
+        action: schedule_plan·phase_tasks·current_milestone → milestone_context.json
+        reads:
+          - projects/{id}/state.yaml
+          - registry/milestone_plans/{plan}.yaml
+        writes:
+          - projects/{id}/runs/setup/{run_id}/milestone_context.json
+      register_skills:
+        actor: platform
+        action: >
+          사용자 검증 스킬셋을 projects/{id}/skills/ 에 등록·유지.
+          intake.md + registry.yaml + SKILL.md per skill.
+        reads:
+          - registry/setup_state.yaml
+          - projects/{id}/skills/intake.md
+        writes:
+          - projects/{id}/skills/registry.yaml
+          - projects/{id}/skills/*/SKILL.md
+          - projects/{id}/runs/setup/{run_id}/skills_registered.json
+      llm_adapt:
+        actor: llm_assisted
+        action: >
+          마일스톤·스킬 맥락으로 프로젝트 적응 계획·도구 생성.
+          setup_adapt.json + optional projects/{id}/tools/*.py
+        reads:
+          - projects/{id}/runs/setup/{run_id}/milestone_context.json
+          - projects/{id}/runs/setup/{run_id}/setup_adapt_prompt.json
+          - projects/{id}/skills/registry.yaml
+        writes:
+          - projects/{id}/runs/setup/{run_id}/setup_adapt.json
+          - projects/{id}/tools/*.py
+        llm_trigger: true
+      llm_bootstrap_scripts:
+        actor: llm_assisted
+        action: >
+          초보자 즉시 실행 환경 — run_beginner.sh, scripts/README.md,
+          bootstrap_finalize.json
+        reads:
+          - projects/{id}/runs/setup/{run_id}/setup_adapt.json
+          - projects/{id}/runs/setup/{run_id}/bootstrap_prompt.json
+        writes:
+          - projects/{id}/scripts/run_beginner.sh
+          - projects/{id}/scripts/README.md
+          - projects/{id}/runs/setup/{run_id}/bootstrap_finalize.json
+        llm_trigger: true
+      finalize:
+        actor: platform
+        action: setup_workflow.json·setup_state·meta/setup_status.yaml 기록
+        writes:
+          - projects/{id}/runs/setup/{run_id}/setup_workflow.json
+          - registry/setup_state.yaml
+          - projects/{id}/meta/setup_status.yaml
+    edges:
+      setup: [milestone_context]
+      milestone_context: [register_skills]
+      register_skills: [llm_adapt]
+      llm_adapt: [llm_bootstrap_scripts]
+      llm_bootstrap_scripts: [finalize]
+      finalize: []
+
+  meta_innovation_loop:
+    id: meta_innovation_loop
+    entry: setup
+    description: >
+      메타 혁신 루프 — main-LLM이 BECI(B/E/C/I) 수식으로 개입 지점 판단.
+      노드별 평가표 추이·논문 데이터 유지·SKILL.md→Obsidian·sub-agent 검증.
+      최종 결정은 서로 다른 LLM ≥3 합의 후 확정.
+    nodes:
+      setup:
+        actor: platform
+        action: meta_innovation run_dir 초기화
+      collect_observations:
+        actor: platform
+        action: 전 노드 scorecard·run signals 수집 → observations.json
+      beci_assess:
+        actor: platform
+        action: BECI urgency·intervention_targets → beci_assessment.json
+      skill_to_obsidian:
+        actor: llm_assisted
+        action: 사용자 SKILL.md → projects/{id}/knowledge/obsidian/*.md
+        llm_trigger: true
+      subagent_verify:
+        actor: llm_assisted
+        action: 스킬 로직 Python화·sub-agent 실행·관찰 → subagent_verify.json
+        llm_trigger: true
+      multi_llm_review:
+        actor: llm_assisted
+        action: reviewer_a/b/c.json 독립 결론 (≥3)
+        llm_trigger: true
+      consensus_decide:
+        actor: platform
+        action: 3-LLM 합의 → meta_innovation_decision.json
+      dispatch_intervention:
+        actor: platform
+        action: 개입 대상 graph/node 라우팅 → dispatch_intervention.json
+      paper_data_maintain:
+        actor: llm_assisted
+        action: 논문 캠페인 KPI·증거 갱신 → paper_data_update.json
+        llm_trigger: true
+      finalize:
+        actor: platform
+        action: meta_innovation_workflow.json·history.yaml
+    edges:
+      setup: [collect_observations]
+      collect_observations: [beci_assess]
+      beci_assess: [skill_to_obsidian]
+      skill_to_obsidian: [subagent_verify]
+      subagent_verify: [multi_llm_review]
+      multi_llm_review: [consensus_decide]
+      consensus_decide: [dispatch_intervention]
+      dispatch_intervention: [paper_data_maintain]
+      paper_data_maintain: [finalize]
       finalize: []
 
 llm_contract:
@@ -213,3 +441,15 @@ llm_contract:
     - 파일명에서 검증 제목 식별 가능해야 함
   on_finalize_reproduction_sequence:
     - 전체 오케스트레이터 스크립트·고정 순서만 허용 (CLI gate 인자 금지)
+  meta_graph:
+    diagram: templates/obsidian/10-META-GRAPH.md
+    spec: registry/meta_graph_spec.yaml
+    kpi_artifacts:
+      - runs/{run_id}/improvement_signal.json
+      - runs/{run_id}/improvement_snapshot.json
+      - projects/{id}/improvement/history.yaml
+    on_meta_propose:
+      - improvement_index·delta_vs_previous를 evidence로 인용
+      - graph_source 변경은 approval human_required 필수
+    never_auto_apply:
+      - src/soc_verify/graphs/*.py

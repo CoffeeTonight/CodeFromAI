@@ -1,0 +1,6 @@
+contract: setup_state_v1
+completed_steps:
+- setup_group
+answers:
+  setup_group_run_id: 00561c0f7082
+updated_at: '2026-06-18T17:59:07.535050+00:00'

@@ -122,6 +122,44 @@ def _find_matching_end(text: str, pos: int) -> int:
     return len(text)
 
 
+def _find_for_begin_block(chunk: str) -> Optional[_FoldMatch]:
+    m = re.search(r"\bfor\s*\(", chunk, re.IGNORECASE)
+    if not m:
+        return None
+    match_start = m.start()
+    paren_start = m.end() - 1
+    paren_end = _skip_balanced(chunk, paren_start, "(", ")")
+    header = chunk[match_start:paren_end]
+    hm = re.match(
+        r"\bfor\s*\(\s*(?:genvar\s+)?([A-Za-z_]\w*)\s*=\s*([^;]+);\s*"
+        r"([^;]+)\s*;\s*(?:\1\s*\+\+\s*|\1\s*=\s*\1\s*\+\s*1\s*)\s*\)",
+        header,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not hm:
+        return None
+    var, lo_t, cond = hm.group(1), hm.group(2), hm.group(3)
+    i = _skip_ws(chunk, paren_end)
+    bm = re.match(r"\bbegin\b", chunk[i:], re.IGNORECASE)
+    if not bm:
+        return None
+    i += bm.end()
+    block_label, i = _read_label_after_begin(chunk, i)
+    body_start = _skip_ws(chunk, i)
+    end_pos = _find_matching_end(chunk, body_start)
+    end_m = re.match(r"\bend\b", chunk[end_pos:], re.IGNORECASE)
+    if not end_m:
+        return None
+    then_body = chunk[body_start:end_pos]
+    i = end_pos + end_m.end()
+    return _FoldMatch(
+        "for_block",
+        match_start,
+        i,
+        (var, lo_t, cond, block_label, then_body),
+    )
+
+
 def _find_if_begin_block(chunk: str) -> Optional[_FoldMatch]:
     m = re.search(r"\bif\s*\(", chunk, re.IGNORECASE)
     if not m:
@@ -189,6 +227,8 @@ def _looks_like_instance_tail(text: str, pos: int) -> bool:
 
 def _prefix_instance_names(body: str, prefix: str) -> str:
     """Prefix instance leaves in a folded generate fragment (``scope.u_cell``)."""
+    from scan_inst.inst_scan import _read_hier_inst_path
+
     if not prefix:
         return body
 
@@ -211,15 +251,18 @@ def _prefix_instance_names(body: str, prefix: str) -> str:
                 k = _skip_balanced(body, k, "(", ")")
 
         inst_start = _skip_ws(body, k)
-        inst, inst_end = _read_ident(body, inst_start)
+        inst, inst_end = _read_hier_inst_path(body, inst_start)
         if not inst or not _looks_like_instance_tail(body, inst_end):
             i += 1
             continue
 
         pieces.append(body[last:i])
         pieces.append(body[i:inst_start])
-        pieces.append(prefix)
-        pieces.append(inst)
+        if inst.startswith(prefix):
+            pieces.append(inst)
+        else:
+            pieces.append(prefix)
+            pieces.append(inst)
         last = inst_end
         i = inst_end
 
@@ -227,10 +270,10 @@ def _prefix_instance_names(body: str, prefix: str) -> str:
     return "".join(pieces)
 
 
-def _for_loop_match(chunk: str) -> Optional[re.Match[str]]:
-    m = _FOR_RE.search(chunk)
-    if m:
-        return m
+def _for_loop_match(chunk: str) -> Optional[_FoldMatch | re.Match[str]]:
+    block = _find_for_begin_block(chunk)
+    if block:
+        return block
     return _FOR_STMT_RE.search(chunk)
 
 
@@ -246,13 +289,16 @@ def _unroll_for_loops(
         m = _for_loop_match(out)
         if not m:
             break
-        var, lo_t, cond = m.group(1), m.group(2), m.group(3)
-        block_label = ""
-        if m.re is _FOR_RE:
+        if isinstance(m, _FoldMatch):
+            var, lo_t, cond = m.group(1), m.group(2), m.group(3)
             block_label = (m.group(4) or "").strip()
             body = (m.group(5) or "").strip()
+            span_start, span_end = m.start, m.end
         else:
+            var, lo_t, cond = m.group(1), m.group(2), m.group(3)
+            block_label = ""
             body = (m.group(4) or "").strip()
+            span_start, span_end = m.start(), m.end()
         lo = parse_bound_token(lo_t.strip(), param_map)
         if lo is None:
             lo = 0
@@ -274,6 +320,8 @@ def _unroll_for_loops(
         count = hi - lo + 1
         if count > max_unroll:
             break
+        # Unroll nested generate (inner for/if) before substituting this loop index.
+        body = _fold_generate_inner(body, param_map, scope_prefix=scope_prefix)
         parts: List[str] = []
         for i in range(lo, hi + 1):
             part = _subst_index(body, var, i)
@@ -285,7 +333,7 @@ def _unroll_for_loops(
                 part = _prefix_instance_names(part, scope_prefix)
             parts.append(part)
         repl = "\n".join(parts)
-        out = out[: m.start()] + repl + out[m.end() :]
+        out = out[:span_start] + repl + out[span_end:]
     return out
 
 

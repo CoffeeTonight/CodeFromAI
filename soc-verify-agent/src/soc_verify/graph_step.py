@@ -6,58 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from soc_verify.graph_spec import load_flow_spec, topology_from_spec
 
-# Static topology reference (platform). LLM reads graph_step.json per run, not this file.
-VERIFY_GROUP_TOPOLOGY: dict[str, Any] = {
-    "graph": "verify_group",
-    "entry": "setup",
-    "nodes": [
-        "setup",
-        "load_context",
-        "select_runner",
-        "run_gate",
-        "diagnose_env",
-        "patch_bridge",
-        "evaluate",
-        "parity_check",
-        "run_codegen",
-        "promote",
-        "finalize_reproduction",
-        "finalize",
-    ],
-    "edges": {
-        "load_context": ["select_runner", "finalize"],
-        "run_gate": ["select_runner", "evaluate", "diagnose_env", "finalize"],
-        "diagnose_env": ["patch_bridge", "finalize"],
-        "patch_bridge": ["select_runner"],
-        "evaluate": ["select_runner", "parity_check", "finalize"],
-        "parity_check": ["promote", "run_codegen", "finalize"],
-        "run_codegen": ["parity_check"],
-        "promote": ["finalize_reproduction"],
-        "finalize_reproduction": ["finalize"],
-    },
-    "runner_loop_diagram": "templates/obsidian/08-RUNNER-LOOP.md",
-}
 
-ORCHESTRATOR_TOPOLOGY: dict[str, Any] = {
-    "graph": "orchestrator",
-    "entry": "setup",
-    "nodes": [
-        "setup",
-        "plan_work",
-        "run_acquisition",
-        "prepare_verify",
-        "dispatch_verify",
-        "advance_work",
-        "finalize_reproduction_sequence",
-        "finalize",
-    ],
-    "edges": {
-        "dispatch_verify": ["advance_work", "finalize_reproduction_sequence"],
-        "advance_work": ["run_acquisition", "prepare_verify", "finalize_reproduction_sequence"],
-        "finalize_reproduction_sequence": ["finalize"],
-    },
-}
+def topology_hint_for_graph(graph: str, root: Path | None = None) -> dict[str, Any]:
+    spec = load_flow_spec(root)
+    if graph in spec.get("graphs", {}):
+        return topology_from_spec(spec, graph)
+    return topology_from_spec(spec, "orchestrator")
 
 
 def write_graph_step(
@@ -71,6 +27,7 @@ def write_graph_step(
     fix_round: int = 0,
     orchestrator_run_id: str = "",
     extra: dict[str, Any] | None = None,
+    root: Path | None = None,
 ) -> Path:
     payload: dict[str, Any] = {
         "source": "langgraph",
@@ -83,7 +40,7 @@ def write_graph_step(
         "orchestrator_run_id": orchestrator_run_id,
         "required_artifacts": [f"verdict_{group}.json"],
         "optional_artifacts": ["sub_stop.json"],
-        "topology_hint": VERIFY_GROUP_TOPOLOGY if graph == "verify_group" else ORCHESTRATOR_TOPOLOGY,
+        "topology_hint": topology_hint_for_graph(graph, root),
         "rules": [
             "Read md_only_prompt.json for verification MD only",
             "Read templates/obsidian/08-RUNNER-LOOP.md — mandatory runner loop",

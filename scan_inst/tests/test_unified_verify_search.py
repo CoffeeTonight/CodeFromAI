@@ -84,7 +84,7 @@ def test_search_gen_instances():
 
 
 def test_search_dotted_gen_cell():
-    rows = _scan("--search", "hc_verify_top.*u_*gen*.*cell*")
+    rows = _scan("--search", "hc_verify_top.*u_*gen*..*cell*")
     paths = _paths(rows)
     assert "hc_verify_top.u_gen_soc.gen_blk.gen_loop[0].u_cell" in paths
     assert "hc_verify_top.u_gen_soc.gen_blk.gen_loop[1].u_cell" in paths

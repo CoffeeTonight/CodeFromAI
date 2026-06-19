@@ -55,6 +55,50 @@ def include_warm_enabled() -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
+def pw_db_build_mode() -> str:
+    """
+    When to run full tier-1 path-walk DB build.
+
+    ``SCAN_INST_PW_DB_BUILD``:
+      off (default) — verify-only lazy tier0/tier1 on touched RTL
+      after_verify — full DB build after verification output (suite end or step)
+    ``SCAN_INST_PW_DB_PREFETCH=1`` is an alias for ``after_verify``.
+    """
+    raw = os.environ.get("SCAN_INST_PW_DB_BUILD", "").strip().lower()
+    if raw in ("after_verify", "after-verify", "post_verify", "post-verify"):
+        return "after_verify"
+    if raw in ("off", "0", "false", "no", "disable", "disabled"):
+        return "off"
+    legacy = os.environ.get("SCAN_INST_PW_DB_PREFETCH", "").strip().lower()
+    if legacy in ("1", "true", "yes", "on"):
+        return "after_verify"
+    return "off"
+
+
+def pw_db_prefetch_enabled() -> bool:
+    """True when a post-verify full DB build is configured."""
+    return pw_db_build_mode() == "after_verify"
+
+
+def pw_db_prefetch_wait_on_exit() -> bool:
+    """When prefetch is on, wait for the prefetch thread before returning (default on)."""
+    raw = os.environ.get("SCAN_INST_PW_DB_PREFETCH_WAIT", "").strip().lower()
+    if raw in ("0", "off", "false", "no"):
+        return False
+    return True
+
+
+def pw_db_prefetch_max_files() -> int:
+    """Cap tier-1 prefetch files per run (0 = no limit)."""
+    raw = os.environ.get("SCAN_INST_PW_DB_PREFETCH_MAX", "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
 def log_large_module_skips() -> bool:
     """When true, stderr notes modules that skip body parameter collection."""
     raw = os.environ.get("SCAN_INST_LOG_LARGE_MODULES", "").strip().lower()

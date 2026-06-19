@@ -14,7 +14,8 @@
 | M3 | SoC Integration & System DV | 2~5월 | chip sim, 회귀, coverage |
 | M4 | DV Sign-off & Tape-out | 5~6월 | closure, release gate |
 
-정의: `registry/soc_schedule_4p.yaml`
+정의: `registry/milestone_plans/` (조직별 plan 선택 — `soc-verify milestone plans`)
+레거시 alias: `registry/soc_schedule_4p.yaml`
 
 ## 검증 stage별 실행 시기
 

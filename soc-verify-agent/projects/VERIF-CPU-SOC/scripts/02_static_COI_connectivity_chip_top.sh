@@ -12,12 +12,27 @@ source "$(dirname "$0")/_run_gate.sh"
 require_cmd python3
 
 if ! command -v scan-inst >/dev/null 2>&1; then
-  if [[ -d /home/user/Desktop/scan_inst ]]; then
-    log "installing scan_inst (editable)..."
-    python3 -m pip install -e /home/user/Desktop/scan_inst -q
-  else
-    die "scan-inst not found; pip install -e <path/to/scan_inst>"
+  SCAN_INST_SRC="${SCAN_INST_PATH:-}"
+  if [[ -z "$SCAN_INST_SRC" ]]; then
+    for candidate in "${HOME}/tools/__CFI/scan_inst" /home/user/Desktop/scan_inst; do
+      if [[ -d "$candidate" ]]; then
+        SCAN_INST_SRC="$candidate"
+        break
+      fi
+    done
   fi
+  if [[ -n "$SCAN_INST_SRC" && -d "$SCAN_INST_SRC" ]]; then
+    log "installing scan_inst from ${SCAN_INST_SRC} (editable)..."
+    python3 -m pip install -e "$SCAN_INST_SRC" -q
+  else
+    die "scan-inst not found; set SCAN_INST_PATH or pip install -e <path/to/scan_inst>"
+  fi
+fi
+
+INTAKE="${PROJECT_DIR}/inputs/tags/${TAG}/deployment/customer_soc_intake.yaml"
+if [[ -f "${INTAKE}" ]]; then
+  log "crystallize gate overrides from intake (coi_conn + slave_rw)"
+  python3 "${PROJECT_DIR}/scripts/crystallize_gate_from_intake.py" --project "${PROJECT_DIR}" --tag "${TAG}"
 fi
 
 init_run_dir "${RUN_DIR_SUFFIX}"
@@ -28,10 +43,27 @@ if [[ -f "${OVERRIDE}" ]]; then
   cp "${OVERRIDE}" "${RUN_DIR}/coi_conn_checks.json"
 fi
 
-run_gate "${VERIFICATION_TITLE}" \
-  python3 "${PROJECT_DIR}/ops/static/coi_conn.py" \
-    --project "${PROJECT_DIR}" \
-    --run-dir "${RUN_DIR}"
+log "parallel: coi_hierarchy (producer) + coi_conn (consumer)"
+python3 "${PROJECT_DIR}/ops/static/coi_hierarchy.py" \
+  --project "${PROJECT_DIR}" \
+  --run-dir "${RUN_DIR}" &
+HIER_PID=$!
+python3 "${PROJECT_DIR}/ops/static/coi_conn.py" \
+  --project "${PROJECT_DIR}" \
+  --run-dir "${RUN_DIR}" &
+CONN_PID=$!
 
+HIER_RC=0
+CONN_RC=0
+wait "${HIER_PID}" || HIER_RC=$?
+wait "${CONN_PID}" || CONN_RC=$?
+
+log "hierarchy verdict:"
+show_verdict "${RUN_DIR}/verdict_coi_hierarchy.json" || true
+log "conn verdict:"
+show_verdict "${RUN_DIR}/verdict_coi_conn.json" || true
 log "tsv: ${RUN_DIR}/coi_conn.tsv"
-show_verdict "${RUN_DIR}/verdict_coi_conn.json"
+
+if [[ "${HIER_RC}" -ne 0 || "${CONN_RC}" -ne 0 ]]; then
+  die "coi pipeline failed (hierarchy=${HIER_RC} conn=${CONN_RC})"
+fi

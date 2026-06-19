@@ -1,14 +1,17 @@
 {
-  "workspace_id": "example-workspace",
+  "workspace_id": "local-dev",
   "user": {
-    "id": "example-user",
-    "notify_channel": "slack:#soc-verify"
+    "id": "dev",
+    "notify_channel": "slack:#soc-verify-dev"
   },
   "confluence": {
+    "mode": "dummy",
     "base_url": "https://confluence.example.com",
+    "deployment": "cloud",
     "auth": {
-      "token_env": "CONFLUENCE_TOKEN",
-      "user_env": "CONFLUENCE_USER"
+      "type": "api_token",
+      "user_env": "CONFLUENCE_USER_EMAIL",
+      "token_env": "CONFLUENCE_API_TOKEN"
     },
     "hints": {
       "project_discovery": {
@@ -25,7 +28,7 @@
         "jira_epic": "JIRA Epic"
       },
       "verification_group_table_heading": "Verification Groups",
-      "notes": "Example workspace — copy config.example.json and edit hints for your Confluence layout."
+      "notes": "Local dev — dummy intake. Production: copy config.example.json and set confluence.mode=live."
     }
   },
   "git": {
@@ -37,11 +40,15 @@
     }
   },
   "jira": {
+    "enabled": false,
     "base_url": "https://jira.example.com",
+    "deployment": "cloud",
     "project_key": "SOC",
     "issue_type": "Verification",
     "auth": {
-      "token_env": "JIRA_TOKEN"
+      "type": "api_token",
+      "user_env": "JIRA_USER_EMAIL",
+      "token_env": "JIRA_API_TOKEN"
     },
     "field_map": {
       "completeness": "customfield_10010",
@@ -66,9 +73,9 @@
     "timezone": "Asia/Seoul"
   },
   "environment": {
-    "profile": "team-a-eda-2024",
-    "module_init": "/opt/eda/init_vcs2024.sh",
-    "license_queue": "soc-dv-farm"
+    "profile": "local-eda",
+    "module_init": "",
+    "license_queue": ""
   },
   "paths": {
     "obsidian_vault": "./vault",

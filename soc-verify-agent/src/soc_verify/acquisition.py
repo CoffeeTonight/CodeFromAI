@@ -11,7 +11,13 @@ from soc_verify.config import UserConfig, load_user_config
 from soc_verify.models import load_yaml
 from soc_verify.tag_cache import should_refresh_tag
 
-AcquisitionKind = Literal["project_search", "project_intake", "state_sync", "tag_watch"]
+AcquisitionKind = Literal[
+    "project_search",
+    "project_intake",
+    "knowledge_collect",
+    "state_sync",
+    "tag_watch",
+]
 
 
 def parse_date(value: str | date | None) -> date | None:
@@ -76,6 +82,19 @@ def should_refresh_intake(
     return due
 
 
+def should_refresh_knowledge_collect(
+    sync: dict[str, Any],
+    config: UserConfig,
+    today: date | None = None,
+) -> bool:
+    today = today or date.today()
+    days = config.knowledge_collect_days
+    due, _, _ = _block_due(sync if sync.get("fetched_at") else None, interval_days=days, today=today)
+    if not sync.get("fetched_at"):
+        return True
+    return due
+
+
 def should_refresh_state_sync(
     state: dict[str, Any],
     config: UserConfig,
@@ -130,6 +149,7 @@ def project_acquisition_status(
     cache = load_yaml(project_dir / "cache.yaml")
 
     intake_days = int((config.raw.get("schedules") or {}).get("project_intake_days", 30))
+    knowledge_days = config.knowledge_collect_days
     tag_days = config.tag_refresh_days
 
     intake_block = discovered.get("intake") or {}
@@ -145,6 +165,17 @@ def project_acquisition_status(
     sync_due, sync_fetched, sync_next = _block_due(
         sync_block, interval_days=intake_days, today=today
     )
+
+    from soc_verify.knowledge_ops import load_knowledge_sync
+
+    knowledge_sync = load_knowledge_sync(project_dir)
+    know_due, know_fetched, know_next = _block_due(
+        knowledge_sync if knowledge_sync.get("fetched_at") else None,
+        interval_days=knowledge_days,
+        today=today,
+    )
+    if not knowledge_sync.get("fetched_at"):
+        know_due = True
 
     tag_block = cache.get("tag") or {}
     tag_due = should_refresh_tag(cache, today)
@@ -162,6 +193,14 @@ def project_acquisition_status(
             next_refresh=intake_next.isoformat() if intake_next else None,
             due=intake_due,
             stored_in=f"projects/{pid}/discovered.yaml",
+        ),
+        AcquisitionStatus(
+            kind="knowledge_collect",
+            label_ko="지식 수집 (Confluence/wiki/md)",
+            fetched_at=know_fetched.isoformat() if know_fetched else None,
+            next_refresh=know_next.isoformat() if know_next else None,
+            due=know_due,
+            stored_in=f"projects/{pid}/intake/knowledge_sync.yaml",
         ),
         AcquisitionStatus(
             kind="state_sync",

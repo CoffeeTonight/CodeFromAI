@@ -7,6 +7,15 @@ Copy into `projects/{project_id}/verification/{stage}/{group}/`:
 - `RESPOND.md` — FAIL 복구·ops/crystallize 가이드
 - `MILESTONE.md`, `manifest.yaml`
 
+**VCPU / 가상 CPU 예제 과제**는 검증 gate와 **별도**로 통합 문서를 둔다:
+
+| 독자 | SSOT |
+|------|------|
+| 사람 | `projects/{id}/howto_integrate2yourSoC.md` |
+| LLM | `templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md` |
+
+신호 상세는 RTL `howto_integrate.md` — vault에서 **링크만**, 중복 작성 금지.
+
 Stages: `sanity`, `consistency`, `static`, `simulation`, `regression`.
 
 ## MD vs ops

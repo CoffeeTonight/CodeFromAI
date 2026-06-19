@@ -1,0 +1,101 @@
+{
+  "_guide": "OpenAI 호환 Chat Completions API 설정 예시. config.json 의 llm 블록에 병합하세요. API 키는 secrets.env 에만.",
+  "_readme": "README.md → OpenAI compatible LLM 설정",
+
+  "llm": {
+    "mode": "openai_compatible",
+    "md_only": true,
+    "openai_compatible": {
+      "base_url_env": "OPENAI_API_BASE",
+      "base_url_default": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "chat_completions_path": "/chat/completions",
+      "model": "gpt-4o",
+      "models": {
+        "sub_agent": "gpt-4o",
+        "graph_driver": "gpt-4o",
+        "promote": "gpt-4o-mini",
+        "reproduction": "gpt-4o-mini"
+      },
+      "temperature": 0.2,
+      "max_tokens": 8192,
+      "timeout_seconds": 300,
+      "response_format": {
+        "type": "text",
+        "note": "json_object 지원 시 verdict 추출 안정화 가능 — provider별 지원 여부 확인"
+      }
+    },
+    "auth": {
+      "token_env": "OPENAI_API_KEY"
+    }
+  },
+
+  "request_example": {
+    "_guide": "플랫폼이 POST 하는 OpenAI 호환 요청 형태",
+    "url": "{base_url}/chat/completions",
+    "headers": {
+      "Authorization": "Bearer $OPENAI_API_KEY",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "system", "content": "<templates/llm/system_sub_agent.txt>" },
+        { "role": "user", "content": "<md_only_prompt — CHECK/RESPOND MD only>" }
+      ],
+      "temperature": 0.2,
+      "max_tokens": 8192
+    }
+  },
+
+  "response_expectation": {
+    "_guide": "sub-agent는 assistant content 에서 verdict JSON 을 파싱합니다",
+    "preferred": "```json\\n{\"gate\":\"gpio_ext\",\"status\":\"PASS\",\"exit_code\":0,...}\\n```",
+    "alternate": "top-level JSON object with status field",
+    "written_artifact": "runs/{run_id}/verdict_{group}.json"
+  },
+
+  "providers": {
+    "openai": {
+      "OPENAI_API_BASE": "https://api.openai.com/v1",
+      "model": "gpt-4o"
+    },
+    "azure_openai": {
+      "OPENAI_API_BASE": "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT",
+      "chat_completions_path": "/chat/completions?api-version=2024-08-01-preview",
+      "model": "YOUR_DEPLOYMENT",
+      "note": "Azure는 base_url 에 deployment 경로 포함"
+    },
+    "ollama": {
+      "OPENAI_API_BASE": "http://localhost:11434/v1",
+      "model": "llama3.1",
+      "OPENAI_API_KEY": "ollama"
+    },
+    "vllm": {
+      "OPENAI_API_BASE": "http://localhost:8000/v1",
+      "model": "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    },
+    "litellm_proxy": {
+      "OPENAI_API_BASE": "http://localhost:4000/v1",
+      "model": "gpt-4o",
+      "note": "LiteLLM gateway — 여러 백엔드를 단일 OpenAI API로 통합"
+    }
+  },
+
+  "config_json_snippet": {
+    "_guide": "config.json 에 아래 llm 블록을 복사·수정",
+    "llm": {
+      "mode": "openai_compatible",
+      "md_only": true,
+      "openai_compatible": {
+        "base_url_env": "OPENAI_API_BASE",
+        "base_url_default": "https://api.openai.com/v1",
+        "api_key_env": "OPENAI_API_KEY",
+        "chat_completions_path": "/chat/completions",
+        "model": "gpt-4o",
+        "temperature": 0.2,
+        "max_tokens": 8192
+      }
+    }
+  }
+}

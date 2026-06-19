@@ -1,6 +1,0 @@
-{
-  "project_id": "EXAMPLE-SOC",
-  "project_dir": "/home/user/Desktop/soc-verify-agent/projects/EXAMPLE-SOC",
-  "stage": "simulation",
-  "group": "gpio_ext"
-}

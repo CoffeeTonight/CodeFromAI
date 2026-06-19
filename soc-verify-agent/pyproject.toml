@@ -19,6 +19,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 soc-verify = "soc_verify.cli:main"
+paper-factory = "soc_verify.paper_factory_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

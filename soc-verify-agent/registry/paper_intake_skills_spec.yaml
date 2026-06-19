@@ -1,0 +1,82 @@
+# Paper-oriented intake skillset — LLM reads these to curate 05-intake at publication grade
+version: paper-intake-skills-v1
+contract: paper_intake_skills_v1
+instruction_ko: >
+  데이터 수집·정규화 시 LLM이 참조하는 논문급 skill 템플릿.
+  setup/knowledge collect 시 projects/{id}/skills/ 에 bootstrap;
+  Obsidian 미러는 knowledge/obsidian/04-skills/paper-*.md.
+
+template_dir: templates/skills/paper-intake
+bootstrap:
+  trigger: knowledge_collect
+  target_dir: projects/{id}/skills
+  obsidian_mirror: projects/{id}/knowledge/obsidian/04-skills
+  tags: [paper, intake, evidence]
+
+primary_skill: paper-intake-curate
+hub_skill: paper-intake-hub
+
+skills:
+  - id: paper-intake-hub
+    name: Paper Intake Hub
+    role: moc
+    order: 0
+  - id: paper-intake-curate
+    name: Paper-Grade Intake Curation
+    role: llm_primary
+    order: 1
+  - id: paper-evidence-schema
+    name: Paper Evidence Schema
+    role: schema
+    order: 2
+  - id: paper-experiment-design
+    name: Experiment Design for Publication
+    role: methods
+    order: 3
+  - id: paper-evaluation-metrics
+    name: Evaluation Metrics & Gates
+    role: evaluation
+    order: 4
+  - id: paper-methods-provenance
+    name: Methods & LLM Provenance
+    role: provenance
+    order: 5
+  - id: paper-ablation-scorecard
+    name: Ablation & Branch Scorecards
+    role: ablation
+    order: 6
+  - id: paper-reproducibility
+    name: Reproducibility Pack
+    role: reproducibility
+    order: 7
+  - id: paper-results-export
+    name: Results Tables & Export
+    role: results
+    order: 8
+  - id: paper-section-mapping
+    name: Paper Section Mapping
+    role: structure
+    order: 9
+  - id: paper-progress-judge
+    name: Paper Progress Judge
+    role: llm_judge
+    order: 10
+
+llm_read_order:
+  - paper-intake-hub
+  - paper-intake-curate
+  - paper-evidence-schema
+  - paper-section-mapping
+  - paper-experiment-design
+  - paper-evaluation-metrics
+  - paper-methods-provenance
+  - paper-ablation-scorecard
+  - paper-reproducibility
+  - paper-results-export
+  - paper-progress-judge
+
+references:
+  - registry/paper_readiness_spec.yaml
+  - registry/evaluation_manifest.yaml
+  - .grok/skills/paper-factory/references/paper_checklist.md
+  - docs/PAPER_FACTORY.md

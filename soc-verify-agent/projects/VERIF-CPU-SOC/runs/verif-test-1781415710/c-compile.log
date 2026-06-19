@@ -1,4 +1,0 @@
-$ make sim_build/tb_full_campaign.vvp
-(cwd=/home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC/workspace/main/VerifCPU/verif_cpu_verilog)
-
-iverilog -g2012 -I include -o sim_build/tb_full_campaign.vvp rtl/verif_cpu_bus.v rtl/verif_cpu_unified_pool.v rtl/verif_cpu_txn_recorder.v rtl/verif_cpu_core.v rtl/verif_soc_bus.v rtl/simple_soc.v rtl/verif_orchestrator.v rtl/verif_agent.v rtl/verif_cpu_sync.v rtl/verif_cpu_hw_force.v tb/tb_full_campaign.v

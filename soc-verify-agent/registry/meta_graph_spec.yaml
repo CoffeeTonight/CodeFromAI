@@ -1,0 +1,80 @@
+# Meta-graph — LLM change proposals (graph structure protected)
+# Runtime: verify_group nodes meta_collect → meta_score → meta_propose → meta_queue
+
+version: meta-graph-spec-v1
+instruction_ko: >
+  LangGraph 소스(src/soc_verify/graphs/*.py)는 human_required.
+  LLM은 layer·target·evidence·content를 meta_change_proposal.json에 구조화.
+  개선 여부는 improvement_snapshot.json 의 improvement_index·delta로 판단.
+
+layers:
+  md:
+    description: verification CHECK/RESPOND/MILESTONE MD
+    target_globs:
+      - "verification/*/*/*.md"
+    auto_apply: false
+    approval: human_or_review
+  ops:
+    description: gate Python ops
+    target_globs:
+      - "ops/*/*.py"
+    auto_apply: false
+    approval: human_or_review
+    requires_parity_after: true
+  bridge:
+    description: environment bridge Python
+    target_globs:
+      - "bridge/*/*.py"
+    auto_apply: false
+    approval: human_or_review
+  graph_spec:
+    description: LLM-readable flow spec (not runtime routing source)
+    target_globs:
+      - "registry/graph_flow_spec.yaml"
+    auto_apply: false
+    approval: human_required
+  node_contract:
+    description: node sandbox / exit gates
+    target_globs:
+      - "registry/node_contract.yaml"
+    auto_apply: false
+    approval: human_required
+  graph_source:
+    description: LangGraph routing — NEVER auto-apply
+    target_globs:
+      - "src/soc_verify/graphs/*.py"
+    auto_apply: false
+    approval: human_required
+    patch_only: true
+  policy:
+    description: platform policies
+    target_globs:
+      - "registry/policies.yaml"
+    auto_apply: false
+    approval: human_required
+
+proposal_schema:
+  required_fields:
+    - run_id
+    - changes
+  change_item:
+    required:
+      - layer
+      - target
+      - rationale
+      - evidence
+    optional:
+      - content
+      - patch_unified
+      - approval
+      - risk
+
+kpi_weights:
+  completeness: 0.25
+  trust_score: 0.20
+  verdict_pass: 0.15
+  parity_ok: 0.10
+  runner_python: 0.10
+  llm_efficiency: 0.10
+  fix_round_inv: 0.05
+  tool_incident_inv: 0.05

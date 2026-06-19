@@ -1,0 +1,46 @@
+# User-filled simulation environment & run instructions
+# Copy fields into customer_soc_intake.yaml → simulation:
+# Guide: [[agent/vcpu-soc-integration/11-SIMULATION-USER]]
+#
+# Minimal fill (3 blocks + markers) — agent runs S9 only after S7 wiring.
+
+simulation:
+  user_documented: false        # true after user fills setup + run below
+
+  # Optional: use VerifCPU README defaults (user must explicitly allow)
+  use_verifcpu_default: false
+
+  environment:
+    # How to obtain/install the sim toolchain (modules, docker, apt, site script…)
+    setup: |
+      # How to obtain the sim toolchain (keep short):
+      #   sudo apt install iverilog gcc-riscv64-unknown-elf
+      #   module load questa/2024
+      #   source /site/scripts/verifcpu_env.sh
+      null
+
+    verify_cmd: |
+      # One-liner env check before S9:
+      # iverilog -V && vvp -V && riscv64-unknown-elf-gcc --version
+      null
+
+    notes: null                 # license server, VPN, farm queue, etc.
+
+  run:
+    # REQUIRED for S9 — execute immediately after S7 integration wiring
+    smoke_after_integration: |
+      # cd "$RTL_ROOT" && make chip-top-example 2>&1 | tee sim_smoke.log
+      null
+
+    # Optional — customer top / injection mode (if different from smoke)
+    customer_top: null
+
+    working_directory: null       # default: RTL_ROOT; or absolute path
+    env: {}                     # e.g. RTL_ROOT: /path/to/verif_cpu_verilog
+
+  pass:
+    log_markers:
+      - "chip_top_example: PASS"
+      # - "Checklist: 43 passed / 0 failed"
+
+  last_run: null                # agent fills after S9

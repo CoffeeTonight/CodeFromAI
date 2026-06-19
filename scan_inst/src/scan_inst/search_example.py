@@ -23,6 +23,20 @@ SEARCH_EXAMPLE_TEXT = """\
 
   // Structured search: instance / path / hierarchy_path (OR across patterns).
   // Top-level search-path below is merged into hierarchy_path.
+  //
+  // Path pattern syntax (search.path, dotted --search):
+  //   .       next hierarchy segment — fixed depth from root (top first)
+  //   ..      one or more intermediate segments (only way to span variable hops)
+  //   * ?     globs within ONE node name; * never crosses .
+  //   no dots any single path segment may match (e.g. *u_spine*)
+  //
+  //   a.b.*c                     exactly 3 segments from root
+  //   stress_top.u_spine.*       exactly 3 segments; third is any child name
+  //   top.E*..*log.*cpu*         E*, then 1+ hops, then *log*, then *cpu* adjacent
+  //   top.E*..*log..*cpu*        at least one segment between *log* and *cpu*
+  //
+  // search.instance: inst_leaf name globs (no dot / .. semantics).
+  // search-path / hierarchy_path: same segment rules + optional trailing port.
   "search": {
     "instance": ["u_spine", "*spine*"],
     "path": ["stress_top.u_spine.*", "*u_spine*"],

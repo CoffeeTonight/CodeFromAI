@@ -164,7 +164,7 @@ def test_group_context_and_milestone_gate():
     assert ctx["milestone_md"]
 
     state = load_yaml(EXAMPLE / "state.yaml")
-    ok, _ = check_milestone_gate(ctx["manifest"], state)
+    ok, _ = check_milestone_gate(ctx["manifest"], state, root=ROOT)
     assert ok
 
 
@@ -212,13 +212,21 @@ def test_graph_flow_spec_reproduction_nodes():
     vg = (spec.get("graphs") or {}).get("verify_group", {})
     nodes = vg.get("nodes") or {}
     assert "finalize_reproduction" in nodes
+    assert "parse_validation_items" in nodes
+    assert "validation_judge" in nodes
+    assert "apply_validation_plan" in nodes
     assert "parity_check" in nodes
     assert "run_codegen" in nodes
     assert "diagnose_env" in nodes
     assert "patch_bridge" in nodes
+    assert "meta_collect" in nodes
+    assert "meta_queue" in nodes
     edges = vg.get("edges") or {}
+    assert "parse_validation_items" in edges.get("run_gate", [])
+    assert edges.get("validation_judge") == ["apply_validation_plan"]
     assert "parity_check" in edges.get("evaluate", [])
     assert "run_codegen" in edges.get("parity_check", [])
+    assert edges.get("finalize") == ["meta_collect"]
     fr = node_spec(spec, "verify_group", "finalize_reproduction")
     assert fr.get("llm_trigger") is True
     assert "verification_sequence.yaml" in str(fr.get("writes", []))
@@ -268,6 +276,10 @@ def test_graph_flow_spec_and_session_start():
 def test_milestone_gate_blocks_future():
     from soc_verify.milestone_gate import check_milestone_gate
 
-    ok, msg = check_milestone_gate({"milestone": "M4"}, {"current_milestone": "M2"})
+    ok, msg = check_milestone_gate(
+        {"milestone": "M4"},
+        {"current_milestone": "M2", "schedule_plan": "soc-dv-4p-v1"},
+        root=ROOT,
+    )
     assert not ok
     assert "ahead" in msg

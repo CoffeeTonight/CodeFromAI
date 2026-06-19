@@ -21,16 +21,26 @@ from soc_verify.intake_ops import (
     refresh_project_search,
     refresh_state_sync,
 )
+from soc_verify.knowledge_ops import refresh_knowledge_collect
 from soc_verify.milestone_gate import check_milestone_gate
 from soc_verify.models import load_yaml
 from soc_verify.runner import load_active_projects
 from soc_verify.stages import find_group_dir, is_valid_stage
-from soc_verify.tag_cache import should_refresh_tag
+from soc_verify.tag_cache import should_refresh_tag, touch_tag_refresh
 from soc_verify.reproduction_scripts import (
     build_sequence_reproduction_prompt,
     validate_orchestrator,
     write_sequence_reproduction_prompt,
 )
+from soc_verify.validation_autonomy import filter_work_queue_by_validation
+from soc_verify.graph_step import append_graph_trace
+from soc_verify.branch_scorecard import (
+    append_project_scorecard_history,
+    build_all_branch_scorecards,
+    write_branch_scorecard,
+)
+from soc_verify.platform_telemetry import ensure_platform_baseline, record_platform_use
+from soc_verify.repro_bundle import build_repro_bundle, build_repro_manifest
 
 
 def _root(state: OrchestratorState) -> Path:
@@ -47,8 +57,9 @@ def _acq_priority(acq: str) -> int:
     return {
         "project_search": 0,
         "project_intake": 1,
-        "state_sync": 2,
-        "tag_watch": 3,
+        "knowledge_collect": 2,
+        "state_sync": 3,
+        "tag_watch": 4,
     }.get(acq, 9)
 
 
@@ -106,12 +117,14 @@ def _build_work_queue(
         return (4, w.get("project_id", ""), 0, w.get("group", ""))
 
     queue.sort(key=sort_key)
-    return queue
+    return filter_work_queue_by_validation(root, queue)
 
 
 def setup(state: OrchestratorState) -> dict[str, Any]:
     run_id = state.get("run_id") or uuid.uuid4().hex[:12]
     as_of = state.get("as_of") or date.today().isoformat()
+    ensure_platform_baseline(_root(state), trigger="orchestrator_setup")
+    append_graph_trace(_orch_run_dir({**state, "run_id": run_id, "as_of": as_of}), {"node": "setup", "graph": "orchestrator"})
     return {
         "run_id": run_id,
         "as_of": as_of,
@@ -138,6 +151,7 @@ def plan_work(state: OrchestratorState) -> dict[str, Any]:
     else:
         out["verdict"] = "PASS"
         out["error"] = "no_work"
+    append_graph_trace(_orch_run_dir(state), {"node": "plan_work", "queue_len": len(queue)})
     return out
 
 
@@ -159,26 +173,42 @@ def run_acquisition(state: OrchestratorState) -> dict[str, Any]:
         elif acq == "project_intake" and pid:
             result = refresh_project_intake(root / "projects" / pid, config)
             log_entry["result"] = result
+        elif acq == "knowledge_collect" and pid:
+            project_dir = root / "projects" / pid
+            result = refresh_knowledge_collect(
+                root,
+                project_dir,
+                config,
+                normalize=config.knowledge_auto_normalize,
+            )
+            log_entry["result"] = result
+            (_orch_run_dir(state) / f"knowledge_collect_{pid}.json").write_text(
+                json.dumps(log_entry, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
         elif acq == "state_sync" and pid:
             result = refresh_state_sync(root / "projects" / pid, config)
             log_entry["result"] = result
         elif acq == "tag_watch" and pid:
-            cache = load_yaml(root / "projects" / pid / "cache.yaml")
+            project_dir = root / "projects" / pid
+            cache = load_yaml(project_dir / "cache.yaml")
             if should_refresh_tag(cache):
-                log_entry["status"] = "due_deferred"
-                log_entry["message"] = "tag refresh due — run tag-replace or wire git fetch"
-                (_orch_run_dir(state) / f"tag_watch_{pid}.json").write_text(
-                    json.dumps(log_entry, indent=2),
-                    encoding="utf-8",
-                )
+                touch_tag_refresh(project_dir, cache)
+                log_entry["status"] = "refreshed_touch"
+                log_entry["message"] = "tag_watch due — next_refresh extended (same tag)"
             else:
                 log_entry["status"] = "fresh"
+            (_orch_run_dir(state) / f"tag_watch_{pid}.json").write_text(
+                json.dumps(log_entry, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
         else:
             log_entry["status"] = "skipped"
     except Exception as e:
         log_entry["status"] = "error"
         log_entry["error"] = str(e)
 
+    append_graph_trace(_orch_run_dir(state), {"node": "run_acquisition", "acq": acq, "status": log_entry.get("status")})
     return {"acquisition_log": [log_entry]}
 
 
@@ -210,11 +240,8 @@ def prepare_verify(state: OrchestratorState) -> dict[str, Any]:
 
     cache = load_yaml(project_dir / "cache.yaml")
     if should_refresh_tag(cache):
-        return {
-            "info_gap": True,
-            "info_gap_message": f"tag_watch due for {pid} — refresh tag before verify",
-            "verdict": "INFO_GAP",
-        }
+        touch_tag_refresh(project_dir, cache)
+        cache = load_yaml(project_dir / "cache.yaml")
 
     manifest = load_yaml(group_dir / "manifest.yaml")
     state_data = load_yaml(project_dir / "state.yaml")
@@ -226,15 +253,18 @@ def prepare_verify(state: OrchestratorState) -> dict[str, Any]:
         ),
         {},
     )
+    root = project_dir.parent.parent
     ok, msg = check_milestone_gate(
         manifest,
         state_data,
         group_status=str(due_item.get("status", "")),
+        root=root,
     )
     if not ok:
         return {"info_gap": True, "info_gap_message": msg, "verdict": "INFO_GAP"}
 
     ctx = load_group_context(group_dir)
+    append_graph_trace(_orch_run_dir(state), {"node": "prepare_verify", "project_id": pid, "stage": stage, "group": group})
     return {
         "project_id": pid,
         "stage": stage,
@@ -272,6 +302,9 @@ def dispatch_verify(state: OrchestratorState) -> dict[str, Any]:
         thread_id=thread_id,
         orchestrator_run_id=state["run_id"],
         group_context=state.get("group_context"),
+        experiment_campaign=state.get("experiment_campaign", ""),
+        experiment_condition=state.get("experiment_condition", ""),
+        experiment_hypothesis=state.get("experiment_hypothesis", ""),
     )
 
     entry = {
@@ -282,6 +315,10 @@ def dispatch_verify(state: OrchestratorState) -> dict[str, Any]:
         "completeness": result.get("completeness"),
         "run_id": result.get("run_id"),
     }
+    append_graph_trace(
+        _orch_run_dir(state),
+        {"node": "dispatch_verify", "verdict": entry.get("verdict"), "run_id": entry.get("run_id")},
+    )
     return {
         "verify_results": [entry],
         "verdict": result.get("verdict", "FAIL"),
@@ -338,7 +375,28 @@ def finalize_reproduction_sequence(state: OrchestratorState) -> dict[str, Any]:
 
 
 def finalize(state: OrchestratorState) -> dict[str, Any]:
+    root = _root(state)
     run_dir = _orch_run_dir(state)
+    from soc_verify.experiment import register_campaign_run, resolve_experiment_tags, write_experiment_run
+
+    tags = resolve_experiment_tags(
+        root,
+        campaign=state.get("experiment_campaign", ""),
+        condition=state.get("experiment_condition", ""),
+        hypothesis=state.get("experiment_hypothesis", ""),
+    )
+    write_experiment_run(run_dir, tags)
+    register_campaign_run(
+        root,
+        tags,
+        run_meta={
+            "run_id": state["run_id"],
+            "graph_id": "orchestrator",
+            "verdict": state.get("verdict", "PASS"),
+        },
+    )
+
+    append_graph_trace(run_dir, {"node": "finalize", "graph": "orchestrator"})
     summary = {
         "run_id": state["run_id"],
         "as_of": state.get("as_of"),
@@ -349,6 +407,63 @@ def finalize(state: OrchestratorState) -> dict[str, Any]:
         "verdict": state.get("verdict", "PASS"),
     }
     (run_dir / "workflow.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+    state_dict: dict[str, Any] = {
+        "run_id": state["run_id"],
+        "project_id": state.get("project_id", ""),
+        "stage": state.get("stage", ""),
+        "group": state.get("group", ""),
+        "verdict": state.get("verdict", "PASS"),
+        "trust_score": 0.0,
+        "completeness": 0.0,
+        "events": {},
+        "as_of": state.get("as_of"),
+        "questions": [],
+    }
+    vr = state.get("verify_results") or []
+    if vr:
+        last = vr[-1]
+        state_dict["trust_score"] = float(last.get("trust_score") or 0.0)
+        state_dict["completeness"] = float(last.get("completeness") or 0.0)
+        state_dict["verdict"] = last.get("verdict", state_dict["verdict"])
+
+    scorecard = build_all_branch_scorecards(
+        root,
+        root / "projects" / (state.get("project_id") or "_orchestrator"),
+        run_dir,
+        state_dict,
+        graph_id="orchestrator",
+    )
+    write_branch_scorecard(run_dir, scorecard)
+    orch_project = root / "projects" / ".platform"
+    orch_project.mkdir(parents=True, exist_ok=True)
+    append_project_scorecard_history(orch_project, scorecard)
+
+    branches = scorecard.get("branches") or []
+    mean_success = sum(float(b.get("success_rate", 0)) for b in branches) / max(1, len(branches))
+
+    record_platform_use(
+        root,
+        kind="orchestrator_complete",
+        graph_id="orchestrator",
+        run_id=state["run_id"],
+        verdict=str(state.get("verdict", "PASS")),
+        success_rate=mean_success,
+        project_id=state.get("project_id", ""),
+        extra={"verify_results_count": len(vr)},
+    )
+
+    manifest = build_repro_manifest(
+        root,
+        run_dir=run_dir,
+        project_dir=None,
+        purpose=f"orchestrator mode={state.get('mode')} verdict={state.get('verdict')}",
+        graph_id="orchestrator",
+        run_id=state["run_id"],
+        state=state_dict,
+    )
+    build_repro_bundle(root, run_dir, manifest)
+
     return summary
 
 
@@ -450,6 +565,9 @@ def run_orchestrator(
     stage: str = "",
     group: str = "",
     thread_id: str = "orchestrator",
+    experiment_campaign: str = "",
+    experiment_condition: str = "",
+    experiment_hypothesis: str = "",
 ) -> dict[str, Any]:
     graph = build_orchestrator_graph()
     initial: OrchestratorState = {
@@ -459,4 +577,10 @@ def run_orchestrator(
         "stage": stage,
         "group": group,
     }
+    if experiment_campaign:
+        initial["experiment_campaign"] = experiment_campaign
+    if experiment_condition:
+        initial["experiment_condition"] = experiment_condition
+    if experiment_hypothesis:
+        initial["experiment_hypothesis"] = experiment_hypothesis
     return graph.invoke(initial, config={"configurable": {"thread_id": thread_id}})

@@ -212,6 +212,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     top=top_for_walk,
                     extra_defines=extra_defines,
                     reuse_suite_session=cfg.flat_suite_step,
+                    jobs=cfg.jobs,
                     **pw_ignore,
                 )
             except ValueError as exc:
@@ -266,6 +267,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     top=top_for_walk,
                     extra_defines=extra_defines,
                     reuse_suite_session=cfg.flat_suite_step,
+                    jobs=cfg.jobs,
                     **pw_ignore,
                 )
             except ValueError as exc:
@@ -353,6 +355,7 @@ def execute_run(cfg: RunConfig, ap) -> int:
                     top=top_for_walk,
                     extra_defines=extra_defines,
                     reuse_suite_session=cfg.flat_suite_step,
+                    jobs=cfg.jobs,
                     **pw_ignore,
                 )
             except ValueError as exc:
@@ -405,6 +408,14 @@ def execute_run(cfg: RunConfig, ap) -> int:
             else:
                 with open(cfg.output, "w", encoding="utf-8") as f:
                     f.write(body)
+            from scan_inst.path_walk import build_path_walk_db_full
+
+            if not cfg.flat_suite_step:
+                db_queued = build_path_walk_db_full(pw_state.mod_db)
+                if db_queued and on_progress and not cfg.quiet:
+                    on_progress(
+                        f"path-walk: post-verify DB build warmed {db_queued} file(s)"
+                    )
             emit_run_report(
                 RunReport(
                     filelist_path=cfg.filelist,

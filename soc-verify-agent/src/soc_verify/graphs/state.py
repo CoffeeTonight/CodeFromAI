@@ -44,3 +44,18 @@ class VerifyGroupState(TypedDict, total=False):
 
     promote_outcome: dict[str, Any]
     error: str
+
+    improvement_index: float
+    meta_queued: bool
+    jira_allowed: bool
+    continue_improvement: bool
+
+    # Paper factory experiment tags
+    experiment_campaign: str
+    experiment_condition: str
+    experiment_hypothesis: str
+
+    # SoC validation autonomy (goal items, not IP coverage)
+    validation_needs_judgment: bool
+    validation_sequence_action: str
+    validation_continue: bool

@@ -19,7 +19,7 @@ from _verifcpu import (  # noqa: E402
 
 GATE = "slave_rw"
 
-_TIER_SUCCESS: dict[str, list[re.Pattern[str]]] = {
+_DEFAULT_TIER_SUCCESS: dict[str, list[re.Pattern[str]]] = {
     "sim_single": [
         re.compile(r"\[SUCCESS\]\s+SoC verification campaign completed"),
         re.compile(r"TOTAL:\s+PASS=3\s+FAIL=0"),
@@ -71,7 +71,31 @@ def _tier_section(text: str, tier: str) -> str:
     return rest
 
 
-def judge_tier(text: str, tier: str) -> TierJudgment:
+def tier_success_patterns(scenarios: dict | None) -> dict[str, list[re.Pattern[str]]]:
+    out: dict[str, list[re.Pattern[str]]] = {
+        k: list(v) for k, v in _DEFAULT_TIER_SUCCESS.items()
+    }
+    if not scenarios:
+        return out
+    for tier in scenarios.get("tiers") or []:
+        tid = str(tier.get("id") or "")
+        markers = tier.get("success_markers")
+        if tid and isinstance(markers, list) and markers:
+            out[tid] = [re.compile(re.escape(str(m))) for m in markers]
+    smoke = scenarios.get("integration_smoke") or {}
+    smoke_markers = smoke.get("success_markers")
+    if isinstance(smoke_markers, list) and smoke_markers:
+        out["integration_smoke"] = [re.compile(re.escape(str(m))) for m in smoke_markers]
+    return out
+
+
+def judge_tier(
+    text: str,
+    tier: str,
+    *,
+    success: dict[str, list[re.Pattern[str]]] | None = None,
+) -> TierJudgment:
+    patterns = (success or _DEFAULT_TIER_SUCCESS).get(tier, [])
     section = _tier_section(text, tier)
     hits = _scan_error_lines(section)
     hits.extend(scan_log_integrity(section, check_vvp_tail=True))
@@ -82,13 +106,17 @@ def judge_tier(text: str, tier: str) -> TierJudgment:
                 if pat.search(raw):
                     hits.append(f"L{lineno} [fw_rebuild] {raw.strip()[:160]}")
                     break
-    for pat in _TIER_SUCCESS.get(tier, []):
+    for pat in patterns:
         if not pat.search(section):
             hits.append(f"missing success marker: {pat.pattern}")
     return TierJudgment(tier=tier, ok=len(hits) == 0, hits=hits)
 
 
-def judge_slave_rw_log(log_path: Path) -> tuple[LogJudgment, list[TierJudgment]]:
+def judge_slave_rw_log(
+    log_path: Path,
+    *,
+    scenarios: dict | None = None,
+) -> tuple[LogJudgment, list[TierJudgment]]:
     if not log_path.is_file():
         return LogJudgment(ok=False, hits=[f"log missing: {log_path}"]), []
 
@@ -96,7 +124,11 @@ def judge_slave_rw_log(log_path: Path) -> tuple[LogJudgment, list[TierJudgment]]
     compile_sec = _tier_section(text, "compile")
     compile_hits = _scan_error_lines(compile_sec)
     compile_hits.extend(scan_log_integrity(compile_sec, check_vvp_tail=False))
-    tiers = [judge_tier(text, t) for t in ("sim_single", "sim_burst", "sim_cpu_sync")]
+    success = tier_success_patterns(scenarios)
+    tier_ids = ["sim_single", "sim_burst", "sim_cpu_sync"]
+    if scenarios and scenarios.get("integration_smoke", {}).get("run_in_s10_gate"):
+        tier_ids.insert(0, "integration_smoke")
+    tiers = [judge_tier(text, t, success=success) for t in tier_ids]
     merged_hits = compile_hits
     for t in tiers:
         if not t.ok:

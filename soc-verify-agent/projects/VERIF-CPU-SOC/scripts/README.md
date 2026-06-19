@@ -5,7 +5,28 @@
 이 문서는 **사용법**과 **스크립트 생성 규칙**(에이전트·개발자)의 SSOT입니다.  
 `reports/index.yaml` → `verification_sequence.readme` 가 여기를 가리킵니다.
 
+**사용자 절차서:** [`../USER-PROCEDURE.md`](../USER-PROCEDURE.md)  
 LLM 전체 미션(처음→끝): [`../../../templates/obsidian/MISSION_VERIF-CPU-SOC.md`](../../../templates/obsidian/MISSION_VERIF-CPU-SOC.md)
+
+---
+
+## 선행 — VerifCPU RTL (S0)
+
+```bash
+./bootstrap_verifcpu_workspace.sh
+```
+
+- 기본: **`~/tools/__CFI/VerifCPU/verif_cpu_verilog`** (`discovered.yaml` `local_clone_path`)
+- `cache.yaml` `clone.path` = `~/tools/__CFI` · `rtl_subdir` = `VerifCPU/verif_cpu_verilog`
+- 원격 clone 필요 시에만 `workspace/{tag}/` ( `git_url` )
+- intake `rtl.rtl_root_override` 가 있으면 ops가 그 경로 우선
+
+통합 intake / gate crystallize:
+
+```bash
+python3 crystallize_gate_from_intake.py    # coi_conn + slave_rw overrides ← intake
+python3 expand_agent_runbook.py --intake inputs/tags/main/deployment/customer_soc_intake.example.yaml
+```
 
 ---
 
@@ -163,8 +184,8 @@ RUN_ID=my-run-step2 ./scripts/02_static_COI_connectivity_chip_top.sh
 |------|------|
 | `python3` | ops |
 | `iverilog`, `vvp`, RISC-V gcc | VerifCPU |
-| `scan-inst` | Step 2 — `pip install -e /home/user/Desktop/scan_inst` |
-| workspace clone | `cache.yaml` → `clone.path` |
+| `scan-inst` | Step 2 — `pip install -e ~/tools/__CFI/scan_inst` |
+| RTL clone root | `cache.yaml` → `clone.path` (`~/tools/__CFI`) + `rtl_subdir` |
 
 ## 산출물
 

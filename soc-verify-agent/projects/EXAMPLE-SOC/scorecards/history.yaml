@@ -1,0 +1,1071 @@
+contract: scorecard_history_v1
+runs:
+- run_id: ff249951a2c9
+  as_of: '2026-06-16'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: c621c4ad3c36
+  as_of: '2026-06-16'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: bb55d355eb8f
+  as_of: '2026-06-16'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 15cfa25f1dd6
+  as_of: '2026-06-16'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 065effe8a8d8
+  as_of: '2026-06-16'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 16c2d306b2d5
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: c603f9d5419b
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: e38142f71c64
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 75bd4ad21706
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 47c1f0a67865
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 448a86106df5
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 6b00a6ab7d11
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: b0a6f64ea07c
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 7d6c84e80b6f
+  as_of: '2026-06-17'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: e4d9b592c3f4
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 544be838d046
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 1b1762687ac5
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 15bf219d98c7
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 1c83e8588dc7
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: fad3333d1dc6
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: ded52c21c553
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 4b28ecc9c025
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: ad3cb823ebae
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 9ac39d90d122
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 2fbf3aa22f27
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 7e1e8cd9ab93
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 6749a6eca26f
+  as_of: '2026-06-18'
+  branch_count: 3
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: c347a351e71c
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 74f39a966f8e
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 372e892208f5
+  as_of: '2026-06-18'
+  branch_count: 4
+  branches:
+  - branch_id: verify_group:load_context->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 30ea723e55e8
+  as_of: '2026-06-18'
+  branch_count: 8
+  branches:
+  - branch_id: verify_group:setup->load_context
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->evaluate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:evaluate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: ac6f73028842
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 584164200be7
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: a3ef5f4f5ed9
+  as_of: '2026-06-18'
+  branch_count: 1
+  branches:
+  - branch_id: verify_group:load_context->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 9034e9f150c5
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: '369521969116'
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 69fef40c35f4
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 6e13684859e9
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 5b005beb6950
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 2bc1af5dab71
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: a5151cde533c
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 04d2a7bcc434
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 64b7c428873a
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: beed8252b772
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 9384e60f0e4c
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 7bf0ada550c0
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 155b4981d80a
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: a3e0c0ab089c
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 5e3880e7b9aa
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: 57ed31f6bd9c
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+- run_id: b89075bc2404
+  as_of: '2026-06-18'
+  branch_count: 6
+  branches:
+  - branch_id: verify_group:load_context->select_runner
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:select_runner->run_gate
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:run_gate->parity_check
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:parity_check->promote
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:promote->finalize_reproduction
+    success_rate: 1.0
+    trust_score: 1.0
+    retry_count: 0
+  - branch_id: verify_group:finalize_reproduction->finalize
+    success_rate: 0.0
+    trust_score: 1.0
+    retry_count: 0
+last_updated: '2026-06-18'

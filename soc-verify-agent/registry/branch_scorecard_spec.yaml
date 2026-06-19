@@ -1,0 +1,51 @@
+# Per-branch scorecard — paper-grade telemetry for meta-graph / LangGraph improvement
+version: branch-scorecard-v1
+instruction_ko: >
+  각 라우팅 분기(conditional edge)마다 평가표를 유지한다.
+  BECI(B/E/C/I) = Bridge·Env·Completeness·Info 실패 원인 분류.
+  주차별 retry·command 이력·피드백·개선 이력은 논문 재현 가능 수준으로 보존.
+
+taxonomy:
+  C:
+    label: completeness
+    sources: [metrics.json, completeness_decision.json, events]
+  I:
+    label: info_gap
+    sources: [error_kind, info_interrupts, questions_pending.md]
+  E:
+    label: environment
+    sources: [error_kind, env_fail_steps, env_diagnosis.md]
+  B:
+    label: bridge
+    sources: [bridge_round, bridge_outcome, bridge_patch_proposal.md]
+
+scorecard_fields:
+  required:
+    - branch_id
+    - parent_graph
+    - from_node
+    - to_node
+    - trust_score
+    - success_rate
+    - failure_beci
+    - retry_count
+    - verdict
+  optional:
+    - execution_commands
+    - backup_manifest
+    - feedback
+    - feedback_improvement
+    - weekly_retries
+    - child_graph_evidence
+    - procedural_evidence
+    - output_evidence
+
+artifacts:
+  per_run: runs/{run_id}/branch_scorecard.json
+  per_project: projects/{id}/scorecards/history.yaml
+  execution_log: runs/{run_id}/execution_log.jsonl
+  backup_root: runs/{run_id}/backup/
+
+weekly_retry:
+  iso_week_field: iso_week
+  aggregate_in: projects/{id}/scorecards/weekly_retries.yaml

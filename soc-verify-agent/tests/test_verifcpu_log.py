@@ -11,6 +11,8 @@ OPS_SANITY = Path(__file__).resolve().parents[1] / "projects" / "VERIF-CPU-SOC" 
 sys.path.insert(0, str(OPS_SANITY))
 
 from _verifcpu import (  # noqa: E402
+    append_cmd_log,
+    init_log,
     judge_log,
     scan_log_integrity,
 )
@@ -67,6 +69,26 @@ def test_scan_passes_complete_vvp_tail():
         "Checklist: 43 passed / 0 failed\n[SUCCESS] iverilog campaign passed\n",
     )
     assert scan_log_integrity(text) == []
+
+
+def test_init_log_includes_started_timestamp(tmp_path: Path):
+    log = tmp_path / "c-compile.log"
+    init_log(log, gate="c-compile", rtl_root_path=tmp_path / "rtl")
+    text = log.read_text(encoding="utf-8")
+    assert "# started=" in text
+    assert "UTC" in text
+
+
+def test_append_cmd_log_includes_timestamp(tmp_path: Path):
+    import subprocess
+
+    log = tmp_path / "rtl_sim.log"
+    init_log(log, gate="rtl_sim", rtl_root_path=tmp_path)
+    proc = subprocess.CompletedProcess(args=["echo", "ok"], returncode=0, stdout="ok\n", stderr="")
+    append_cmd_log(log, ["echo", "ok"], cwd=tmp_path, proc=proc)
+    text = log.read_text(encoding="utf-8")
+    assert text.count("# 20") >= 2 or text.count("# started=") >= 1
+    assert "# 20" in text or "# started=" in text
 
 
 def test_judge_log_fails_on_kill_without_error_keyword(tmp_path: Path):

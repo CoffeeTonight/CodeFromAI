@@ -1,159 +1,79 @@
 # scan_inst
 
-**합성용 module instance** — hc_hierarchy급 filelist + RTL 전처리 + regex 스캔 (pyslang 없음).
-
-## filelist (hc_hierarchy `expand_filelist` vendored)
-
-- `-f` / `-F` (VCS semantics), `--index-cwd`, `HCH_INDEX_CWD`
-- `+incdir+`, `+define+`, `-y`, `-v`, `+libext+`, `+libdir+`, `-top`, `+top+`, …
-- `-y/-v` 라이브러리는 module stub (blackbox)로 등록
-
-## RTL 전처리
-
-- 주석 제거, `` `include ``, `` `define ``/`` `undef ``, `` `ifdef `` 분기, 단순 `` `MACRO `` 치환
-
-## instance 스캔 (합성용)
-
-- `cell u (...);` · `cell #(P=1) u (...);` · `cell u [3:0] (...);` · `cell u;`
-- parameter 배열 `u [N:0]` (리터럴·module parameter)
-- `generate` / `if` / `for` 블록 내부
-- `cell u1 (...), u2 (...);` comma 분리
-- **제외**: `bind`, port map, primitive gate (`and`/`or`/…)
-
-## 사용
+합성용 module instance 스캔 + connectivity / path-walk 검증 (pyslang 없음).
 
 ```bash
 pip install -e .
-
-scan-inst design.f --top SOC_TOP -o instances.tsv --index-cwd /eda/run_dir
-scan-inst design.f --top SOC_TOP --define USE_PCIE=1
+scan-inst design.f --top TOP -o out.tsv
+scan-inst --help-config    # run JSON 필드 전체
 ```
 
-출력 TSV: `full_path`, `inst_leaf`, `module`, `depth`, `file`
+## 참고 문서 (사용자 · LLM)
 
-## Run JSON (`--config`)
+아래 파일·명령을 우선 참고하세요. 상세 필드는 `--help-config` / `--help-connect` / `--help-cone` / `--help-inst-trace`.
 
-모든 실행 옵션을 한 JSON으로 줄 수 있습니다. 상대 경로는 JSON 파일 위치 기준으로 해석됩니다.
+### 테스트 예제 vs 실전 SoC hierarchy
+
+| 구분 | 어디서 | LLM이 읽을 문서 |
+|------|--------|-----------------|
+| **테스트·문법 학습** | `examples/stress_seed42/` | 이 README + JSON 헤더 주석 (pytest/CI용 작은 RTL) |
+| **실전 hierarchy 검증** | `../hc_hierarchy/design/unified_verify/` | [`../hc_hierarchy/design/README.md`](../hc_hierarchy/design/README.md) → [`../hc_hierarchy/design/unified_verify/README.md`](../hc_hierarchy/design/unified_verify/README.md) |
+
+`stress_seed42` JSON은 **run JSON 문법·`jobs`·env 템플릿**용입니다. 실제 SoC 블록·경로·기능 매핑은 hierarchy README 두 개를 따릅니다 (`hc_verify_top`, `filelist.f`, `run_pathwalk_*.json`).
+
+**자사 RTL에 적용:** `path_walk_example.json`을 복사한 뒤 **`filelist` · `top` · `run_conn_check.checks[].a/b` · `output`만** 바꿉니다. `jobs`·`env`·`mode: path-walk` 구조는 그대로 둡니다.
+
+| 참고 | 경로 | 용도 |
+|------|------|------|
+| Path-walk 옵션 (템플릿) | `examples/stress_seed42/path_walk_example.json` | `jobs` 병렬 walk, `env.SCAN_INST_PW_DB_*` (EN+KO 주석 표) — **테스트용** |
+| Flat run 템플릿 | `examples/stress_seed42/flat_run_example.json` | connect 한 step + trace/cone/index 주석 템플릿 |
+| 전 step suite | `examples/stress_seed42/stress_42_d8.suite.json` | conn + inst-trace + cone path-walk |
+| Search 패턴 | `examples/stress_seed42/search_example.json` | search 문법·플래그 (`scan-inst --example`로 복사 가능) |
+| Connect batch | `examples/stress_seed42/stress_42_d8.connect.json` | checks 배치 JSON |
+| Connect expand | `examples/connect_expand_verify/` | `[]` `{}` loop expand 검증 |
+| **Waypoint fanout (PyCharm)** | `examples/waypoint_fanout_verify/` | `scripts/debug_waypoint_fanout.py`, `.run/` 설정, `connect_waypoint.json` |
+| **Design corpus 개요** | [`../hc_hierarchy/design/README.md`](../hc_hierarchy/design/README.md) | synthetic / multihost / **unified_verify** 선택표 (`어떤 걸 쓸지`) |
+| **통합 SoC hierarchy** | [`../hc_hierarchy/design/unified_verify/README.md`](../hc_hierarchy/design/unified_verify/README.md) | 블록·경로·기능 매핑, `run_pathwalk_*.json` |
+| 통합 corpus 디렉터리 | `../hc_hierarchy/design/unified_verify/` | `filelist.f`, top `hc_verify_top`, 실행 JSON |
+| Run JSON 도움말 | `scan-inst --help-config` | flat suite 필드·env·jobs |
+| Path-walk env | `scan-inst --help` (SCAN_INST_PW_DB_*) | post-verify DB build / prefetch cap |
+
+`unified_verify`는 scan_inst 형제 디렉터리 `hc_hierarchy` 아래에 있습니다. 없으면 테스트가 skip됩니다 (`CodeFromAI/hc_hierarchy/...` 경로도 동일 corpus).
+
+**PyCharm 디버그 (waypoint-fanout):**
+
+| Run 설정 | 디버깅 | 용도 |
+|----------|--------|------|
+| **debug waypoint fanout** | ✅ (스택 얕음) | `waypoint_fanout` 핵심만 빠르게 |
+| **scan-inst waypoint example** | ✅ (전체 파이프라인) | filelist → index → TSV 까지 |
+| **pytest waypoint fanout trace** | ✅ | 테스트 한 건 |
+
+공통: `src` → Sources Root (또는 `pip install -e .`). `.run/` 설정은 `PYTHONPATH=src` 포함.
+
+`scan-inst` 디버그: Run **scan-inst waypoint example** → **Debug**(벌레). 브레이크포인트 예: `connectivity.py` `check()`, `waypoint_fanout.py` `_trace_origin_fanout`. check 1개면 단일 프로세스(스레드 풀 없음).
 
 ```bash
-scan-inst --config examples/stress_seed42/stress_42_d8.run.json -o connect.tsv
-scan-inst design.f --config partial.json --no-cache   # JSON + CLI 덮어쓰기
-
-scan-inst --help                 # 그룹별 CLI 옵션
-scan-inst --help-config          # run JSON 필드 전체
-scan-inst --help-connect         # connectivity batch JSON
-scan-inst --help-stress          # 랜덤 connectivity stress / pytest
+cd examples/waypoint_fanout_verify
+python ../../scripts/debug_waypoint_fanout.py
+python -m scan_inst.cli run_waypoint_fanout.json   # PyCharm과 동일
 ```
 
-## Random stress test
+**실행 (테스트 corpus — `stress_seed42`):**
 
 ```bash
-# N회 랜덤 RTL 생성 + connectivity 벤치마크 (타이밍 표 출력)
-python -m scan_inst.stress_gen --trials 10
-python -m scan_inst.stress_gen --trials 10 --standard   # 빠른 프로파일
-
-# 고정 seed: artifact 생성 후 scan-inst 실행
-python -m scan_inst.stress_gen --seed 42 --standard --out-dir examples/stress_seed42
-scan-inst --config examples/stress_seed42/stress_42_d8.run.json
-
-# pytest
-pytest tests/test_stress_connectivity.py -q
-pytest -m stress -q
+cd examples/stress_seed42
+scan-inst path_walk_example.json
+scan-inst flat_run_example.json
+scan-inst search_example.json
 ```
 
-| 필드 | 설명 |
-|------|------|
-| `filelist` | (필수) top filelist |
-| `mode` | `hierarchy` · `find-top` · `search` · `check-connect` · `check-connect-batch` (생략 시 필드로 추론) |
-| `top`, `output`, `index_cwd`, `defines`, `max_depth`, `all_tops` | elaboration / 출력 |
-| `search`, `search_path`, `search_subtree`, `search_module` | search 모드 |
-| `check_connect` | `["a", "b"]` 단건 connectivity |
-| `connect` / `check_connect_batch` | 배치 checks (인라인 객체 또는 파일 경로) |
-| `include_ff`, `connect_trace`, `strict_generate`, `over_approximate_if` | connectivity 옵션 |
-| `ignore_path`, `ignore_path_file`, `ignore_module` | ignore 규칙 |
-| `jobs`, `cache_dir`, `no_cache`, `refresh_cache`, `quiet`, `log_file`, `no_log_file` | 실행/캐시 |
-
-`defines`는 `{"MACRO": "1"}` 객체 또는 `["MACRO=1", "DEBUG"]` 배열.
-
-stress 생성 시 `*.run.json`도 함께 기록됩니다 (`connect` 블록 인라인 포함).
-
-## Connectivity (배치 JSON)
-
-`--check-connect-batch`는 **checks + scan 옵션**을 한 JSON 문서로 받습니다.  
-텍스트 pairs 파일(탭/공백 구분, `#` 주석)도 그대로 지원합니다.
+**실행 (실전 SoC — `unified_verify`, hierarchy README 참고):**
 
 ```bash
-# 예제 stress design (seed 42) + 함께 생성된 connect JSON
-scan-inst examples/stress_seed42/filelist.f \
-  --check-connect-batch examples/stress_seed42/stress_42_d8.connect.json \
-  -o connect.tsv
-
-# stress RTL 생성 시 connect JSON도 같이 기록
-python -m scan_inst.stress_gen --seed 42 --standard --out-dir examples/stress_seed42
+cd ../hc_hierarchy/design/unified_verify
+scan-inst run_pathwalk_deep_conn.json
+scan-inst run_pathwalk_anchor_chains.json
+# 기타 run_pw_*.json, run_unified_verify_*.json 참고
 ```
 
-### Example JSON (`examples/stress_seed42/stress_42_d8.connect.json`)
-
-```json
-{
-  "top": "stress_top",
-  "defines": {
-    "STRESS_USE_IN": "1",
-    "STRESS_ALT": "0"
-  },
-  "include_ff": true,
-  "connect_trace": false,
-  "strict_generate": false,
-  "checks": [
-    {
-      "id": "port_port",
-      "a": "stress_top.probe_in",
-      "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.probe_out"
-    },
-    {
-      "id": "port_inst",
-      "a": "stress_top.probe_in",
-      "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine"
-    },
-    {
-      "id": "cross_hierarchy",
-      "a": "stress_top.probe_in",
-      "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.probe_out"
-    },
-    {
-      "id": "missing_hierarchy",
-      "a": "stress_top.u_missing.probe_in",
-      "b": "stress_top.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.u_spine.probe_out"
-    }
-  ]
-}
-```
-
-| 필드 | 설명 |
-|------|------|
-| `top` | elaboration top (비우면 CLI `--top` 사용) |
-| `defines` | 추가 `+define+` (filelist defines에 merge) |
-| `include_ff` | `true`면 FF barrier 비활성 (레지스터 통과 허용) |
-| `connect_trace` / `trace` | hop trace 수집 |
-| `strict_generate` | generate 접기 엄격 모드 |
-| `over_approximate_if` | `if`/`generate` over-approx (bool 또는 생략) |
-| `checks` | `{ "id", "a", "b" }` 배열 (`from`/`to`, `src`/`dst` 별칭 가능) |
-
-최소 형태는 pairs만 있는 배열입니다: `[["top.a", "top.b"]]`.
-
-### 출력 TSV
-
-헤더: `check_id`, `endpoint_a`, `endpoint_b`, `connected`, `mode`, `note`, `errors`, `hops`
-
-연결 근거(경로 증거)는 `--connect-trace`로 TSV `hops` 열에 기록되고, **터미널에도** 읽기 쉬운
-리포트가 출력됩니다 (`-o -`이면 stderr, 파일 출력이면 stdout). `--log-file`이 있으면 같은 내용이
-로그에도 append됩니다.
-
-```bash
-scan-inst design.f --top top --check-connect top.clk top.u0.clk --connect-trace
-```
-
-존재하지 않는 hierarchy를 지정하면 **COI 탐색 전에 실패**하며, `errors` 열에 근거가 포함됩니다  
-(예: `hierarchy not found`, 가장 가까운 instance path, elab roots, 유사 이름 등).
-
-`missing_hierarchy` check는 의도적으로 없는 instance를 넣어 이 동작을 검증하는 stress 예제입니다.
+**생성 산출물** (`*.tsv`, `*.scan-inst.log`)은 `.gitignore` 대상이며 example 실행 시 자동 생성됩니다.

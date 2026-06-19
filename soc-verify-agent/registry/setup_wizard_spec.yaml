@@ -1,0 +1,70 @@
+# Interactive setup wizard — 설정 허브 TUI (초기·변경 모두)
+version: setup-wizard-v2
+instruction_ko: >
+  soc-verify setup 은 설정 허브 TUI. 초기 설정뿐 아니라 LLM·프로젝트·논문·노드 등
+  언제든 메뉴에서 섹션을 골라 변경한다. 논문 초안은 paper 섹션의 paper_draft 단계.
+  진행 상태: registry/setup_state.yaml
+
+hub:
+  command: "soc-verify setup"
+  menu_sections: [llm, workspace, milestone, project, knowledge, schedules, nodes, paper, platform]
+  extra_actions: [first_run, status]
+
+sections:
+  - id: init
+    label: Bootstrap
+    label_ko: 초기화
+    steps: [config_bootstrap]
+  - id: llm
+    label: LLM API
+    label_ko: LLM API (필수)
+    steps: [llm_provider, llm_credentials, llm_model, llm_connection_test]
+  - id: workspace
+    label: Workspace
+    label_ko: 워크스페이스
+    steps: [workspace_id]
+  - id: milestone
+    label: Milestone culture
+    label_ko: 마일스톤 문화(단계 체계)
+    steps: [milestone_plan, project_schedule]
+  - id: project
+    label: Primary project
+    label_ko: 대표 프로젝트
+    steps: [pick_project, validate_project]
+  - id: knowledge
+    label: Knowledge sources
+    label_ko: 과제 문서 (Confluence/wiki/md)
+    steps: [knowledge_sources, knowledge_normalize]
+  - id: schedules
+    label: Orchestrator schedules
+    label_ko: 수집·실행 주기
+    steps: [orchestrator_schedules]
+  - id: nodes
+    label: User node guides
+    label_ko: 사용자 정의 노드 (위치·내용 TUI)
+    steps: [node_guide_intro, node_guide_define, node_guide_apply]
+  - id: paper
+    label: Paper factory
+    label_ko: 실험 통계화 (paper-factory)
+    steps:
+      - paper_campaign
+      - paper_manifest_check
+      - paper_progress
+      - paper_readiness
+      - paper_draft
+  - id: platform
+    label: Platform baseline
+    label_ko: 플랫폼 telemetry
+    steps: [telemetry_baseline]
+
+first_run_order:
+  - init
+  - llm
+  - workspace
+  - milestone
+  - project
+  - knowledge
+  - schedules
+  - nodes
+  - paper
+  - platform

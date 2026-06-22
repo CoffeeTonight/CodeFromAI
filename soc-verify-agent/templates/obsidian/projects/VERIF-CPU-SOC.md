@@ -40,7 +40,7 @@ flowchart LR
 
 - **spec:** `coi_conn.md` (CHECK는 요약)
 - **depends_on:** sanity (문서) — preflight **미강제** [[05-GAPS-REMEDIATION#depends-on-gate]]
-- **외부 도구:** scan-inst
+- **외부 도구:** hier-walk
 - **verdict:** `verdict_coi_conn.json` → `connectivity` map
 
 ---

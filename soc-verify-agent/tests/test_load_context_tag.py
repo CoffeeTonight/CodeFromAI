@@ -21,6 +21,10 @@ def test_load_context_auto_touches_stale_tag(tmp_path: Path, monkeypatch):
         encoding="utf-8",
     )
     (project / "runs" / "r1").mkdir(parents=True)
+    (tmp_path / "config.json").write_text(
+        '{"git": {"mode": "dummy"}, "schedules": {"tag_refresh_days": 4}}',
+        encoding="utf-8",
+    )
     save_yaml(
         project / "cache.yaml",
         {
@@ -39,6 +43,19 @@ def test_load_context_auto_touches_stale_tag(tmp_path: Path, monkeypatch):
         "soc_verify.graphs.verify_group.load_group_context",
         lambda _d: {"group": "gpio_ext"},
     )
+    fixed = date(2026, 6, 18)
+
+    def _refresh(project_dir, config, *, cache=None, today=None):
+        from soc_verify.tag_cache import touch_tag_refresh
+
+        return touch_tag_refresh(
+            project_dir,
+            cache,
+            today=fixed,
+            interval_days=4,
+        ), {"refreshed": True, "mode": "dummy"}
+
+    monkeypatch.setattr("soc_verify.graphs.verify_group.refresh_if_due", _refresh)
 
     state = {
         "project_dir": str(project),
@@ -54,3 +71,4 @@ def test_load_context_auto_touches_stale_tag(tmp_path: Path, monkeypatch):
     from soc_verify.tag_cache import should_refresh_tag
 
     assert should_refresh_tag(cache, today=date(2026, 6, 18)) is False
+    assert cache["tag"]["refresh_policy"]["next_refresh"] == "2026-06-22"

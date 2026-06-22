@@ -8,6 +8,7 @@ from typing import Any
 
 from soc_verify.constants import DEFAULT_TAU_PROMOTE_MIN
 from soc_verify.models import PromoteDecision, load_yaml, save_yaml
+from soc_verify.golden_library import golden_allows_promote
 from soc_verify.parity_eval import parity_allows_promote
 
 
@@ -63,8 +64,11 @@ def apply_promotion(
         outcome["reason"] = "llm_defer"
     elif decision == "approve" and trust_score >= tau_promote_min:
         parity_ok, parity_reason = parity_allows_promote(run_dir)
+        golden_ok, golden_reason = golden_allows_promote(run_dir)
         if not parity_ok:
             outcome["reason"] = parity_reason
+        elif not golden_ok:
+            outcome["reason"] = golden_reason
         elif completeness_decision and not completeness_decision.get("promote_allowed", True):
             outcome["reason"] = "completeness_policy_blocked"
         else:

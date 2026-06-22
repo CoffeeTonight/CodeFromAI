@@ -8,7 +8,7 @@ title: "VerifCPU SoC — RISC-V Verification CPU (Verilog)"
 git_url: git@github.com:CoffeeTonight/CodeFromAI.git
 local_clone_path: ~/tools/__CFI
 rtl_subdir: VerifCPU/verif_cpu_verilog
-scan_inst_subdir: scan_inst
+hierwalk_subdir: hierwalk
 doc_rev: r1.0
 doc_path: confluence/SOC/VERIF-CPU/verification-spec
 jira_epic: SOC-4000

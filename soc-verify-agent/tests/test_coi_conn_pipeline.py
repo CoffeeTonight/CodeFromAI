@@ -20,7 +20,7 @@ from _coi_conn import (  # noqa: E402
     VALIDATED_ARTIFACT,
     endpoint_specs_from_checks,
     read_validated_artifact,
-    scan_inst_batch_payload,
+    hierwalk_batch_payload,
     wait_for_validated_checks,
     write_validated_artifact,
 )
@@ -35,7 +35,7 @@ def test_endpoint_specs_dedupes_a_b():
     assert specs == ["top.u_a.sig", "top.u_b.sig", "top.u_c.sig"]
 
 
-def test_scan_inst_batch_payload_subset():
+def test_hierwalk_batch_payload_subset():
     spec = {
         "top": "chip_top",
         "connect_trace": True,
@@ -45,7 +45,7 @@ def test_scan_inst_batch_payload_subset():
         ],
     }
     subset = [spec["checks"][0]]
-    payload = scan_inst_batch_payload(spec, checks=subset)
+    payload = hierwalk_batch_payload(spec, checks=subset)
     assert payload["top"] == "chip_top"
     assert payload["connect_log"] is True
     assert len(payload["checks"]) == 1

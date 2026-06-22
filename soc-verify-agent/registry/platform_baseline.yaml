@@ -1,7 +1,7 @@
 contract: platform_baseline_v1
 first_started_at: '2026-06-16T16:57:22.671393+00:00'
 first_trigger: orchestrator_setup
-last_touch_at: '2026-06-18T20:40:24.713390+00:00'
+last_touch_at: '2026-06-21T17:26:49.892471+00:00'
 last_trigger: graph_tick
-use_count: 972
+use_count: 1628
 note: Baseline established — all subsequent uses append to platform_telemetry.yaml

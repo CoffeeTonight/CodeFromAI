@@ -1,22 +1,22 @@
 tag:
   value: v1.0.1
-  fetched_at: '2026-06-18'
+  fetched_at: '2026-06-21'
   refresh_policy:
     interval_days: 4
-    next_refresh: '2026-06-22'
+    next_refresh: '2026-06-25'
   replace_decision: keep
   previous_tag: v1.0.1
 clone:
   path: /home/user/Desktop/soc-verify-agent/projects/EXAMPLE-SOC/workspace/v1.0.1
   valid_for_tag: v1.0.1
-  fetched_at: '2026-06-18'
+  fetched_at: '2026-06-21'
 sanity:
   last_verdict: null
   last_run: null
   valid_for_tag: v1.0.1
 group_results: {}
 on_tag_replace:
-  at: '2026-06-18T18:51:17'
+  at: '2026-06-21T17:02:12'
   old_tag: v1.0.1
   new_tag: v1.0.1
   invalidated:

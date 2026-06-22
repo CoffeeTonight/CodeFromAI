@@ -95,7 +95,7 @@ run_gate "${VERIFICATION_TITLE}" \
 show_verdict "${RUN_DIR}/verdict_{group}.json"
 ```
 
-선행 도구·override 복사 등은 **해당 step에만** 넣는다 (예: Step 2 `scan-inst`, `inputs/tags/{tag}/overrides/`).
+선행 도구·override 복사 등은 **해당 step에만** 넣는다 (예: Step 2 `hier-walk`, `inputs/tags/{tag}/overrides/`).
 
 ### verification_sequence.yaml
 
@@ -184,7 +184,7 @@ RUN_ID=my-run-step2 ./scripts/02_static_COI_connectivity_chip_top.sh
 |------|------|
 | `python3` | ops |
 | `iverilog`, `vvp`, RISC-V gcc | VerifCPU |
-| `scan-inst` | Step 2 — `pip install -e ~/tools/__CFI/scan_inst` |
+| `hier-walk` | Step 2 — `pip install -e ~/tools/__CFI/hierwalk` |
 | RTL clone root | `cache.yaml` → `clone.path` (`~/tools/__CFI`) + `rtl_subdir` |
 
 ## 산출물

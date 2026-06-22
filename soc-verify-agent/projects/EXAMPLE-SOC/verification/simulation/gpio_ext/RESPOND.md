@@ -1,10 +1,18 @@
 # RESPOND — gpio_ext
 
-## compile FAIL
-1. Verify filelist path in project meta
-2. Re-run with VERBOSE=1
-3. Classify: env | tool | info
+> Materialized from SKILL.md.
 
-## sim FAIL
-1. grep first UVM_ERROR in sim.log
-2. If spec ambiguity → defer question to finalize (not mid-run unless INFO_GAP)
+## Step 1
+Classify FAIL as env / tool / verification
+
+## Step 2
+grep first UVM_ERROR in sim.log
+
+## Step 3
+If CHECK ambiguity → defer to questions_pending
+
+## Step 4
+Do not change CHECK principles when patching ops/bridge
+
+## Step 5
+Crystallize repeatable steps into `ops/simulation/gpio_ext.py`

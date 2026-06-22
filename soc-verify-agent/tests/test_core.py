@@ -17,7 +17,7 @@ from soc_verify.models import load_yaml
 from soc_verify.preflight import preflight_group, preflight_project
 from soc_verify.stages import find_group_dir, resolve_group_script, verification_group_dir
 from soc_verify.tag_cache import apply_tag_replace, should_refresh_tag
-from soc_verify.trust_eval import select_runner, update_trust_after_run
+from soc_verify.trust_eval import get_trust_score, select_runner, update_trust_after_run
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,8 +74,9 @@ def test_trust_degrades_then_llm_runner():
 
 def test_low_completeness_forces_llm_even_if_trust_high():
     script = "gpio_ext.py"
-    assert select_runner(EXAMPLE, script, 0.75, completeness=0.5, tau_completeness=0.75) == "llm"
-    assert select_runner(EXAMPLE, script, 0.75, completeness=0.90, tau_completeness=0.75) == "python"
+    tau = get_trust_score(EXAMPLE, script)
+    assert select_runner(EXAMPLE, script, tau, completeness=0.5, tau_completeness=0.75) == "llm"
+    assert select_runner(EXAMPLE, script, tau, completeness=0.90, tau_completeness=0.75) == "python"
 
 
 def test_loop_guard_stalemate():
@@ -136,9 +137,13 @@ def test_verify_group_pass():
     import uuid
 
     tid = f"test-pass-{uuid.uuid4().hex[:8]}"
+    def _no_tag_refresh(project_dir, config, *, cache=None, today=None):
+        return cache if cache is not None else load_yaml(project_dir / "cache.yaml"), {"refreshed": False}
+
     with (
-        patch("soc_verify.graphs.orchestrator.should_refresh_tag", return_value=False),
-        patch("soc_verify.graphs.verify_group.should_refresh_tag", return_value=False),
+        patch("soc_verify.graphs.orchestrator.refresh_if_due", side_effect=_no_tag_refresh),
+        patch("soc_verify.graphs.verify_group.refresh_if_due", side_effect=_no_tag_refresh),
+        patch("soc_verify.graphs.verify_group.select_runner", return_value="python"),
     ):
         result = run_orchestrator(
             ROOT,

@@ -48,7 +48,7 @@ flowchart LR
 | `python3` | ops·crystallize | `python3 --version` |
 | `iverilog`, `vvp` | VerifCPU 참조 sim (또는 사이트 EDA) | `iverilog -V` |
 | RISC-V gcc | 펌웨어 빌드 | `riscv64-unknown-elf-gcc --version` |
-| `scan-inst` (gate Step 2) | COI instance 스캔 | `SCAN_INST_PATH=~/tools/__CFI/scan_inst pip install -e "$SCAN_INST_PATH"` |
+| `hier-walk` (gate Step 2) | COI instance 스캔 | `HIERWALK_PATH=~/tools/__CFI/hierwalk pip install -e "$HIERWALK_PATH"` |
 
 사이트에서 Questa/VCS 등을 쓰면 intake `simulation` 블록에 그에 맞게 적어 둡니다.
 
@@ -287,7 +287,7 @@ chmod +x scripts/*.sh inputs/tags/copy_new_tag.sh scripts/bootstrap_verifcpu_wor
 ./scripts/03_simulation_slave_R_W_single_burst_cpu_sync.sh
 ```
 
-내 `chip_top`을 쓰면 Step 2·3의 filelist/top·`coi_conn_checks.json`을 과제에 맞게 갱신해야 합니다 (`scan-inst`로 instance 경로 확인).
+내 `chip_top`을 쓰면 Step 2·3의 filelist/top·`coi_conn_checks.json`을 과제에 맞게 갱신해야 합니다 (`hier-walk`로 instance 경로 확인).
 
 ---
 
@@ -335,7 +335,7 @@ python3 scripts/expand_agent_runbook.py --intake "inputs/tags/$TAG/deployment/cu
 | `RTL_ROOT` / `example.sh` 없음 | `__CFI` 경로 없음 | `~/tools/__CFI/VerifCPU/verif_cpu_verilog` 확인 또는 `bootstrap --dest` |
 | compile OK, sim X | `S37_AXI` vs `S37_AXI0` 오타 | intake·hierarchy `bus_port` ↔ RTL 포트 재대조 |
 | icode probe FAIL | `soc_regs.h` 주소 불일치 | SFR 맵 갱신 후 `make icodes` |
-| coi_conn endpoint not found | wrong top / VH 미반영 | `./example.sh gen`·S5/S6 선행, `SCAN_INST_PATH`·`scan-inst`로 instances.tsv |
+| coi_conn endpoint not found | wrong top / VH 미반영 | `./example.sh gen`·S5/S6 선행, `HIERWALK_PATH`·`hier-walk`로 instances.tsv |
 | slave_rw tier FAIL | sim 중 C 재빌드 | gate ops는 vvp만 — sim 중 `make -C firmware` 금지 |
 | 예제 16-check OK, 내 top FAIL | 예제 yaml 그대로 사용 | **내 yaml** + 내 top으로 S3–S7 재수행 |
 | gate가 아예 안 돌아감 | intake gate 플래그 false | `simulation.user_documented: true`, `firmware.user_provided: true`, staging `staged` 확인 |

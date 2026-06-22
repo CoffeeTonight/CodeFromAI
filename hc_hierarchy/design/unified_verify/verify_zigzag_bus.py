@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert zigzag depth + a[2:0][3:0] bus FF/comb trace (path-walk scan-inst)."""
+"""Assert zigzag depth + a[2:0][3:0] bus FF/comb trace (path-walk hier-walk)."""
 
 from __future__ import annotations
 

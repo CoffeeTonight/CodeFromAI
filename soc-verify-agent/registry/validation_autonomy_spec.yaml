@@ -28,13 +28,18 @@ item_sources:
 judge_actions:
   reproduce:
     label_ko: "해당 item만 재현 실행"
-    writes: [validation_item_repro_prompt.json, scripts/repro_{item_id}.sh]
+    writes:
+      - validation_item_repro_prompt.json
+      - "scripts/repro_{item_id}.sh"
   narrow_cause:
     label_ko: "오류 원인 사용자용 요약"
-    writes: [validation_narrow.md]
+    writes:
+      - validation_narrow.md
   repro_script:
     label_ko: "재현 스크립트 생성·갱신"
-    writes: [scripts/repro_{item_id}.sh, verification_sequence.yaml]
+    writes:
+      - "scripts/repro_{item_id}.sh"
+      - verification_sequence.yaml
   exclude:
     label_ko: "항목 제외(트래킹) 후 시퀀스 계속"
     writes: [meta/validation_state.yaml]
@@ -57,6 +62,13 @@ state_files:
 mechanical_fallback:
   sequence_action: retry_gate
   note: "LLM judgment(source=llm)만 continue_remaining/partial_accept 허용"
+
+consensus:
+  uncertainty_threshold: 0.3
+  risky_sequence_actions:
+    - continue_remaining
+    - partial_accept
+  note: "uncertainty ≥ threshold 또는 risky action 시 mechanical 3-vote majority"
 
 pending_repro:
   description: "reproduce/repro_script 판정 item — run_pending_repro 노드가 scripts/repro_*.sh 실행"

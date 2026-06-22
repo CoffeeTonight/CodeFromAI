@@ -4,7 +4,7 @@
 
 ## PASS (요약)
 - `verdict_coi_conn.json`: `status == PASS`
-- scan_inst 배치 결과 TSV: **2~3개 check** 모두 `expected_connected`와 `connected` 일치
+- hierwalk 배치 결과 TSV: **2~3개 check** 모두 `expected_connected`와 `connected` 일치
 - `coi_conn.log` 스캔: tool/Python error 없음
 
 ## FAIL (요약)

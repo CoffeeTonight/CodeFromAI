@@ -19,8 +19,12 @@ class SetupGroupState(TypedDict, total=False):
 
     skills_registered: int
     skill_ids: list[str]
+    materialized_groups: list[dict[str, Any]]
     setup_adapt: dict[str, Any]
     bootstrap_ok: bool
+    ops_bootstrapped: list[dict[str, Any]]
+    verify_smoke_verdict: str
+    verify_smoke_result: dict[str, Any]
 
     verdict: str
     error: str

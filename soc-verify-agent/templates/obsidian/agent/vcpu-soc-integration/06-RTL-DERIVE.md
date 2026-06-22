@@ -34,7 +34,7 @@ rg -o 'S\d+_AXI|M\d+_AHB|S\d+_APB' <customer_rtl_dir> | sort -u
 | IC instance | `axi_interconnect` / 사내명 — hierarchy path |
 | master vs slave 포트 방향 | VCPU는 **IC slave 포트**에 master로 붙음 (`howto_integrate.md` §5.4) |
 
-intake `rtl.interconnect_instance` ← elaboration 후 `scan-inst`로 확정 가능 ([[07-VERIFY-GATES#coi_conn]]).
+intake `rtl.interconnect_instance` ← elaboration 후 `hier-walk`로 확정 가능 ([[07-VERIFY-GATES#coi_conn]]).
 
 ---
 
@@ -62,7 +62,7 @@ intake `rtl.interconnect_instance` ← elaboration 후 `scan-inst`로 확정 가
 ## 5. instance path (coi_conn용)
 
 ```bash
-scan-inst <filelist> --top <TOP> --index-cwd <RTL_ROOT> -o instances.tsv
+hier-walk <filelist> --top <TOP> --index-cwd <RTL_ROOT> -o instances.tsv
 ```
 
 **파악:** orch / periph / `g_slvN` 후보 `full_path` — `coi_conn.md` §「이 과제 참고 구현」  

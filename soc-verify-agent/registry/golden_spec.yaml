@@ -1,0 +1,17 @@
+# Golden replay library — mechanical regression before promote
+version: golden-spec-v1
+instruction_ko: >
+  PASS verdict를 tag별 golden case로 축적. promote/parity 전 suite replay.
+  mismatch 시 promote 차단.
+
+case_contract: golden_case_v1
+report_contract: golden_report_v1
+
+capture:
+  on_verdict: PASS
+  require_parity_ok: false
+  dedupe_by: fingerprint
+
+promote_gate:
+  block_on_mismatch: true
+  allow_empty_suite: true

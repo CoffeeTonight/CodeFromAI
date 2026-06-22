@@ -1,0 +1,37 @@
+# SKILL.md → verification MD + ops bootstrap (one-pager lap)
+version: skill-materialize-v2
+instruction_ko: >
+  검증 방법론은 SKILL.md 1장 = 1방법론으로 분리 유지한다 (skills/{id}/SKILL.md).
+  registry.yaml milestone_ids 와 frontmatter milestone 로 실행 마일스톤을 명시한다.
+  materialize_verification 은 current_milestone 에 해당하는 gate-bound 스킬만
+  verification/{stage}/{group}/ 로 materialize 한다.
+  stage/group 없는 스킬은 methodology_only 로 registry 에만 유지.
+
+methodology_rules:
+  one_skill_one_methodology: true
+  separate_files: "projects/{id}/skills/{skill_id}/SKILL.md"
+  milestone_required: true
+  milestone_sources:
+    - registry.milestone_ids
+    - frontmatter.milestone
+  gate_bound_requires:
+    - stage
+    - group
+  materialize_scope: current_milestone
+
+frontmatter_required_for_materialize:
+  - stage
+  - group
+  - milestone
+
+outputs:
+  check: verification/{stage}/{group}/CHECK.md
+  respond: verification/{stage}/{group}/RESPOND.md
+  milestone: verification/{stage}/{group}/MILESTONE.md
+  manifest: verification/{stage}/{group}/manifest.yaml
+  ops: ops/{stage}/{group}.py
+
+setup_group_nodes:
+  - materialize_verification
+  - bootstrap_group_ops
+  - verify_smoke

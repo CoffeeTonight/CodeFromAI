@@ -660,4 +660,44 @@ runs:
     success_rate: 0.0
     trust_score: 0.0
     retry_count: 0
-last_updated: '2026-06-18'
+- run_id: 48b088d8437b
+  as_of: '2026-06-21'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+- run_id: 559870ee58d7
+  as_of: '2026-06-21'
+  branch_count: 4
+  branches:
+  - branch_id: orchestrator:setup->plan_work
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:plan_work->prepare_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:prepare_verify->dispatch_verify
+    success_rate: 1.0
+    trust_score: 0.0
+    retry_count: 0
+  - branch_id: orchestrator:dispatch_verify->finalize
+    success_rate: 0.0
+    trust_score: 0.0
+    retry_count: 0
+last_updated: '2026-06-21'

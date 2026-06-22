@@ -1,0 +1,11 @@
+check_id	endpoint_a	endpoint_b	connected	mode	note	errors	hops	a_rtl	a_via_filelist	a_filelist_chain	b_rtl	b_via_filelist	b_filelist_chain
+wp_drv_to_child	[top.drv]	[top.u_c, top.u_c.din]	True	waypoint-fanout	waypoint-fanout path_kinds=ff origins=1 events=5 peer_terminators=1 off_path_terminators=0			/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/filelist.f	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/filelist.f			
+# --- waypoint-fanout trace ---
+# waypoint_fanout	wp_drv_to_child
+source	event_kind	scope	net	rtl_file	rtl_line	waypoint_hit	waypoint_qualified	is_terminator
+top.drv	child-down	top.u_c	din	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	3	Y	Y	N
+top.drv	ff-interior	top.u_c	qout	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	2	Y	Y	N
+top.drv	port-out	top.u_c	qout	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	2	Y	Y	Y
+top.drv	parent-up	top	mid	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	0	N	Y	N
+top.drv	child-down	top.u_c	din	/home/user/tools/__CFI/scan_inst/examples/waypoint_fanout_verify/rtl/top.v	3	Y	Y	N
+# modules_cached	0

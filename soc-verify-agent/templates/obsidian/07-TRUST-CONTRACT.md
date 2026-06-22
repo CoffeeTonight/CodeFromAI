@@ -36,7 +36,7 @@ stateDiagram-v2
 | 항목 | 내용 |
 |------|------|
 | **언제** | `ops/{stage}/{group}.py` 없음, draft, 또는 **마지막 parity FAIL** |
-| **LLM 행동** | CHECK.md 기준으로 **직접 tool calling** (compile, sim, scan-inst, log 읽기) |
+| **LLM 행동** | CHECK.md 기준으로 **직접 tool calling** (compile, sim, hier-walk, log 읽기) |
 | **산출물** | `verdict_{group}.json`, 실행 log, (선택) `llm_run_trace.json` |
 | **목적** | “되는 길”을 **먼저** 찾는다. 검증 큐는 **멈추지 않는다** |
 

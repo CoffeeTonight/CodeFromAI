@@ -1296,13 +1296,699 @@ uses:
   extra:
     improvement_index: 0.97
     question_sharpness: 3.0
+- at: '2026-06-21T15:53:46.273312+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 6976a84ef9e9
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: -0.4
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.875
+    question_sharpness: 3.0
+- at: '2026-06-21T15:54:04.022866+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 66be85fe45db
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:54:21.867797+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 13f2bed0c5ec
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:54:39.938611+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: ba3af8c83a33
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:54:58.126533+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 7cf813f133aa
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:55:16.323351+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: e2e767f6b9ed
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:55:34.557193+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: ce89099490f5
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:55:52.985367+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 54f7386f3a63
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:56:11.352587+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 796ad3a5bdb2
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T15:56:29.778375+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: e4d2b570acb4
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:01:25.591132+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: dd7a72ff39ca
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:01:30.187560+00:00'
+  date: '2026-06-21'
+  kind: orchestrator_complete
+  graph_id: orchestrator
+  run_id: 48b088d8437b
+  project_id: EXAMPLE-SOC
+  stage: ''
+  group: ''
+  verdict: PASS
+  success: true
+  trust_score: null
+  trust_delta: null
+  success_rate: 0.75
+  extra:
+    verify_results_count: 1
+- at: '2026-06-21T16:24:33.595067+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 037830a304ac
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: null
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:24:51.028815+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 63c9ef128576
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:25:08.771958+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: a2c4ef403ce7
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:25:26.659832+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 38277a240952
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:25:44.656292+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: df4b85afd096
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:28:40.058176+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 0307a39850c7
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:29:02.003022+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: f340cadf6e0e
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:29:20.073126+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 56606ba5b9db
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:29:38.203640+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: c639dcc3ed9a
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:29:56.468809+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: fb81b67035f1
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:30:14.779782+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 41c430659e2e
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:59:04.286288+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 7f6e9d930ee6
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:59:23.926746+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: b3fb7d99b605
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T16:59:44.852650+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 7550b685714e
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:01:34.251569+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: e1cb6b96344c
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:02:04.583601+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: '830480075997'
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:02:09.187661+00:00'
+  date: '2026-06-21'
+  kind: orchestrator_complete
+  graph_id: orchestrator
+  run_id: 559870ee58d7
+  project_id: EXAMPLE-SOC
+  stage: ''
+  group: ''
+  verdict: PASS
+  success: true
+  trust_score: null
+  trust_delta: null
+  success_rate: 0.75
+  extra:
+    verify_results_count: 1
+- at: '2026-06-21T17:02:25.364569+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 4ba320679695
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: null
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:02:43.660349+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 4f90c4ede0bc
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:03:02.127475+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: b886a7567ee5
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:03:20.763527+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 0e9704b5e227
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:03:39.446258+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 68c240184e30
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:03:58.226432+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: c619b28bf970
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:04:17.063484+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 32f3d4cd0987
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:04:35.925750+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 46bf7022299d
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:04:54.837782+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 5909526bb751
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:05:13.860541+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 6119e4a86ed4
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:05:33.450233+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 6a4191326da7
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:11:04.014184+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: '871402984732'
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:12:25.920202+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 5839fd86bdfa
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
+- at: '2026-06-21T17:26:03.625918+00:00'
+  date: '2026-06-21'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: b266598b8239
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6666666666666666
+  extra:
+    improvement_index: 0.89
+    question_sharpness: 3.0
 cumulative:
-  total_uses: 83
-  verify_runs: 50
-  orchestrator_runs: 33
-  pass_count: 82
+  total_uses: 126
+  verify_runs: 91
+  orchestrator_runs: 35
+  pass_count: 125
   fail_count: 1
-  success_rate: 0.988
+  success_rate: 0.9921
   trust_samples:
   - run_id: c621c4ad3c36
     trust: 1.0
@@ -1451,5 +2137,128 @@ cumulative:
   - run_id: b89075bc2404
     trust: 1.0
     delta: 0.0
-  code_edit_count: 65
-last_updated: '2026-06-18'
+  - run_id: 6976a84ef9e9
+    trust: 0.6000000000000001
+    delta: -0.4
+  - run_id: 66be85fe45db
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 13f2bed0c5ec
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: ba3af8c83a33
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 7cf813f133aa
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: e2e767f6b9ed
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: ce89099490f5
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 54f7386f3a63
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 796ad3a5bdb2
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: e4d2b570acb4
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: dd7a72ff39ca
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 037830a304ac
+    trust: 0.6000000000000001
+    delta: null
+  - run_id: 63c9ef128576
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: a2c4ef403ce7
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 38277a240952
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: df4b85afd096
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 0307a39850c7
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: f340cadf6e0e
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 56606ba5b9db
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: c639dcc3ed9a
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: fb81b67035f1
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 41c430659e2e
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 7f6e9d930ee6
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: b3fb7d99b605
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 7550b685714e
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: e1cb6b96344c
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: '830480075997'
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 4ba320679695
+    trust: 0.6000000000000001
+    delta: null
+  - run_id: 4f90c4ede0bc
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: b886a7567ee5
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 0e9704b5e227
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 68c240184e30
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: c619b28bf970
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 32f3d4cd0987
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 46bf7022299d
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 5909526bb751
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 6119e4a86ed4
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 6a4191326da7
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: '871402984732'
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 5839fd86bdfa
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: b266598b8239
+    trust: 0.6000000000000001
+    delta: 0.0
+  code_edit_count: 151
+last_updated: '2026-06-21'

@@ -16,7 +16,7 @@ chip:
 
 rtl:
   customer_top: null            # path/to/chip_top.v
-  interconnect_instance: null   # e.g. chip_top.u_axi_ic — confirm via scan-inst
+  interconnect_instance: null   # e.g. chip_top.u_axi_ic — confirm via hier-walk
   filelist: null                # path/to/chip.f or -F list
   rtl_root_override: null       # optional: absolute path to VerifCPU root (ops/intake_resolve.py)
 

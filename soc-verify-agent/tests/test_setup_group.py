@@ -50,6 +50,10 @@ def test_setup_group_platform_nodes_via_session():
     assert tick3["tick"] == "ok"
     assert tick3.get("completed_node") == "register_skills"
 
+    tick4 = session_tick(ROOT, session_id, auto_invoke_llm=False)
+    assert tick4["tick"] == "ok"
+    assert tick4.get("completed_node") == "materialize_verification"
+
     st = session_status(ROOT, session_id)
     run_dir = Path(st["state"]["project_dir"]) / "runs" / "setup" / st["state"]["run_id"]
     assert (run_dir / "milestone_context.json").is_file()
@@ -79,7 +83,7 @@ def test_setup_group_full_run_with_stub_llm_artifacts(tmp_path: Path):
     )
     session_id = started["session_id"]
 
-    for _ in range(3):
+    for _ in range(4):
         t = session_tick(tmp_path, session_id, auto_invoke_llm=False)
         assert t["tick"] == "ok"
 
@@ -90,9 +94,9 @@ def test_setup_group_full_run_with_stub_llm_artifacts(tmp_path: Path):
         json.dumps({"summary": "M2 block sanity tools", "tools": [], "scripts": ["run_beginner.sh"]}),
         encoding="utf-8",
     )
-    t4 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
-    assert t4["tick"] == "ok"
-    assert t4.get("completed_node") == "llm_adapt"
+    t5 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
+    assert t5["tick"] == "ok"
+    assert t5.get("completed_node") == "llm_adapt"
 
     (project / "scripts" / "run_beginner.sh").write_text(
         "#!/usr/bin/env bash\nset -euo pipefail\necho beginner smoke\n",
@@ -102,17 +106,42 @@ def test_setup_group_full_run_with_stub_llm_artifacts(tmp_path: Path):
         json.dumps({"ok": True, "script": "run_beginner.sh"}),
         encoding="utf-8",
     )
-    t5 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
-    assert t5["tick"] == "ok"
-    assert t5.get("completed_node") == "llm_bootstrap_scripts"
-
     t6 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
     assert t6["tick"] == "ok"
-    assert t6.get("completed_node") == "finalize"
+    assert t6.get("completed_node") == "llm_bootstrap_scripts"
+
+    t7 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
+    assert t7["tick"] == "ok"
+    assert t7.get("completed_node") == "bootstrap_group_ops"
+
+    t8 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
+    assert t8["tick"] == "ok"
+    assert t8.get("completed_node") == "verify_smoke"
+
+    t9 = session_tick(tmp_path, session_id, auto_invoke_llm=False)
+    assert t9["tick"] == "ok"
+    assert t9.get("completed_node") == "finalize"
 
     final = session_status(tmp_path, session_id)
     assert final["finished"]
     assert (run_dir / "setup_workflow.json").is_file()
+
+
+def test_graph_flow_spec_setup_group_materialize_nodes():
+    from soc_verify.graph_spec import load_flow_spec
+
+    spec = load_flow_spec(ROOT)
+    sg = (spec.get("graphs") or {}).get("setup_group", {})
+    nodes = sg.get("nodes") or {}
+    edges = sg.get("edges") or {}
+    assert "materialize_verification" in nodes
+    assert "bootstrap_group_ops" in nodes
+    assert "verify_smoke" in nodes
+    assert edges.get("register_skills") == ["materialize_verification"]
+    assert edges.get("materialize_verification") == ["llm_adapt"]
+    assert edges.get("llm_bootstrap_scripts") == ["bootstrap_group_ops"]
+    assert edges.get("bootstrap_group_ops") == ["verify_smoke"]
+    assert edges.get("verify_smoke") == ["finalize"]
 
 
 def test_run_setup_group_direct(tmp_path: Path):

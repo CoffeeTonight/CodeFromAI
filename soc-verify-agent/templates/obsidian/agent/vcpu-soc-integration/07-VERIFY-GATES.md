@@ -79,7 +79,7 @@ flowchart LR
 |------|------|
 | spec | `verification/static/coi_conn/coi_conn.md` |
 | checks | `coi_conn_checks.json` (2~3건) |
-| tool | `scan-inst` — `conn_example.json` 카탈로그 |
+| tool | `hier-walk` — `conn_example.json` 카탈로그 |
 
 **에이전트:** 고객 top/instance로 endpoint **재작성** 후 script 실행.
 

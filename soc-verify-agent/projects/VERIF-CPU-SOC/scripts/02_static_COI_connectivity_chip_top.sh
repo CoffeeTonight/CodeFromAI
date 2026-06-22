@@ -11,21 +11,21 @@ source "$(dirname "$0")/_run_gate.sh"
 
 require_cmd python3
 
-if ! command -v scan-inst >/dev/null 2>&1; then
-  SCAN_INST_SRC="${SCAN_INST_PATH:-}"
-  if [[ -z "$SCAN_INST_SRC" ]]; then
-    for candidate in "${HOME}/tools/__CFI/scan_inst" /home/user/Desktop/scan_inst; do
+if ! command -v hier-walk >/dev/null 2>&1; then
+  HIERWALK_SRC="${HIERWALK_PATH:-}"
+  if [[ -z "$HIERWALK_SRC" ]]; then
+    for candidate in "${HOME}/tools/__CFI/hierwalk" /home/user/Desktop/hierwalk; do
       if [[ -d "$candidate" ]]; then
-        SCAN_INST_SRC="$candidate"
+        HIERWALK_SRC="$candidate"
         break
       fi
     done
   fi
-  if [[ -n "$SCAN_INST_SRC" && -d "$SCAN_INST_SRC" ]]; then
-    log "installing scan_inst from ${SCAN_INST_SRC} (editable)..."
-    python3 -m pip install -e "$SCAN_INST_SRC" -q
+  if [[ -n "$HIERWALK_SRC" && -d "$HIERWALK_SRC" ]]; then
+    log "installing hierwalk from ${HIERWALK_SRC} (editable)..."
+    python3 -m pip install -e "$HIERWALK_SRC" -q
   else
-    die "scan-inst not found; set SCAN_INST_PATH or pip install -e <path/to/scan_inst>"
+    die "hier-walk not found; set HIERWALK_PATH or pip install -e <path/to/hierwalk>"
   fi
 fi
 

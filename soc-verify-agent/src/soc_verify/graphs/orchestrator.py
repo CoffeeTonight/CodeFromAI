@@ -26,7 +26,7 @@ from soc_verify.milestone_gate import check_milestone_gate
 from soc_verify.models import load_yaml
 from soc_verify.runner import load_active_projects
 from soc_verify.stages import find_group_dir, is_valid_stage
-from soc_verify.tag_cache import should_refresh_tag, touch_tag_refresh
+from soc_verify.tag_watch import refresh_if_due
 from soc_verify.reproduction_scripts import (
     build_sequence_reproduction_prompt,
     validate_orchestrator,
@@ -192,10 +192,14 @@ def run_acquisition(state: OrchestratorState) -> dict[str, Any]:
         elif acq == "tag_watch" and pid:
             project_dir = root / "projects" / pid
             cache = load_yaml(project_dir / "cache.yaml")
-            if should_refresh_tag(cache):
-                touch_tag_refresh(project_dir, cache)
-                log_entry["status"] = "refreshed_touch"
-                log_entry["message"] = "tag_watch due — next_refresh extended (same tag)"
+            cache, tag_meta = refresh_if_due(project_dir, config, cache=cache)
+            if tag_meta.get("refreshed"):
+                log_entry["status"] = "refreshed"
+                log_entry["tag_meta"] = tag_meta
+                log_entry["message"] = (
+                    f"tag_watch — mode={tag_meta.get('mode')} "
+                    f"tag_changed={tag_meta.get('tag_changed', False)}"
+                )
             else:
                 log_entry["status"] = "fresh"
             (_orch_run_dir(state) / f"tag_watch_{pid}.json").write_text(
@@ -239,9 +243,11 @@ def prepare_verify(state: OrchestratorState) -> dict[str, Any]:
         }
 
     cache = load_yaml(project_dir / "cache.yaml")
-    if should_refresh_tag(cache):
-        touch_tag_refresh(project_dir, cache)
-        cache = load_yaml(project_dir / "cache.yaml")
+    try:
+        config = load_user_config(root)
+        cache, _tag_meta = refresh_if_due(project_dir, config, cache=cache)
+    except FileNotFoundError:
+        pass
 
     manifest = load_yaml(group_dir / "manifest.yaml")
     state_data = load_yaml(project_dir / "state.yaml")

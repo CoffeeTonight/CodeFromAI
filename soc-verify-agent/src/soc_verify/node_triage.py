@@ -242,6 +242,19 @@ def evaluate_node_outcome(
         fc = _resolve_fail_class(state, outcome_block)
         return OutcomeResult(outcome="fail", fail_class=fc or str(state.get("verdict", "")).lower())
     if state.get("stalemate"):
+        pattern = str(state.get("stalemate_pattern") or "SPINNING").upper()
+        if pattern == "OSCILLATION":
+            return OutcomeResult(
+                outcome="fail",
+                fail_class="oscillation",
+                rationale_ko="stalemate_pattern=OSCILLATION",
+            )
+        if pattern == "NO_DRIFT":
+            return OutcomeResult(
+                outcome="fail",
+                fail_class="no_drift",
+                rationale_ko="stalemate_pattern=NO_DRIFT",
+            )
         return OutcomeResult(outcome="fail", fail_class="stalemate", rationale_ko="stalemate")
 
     return OutcomeResult(outcome="pass", rationale_ko="default pass")

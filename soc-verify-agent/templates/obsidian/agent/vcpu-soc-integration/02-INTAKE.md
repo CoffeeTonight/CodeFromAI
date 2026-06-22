@@ -116,7 +116,7 @@
 
 1. 고객 top에서 `S\d+_AXI|M\d+_AHB|S\d+_APB` 패턴 grep → 후보 `bus_port`
 2. 주소맵과 IP 매칭 → `addr_base`
-3. `scan-inst` instance 목록 → coi_conn endpoint 후보 (gate 단계)
+3. `hier-walk` instance 목록 → coi_conn endpoint 후보 (gate 단계)
 
 ---
 

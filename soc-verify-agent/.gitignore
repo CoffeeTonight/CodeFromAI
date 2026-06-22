@@ -5,5 +5,6 @@ __pycache__/
 *.egg-info/
 projects/*/runs/
 projects/*/workspace/
+projects/VERIF-CPU-SOC/inputs/tags/*/overrides/*.json
 runs/
 .venv/

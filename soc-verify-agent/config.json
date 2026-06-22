@@ -32,6 +32,7 @@
     }
   },
   "git": {
+    "mode": "dummy",
     "clone_root": "/work/repos",
     "tag_pattern": "v*",
     "default_remote": "origin",

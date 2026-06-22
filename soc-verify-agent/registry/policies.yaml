@@ -15,6 +15,14 @@ loop_guard:
     force_mode: llm_full
     append_questions: true
     do_not: auto_pass
+  patterns:
+    - SPINNING
+    - OSCILLATION
+    - NO_DRIFT
+
+drift:
+  max: 0.3
+  block_pass_when_exceeded: true
 
 node_contract:
   file: registry/node_contract.yaml

@@ -147,7 +147,7 @@ def _report_coi_conn(
 
 ## 목적
 
-RTL elaboration 기준 **2~3건 COI(connectivity)** — endpoint 쌍이 설계 의도대로 연결/비연결인지 `scan_inst`로 확인.
+RTL elaboration 기준 **2~3건 COI(connectivity)** — endpoint 쌍이 설계 의도대로 연결/비연결인지 `hierwalk`로 확인.
 
 ## check 결과
 

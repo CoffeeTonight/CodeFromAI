@@ -9,6 +9,8 @@ import pytest
 
 from soc_verify.graph_session import session_status, session_tick, start_session
 
+pytestmark = pytest.mark.e2e
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_TICKS = 25
 RUNS = 10

@@ -120,6 +120,22 @@ def build_graph_llm_payload(
         if step.is_file():
             payload["graph_step"] = json.loads(step.read_text(encoding="utf-8"))
 
+    if graph_id == "setup_group":
+        setup_catalog: dict[str, Any] | None = None
+        if run_dir and (run_dir / "read_catalog.json").is_file():
+            try:
+                setup_catalog = json.loads((run_dir / "read_catalog.json").read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                setup_catalog = None
+        if setup_catalog is None and run_dir and (run_dir / "setup_adapt_prompt.json").is_file():
+            try:
+                prompt = json.loads((run_dir / "setup_adapt_prompt.json").read_text(encoding="utf-8"))
+                setup_catalog = prompt.get("read_catalog")
+            except json.JSONDecodeError:
+                setup_catalog = None
+        if setup_catalog:
+            payload["setup_read_catalog"] = setup_catalog
+
     return payload
 
 

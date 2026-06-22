@@ -19,9 +19,9 @@ from _coi_conn import (  # noqa: E402
     checks_path,
     judge_checks,
     load_checks_spec,
-    resolve_scan_inst,
-    run_scan_inst,
-    scan_inst_batch_payload,
+    resolve_hierwalk,
+    run_hierwalk,
+    hierwalk_batch_payload,
     parse_connect_tsv,
     scan_log_hits,
     wait_for_validated_checks,
@@ -130,18 +130,18 @@ def main() -> int:
 
     batch_path = run_dir / "coi_conn_scan_batch.json"
     batch_path.write_text(
-        json.dumps(scan_inst_batch_payload(spec, checks=validated_checks), indent=2),
+        json.dumps(hierwalk_batch_payload(spec, checks=validated_checks), indent=2),
         encoding="utf-8",
     )
 
     try:
-        scan_bin = resolve_scan_inst()
+        scan_bin = resolve_hierwalk()
     except FileNotFoundError as exc:
         _write_verdict(run_dir, status="FAIL", exit_code=EXIT_FAIL, evidence=[str(exc)], log_path=log_path)
         return EXIT_FAIL
 
     tsv_path = run_dir / f"{GATE}.tsv"
-    proc = run_scan_inst(
+    proc = run_hierwalk(
         scan_bin=scan_bin,
         rtl_root=root,
         filelist=filelist,
@@ -153,7 +153,7 @@ def main() -> int:
 
     log_hits = scan_log_hits(log_path)
     if proc.returncode != 0:
-        log_hits.append(f"scan-inst exit {proc.returncode}")
+        log_hits.append(f"hier-walk exit {proc.returncode}")
 
     if not tsv_path.is_file():
         log_hits.append(f"missing TSV: {tsv_path}")
@@ -189,7 +189,7 @@ def main() -> int:
         return EXIT_FAIL
 
     evidence = [
-        f"scan_inst OK — {len(validated_checks)} validated check(s) matched expected_connected",
+        f"hierwalk OK — {len(validated_checks)} validated check(s) matched expected_connected",
         f"checks: {checks_path_resolved.name}",
     ]
     _write_verdict(

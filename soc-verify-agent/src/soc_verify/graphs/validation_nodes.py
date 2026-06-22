@@ -10,6 +10,7 @@ from soc_verify.node_gate import finalize_node_gate
 from soc_verify.graphs.state import VerifyGroupState
 from soc_verify.graphs.verify_helpers import project_dir, run_dir
 from soc_verify.llm_runner import invoke_validation_judge
+from soc_verify.validation_consensus import apply_consensus
 from soc_verify.validation_autonomy import (
     apply_validation_judgment,
     build_validation_judge_prompt,
@@ -95,6 +96,7 @@ def validation_judge_node(state: VerifyGroupState) -> dict[str, Any]:
 
     invoke_validation_judge(rd, payload=prompt, root=root, config=config)
     judgment = load_validation_judgment(rd, items_payload)
+    judgment = apply_consensus(judgment, items_payload, rd, root=root)
 
     write_graph_step(
         rd,

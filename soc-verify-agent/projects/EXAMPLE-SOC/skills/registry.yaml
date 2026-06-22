@@ -7,8 +7,9 @@ skills:
   milestone_ids:
   - M3
   tags: []
+  methodology: block_uvm_smoke
   source: setup_group
-  updated_at: '2026-06-18T18:51:32.867284+00:00'
+  updated_at: '2026-06-21T17:26:49.532351+00:00'
   created_at: '2026-06-17T17:39:23.194134+00:00'
 - id: chip-sim-nightly
   name: Chip sim nightly
@@ -16,16 +17,33 @@ skills:
   milestone_ids:
   - M3
   tags: []
+  methodology: chip_sim_nightly
   source: setup_group
-  updated_at: '2026-06-18T18:51:32.876688+00:00'
+  updated_at: '2026-06-21T17:26:49.537835+00:00'
   created_at: '2026-06-17T17:39:23.197241+00:00'
 - id: uvm-smoke
   name: UVM smoke
   path: skills/uvm-smoke/SKILL.md
   milestone_ids:
-  - M3
-  tags: []
+  - M2
+  tags:
+  - uvm
+  - smoke
+  - block
+  methodology: uvm_smoke
   source: setup_group
   updated_at: '2026-06-18T17:32:31.787551+00:00'
   created_at: '2026-06-18T17:29:49.358972+00:00'
-updated_at: '2026-06-18T18:51:32.877326+00:00'
+- id: gpio-ext-verify
+  name: GPIO external verify
+  path: skills/gpio-ext-verify/SKILL.md
+  milestone_ids:
+  - M3
+  tags:
+  - simulation
+  - gpio
+  methodology: gpio_ext_simulation
+  source: template
+  updated_at: '2026-06-21T17:00:25.288683+00:00'
+  created_at: '2026-06-21T17:00:25.288683+00:00'
+updated_at: '2026-06-21T17:26:49.538140+00:00'

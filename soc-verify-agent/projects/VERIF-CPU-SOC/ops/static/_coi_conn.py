@@ -1,4 +1,4 @@
-"""COI connectivity gate helpers — hierarchy validate + scan_inst connect batch."""
+"""COI connectivity gate helpers — hierarchy validate + hierwalk connect batch."""
 
 from __future__ import annotations
 
@@ -22,14 +22,14 @@ VALIDATED_ARTIFACT = "coi_hierarchy_validated.json"
 HIERARCHY_POLL_SEC = 2.0
 HIERARCHY_WAIT_TIMEOUT_SEC = 7200
 
-SCAN_INST_CANDIDATES = (
-    Path.home() / "tools" / "__CFI" / "scan_inst",
-    Path("/home/user/tools/__CFI/scan_inst"),
-    Path.home() / "Desktop" / "scan_inst",
+HIERWALK_CANDIDATES = (
+    Path.home() / "tools" / "__CFI" / "hierwalk",
+    Path("/home/user/tools/__CFI/hierwalk"),
+    Path.home() / "Desktop" / "hierwalk",
 )
-SCAN_INST_DEFAULT = next(
-    (p for p in SCAN_INST_CANDIDATES if (p / "src").is_dir()),
-    SCAN_INST_CANDIDATES[0],
+HIERWALK_DEFAULT = next(
+    (p for p in HIERWALK_CANDIDATES if (p / "src").is_dir()),
+    HIERWALK_CANDIDATES[0],
 )
 
 _LOG_ERROR_PATTERNS: list[re.Pattern[str]] = [
@@ -40,16 +40,16 @@ _LOG_ERROR_PATTERNS: list[re.Pattern[str]] = [
 ]
 
 
-def resolve_scan_inst() -> str:
-    exe = shutil.which("scan-inst")
+def resolve_hierwalk() -> str:
+    exe = shutil.which("hier-walk")
     if exe:
         return exe
-    src = SCAN_INST_DEFAULT / "src"
+    src = HIERWALK_DEFAULT / "src"
     if src.is_dir():
-        sys.path.insert(0, str(SCAN_INST_DEFAULT / "src"))
-        return sys.executable  # python -m scan_inst.cli fallback below
+        sys.path.insert(0, str(HIERWALK_DEFAULT / "src"))
+        return sys.executable  # python -m hierwalk.cli fallback below
     raise FileNotFoundError(
-        f"scan-inst not found (pip install -e {SCAN_INST_DEFAULT})"
+        f"hier-walk not found (pip install -e {HIERWALK_DEFAULT})"
     )
 
 
@@ -86,12 +86,12 @@ def endpoint_specs_from_checks(checks: list[dict[str, Any]]) -> list[str]:
     return specs
 
 
-def scan_inst_batch_payload(
+def hierwalk_batch_payload(
     spec: dict[str, Any],
     *,
     checks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """scan_inst JSON — strip gate-only fields; optional checks subset."""
+    """hierwalk JSON — strip gate-only fields; optional checks subset."""
     out: dict[str, Any] = {}
     for key in ("top", "defines", "include_ff", "connect_trace", "strict_generate", "over_approximate_if"):
         if key in spec:
@@ -192,8 +192,8 @@ def wait_for_validated_checks(
     )
 
 
-def _ensure_scan_inst_import() -> None:
-    src = SCAN_INST_DEFAULT / "src"
+def _ensure_hierwalk_import() -> None:
+    src = HIERWALK_DEFAULT / "src"
     if src.is_dir() and str(src) not in sys.path:
         sys.path.insert(0, str(src))
 
@@ -211,10 +211,10 @@ def validate_hierarchy_checks(
 
     Returns (validated_checks, failed_checks) preserving full check dicts.
     """
-    _ensure_scan_inst_import()
-    from scan_inst.connect_endpoints import resolve_endpoint
-    from scan_inst.filelist import parse_filelist
-    from scan_inst.path_walk import run_path_walk_index
+    _ensure_hierwalk_import()
+    from hierwalk.connect_endpoints import resolve_endpoint
+    from hierwalk.filelist import parse_filelist
+    from hierwalk.path_walk import run_path_walk_index
 
     checks = list(spec.get("checks") or [])
     top = str(spec.get("top") or "")
@@ -326,7 +326,7 @@ def scan_log_hits(log_path: Path) -> list[str]:
     return hits
 
 
-def run_scan_inst(
+def run_hierwalk(
     *,
     scan_bin: str,
     rtl_root: Path,
@@ -352,7 +352,7 @@ def run_scan_inst(
         cmd = [
             sys.executable,
             "-m",
-            "scan_inst.cli",
+            "hierwalk.cli",
             *cmd[1:],
         ]
     proc = subprocess.run(

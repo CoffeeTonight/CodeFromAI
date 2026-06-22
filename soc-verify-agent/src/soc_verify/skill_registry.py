@@ -11,6 +11,115 @@ from soc_verify.models import load_yaml, save_yaml
 
 REGISTRY_NAME = "registry.yaml"
 SKILL_FILE = "SKILL.md"
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL | re.MULTILINE)
+
+
+def parse_skill_document(body: str) -> tuple[dict[str, Any], str]:
+    """Parse SKILL.md YAML frontmatter + markdown body."""
+    body = (body or "").strip()
+    if not body.startswith("---"):
+        return {}, body
+    m = _FRONTMATTER_RE.match(body + "\n")
+    if not m:
+        return {}, body
+    try:
+        import yaml
+
+        meta = yaml.safe_load(m.group(1)) or {}
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    rest = body[m.end() :].strip()
+    return meta, rest
+
+
+def resolve_skill_milestone_ids(
+    entry: dict[str, Any],
+    meta: dict[str, Any] | None = None,
+    *,
+    default_milestone: str = "",
+) -> list[str]:
+    """Registry milestone_ids + frontmatter milestone (explicit assignment only)."""
+    mids: list[str] = []
+    for mid in entry.get("milestone_ids") or []:
+        s = str(mid).strip()
+        if s and s not in mids:
+            mids.append(s)
+    if meta:
+        fm = str(meta.get("milestone") or "").strip()
+        if fm and fm not in mids:
+            mids.append(fm)
+    if not mids and default_milestone:
+        mids = [default_milestone.strip()]
+    return mids
+
+
+def skill_applies_to_milestone(
+    entry: dict[str, Any],
+    meta: dict[str, Any] | None,
+    milestone: str,
+    *,
+    default_milestone: str = "",
+) -> bool:
+    if not milestone.strip():
+        return True
+    if meta:
+        fm = str(meta.get("milestone") or "").strip()
+        if fm:
+            return milestone.strip() == fm
+    return milestone.strip() in resolve_skill_milestone_ids(
+        entry, meta, default_milestone=default_milestone
+    )
+
+
+def _split_skill_blocks(text: str) -> list[str]:
+    text = (text or "").strip()
+    if not text:
+        return []
+    if text.startswith("---"):
+        parts = re.split(r"\n\n(?=---\s*$)", text, flags=re.MULTILINE)
+        return [p.strip() for p in parts if p.strip()]
+    blocks = [b.strip() for b in re.split(r"\n---+\n|\n\n(?=#)", text) if b.strip()]
+    if len(blocks) == 1 and "\n" in blocks[0]:
+        lines = [ln.strip() for ln in blocks[0].splitlines() if ln.strip()]
+        if all(len(ln) < 120 and not ln.startswith("#") for ln in lines) and len(lines) > 1:
+            return lines
+    return blocks
+
+
+def _skill_identity_from_block(block: str, *, default_milestone: str) -> tuple[str, str, list[str], list[str], str]:
+    """Derive name, skill_id, milestone_ids, tags, body from one methodology block."""
+    meta, content = parse_skill_document(block)
+    body = block.strip()
+    if meta:
+        body = block.strip()
+
+    name = str(meta.get("name") or "").strip()
+    if not name:
+        for line in (content or block).splitlines():
+            line = line.strip()
+            if line.startswith("#"):
+                name = line.lstrip("#").strip()
+                break
+        if not name:
+            name = (content or block).splitlines()[0].strip()[:80] or "skill"
+
+    stage = str(meta.get("stage") or "").strip()
+    group = str(meta.get("group") or "").strip()
+    methodology = str(meta.get("methodology") or "").strip()
+    if group:
+        sid = _slug(f"{stage}-{group}" if stage else group)
+    elif methodology:
+        sid = _slug(methodology)
+    else:
+        sid = _slug(name)
+
+    mids = resolve_skill_milestone_ids({"milestone_ids": []}, meta, default_milestone=default_milestone)
+    tags = [str(t) for t in (meta.get("tags") or []) if str(t).strip()]
+    if methodology and methodology not in tags:
+        tags.append(methodology)
+    return name, sid, mids, tags, body
 
 
 def skills_root(project_dir: Path) -> Path:
@@ -66,11 +175,13 @@ def list_skills(project_dir: Path, *, milestone: str = "") -> list[dict[str, Any
     if not milestone:
         return skills
     mid = milestone.strip()
-    return [
-        s
-        for s in skills
-        if mid in (s.get("milestone_ids") or []) or not s.get("milestone_ids")
-    ]
+    filtered: list[dict[str, Any]] = []
+    for s in skills:
+        full = get_skill(project_dir, str(s.get("id", "")))
+        meta, _ = parse_skill_document(str((full or {}).get("body") or ""))
+        if skill_applies_to_milestone(s, meta, mid):
+            filtered.append(s)
+    return filtered
 
 
 def get_skill(project_dir: Path, skill_id: str) -> dict[str, Any] | None:
@@ -95,8 +206,31 @@ def register_skill(
     tags: list[str] | None = None,
     source: str = "user",
 ) -> dict[str, Any]:
-    """Register or update a verification skill under projects/{id}/skills/."""
+    """Register one verification methodology — projects/{id}/skills/{id}/SKILL.md."""
+    meta, _ = parse_skill_document(body)
     sid = skill_id or _slug(name)
+    if not skill_id:
+        stage = str(meta.get("stage") or "").strip()
+        group = str(meta.get("group") or "").strip()
+        methodology = str(meta.get("methodology") or "").strip()
+        if group:
+            sid = _slug(f"{stage}-{group}" if stage else group)
+        elif methodology:
+            sid = _slug(methodology)
+
+    merged_mids = resolve_skill_milestone_ids(
+        {"milestone_ids": list(milestone_ids or [])},
+        meta,
+    )
+    merged_tags = list(tags or [])
+    for t in meta.get("tags") or []:
+        ts = str(t).strip()
+        if ts and ts not in merged_tags:
+            merged_tags.append(ts)
+    methodology = str(meta.get("methodology") or "").strip()
+    if methodology and methodology not in merged_tags:
+        merged_tags.append(methodology)
+
     root = skills_root(project_dir)
     root.mkdir(parents=True, exist_ok=True)
     rel = f"skills/{sid}/{SKILL_FILE}"
@@ -111,11 +245,13 @@ def register_skill(
         "id": sid,
         "name": name,
         "path": rel,
-        "milestone_ids": list(milestone_ids or []),
-        "tags": list(tags or []),
+        "milestone_ids": merged_mids,
+        "tags": merged_tags,
         "source": source,
         "updated_at": now,
     }
+    if methodology:
+        entry["methodology"] = methodology
     existing = _find_skill(registry, sid)
     if existing:
         existing.update(entry)
@@ -142,27 +278,20 @@ def register_skillset_from_text(
     intake_path.parent.mkdir(parents=True, exist_ok=True)
     intake_path.write_text(text + "\n", encoding="utf-8")
 
-    blocks = [b.strip() for b in re.split(r"\n---+\n|\n\n(?=#)", text) if b.strip()]
-    if len(blocks) == 1 and "\n" in blocks[0]:
-        lines = [ln.strip() for ln in blocks[0].splitlines() if ln.strip()]
-        if all(len(ln) < 120 and not ln.startswith("#") for ln in lines) and len(lines) > 1:
-            blocks = lines
-
     registered: list[dict[str, Any]] = []
-    for block in blocks:
-        first_line = block.splitlines()[0].strip()
-        if first_line.startswith("#"):
-            name = first_line.lstrip("#").strip()
-            body = block
-        else:
-            name = first_line[:80]
-            body = f"# {name}\n\n{block}" if not block.startswith("#") else block
-        mids = [default_milestone] if default_milestone else []
+    for block in _split_skill_blocks(text):
+        name, sid, mids, tags, body = _skill_identity_from_block(
+            block, default_milestone=default_milestone
+        )
+        if not body.startswith("#") and not body.startswith("---"):
+            body = f"# {name}\n\n{body}"
         entry = register_skill(
             project_dir,
             name=name,
             body=body,
+            skill_id=sid,
             milestone_ids=mids,
+            tags=tags,
             source=source,
         )
         registered.append(entry)

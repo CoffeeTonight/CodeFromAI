@@ -27,8 +27,18 @@ graphs:
           llm: parse_validation_items
           none: parse_validation_items
           stalemate: finalize
+          oscillation: parse_validation_items
+          no_drift: finalize
           default: parse_validation_items
         pass_route: evaluate
+      select_runner:
+        triage_enabled: true
+        fail_routes:
+          oscillation: parse_validation_items
+          no_drift: finalize
+          stalemate: finalize
+          default: select_runner
+        pass_route: select_runner
       load_context:
         triage_enabled: true
         fail_routes:

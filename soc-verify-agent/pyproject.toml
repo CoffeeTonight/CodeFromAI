@@ -26,3 +26,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "e2e: EXAMPLE-SOC verify_group end-to-end (resets trust fixture before run)",
+    "integration: slower integration tests",
+]

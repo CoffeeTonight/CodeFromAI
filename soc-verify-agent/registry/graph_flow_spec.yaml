@@ -317,6 +317,21 @@ graphs:
           - projects/{id}/skills/registry.yaml
           - projects/{id}/skills/*/SKILL.md
           - projects/{id}/runs/setup/{run_id}/skills_registered.json
+      materialize_verification:
+        actor: platform
+        action: >
+          SKILL.md YAML frontmatter(stage/group) → verification MD + manifest.
+          registry/skill_materialize_spec.yaml 규칙.
+        reads:
+          - projects/{id}/skills/registry.yaml
+          - projects/{id}/skills/*/SKILL.md
+          - registry/skill_materialize_spec.yaml
+        writes:
+          - projects/{id}/verification/{stage}/{group}/CHECK.md
+          - projects/{id}/verification/{stage}/{group}/RESPOND.md
+          - projects/{id}/verification/{stage}/{group}/MILESTONE.md
+          - projects/{id}/verification/{stage}/{group}/manifest.yaml
+          - projects/{id}/runs/setup/{run_id}/materialize_verification.json
       llm_adapt:
         actor: llm_assisted
         action: >
@@ -324,10 +339,15 @@ graphs:
           setup_adapt.json + optional projects/{id}/tools/*.py
         reads:
           - projects/{id}/runs/setup/{run_id}/milestone_context.json
+          - projects/{id}/runs/setup/{run_id}/read_catalog.json
           - projects/{id}/runs/setup/{run_id}/setup_adapt_prompt.json
           - projects/{id}/skills/registry.yaml
+          - projects/{id}/skills/*/SKILL.md
+          - projects/{id}/verification/{stage}/{group}/CHECK.md
+          - projects/{id}/verification/{stage}/{group}/RESPOND.md
         writes:
           - projects/{id}/runs/setup/{run_id}/setup_adapt.json
+          - projects/{id}/runs/setup/{run_id}/read_catalog.json
           - projects/{id}/tools/*.py
         llm_trigger: true
       llm_bootstrap_scripts:
@@ -337,12 +357,30 @@ graphs:
           bootstrap_finalize.json
         reads:
           - projects/{id}/runs/setup/{run_id}/setup_adapt.json
+          - projects/{id}/runs/setup/{run_id}/read_catalog.json
           - projects/{id}/runs/setup/{run_id}/bootstrap_prompt.json
+          - projects/{id}/verification/{stage}/{group}/CHECK.md
         writes:
           - projects/{id}/scripts/run_beginner.sh
           - projects/{id}/scripts/README.md
           - projects/{id}/runs/setup/{run_id}/bootstrap_finalize.json
         llm_trigger: true
+      bootstrap_group_ops:
+        actor: platform
+        action: >
+          materialize된 group에 ops/{stage}/{group}.py stub 생성 (없을 때만).
+          verify_smoke 전 trust handoff 준비.
+        writes:
+          - projects/{id}/ops/{stage}/{group}.py
+      verify_smoke:
+        actor: platform
+        action: >
+          primary materialized group에 verify_group 1회 무인 smoke.
+          trust handoff(0.85) + verify_smoke_result.json 기록.
+        writes:
+          - projects/{id}/runs/setup/{run_id}/verify_handoff.json
+          - projects/{id}/runs/setup/{run_id}/verify_smoke_result.json
+          - projects/{id}/trust/registry.yaml
       finalize:
         actor: platform
         action: setup_workflow.json·setup_state·meta/setup_status.yaml 기록
@@ -353,9 +391,12 @@ graphs:
     edges:
       setup: [milestone_context]
       milestone_context: [register_skills]
-      register_skills: [llm_adapt]
+      register_skills: [materialize_verification]
+      materialize_verification: [llm_adapt]
       llm_adapt: [llm_bootstrap_scripts]
-      llm_bootstrap_scripts: [finalize]
+      llm_bootstrap_scripts: [bootstrap_group_ops]
+      bootstrap_group_ops: [verify_smoke]
+      verify_smoke: [finalize]
       finalize: []
 
   meta_innovation_loop:

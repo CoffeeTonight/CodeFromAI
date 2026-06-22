@@ -1,0 +1,13 @@
+{
+  "contract": "golden_case_v1",
+  "stage": "simulation",
+  "group": "gpio_ext",
+  "tag": "v1.0.1",
+  "status": "PASS",
+  "log_markers": [
+    "demo stub PASS"
+  ],
+  "exit_code": 0,
+  "fingerprint": "731c064b66f82f4c",
+  "source_run_id": "6976a84ef9e9"
+}

@@ -1,0 +1,25 @@
+# E2E baseline — copied to projects/EXAMPLE-SOC/trust/registry.yaml before each e2e test.
+# Keeps gpio_ext on python runner path (trust >= tau_run) for stub LLM E2E.
+scripts:
+  gpio_ext.py:
+    script: gpio_ext.py
+    status: draft
+    trust_score: 0.85
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 12
+    successes: 12
+    one_shot_success_rate: 1.0
+    last_tag: v1.0.1
+    last_result: PASS
+  test_script.py:
+    script: test_script.py
+    status: draft
+    trust_score: 0.0
+    version: 0.1.0
+    tied_to_tag: true
+    last_tag: ""
+    one_shot_success_rate: 0.0
+    runs: 0
+    successes: 0
+    last_result: FAIL

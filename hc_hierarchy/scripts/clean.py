@@ -6,14 +6,14 @@ Works on Linux, macOS, and Windows (no bash required).
 
 Default clean removes everything not needed for a fresh design analysis run:
   - hch index DB + slang preprocess cache
-  - scan-inst TSV/log outputs under design/
-  - scan-inst disk cache (~/.cache/scan-inst or $SCAN_INST_CACHE_DIR)
+  - hier-walk TSV/log outputs under design/
+  - hier-walk disk cache (~/.cache/hier-walk or $HIERWALK_CACHE_DIR)
 
 Examples:
-  python3 scripts/clean.py              # default junk + scan-inst outputs/cache
+  python3 scripts/clean.py              # default junk + hier-walk outputs/cache
   python3 scripts/clean.py --dry-run
   python3 scripts/clean.py --all        # + pytest cache, egg-info, build/
-  python3 scripts/clean.py --keep-scan-cache   # keep ~/.cache/scan-inst
+  python3 scripts/clean.py --keep-hierwalk-cache   # keep ~/.cache/hier-walk
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ DEFAULT_GLOBS = [
     ("elab_bench_report.json", "**/elab_bench_report.json"),
     ("bench_*.hch.db", "**/bench_*.hch.db"),
     ("full_batch.tsv", "design/synthetic_deep_rtl/full_batch.tsv"),
-    ("scan-inst TSV outputs", "design/**/out_*.tsv"),
-    ("scan-inst logs", "design/**/*.scan-inst.log"),
+    ("hier-walk TSV outputs", "design/**/out_*.tsv"),
+    ("hier-walk logs", "design/**/*.hier-walk.log"),
     ("verify reports", "design/**/*.report.txt"),
     ("query/export TSV", "design/**/hits.tsv"),
     ("query/export TSV", "design/**/results.tsv"),
@@ -58,14 +58,14 @@ ALL_EXTRA_GLOBS = [
 ]
 
 
-def _scan_inst_cache_dir() -> Path:
-    env = os.environ.get("SCAN_INST_CACHE_DIR", "").strip()
+def _hierwalk_cache_dir() -> Path:
+    env = os.environ.get("HIERWALK_CACHE_DIR", "").strip()
     if env:
         return Path(env).expanduser()
     xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
     if xdg:
-        return Path(xdg).expanduser() / "scan-inst"
-    return Path.home() / ".cache" / "scan-inst"
+        return Path(xdg).expanduser() / "hier-walk"
+    return Path.home() / ".cache" / "hier-walk"
 
 
 def _collect_paths(globs: list[tuple[str, str]]) -> list[Path]:
@@ -113,9 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Also remove .pytest_cache, __pycache__, egg-info, build/, dist/, .deps/",
     )
     ap.add_argument(
-        "--keep-scan-cache",
+        "--keep-hierwalk-cache",
         action="store_true",
-        help="Do not remove scan-inst disk cache (~/.cache/scan-inst or $SCAN_INST_CACHE_DIR)",
+        help="Do not remove hier-walk disk cache (~/.cache/hier-walk or $HIERWALK_CACHE_DIR)",
     )
     ap.add_argument(
         "--quiet",
@@ -129,8 +129,8 @@ def main(argv: list[str] | None = None) -> int:
         globs.extend(ALL_EXTRA_GLOBS)
 
     targets = _collect_paths(globs)
-    if not args.keep_scan_cache:
-        cache_dir = _scan_inst_cache_dir()
+    if not args.keep_hierwalk_cache:
+        cache_dir = _hierwalk_cache_dir()
         if cache_dir.exists():
             targets.append(cache_dir)
     targets = sorted({str(p.resolve()): p for p in targets}.values(), key=str)

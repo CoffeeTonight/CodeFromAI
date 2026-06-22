@@ -5,4 +5,4 @@ schedule: milestone
 depends_on: [sanity]
 gates: [coi_connectivity, hierarchy_endpoint]
 owner: dv-team-a
-tool_hint: scan_inst
+tool_hint: hierwalk

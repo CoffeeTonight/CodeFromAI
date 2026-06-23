@@ -18,7 +18,9 @@ if sys_path_insert not in sys.path:
 
 from _coi_conn import (  # noqa: E402
     VALIDATED_ARTIFACT,
+    build_hierwalk_connect_cmd,
     endpoint_specs_from_checks,
+    path_walk_connect_artifact_paths,
     read_validated_artifact,
     hierwalk_batch_payload,
     wait_for_validated_checks,
@@ -91,6 +93,34 @@ def test_wait_blocks_until_validated(tmp_path: Path):
     assert elapsed >= 0.25
     assert len(body.get("validated_checks") or []) == 1
     assert read_validated_artifact(run_dir / VALIDATED_ARTIFACT) is not None
+
+
+def test_build_hierwalk_connect_cmd_uses_path_walk_mode(tmp_path: Path):
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    fl = rtl / "fl.f"
+    batch = rtl / "batch.json"
+    out = rtl / "coi_conn.tsv"
+    cmd = build_hierwalk_connect_cmd(
+        scan_bin="/usr/bin/hier-walk",
+        filelist=fl,
+        batch_json=batch,
+        tsv_out=out,
+        rtl_root=rtl,
+        top="chip_top_example",
+    )
+    assert "--mode" in cmd
+    assert cmd[cmd.index("--mode") + 1] == "path-walk"
+    assert "--no-cache" in cmd
+    assert "--check-connect-batch" in cmd
+
+
+def test_path_walk_connect_artifact_paths_under_db_top(tmp_path: Path):
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    text_path, logical_path = path_walk_connect_artifact_paths(rtl, "chip_top_example")
+    assert text_path == rtl / ".db_chip_top_example" / "conn.text.tsv"
+    assert logical_path == rtl / ".db_chip_top_example" / "conn.tsv"
 
 
 def test_wait_returns_complete_with_zero_validated(tmp_path: Path):

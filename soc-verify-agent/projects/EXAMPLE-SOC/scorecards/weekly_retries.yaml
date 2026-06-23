@@ -18,4 +18,17 @@ weeks:
       verify_group:evaluate->parity_check: 0
       verify_group:run_gate->parity_check: 58
       verify_group:load_context->finalize: 0
-last_updated: '2026-06-21'
+  2026-W26:
+    total_retries: 0
+    branches:
+      verify_group:load_context->select_runner: 0
+      verify_group:select_runner->run_gate: 0
+      verify_group:run_gate->parity_check: 0
+      verify_group:parity_check->promote: 0
+      verify_group:promote->finalize_reproduction: 0
+      verify_group:finalize_reproduction->finalize: 0
+      orchestrator:setup->plan_work: 0
+      orchestrator:plan_work->prepare_verify: 0
+      orchestrator:prepare_verify->dispatch_verify: 0
+      orchestrator:dispatch_verify->finalize: 0
+last_updated: '2026-06-23'

@@ -175,6 +175,11 @@ def apply_bridge_patch(
         return {"applied": False, "reason": "bridge_exists", "path": str(target)}
 
     target.parent.mkdir(parents=True, exist_ok=True)
+    backup_path: Path | None = None
+    if target.is_file():
+        backup_path = target.with_suffix(target.suffix + f".bak.{run_dir.name}")
+        backup_path.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+
     header = (
         f'#!/usr/bin/env python3\n"""Bridge patch from run {run_dir.name} on {date.today().isoformat()}."""\n\n'
     )
@@ -212,7 +217,10 @@ def apply_bridge_patch(
     except Exception:
         pass
 
-    return {"applied": True, "path": str(target), "stage": stage, "group": group}
+    out: dict[str, Any] = {"applied": True, "path": str(target), "stage": stage, "group": group}
+    if backup_path is not None:
+        out["backup_path"] = str(backup_path)
+    return out
 
 
 def write_env_diagnosis_prompt(run_dir: Path, payload: dict[str, Any]) -> Path:

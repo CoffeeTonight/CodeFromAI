@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 import yaml
 
+from soc_verify.file_lock import file_lock
+
 
 RunnerMode = Literal["python", "llm"]
 ScriptStatus = Literal["spawned", "draft", "evaluated", "reliable", "canonical", "deprecated"]
@@ -29,8 +31,9 @@ class InfoGapError(Exception):
 def load_yaml(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
-    with path.open(encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
+    with file_lock(path, exclusive=False):
+        with path.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
         raise ValueError(f"Expected mapping in {path}")
     return data
@@ -38,8 +41,11 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 def save_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with file_lock(path, exclusive=True):
+        with tmp.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+        tmp.replace(path)
 
 
 @dataclass

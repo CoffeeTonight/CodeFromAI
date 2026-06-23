@@ -107,8 +107,8 @@ def select_runner(
 ) -> str:
     """
     Code decides python vs llm — not LLM.
-    Low trust or low completeness (C) → llm direct (progress never stops).
-    High trust AND high C → python.
+    canonical + trust → python (skip completeness gate).
+    Otherwise high trust AND high C → python; else llm.
     """
     score = get_trust_score(project_dir, script_name)
     reg = _load_registry(project_dir)
@@ -118,9 +118,9 @@ def select_runner(
     c = completeness if completeness is not None else 1.0
     completeness_ok = c >= tau_completeness
 
-    if trust_ok and completeness_ok:
+    if status == "canonical" and trust_ok:
         return "python"
-    if status == "canonical" and trust_ok and completeness_ok:
+    if trust_ok and completeness_ok:
         return "python"
     return "llm"
 

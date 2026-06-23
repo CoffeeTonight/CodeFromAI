@@ -7,6 +7,8 @@ Description-Content-Type: text/markdown
 Requires-Dist: pyyaml>=6.0
 Requires-Dist: langgraph>=0.2
 Requires-Dist: langchain-core>=0.3
+Requires-Dist: langgraph-checkpoint-sqlite>=2.0
+Requires-Dist: requests>=2.31
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 
@@ -40,6 +42,112 @@ soc-verify-agent/
 ```
 
 See `docs/ARCHITECTURE.md` for platform vs user vs verification split.
+
+---
+
+## Understanding the tool
+
+### Three layers (remember this)
+
+| Layer | What | Who changes it |
+|-------|------|----------------|
+| **Platform** | LangGraph, trust, node_gate, loop_guard, CLI | `src/soc_verify/`, `registry/policies.yaml` — 공통 |
+| **Workspace** | Confluence·git·JIRA·스케줄·LLM endpoint | 루트 `config.json` — 팀마다 |
+| **Verification** | PASS/FAIL “법” | `projects/{id}/verification/{stage}/{group}/` **MD only** |
+
+검증 **판정**은 CHECK·RESPOND·MILESTONE MD만 따릅니다. Python `ops/`는 실행 crystallization이지 판정 근거가 아닙니다.
+
+### 검증 방법론 (SKILL)
+
+- **1방법론 = 1파일:** `projects/{id}/skills/{skill_id}/SKILL.md`
+- frontmatter에 `milestone` (필수), `stage`+`group` (gate 연결 시) 명시
+- `setup_group` → materialize → `verification/…` MD + (선택) `verify_smoke` 1바퀴  
+  규칙: [`registry/skill_materialize_spec.yaml`](registry/skill_materialize_spec.yaml)
+
+### LangGraph 3종
+
+| Graph | When | Entry |
+|-------|------|--------|
+| `setup_group` | 과제 onboarding — SKILL·초보자 스크립트 | `soc-verify graph start --graph setup_group --project ID` |
+| `verify_group` | 단일 gate 실행·평가·승격 | `--graph verify_group --stage ST --group G` |
+| `orchestrator` | acquisition + due verify 큐 | `soc-verify run` |
+
+노드·엣지 SSOT: [`registry/graph_flow_spec.yaml`](registry/graph_flow_spec.yaml)  
+요약 다이어그램: [`templates/obsidian/11-LANGGRAPH-SUMMARY.md`](templates/obsidian/11-LANGGRAPH-SUMMARY.md)
+
+### 사람이 처음 읽을 순서
+
+1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — end-to-end phase 표
+2. [`registry/graph_flow_spec.yaml`](registry/graph_flow_spec.yaml) — 그래프 계약
+3. [`templates/obsidian/02-LAYERS.md`](templates/obsidian/02-LAYERS.md) — 레이어
+4. [`templates/obsidian/08-RUNNER-LOOP.md`](templates/obsidian/08-RUNNER-LOOP.md) — trust·parity·promote
+5. 예시 gate: `projects/EXAMPLE-SOC/verification/simulation/gpio_ext/CHECK.md`
+
+### 사람이 처음 할 명령
+
+```bash
+pip install -e ".[dev]"
+cp config.example.json config.json
+soc-verify setup                    # llm · milestone · project
+soc-verify setup --status
+soc-verify skill add MY-SOC --file path/to/SKILL.md
+soc-verify --root . graph start --graph setup_group --project MY-SOC
+soc-verify --root . graph tick --session <SESSION_ID>
+```
+
+---
+
+## Using with an LLM (company agent)
+
+회사 LLM에게 “이 레포를 이해하고 운용해라”고 할 때의 SSOT입니다.  
+역할별 MOC: [`templates/obsidian/00-HUB.md`](templates/obsidian/00-HUB.md)
+
+### Official contract
+
+[`registry/graph_flow_spec.yaml`](registry/graph_flow_spec.yaml) 하단 `llm_contract:`:
+
+| Read | Never read (for verify logic) |
+|------|-------------------------------|
+| `registry/graph_flow_spec.yaml` | `src/soc_verify/graphs/*.py` |
+| `templates/obsidian/08-RUNNER-LOOP.md` | `registry/policies.yaml` (판정 임의 변경) |
+| `runs/{run_id}/md_only_prompt.md` | |
+| `registry/node_contract.yaml` (sandbox·exit) | |
+| `templates/scripts/README.md` (reproduction) | |
+
+그래프 진행: 노드 완료마다 **`graph tick`** (또는 HTTP `POST …/tick`). exit 산출물 없으면 tick 차단.
+
+### Role-based reading
+
+| Role | Start here | Then read |
+|------|------------|-----------|
+| **verify sub-agent** | [`templates/obsidian/SUB_AGENT.md`](templates/obsidian/SUB_AGENT.md) | `md_only_prompt.md` → CHECK/RESPOND only |
+| **setup_group** | `runs/setup/{run_id}/read_catalog.json` | catalog paths → sandbox `read_file` on SKILL + verification MD |
+| **orchestrator** | [`templates/obsidian/ORCHESTRATOR.md`](templates/obsidian/ORCHESTRATOR.md) | observe `verdict_*.json`, never self-judge PASS |
+| **VCPU→SoC 통합** | [`templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md`](templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md) | (아래 VERIF-CPU-SOC 절) |
+
+Setup LLM system prompt: [`templates/llm/system_setup_adaptive.txt`](templates/llm/system_setup_adaptive.txt)
+
+### Copy-paste briefing (give your LLM)
+
+```
+You operate soc-verify-agent at {ROOT}.
+
+Understand:
+1. docs/ARCHITECTURE.md — platform / config / verification MD
+2. registry/graph_flow_spec.yaml — graphs + llm_contract
+3. templates/obsidian/00-HUB.md — role entry
+4. For verify: SUB_AGENT.md + runs/{run_id}/md_only_prompt.md only for PASS/FAIL
+5. For setup: runs/setup/{run_id}/read_catalog.json — read listed SKILL and verification paths
+
+Rules:
+- Advance with: soc-verify --root {ROOT} graph tick --session {SESSION_ID}
+- Never use src/soc_verify/graphs/*.py for verification decisions
+- Reproduction scripts: no gate CLI flags (templates/scripts/README.md)
+```
+
+### LLM API wiring
+
+`config.json` → `llm` 블록 (`soc-verify setup llm`). `invoke-llm` / `graph tick` 시 플랫폼이 flow_spec + node_sandbox + (setup 시) `setup_read_catalog`를 payload로 전달합니다.
 
 ---
 
@@ -211,18 +319,22 @@ soc-verify --root . tag-replace EXAMPLE-SOC v1.0.2
 
 See `docs/RESEARCH.md` for adoption notes.
 
-## First-time setup (Hermes-style TUI)
+## Setup (설정 허브 TUI — 초기·변경 모두)
 
 ```bash
-soc-verify setup                 # 단계별 마법사 (workspace → milestone → project → paper)
-soc-verify setup milestone       # 마일스톤 문화만 다시 설정
+soc-verify setup                 # 설정 허브 메뉴 (섹션 선택 · 0 종료)
+soc-verify setup paper           # 통계화: 캠페인 · %% · readiness · (선택) 초안
+soc-verify setup llm             # LLM API
+soc-verify setup schedules       # knowledge_collect 주기 등
 soc-verify setup --status        # 진행 체크리스트
 ./scripts/setup.sh
 ```
 
-## Paper factory (논문 제조기)
+## Paper factory (실험 통계화)
 
-실험 태깅 → 누적 telemetry → 준비도 평가 → export. **Grok 없이** `paper-factory` CLI·셸 스크립트·Python API 사용 가능 (`docs/PAPER_FACTORY.md`).
+검증 run을 condition·gate·repro 단위로 **통계·증거화** — 태깅 → telemetry → readiness(%%) → export.
+**Grok 없이** `paper-factory` CLI·셸 스크립트·Python API (`docs/PAPER_FACTORY.md`).
+CLI 이름 `paper-factory`는 유지; 개념은 **통계화** (논문 산문 작성과 구분).
 
 ```bash
 # 실험 조건 붙여 verify
@@ -276,6 +388,44 @@ After each `verify_group` run (`finalize` → `meta_*` chain):
 
 ## Integration
 
-- **Obsidian**: `templates/obsidian/` → vault `05-Agents/` — 시작 [[00-HUB]](templates/obsidian/00-HUB.md)
-- **Sub-agent**: writes `sub_stop.json`, never reports PASS without artifacts
+- **Obsidian vault**: `templates/obsidian/` → 사용자 vault `05-Agents/` — MOC·역할별 가이드는 위 [**Using with an LLM**](#using-with-an-llm-company-agent) 및 [[00-HUB]](templates/obsidian/00-HUB.md)
+- **Sub-agent**: `sub_stop.json` on fail-fast; PASS only with `verdict_*.json`
 - **JIRA**: `platform/ops/jira_post.py` (dry-run stub; enable via `jira.enabled`)
+
+---
+
+## VERIF-CPU-SOC — VCPU→SoC 통합 (진입점)
+
+VerifCPU 예제 PASS 이후 **내 SoC top**에 SCPU 검증 블록을 올리고 gate까지 통과하는 절차입니다.  
+순서: **통합 S0–S8 → 사용자 smoke sim (S9) → gate (S10)**.
+
+| 대상 | 문서 | 용도 |
+|------|------|------|
+| **사람 (시작)** | [`projects/VERIF-CPU-SOC/USER-PROCEDURE.md`](projects/VERIF-CPU-SOC/USER-PROCEDURE.md) | 단계별 절차서 — **여기서 시작** |
+| 사람 (상세) | [`projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md`](projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md) | 체크리스트·명령 예 |
+| LLM 에이전트 | [`templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md`](templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md) | Obsidian vault SSOT (S0–S10) |
+| 스크립트 | [`projects/VERIF-CPU-SOC/scripts/README.md`](projects/VERIF-CPU-SOC/scripts/README.md) | gate·bootstrap·runbook |
+
+**최초 1회 (5분):**
+
+```bash
+export PROJECT_DIR=/path/to/soc-verify-agent/projects/VERIF-CPU-SOC
+cd "$PROJECT_DIR"
+./scripts/bootstrap_verifcpu_workspace.sh    # 기본 RTL: ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+cd inputs/tags && ./copy_new_tag.sh my_chip   # intake scaffold (기본=빈 template)
+```
+
+| 경로 | 역할 |
+|------|------|
+| `~/tools/__CFI/VerifCPU/verif_cpu_verilog` | **RTL_ROOT** — CPU 설계·`howto_integrate.md`·`vcpu_skill.md` |
+| `~/tools/__CFI/hierwalk` | COI gate (`hier-walk`) |
+
+| 스크립트 | 역할 |
+|----------|------|
+| [`bootstrap_verifcpu_workspace.sh`](projects/VERIF-CPU-SOC/scripts/bootstrap_verifcpu_workspace.sh) | `__CFI` 바인딩 + `cache.yaml` 갱신 (필요 시 git clone) |
+| [`copy_new_tag.sh`](projects/VERIF-CPU-SOC/inputs/tags/copy_new_tag.sh) | 새 tag scaffold (`--example`은 dry-run 참고만) |
+| [`crystallize_gate_from_intake.py`](projects/VERIF-CPU-SOC/scripts/crystallize_gate_from_intake.py) | intake → `overrides/*.json` (S10 전) |
+
+Intake SSOT: `inputs/tags/{tag}/deployment/customer_soc_intake.yaml`  
+예시(dry-run): [`customer_soc_intake.example.yaml`](projects/VERIF-CPU-SOC/inputs/tags/main/deployment/customer_soc_intake.example.yaml)  
+빈 스키마: [`customer_soc_intake.template.yaml`](templates/obsidian/agent/vcpu-soc-integration/intake/customer_soc_intake.template.yaml)

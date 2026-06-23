@@ -19,6 +19,7 @@ from _coi_conn import (  # noqa: E402
     checks_path,
     judge_checks,
     load_checks_spec,
+    path_walk_connect_artifact_paths,
     resolve_hierwalk,
     run_hierwalk,
     hierwalk_batch_payload,
@@ -155,8 +156,13 @@ def main() -> int:
     if proc.returncode != 0:
         log_hits.append(f"hier-walk exit {proc.returncode}")
 
+    text_art, logical_art = path_walk_connect_artifact_paths(root, top)
+    if not logical_art.is_file():
+        log_hits.append(f"missing path-walk logical TSV: {logical_art}")
+    if not text_art.is_file():
+        log_hits.append(f"missing path-walk text TSV: {text_art}")
     if not tsv_path.is_file():
-        log_hits.append(f"missing TSV: {tsv_path}")
+        log_hits.append(f"missing staged gate TSV: {tsv_path}")
 
     tsv_rows = parse_connect_tsv(tsv_path) if tsv_path.is_file() else {}
     checks_ok, check_hits = judge_checks({"checks": validated_checks}, tsv_rows)

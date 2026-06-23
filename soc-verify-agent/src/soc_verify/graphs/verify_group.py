@@ -23,7 +23,7 @@ from soc_verify.bridge_env import (
     write_env_diagnosis_prompt,
 )
 from soc_verify.bridge_env import classify_gate_failure as classify_gate_failure_kind
-from soc_verify.error_classify import bump_events, classify_exit_code, classify_stop_report
+from soc_verify.error_classify import bump_events, classify_stop_report, resolve_bump_kind
 from soc_verify.golden_library import capture_from_verdict, run_golden_suite, write_golden_report
 from soc_verify.loop_guard import (
     build_signature,
@@ -175,6 +175,8 @@ def setup(state: VerifyGroupState) -> dict[str, Any]:
             "tool_incidents": 0,
             "info_interrupts": 0,
             "llm_fix_rounds": 0,
+            "fix_rounds": 0,
+            "verification_fail_steps": 0,
             "fail_fast_stops": 0,
             "max_rounds": 20,
             "one_shot": False,
@@ -379,7 +381,7 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
             if passed:
                 events["one_shot"] = state.get("fix_round", 0) == 0
             else:
-                events = bump_events(events, kind if kind in ("env", "tool", "info", "llm") else "llm")
+                events = bump_events(events, resolve_bump_kind(kind))
             out: dict[str, Any] = {
                 "gate_results": gate_results,
                 "verdict": v.status,
@@ -403,7 +405,7 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
                 "error_kind": kind,
             }
             if v.status != "PASS":
-                events = bump_events(events, kind if kind in ("env", "tool", "info", "llm") else "llm")
+                events = bump_events(events, resolve_bump_kind(kind))
                 out["events"] = events
                 out["fix_round"] = state.get("fix_round", 0) + 1
             return out
@@ -505,7 +507,7 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
 
     if not passed:
         fail_kind = classify_gate_failure_kind(verdict=verdict, sub_stop=None)
-        bump_kind = fail_kind if fail_kind in ("env", "tool", "info", "llm") else classify_exit_code(verdict.exit_code)
+        bump_kind = resolve_bump_kind(fail_kind, exit_code=verdict.exit_code)
         events = bump_events(events, bump_kind)
         sig = build_signature(verdict=verdict)
         loop = record_failure(run_dir, sig)

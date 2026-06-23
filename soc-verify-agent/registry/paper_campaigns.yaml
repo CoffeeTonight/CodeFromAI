@@ -1230,4 +1230,172 @@ campaigns:
       group: gpio_ext
       verdict: PASS
       improvement_index: 0.89
-last_updated: '2026-06-21'
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: c98fbe8951cd
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 412680b255b5
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 49f570a377be
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 517e508a711b
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 72a27ed16d33
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: d3010cbe4d78
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 82e567ed807b
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: fc54723d2532
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 94955f0bf7aa
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 2d6071db1a04
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: a13fbee7483c
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 7f856dbcdb11
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 80ebe77348e2
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: b45eb57a4583
+      graph_id: orchestrator
+      verdict: PASS
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: e06d451ae5d8
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.89
+    - registered_at: '2026-06-23'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 53690a9a31ba
+      graph_id: orchestrator
+      verdict: PASS
+last_updated: '2026-06-23'

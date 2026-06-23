@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from soc_verify.constants import EXIT_INFO_GAP, EXIT_TOOL_ERROR
+from soc_verify.constants import EXIT_BLOCKED, EXIT_FAIL, EXIT_INFO_GAP, EXIT_TOOL_ERROR
 
 ErrorKind = Literal["env", "tool", "info", "llm", "verification", "none"]
+
+_BUMP_KINDS = frozenset({"env", "tool", "info", "llm", "verification"})
 
 
 def classify_exit_code(exit_code: int) -> ErrorKind:
@@ -14,9 +16,20 @@ def classify_exit_code(exit_code: int) -> ErrorKind:
         return "info"
     if exit_code == EXIT_TOOL_ERROR:
         return "tool"
-    if exit_code in (1, 2):
-        return "env"  # default FAIL/BLOCKED → retry
+    if exit_code == EXIT_FAIL:
+        return "verification"
+    if exit_code == EXIT_BLOCKED:
+        return "env"
     return "none"
+
+
+def resolve_bump_kind(fail_kind: ErrorKind, *, exit_code: int | None = None) -> ErrorKind:
+    """Map a gate failure kind to an event counter bucket."""
+    if fail_kind in _BUMP_KINDS:
+        return fail_kind
+    if exit_code is not None:
+        return classify_exit_code(exit_code)
+    return "verification"
 
 
 def classify_stop_report(report: dict[str, Any]) -> ErrorKind:
@@ -35,6 +48,7 @@ def classify_stop_report(report: dict[str, Any]) -> ErrorKind:
 def bump_events(events: dict[str, Any], kind: ErrorKind) -> dict[str, Any]:
     events = dict(events)
     events["total_steps"] = int(events.get("total_steps", 0)) + 1
+    events["fix_rounds"] = int(events.get("fix_rounds", 0)) + 1
     if kind == "env":
         events["env_fail_steps"] = int(events.get("env_fail_steps", 0)) + 1
     elif kind == "tool":
@@ -43,4 +57,6 @@ def bump_events(events: dict[str, Any], kind: ErrorKind) -> dict[str, Any]:
         events["info_interrupts"] = int(events.get("info_interrupts", 0)) + 1
     elif kind == "llm":
         events["llm_fix_rounds"] = int(events.get("llm_fix_rounds", 0)) + 1
+    elif kind == "verification":
+        events["verification_fail_steps"] = int(events.get("verification_fail_steps", 0)) + 1
     return events

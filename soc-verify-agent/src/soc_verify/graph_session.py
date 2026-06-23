@@ -9,9 +9,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from langgraph.checkpoint.memory import MemorySaver
-
 from soc_verify.config import load_user_config
+from soc_verify.graph_checkpointer import get_graph_checkpointer
 from soc_verify.graph_llm_bridge import invoke_llm_from_graph
 from soc_verify.graph_spec import load_flow_spec, node_spec
 from soc_verify.graphs.orchestrator import build_orchestrator_graph_interruptible
@@ -40,9 +39,6 @@ from soc_verify.tool_sandbox import (
     validate_tool_invoke,
     validate_write_path,
 )
-
-
-_CHECKPOINTER = MemorySaver()
 
 
 @dataclass
@@ -249,14 +245,15 @@ def start_session(
     }
 
 
-def _get_compiled_graph(graph_id: str):
+def _get_compiled_graph(graph_id: str, root: Path):
+    checkpointer = get_graph_checkpointer(root)
     if graph_id == "verify_group":
-        return build_verify_group_graph_interruptible(_CHECKPOINTER)
+        return build_verify_group_graph_interruptible(checkpointer)
     if graph_id == "setup_group":
-        return build_setup_group_graph_interruptible(_CHECKPOINTER)
+        return build_setup_group_graph_interruptible(checkpointer)
     if graph_id == "meta_innovation_loop":
-        return build_meta_innovation_graph_interruptible(_CHECKPOINTER)
-    return build_orchestrator_graph_interruptible(_CHECKPOINTER)
+        return build_meta_innovation_graph_interruptible(checkpointer)
+    return build_orchestrator_graph_interruptible(checkpointer)
 
 
 def session_status(root: Path, session_id: str) -> dict[str, Any]:
@@ -264,7 +261,7 @@ def session_status(root: Path, session_id: str) -> dict[str, Any]:
     meta = load_meta(root, session_id)
     spec = load_flow_spec(root)
     config = {"configurable": {"thread_id": meta.thread_id}}
-    graph = _get_compiled_graph(meta.graph_id)
+    graph = _get_compiled_graph(meta.graph_id, root)
     snap = graph.get_state(config)
 
     next_nodes = list(snap.next) if snap.next else []
@@ -372,7 +369,7 @@ def session_tick(root: Path, session_id: str, *, auto_invoke_llm: bool = True) -
     meta = load_meta(root, session_id)
     spec = load_flow_spec(root)
     config = {"configurable": {"thread_id": meta.thread_id}}
-    graph = _get_compiled_graph(meta.graph_id)
+    graph = _get_compiled_graph(meta.graph_id, root)
     try:
         tick_cfg = load_user_config(root)
     except FileNotFoundError:
@@ -640,7 +637,7 @@ def session_invoke_llm(root: Path, session_id: str) -> dict[str, Any]:
     meta = load_meta(root, session_id)
     spec = load_flow_spec(root)
     config = {"configurable": {"thread_id": meta.thread_id}}
-    graph = _get_compiled_graph(meta.graph_id)
+    graph = _get_compiled_graph(meta.graph_id, root)
     snap = graph.get_state(config)
     next_nodes = list(snap.next) if snap.next else []
     if not next_nodes:
@@ -705,7 +702,7 @@ def session_sandbox(
     root = root.resolve()
     meta = load_meta(root, session_id)
     config = {"configurable": {"thread_id": meta.thread_id}}
-    graph = _get_compiled_graph(meta.graph_id)
+    graph = _get_compiled_graph(meta.graph_id, root)
     snap = graph.get_state(config)
     next_nodes = list(snap.next) if snap.next else []
     if not next_nodes:

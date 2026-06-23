@@ -1750,4 +1750,312 @@ entries:
     parity_ok: 0.0
   branch_success_mean: 0.6667
   hypothesis: proposal applied between runs
-last_updated: '2026-06-21'
+- contract: improvement_ablation_v1
+  run_id: c98fbe8951cd
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 412680b255b5
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 49f570a377be
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 517e508a711b
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 72a27ed16d33
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: d3010cbe4d78
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 82e567ed807b
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: fc54723d2532
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fb81b67035f1
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-21'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 94955f0bf7aa
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 2d6071db1a04
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: a13fbee7483c
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 7f856dbcdb11
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: 80ebe77348e2
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+- contract: improvement_ablation_v1
+  run_id: e06d451ae5d8
+  as_of: '2026-06-23'
+  stage: simulation
+  group: gpio_ext
+  linked_proposal:
+    proposal_run_id: fc54723d2532
+    summary: mechanical_stub — schema-valid placeholder; no auto-apply
+    changes:
+    - layer: md
+      target: verification/simulation/gpio_ext/RUN.md
+      rationale: mechanical_stub_for_meta_queue
+    queued_at: '2026-06-23'
+  snapshot_improvement_index: 0.89
+  delta_vs_previous_run:
+    improvement_index: 0.0
+    completeness: 0.0
+    trust_score: 0.0
+    verdict_pass: 0.0
+    parity_ok: 0.0
+  branch_success_mean: 0.6667
+  hypothesis: proposal applied between runs
+last_updated: '2026-06-23'

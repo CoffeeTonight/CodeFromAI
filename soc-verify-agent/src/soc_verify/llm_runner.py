@@ -98,22 +98,45 @@ def extract_json_contract_from_text(text: str, contract: str) -> dict[str, Any] 
     return None
 
 
+def _normalize_verdict_dict(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Reject free-form or minimal JSON — require structured verdict contract fields."""
+    status = data.get("status")
+    if status not in ("PASS", "FAIL", "BLOCKED", "INFO_GAP"):
+        return None
+    gate = data.get("gate")
+    if not isinstance(gate, str) or not gate.strip():
+        return None
+    if "exit_code" not in data:
+        return None
+    try:
+        int(data["exit_code"])
+    except (TypeError, ValueError):
+        return None
+    return data
+
+
 def extract_verdict_dict_from_text(text: str) -> dict[str, Any] | None:
     """Parse verdict JSON from OpenAI assistant message (fenced block or bare object)."""
     blocks = re.findall(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL | re.IGNORECASE)
     candidates = blocks + [text]
     for chunk in candidates:
         chunk = chunk.strip()
-        if not chunk:
+        if not chunk.startswith("{"):
             continue
         try:
             data = json.loads(chunk)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict) and data.get("status") in ("PASS", "FAIL", "BLOCKED", "INFO_GAP"):
-            return data
-        if isinstance(data, dict) and "verdict" in data and isinstance(data["verdict"], dict):
-            return data["verdict"]
+        if not isinstance(data, dict):
+            continue
+        if "verdict" in data and isinstance(data["verdict"], dict):
+            normalized = _normalize_verdict_dict(data["verdict"])
+            if normalized:
+                return normalized
+            continue
+        normalized = _normalize_verdict_dict(data)
+        if normalized:
+            return normalized
     return None
 
 

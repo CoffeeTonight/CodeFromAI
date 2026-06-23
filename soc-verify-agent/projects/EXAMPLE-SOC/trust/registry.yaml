@@ -2,14 +2,14 @@ scripts:
   gpio_ext.py:
     script: gpio_ext.py
     status: draft
-    trust_score: 0.9
+    trust_score: 1.0
     version: 0.1.0
     tied_to_tag: true
-    runs: 2
-    successes: 2
-    last_result: PASS
-    one_shot_success_rate: 0.5
+    runs: 15
+    successes: 15
+    one_shot_success_rate: 0.06666666666666667
     last_tag: v1.0.1
+    last_result: PASS
   test_script.py:
     script: test_script.py
     status: draft
@@ -18,6 +18,6 @@ scripts:
     tied_to_tag: true
     last_tag: ''
     one_shot_success_rate: 0.0
-    runs: 0
+    runs: 6
     successes: 0
     last_result: FAIL

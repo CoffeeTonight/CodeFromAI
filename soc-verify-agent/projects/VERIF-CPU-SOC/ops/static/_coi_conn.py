@@ -240,7 +240,7 @@ def validate_hierarchy_checks(
         top=top,
         extra_defines=spec.get("defines"),
         on_progress=_progress,
-        no_cache=bool(spec.get("no_cache")),
+        no_cache=bool(spec.get("no_cache", True)),
     )
     rows_by_path = state.rows_by_path
     append_gate_log(
@@ -326,6 +326,69 @@ def scan_log_hits(log_path: Path) -> list[str]:
     return hits
 
 
+def path_walk_connect_artifact_paths(rtl_root: Path, top: str) -> tuple[Path, Path]:
+    """
+    Path-walk connect writes fixed names under per-top work dir (not ``-o``).
+
+    Text/logical artifacts: ``{index_cwd}/.db_{TOP}/conn.text.tsv`` and ``conn.tsv``.
+    """
+    _ensure_hierwalk_import()
+    from hierwalk.cache import top_work_dir
+
+    work = top_work_dir(top, base=rtl_root)
+    return work / "conn.text.tsv", work / "conn.tsv"
+
+
+def build_hierwalk_connect_cmd(
+    *,
+    scan_bin: str,
+    filelist: Path,
+    batch_json: Path,
+    tsv_out: Path,
+    rtl_root: Path,
+    top: str,
+) -> list[str]:
+    """Path-walk connect: ``conn.text.tsv`` / ``conn.tsv`` land in ``.db_{TOP}/``."""
+    cmd = [
+        scan_bin,
+        str(filelist),
+        "--top",
+        top,
+        "--index-cwd",
+        str(rtl_root),
+        "--mode",
+        "path-walk",
+        "--no-cache",
+        "--check-connect-batch",
+        str(batch_json),
+        "-o",
+        str(tsv_out),
+    ]
+    if scan_bin == sys.executable:
+        return [sys.executable, "-m", "hierwalk.cli", *cmd[1:]]
+    return cmd
+
+
+def stage_path_walk_connect_artifacts(
+    *,
+    rtl_root: Path,
+    top: str,
+    tsv_out: Path,
+) -> tuple[Path, Path]:
+    """
+    Copy ``.db_{TOP}/conn*.tsv`` beside gate TSV for verdicts.
+
+    Returns ``(text_artifact, logical_artifact)`` under the work dir.
+    """
+    text_path, logical_path = path_walk_connect_artifact_paths(rtl_root, top)
+    if logical_path.is_file():
+        shutil.copy2(logical_path, tsv_out)
+    if text_path.is_file():
+        text_copy = tsv_out.with_name(f"{tsv_out.stem}.text{tsv_out.suffix}")
+        shutil.copy2(text_path, text_copy)
+    return text_path, logical_path
+
+
 def run_hierwalk(
     *,
     scan_bin: str,
@@ -336,25 +399,14 @@ def run_hierwalk(
     log_path: Path,
     top: str,
 ) -> subprocess.CompletedProcess[str]:
-    cmd = [
-        scan_bin,
-        str(filelist),
-        "--top",
-        top,
-        "--index-cwd",
-        str(rtl_root),
-        "--check-connect-batch",
-        str(batch_json),
-        "-o",
-        str(tsv_out),
-    ]
-    if scan_bin == sys.executable:
-        cmd = [
-            sys.executable,
-            "-m",
-            "hierwalk.cli",
-            *cmd[1:],
-        ]
+    cmd = build_hierwalk_connect_cmd(
+        scan_bin=scan_bin,
+        filelist=filelist,
+        batch_json=batch_json,
+        tsv_out=tsv_out,
+        rtl_root=rtl_root,
+        top=top,
+    )
     proc = subprocess.run(
         cmd,
         cwd=rtl_root,
@@ -363,11 +415,22 @@ def run_hierwalk(
         timeout=7200,
         check=False,
     )
+    text_path, logical_path = stage_path_walk_connect_artifacts(
+        rtl_root=rtl_root,
+        top=top,
+        tsv_out=tsv_out,
+    )
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    artifact_note = (
+        f"artifacts: text={text_path} logical={logical_path} "
+        f"staged_logical={tsv_out} "
+        f"staged_text={tsv_out.with_name(f'{tsv_out.stem}.text{tsv_out.suffix}')}\n"
+    )
     log_path.write_text(
         f"# started={stamp}\n"
-        f"$ {' '.join(cmd)}\n(cwd={rtl_root})\nexit={proc.returncode}\n\n"
+        f"$ {' '.join(cmd)}\n(cwd={rtl_root})\nexit={proc.returncode}\n"
+        f"{artifact_note}\n"
         f"{proc.stdout or ''}{proc.stderr or ''}",
         encoding="utf-8",
     )

@@ -589,11 +589,19 @@ def evaluate_node(state: VerifyGroupState) -> dict[str, Any]:
     metrics = CompletenessMetrics.from_events(events)
     write_run_metrics(run_dir, metrics.to_dict())
 
+    script_name = str(state.get("script_name", ""))
+    trust_runs = 0
+    if script_name:
+        reg = load_yaml(project_dir / "trust" / "registry.yaml")
+        rec = (reg.get("scripts") or {}).get(script_name) or {}
+        trust_runs = int(rec.get("runs", 0))
+
     decision = evaluate_completeness_policy(
         metrics,
         policies,
         verdict=verdict,
         trust_score=float(state.get("trust_score", 0.0)),
+        trust_runs=trust_runs,
     )
     (run_dir / "completeness_decision.json").write_text(
         json.dumps(decision.to_dict(), indent=2),
@@ -1350,7 +1358,9 @@ def meta_queue_node(state: VerifyGroupState) -> dict[str, Any]:
     except Exception:
         policies = {}
     if validation.get("ok") and (policies.get("meta_graph") or {}).get("auto_apply_low_risk"):
-        apply_result = apply_low_risk_artifacts(project_dir, proposal, spec)
+        apply_result = apply_low_risk_artifacts(
+            project_dir, proposal, spec, policies=policies
+        )
 
     append_graph_trace(
         run_dir,

@@ -11,6 +11,8 @@ trust:
 
 loop_guard:
   same_failure_threshold: 3
+  oscillation_min_period: 2
+  oscillation_max_period: 6
   on_stalemate:
     force_mode: llm_full
     append_questions: true
@@ -69,14 +71,14 @@ demote:
     - false_negative_detected
 
 completeness:
-  formula: "(1-e)(1-t)(1-i)(1-l)"
+  formula: "(1-e)(1-t)(1-l)"
   # C is NOT a stop signal. Low C → LLM runs directly; high C → Python runs.
-  # Only INFO_GAP (i unresolved) hard-stops progress.
+  # INFO_GAP (info_unresolved) is a separate hard-stop flag — not in the C product.
 
   metrics:
     e: unresolved_env_incidents / gates_run
     t: tool_incidents / gates_run
-    i: 1 if unresolved_info_gap else 0
+    info_unresolved: flag — blocks jira/promote when > 0
     l: llm_fix_rounds / max(1, fix_rounds + 1)
 
   thresholds:
@@ -103,7 +105,11 @@ completeness:
 
 promotion:
   writer: registry_writer.py
+  min_gates_before_promote: 3
+  min_trust_runs: 3
   requires:
     - trust_report.json
     - promote_decision.md
     - trust_score >= tau_promote_min
+    - gates_run >= min_gates_before_promote
+    - trust_registry.runs >= min_trust_runs

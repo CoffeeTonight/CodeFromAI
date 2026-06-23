@@ -13,9 +13,41 @@ from soc_verify.models import SubStopReport, Verdict, load_yaml, save_yaml
 @dataclass
 class LoopGuardConfig:
     same_failure_threshold: int = 3
+    oscillation_min_period: int = 2
+    oscillation_max_period: int = 6
     signature_fields: list[str] = field(
         default_factory=lambda: ["gate", "error_code", "log_hash_8"]
     )
+
+
+def loop_guard_config_from_policies(policies: dict[str, Any] | None) -> LoopGuardConfig:
+    lg = (policies or {}).get("loop_guard") or {}
+    return LoopGuardConfig(
+        same_failure_threshold=int(lg.get("same_failure_threshold", 3)),
+        oscillation_min_period=int(lg.get("oscillation_min_period", 2)),
+        oscillation_max_period=int(lg.get("oscillation_max_period", 6)),
+    )
+
+
+def _policies_for_run_dir(run_dir: Path) -> dict[str, Any]:
+    try:
+        project_dir = run_dir.parent.parent
+        root = project_dir.parent.parent
+        from soc_verify.config import load_policies
+
+        return load_policies(root)
+    except Exception:
+        return {}
+
+
+def _is_periodic_oscillation(recent: list[str], period: int) -> bool:
+    if period < 2 or len(recent) < period * 2:
+        return False
+    first = recent[:period]
+    second = recent[period : period * 2]
+    if first != second:
+        return False
+    return len(set(first)) >= 2
 
 
 def log_hash_8(line: str) -> str:
@@ -80,10 +112,15 @@ def detect_stagnation_pattern(
     transitions: list[str],
     *,
     drift_history: list[float] | None = None,
+    cfg: LoopGuardConfig | None = None,
 ) -> str:
-    if len(transitions) >= 4:
-        recent = transitions[-4:]
-        if recent[0] == recent[2] and recent[1] == recent[3] and recent[0] != recent[1]:
+    cfg = cfg or LoopGuardConfig()
+    max_period = max(cfg.oscillation_min_period, cfg.oscillation_max_period)
+    for period in range(cfg.oscillation_min_period, max_period + 1):
+        need = period * 2
+        if len(transitions) < need:
+            continue
+        if _is_periodic_oscillation(transitions[-need:], period):
             return "OSCILLATION"
 
     if drift_history and len(drift_history) >= 3:
@@ -133,7 +170,7 @@ def record_failure(
     signature: str,
     cfg: LoopGuardConfig | None = None,
 ) -> LoopGuardState:
-    cfg = cfg or LoopGuardConfig()
+    cfg = cfg or loop_guard_config_from_policies(_policies_for_run_dir(run_dir))
     state = load_loop_guard(run_dir)
     state.signatures.append(signature)
 
@@ -152,22 +189,29 @@ def record_transition(
     *,
     error_kind: str = "",
     next_node: str = "",
+    cfg: LoopGuardConfig | None = None,
 ) -> LoopGuardState:
+    cfg = cfg or loop_guard_config_from_policies(_policies_for_run_dir(run_dir))
     state = load_loop_guard(run_dir)
     label = f"{node}:{error_kind or next_node or 'continue'}"
     state.transitions.append(label)
-    pattern = detect_stagnation_pattern(state.transitions, drift_history=state.drift_history)
+    pattern = detect_stagnation_pattern(
+        state.transitions, drift_history=state.drift_history, cfg=cfg
+    )
     if pattern:
         _apply_stalemate(state, pattern)
-    save_loop_guard(run_dir, state)
+    save_loop_guard(run_dir, state, cfg)
     return state
 
 
 def record_drift_score(run_dir: Path, drift_score: float) -> LoopGuardState:
+    cfg = loop_guard_config_from_policies(_policies_for_run_dir(run_dir))
     state = load_loop_guard(run_dir)
     state.drift_history.append(round(float(drift_score), 4))
-    pattern = detect_stagnation_pattern(state.transitions, drift_history=state.drift_history)
+    pattern = detect_stagnation_pattern(
+        state.transitions, drift_history=state.drift_history, cfg=cfg
+    )
     if pattern == "NO_DRIFT":
         _apply_stalemate(state, pattern)
-    save_loop_guard(run_dir, state)
+    save_loop_guard(run_dir, state, cfg)
     return state

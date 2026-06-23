@@ -14,6 +14,9 @@ from soc_verify.models import load_yaml, save_yaml
 
 Layer = Literal["md", "ops", "bridge", "graph_spec", "node_contract", "graph_source", "policy"]
 
+# Defense-in-depth — never auto-apply regardless of meta_graph_spec auto_apply flags.
+NEVER_AUTO_APPLY_LAYERS = frozenset({"graph_source", "graph_spec", "node_contract", "policy"})
+
 META_PROPOSAL_NAME = "meta_change_proposal.json"
 META_QUEUE_NAME = "meta_change_queued.json"
 
@@ -296,10 +299,29 @@ def queue_meta_proposal(
     return {"queued": validation.get("ok"), "path": str(out), "status": record["status"]}
 
 
+def layer_auto_apply_allowed(
+    layer: str,
+    *,
+    layer_spec: dict[str, Any],
+    policies: dict[str, Any] | None = None,
+) -> tuple[bool, str]:
+    """Code-level guard — policies.graph_source_never_auto_apply is enforced here."""
+    if layer in NEVER_AUTO_APPLY_LAYERS:
+        return False, "never_auto_apply_layer"
+    meta_pol = (policies or {}).get("meta_graph") or {}
+    if meta_pol.get("graph_source_never_auto_apply", True) and layer == "graph_source":
+        return False, "graph_source_never_auto_apply"
+    if not layer_spec.get("auto_apply"):
+        return False, "no_auto_apply"
+    return True, "ok"
+
+
 def apply_low_risk_artifacts(
     project_dir: Path,
     proposal: dict[str, Any],
     spec: dict[str, Any],
+    *,
+    policies: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Apply md/ops/bridge only when layer allows auto_apply and content provided."""
     applied: list[str] = []
@@ -311,8 +333,9 @@ def apply_low_risk_artifacts(
             continue
         layer = str(ch.get("layer", ""))
         layer_spec = layers.get(layer) or {}
-        if not layer_spec.get("auto_apply"):
-            skipped.append(f"{layer}:{ch.get('target')}:no_auto_apply")
+        allowed, reason = layer_auto_apply_allowed(layer, layer_spec=layer_spec, policies=policies)
+        if not allowed:
+            skipped.append(f"{layer}:{ch.get('target')}:{reason}")
             continue
         content = ch.get("content")
         if not content or not isinstance(content, str):

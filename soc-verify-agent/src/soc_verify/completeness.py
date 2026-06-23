@@ -1,4 +1,4 @@
-"""Verification completeness: (1-e)(1-t)(1-i)(1-l) + policy gates."""
+"""Verification completeness: (1-e)(1-t)(1-l) + info_unresolved flag + policy gates."""
 
 from __future__ import annotations
 
@@ -27,7 +27,8 @@ class CompletenessMetrics:
 
     @property
     def score(self) -> float:
-        raw = (1 - self.e) * (1 - self.t) * (1 - self.i) * (1 - self.l)
+        """Continuous score — info gap is a separate hard-stop flag, not a multiplier."""
+        raw = (1 - self.e) * (1 - self.t) * (1 - self.l)
         return max(0.0, min(1.0, raw))
 
     def to_dict(self) -> dict[str, Any]:
@@ -97,6 +98,22 @@ class CompletenessDecision:
         }
 
 
+def _promotion_hardening_ok(
+    metrics: CompletenessMetrics,
+    policies: dict[str, Any],
+    *,
+    trust_runs: int,
+) -> tuple[bool, str]:
+    promo = policies.get("promotion") or {}
+    min_gates = int(promo.get("min_gates_before_promote", 3))
+    min_trust_runs = int(promo.get("min_trust_runs", 3))
+    if metrics.gates_run < min_gates:
+        return False, f"min_gates:{metrics.gates_run}<{min_gates}"
+    if trust_runs < min_trust_runs:
+        return False, f"min_trust_runs:{trust_runs}<{min_trust_runs}"
+    return True, "ok"
+
+
 def evaluate_completeness_policy(
     metrics: CompletenessMetrics,
     policies: dict[str, Any],
@@ -104,6 +121,7 @@ def evaluate_completeness_policy(
     verdict: str = "FAIL",
     trust_score: float = 0.0,
     tau_promote_min: float = 0.70,
+    trust_runs: int = 0,
 ) -> CompletenessDecision:
     comp = policies.get("completeness") or {}
     th = comp.get("thresholds") or {}
@@ -126,25 +144,38 @@ def evaluate_completeness_policy(
             continue_improvement=True,
         )
 
-    jira_allowed = verdict == "PASS" and c >= jira_min
+    hardening_ok, hardening_reason = _promotion_hardening_ok(
+        metrics, policies, trust_runs=trust_runs
+    )
+
+    jira_allowed = verdict == "PASS" and c >= jira_min and hardening_ok
     jira_note = ""
     if verdict == "PASS" and c < jira_min:
         jira_note = "withhold_complete_below_threshold"
     elif verdict == "PASS" and jira_min <= c < healthy_min:
         jira_note = withhold_note
+    elif verdict == "PASS" and not hardening_ok:
+        jira_note = hardening_reason
 
     promote_allowed = (
         verdict == "PASS"
+        and hardening_ok
         and trust_score >= tau_promote_min
         and c >= promote_min
         and metrics.t <= max_t
         and metrics.l <= max_l
     )
-    promote_reason = "ok" if promote_allowed else "threshold_not_met"
+    promote_reason = "ok" if promote_allowed else (
+        hardening_reason if not hardening_ok else "threshold_not_met"
+    )
 
     # Low C does NOT stop — next round uses llm runner (see select_runner).
-    # continue_improvement = keep looping until PASS + C >= jira_min for reporting.
-    continue_improvement = verdict != "PASS" or (verdict == "PASS" and c < jira_min)
+    # continue_improvement: keep looping until PASS + C >= jira_min + min gate/trust runs.
+    continue_improvement = (
+        verdict != "PASS"
+        or (verdict == "PASS" and c < jira_min)
+        or (verdict == "PASS" and not hardening_ok)
+    )
 
     return CompletenessDecision(
         jira_allowed=jira_allowed,

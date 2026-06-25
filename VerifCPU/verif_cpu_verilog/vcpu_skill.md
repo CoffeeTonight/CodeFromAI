@@ -4,7 +4,9 @@
 
 **Package root:** Directory containing `example.sh`, `firmware/campaign/`, `rtl/`.
 
-**Human companion docs:** [howto_integrate.md](howto_integrate.md) (signal-level), [README.md](README.md) (build gates).
+**Human companion docs:** [howto_integrate.md](howto_integrate.md) (signal-level), [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (procedure), [README.md](README.md) (build gates).
+
+**soc-verify-agent integration vault (LLM):** `soc-verify-agent/templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md` — intake YAML, workflow, gate links (do not duplicate SSOT here).
 
 ---
 

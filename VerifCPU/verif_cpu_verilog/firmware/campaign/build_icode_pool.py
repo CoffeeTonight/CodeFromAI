@@ -72,6 +72,12 @@ def load_images() -> list[IcodeImage]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build icode pool + probe mapping header")
     parser.add_argument("--skip-make", action="store_true", help="Skip compile step (reuse bins)")
+    parser.add_argument(
+        "--yaml",
+        default=None,
+        metavar="HIER_YAML",
+        help="soc_hierarchy YAML for chip_top gen (default: soc_hierarchy_example.yaml)",
+    )
     args = parser.parse_args()
 
     if not args.skip_make:
@@ -94,9 +100,12 @@ def main() -> int:
     emit_icode_map_vh(VH_MAP, entries, len(pool))
     emit_icode_bind_vh(VH_BIND, MANIFEST_HDR, entries)
 
-    print("[5/5] Generating tb_full_campaign_gen.vh...")
+    print("[5/5] Generating tb_full_campaign_gen.vh + chip_top gen...")
     gen_tb = CAMPAIGN_ROOT / "gen_tb_campaign.py"
-    subprocess.run([sys.executable, str(gen_tb)], check=True)
+    gen_cmd = [sys.executable, str(gen_tb)]
+    if args.yaml:
+        gen_cmd.extend(["--yaml", args.yaml])
+    subprocess.run(gen_cmd, check=True)
 
     print("")
     print("=== icode pool build complete ===")

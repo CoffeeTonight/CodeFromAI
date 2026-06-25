@@ -46,7 +46,8 @@ verif_cpu_verilog/
 ├── firmware/
 │   ├── campaign/         # VCPU/icode 빌드 + manifest (SSOT)
 │   └── *.hex             # merge 산출 + harness 고정 hex
-├── tools/                # verify_vcd.py, probe_icodes.py
+├── tools/                # verify_vcd.py, probe_icodes.py, integration_studio/
+├── outputs/              # integration_studio 생성물 (생성됨)
 ├── logs/                 # 시뮬 로그 (생성됨, .gitignore)
 ├── sim_build/            # .vvp / .vcd (생성됨)
 ├── example.sh
@@ -485,7 +486,7 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 | `make soc-manifest-scale` | 26/26 | 60 `g_slv*` + active 3 Phase A/B/C |
 | `make chip-top-example` | 16/16 | yaml 4 hierarchy + DMA |
 
-외부 SoC (AXI/AHB/APB) 통합: [howto_integrate.md](howto_integrate.md) §11–12, [vcpu_skill.md](vcpu_skill.md)
+외부 SoC (AXI/AHB/APB) 통합: [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (예제→내 SoC 절차), [howto_integrate.md](howto_integrate.md) §11–12 (신호 상세), [vcpu_skill.md](vcpu_skill.md)
 
 ### 60슬롯 scale integration
 
@@ -581,7 +582,8 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
 ## 관련 문서
 
 - [vcpu_skill.md](vcpu_skill.md) — **Agentic LLM용** 과제 SoC 통합 스킬 (manifest, bus, top wiring)
-- [howto_integrate.md](howto_integrate.md) — AXI/AMBA 상세 절차
+- [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) — 기본 예제 PASS 후 **내 SoC** 이식 절차
+- [howto_integrate.md](howto_integrate.md) — AXI/AMBA 신호·매크로 상세
 - [architecture_example.md](architecture_example.md) — SoC/VCPU/Agent 블록 다이어그램
 - `firmware/campaign/amba_bus_registry.py` — bus 타입·CLI·RTL·connect 매크로 SSOT (`rtl_status`: `done` / `smoke` / `manifest_only`)
 - `tools/probe_icodes.py` — icode bus 주소 probe (`requirements.txt` → `tinyrv`)

@@ -1,0 +1,202 @@
+make -C firmware/campaign all
+make[1]: Entering directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=60)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (60 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1e000)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=60 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+make all-inner
+make[2]: Entering directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_params.vh (CAMPAIGN_NUM_SCPU=60)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_master.vh (solo=0 master_vcpu=0)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_manifest.h (60 slave slots, 3 active, master_vcpu=0)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/campaign_layout.h (icode @ word 0x1e000)
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_scale.vh
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/cpus.mk
+[config] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/cpu_rules.mk
+[config] summary: NUM_SCPU=60 solo=False master_vcpu=0 active=3 icodes=6 (manifest drives TB + icode build)
+python3 gen_soc_init.py
+[gen_soc_init] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/soc_init_seq.vh (17 steps)
+[gen_soc_init] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_soc_platform.vh (init_done @ 0x40000018)
+python3 gen_campaign_manifest.py
+[manifest] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/campaign_manifest.vh (6 master hints)
+python3 build_icode_pool.py --yaml soc_hierarchy_example.yaml
+[gen_icodes_c] mode=manifest manifest_active=3 icodes=6 (hand=6, probe=0, written=0, pruned=0)
+  sfr/check_sfr_ctrl.c
+  sfr/check_sfr_mask.c
+  sram/check_sram_marker.c
+  sram/check_sram_aux.c
+  uart/check_uart_baud.c
+  uart/check_uart_irq.c
+[gen_icodes_c] tip: ICODE_CATALOG=50 for full catalog regression build
+make[3]: Entering directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+
+=== icode bins ready (6 images) ===
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_sfr_ctrl.bin
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_sfr_mask.bin
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_sram_aux.bin
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_sram_marker.bin
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_uart_baud.bin
+-rwxrwxr-x. 1 user user 20 Jun 24 12:20 ../build/icodes/check_uart_irq.bin
+make[3]: Leaving directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/icodes'
+[gen_tb] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/tb_full_campaign_gen.vh (60 slots, 3 active VCPUs, 3 campaign agents, pool=28672B → readmemh)
+[gen_tb] Wrote chip_top bind + chip_top_example_gen.vh + decode (4 hierarchy cell(s))
+[gen_tb] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_defs.vh + /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_gen.vh + decode + manifest bus bind (3 bind slot(s), 3 SoC cell(s))
+[gen_tb] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/tb_soc_manifest_scale_defs.vh + scale gen (3 wired cell(s), max gi=3)
+[1/4] Generating icode C sources (manifest targets via gen_icodes_c.py)...
+[2/4] Compiling icodes (make -C icodes)...
+[3/4] Merging 6 icodes → icode_pool.bin
+       pool size = 28672 bytes (6 slots)
+[4/4] Probing icodes + emitting mapping header...
+[5/5] Generating tb_full_campaign_gen.vh + chip_top gen...
+
+=== icode pool build complete ===
+  check_sfr_ctrl           ptr=0x00001000 R@0x40000000 tap=0 (20 B)
+  check_sfr_mask           ptr=0x00002000 R@0x40000004 tap=0 (20 B)
+  check_sram_aux           ptr=0x00003000 R@0x80000004 tap=1 (20 B)
+  check_sram_marker        ptr=0x00004000 R@0x80000000 tap=1 (20 B)
+  check_uart_baud          ptr=0x00005000 R@0xc0000000 tap=2 (20 B)
+  check_uart_irq           ptr=0x00006000 R@0xc0000010 tap=2 (20 B)
+
+  /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/icode_pool.bin
+  /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.h
+  /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/include/icode_map.json
+  /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/icode_map.vh
+  /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/icode_bind.vh
+python3 merge_campaign.py
+[merge] VCPU image + icode policy (pool=28672 B, max embed=262144 B → readmemh embed)
+  [SFR ] pool_word=0x0000 (936 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/SFR.bin
+  [SRAM] pool_word=0x0800 (936 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/SRAM.bin
+  [UART] pool_word=0x1000 (3396 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/UART.bin
+  [RES04] pool_word=0x1800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES05] pool_word=0x2000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES06] pool_word=0x2800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES07] pool_word=0x3000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES08] pool_word=0x3800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES09] pool_word=0x4000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES10] pool_word=0x4800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES11] pool_word=0x5000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES12] pool_word=0x5800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES13] pool_word=0x6000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES14] pool_word=0x6800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES15] pool_word=0x7000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES16] pool_word=0x7800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES17] pool_word=0x8000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES18] pool_word=0x8800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES19] pool_word=0x9000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES20] pool_word=0x9800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES21] pool_word=0xa000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES22] pool_word=0xa800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES23] pool_word=0xb000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES24] pool_word=0xb800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES25] pool_word=0xc000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES26] pool_word=0xc800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES27] pool_word=0xd000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES28] pool_word=0xd800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES29] pool_word=0xe000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES30] pool_word=0xe800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES31] pool_word=0xf000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES32] pool_word=0xf800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES33] pool_word=0x10000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES34] pool_word=0x10800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES35] pool_word=0x11000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES36] pool_word=0x11800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES37] pool_word=0x12000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES38] pool_word=0x12800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES39] pool_word=0x13000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES40] pool_word=0x13800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES41] pool_word=0x14000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES42] pool_word=0x14800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES43] pool_word=0x15000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES44] pool_word=0x15800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES45] pool_word=0x16000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES46] pool_word=0x16800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES47] pool_word=0x17000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES48] pool_word=0x17800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES49] pool_word=0x18000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES50] pool_word=0x18800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES51] pool_word=0x19000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES52] pool_word=0x19800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES53] pool_word=0x1a000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES54] pool_word=0x1a800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES55] pool_word=0x1b000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES56] pool_word=0x1b800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES57] pool_word=0x1c000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES58] pool_word=0x1c800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES59] pool_word=0x1d000 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+  [RES60] pool_word=0x1d800 (8 bytes) <- /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/NOOP.bin
+[merge] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/full_campaign_vcpu.bin (491520 bytes)
+[merge] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/full_campaign_vcpu.hex (122880 words)
+  [ICODE] embedded @ word 0x1e000 (28672 bytes)
+[merge] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign/build/full_campaign_unified.bin (520192 bytes)
+[merge] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/full_campaign_unified.hex (130048 words)
+
+=== Campaign firmware ready ===
+-rw-rw-r--. 1 user user 520192 Jun 24 12:41 build/full_campaign_unified.bin
+-rw-rw-r--. 1 user user 491520 Jun 24 12:41 build/full_campaign_vcpu.bin
+-rw-rw-r--. 1 user user  28672 Jun 24 12:41 build/icode_pool.bin
+-rwxrwxr-x. 1 user user      8 Jun 24 12:20 build/NOOP.bin
+-rwxrwxr-x. 1 user user    936 Jun 24 12:20 build/SFR.bin
+-rwxrwxr-x. 1 user user    936 Jun 24 12:20 build/SRAM.bin
+-rwxrwxr-x. 1 user user   3396 Jun 24 12:20 build/UART.bin
+make[2]: Leaving directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+make[1]: Leaving directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+make -C firmware/campaign bus_connect_yaml HIER_YAML=soc_hierarchy_example.yaml
+make[1]: Entering directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+python3 gen_soc_bus_connect.py --yaml soc_hierarchy_example.yaml
+[bus_connect] Wrote /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/include/verif_soc_bus_connect.vh (4 external bus port(s))
+make[1]: Leaving directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/firmware/campaign'
+make sim_build/chip_top_example.vvp
+make[1]: Entering directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog'
+iverilog -g2012 -I include -DVERIF_CHIP_SOC_TB \
+  -DVERIF_POOL_HUB=chip_top_example.u_pool \
+  -s chip_top_example -o sim_build/chip_top_example.vvp rtl/verif_cpu_bus.v rtl/verif_cpu_unified_pool.v rtl/verif_cpu_txn_recorder.v rtl/verif_cpu_core.v rtl/verif_orchestrator.v rtl/verif_agent.v rtl/verif_apb2_master.v rtl/verif_apb_master.v rtl/verif_apb4_master.v rtl/verif_apb5_master.v rtl/verif_ahb_lite_master.v rtl/verif_ahb5_lite_master.v rtl/verif_ahb_master.v rtl/verif_axi_lite_master.v rtl/verif_axi_full_master.v rtl/verif_apb2_slave_simple.v rtl/verif_apb_slave_simple.v rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_slave_simple.v rtl/verif_axistream_master.v rtl/verif_ace_master.v rtl/verif_ace_lite_master.v rtl/verif_chi_master.v rtl/verif_niu_master.v rtl/verif_vcpu_soc_cell.v tb/chip_top_example.v
+include/chip_top_example_gen.vh:92: warning: Anachronistic use of named begin/end to surround generate schemes.
+include/chip_top_example_gen.vh:101: warning: Anachronistic use of named begin/end to surround generate schemes.
+include/chip_top_example_gen.vh:110: warning: Anachronistic use of named begin/end to surround generate schemes.
+include/chip_top_example_gen.vh:119: warning: Anachronistic use of named begin/end to surround generate schemes.
+include/chip_top_decode.vh:19: warning: Numeric constant truncated to 2 bits.
+include/chip_top_decode.vh:47: warning: Numeric constant truncated to 2 bits.
+rtl/verif_vcpu_soc_cell.v:171: warning: Port 5 (HTRANS) of verif_ahb_lite_master expects 2 bits, got 3.
+rtl/verif_vcpu_soc_cell.v:171:        : Padding 1 high bits of the expression.
+make[1]: Leaving directory '/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog'
+vvp sim_build/chip_top_example.vvp
+========================================================================
+chip_top_example: orchestrator + agent + bridge bus R/W (37 cells)
+========================================================================
+SCPU5 (DMA_CH3 ) > soft_reset phase=0 pc=0x00000000
+SCPU3 (UART    ) > soft_reset phase=0 pc=0x00000000
+SCPU2 (SRAM    ) > soft_reset phase=0 pc=0x00000000
+SCPU1 (SFR     ) > soft_reset phase=0 pc=0x00000000
+[Orch] phase_release phase=0 boot_fw=0x00000000
+  [PASS] SFR APB3 write OK
+  [PASS] SFR APB3 read OK
+  [PASS] SFR APB3 data match
+  [PASS] SRAM AHB_LITE write OK
+  [PASS] SRAM AHB_LITE read OK
+  [PASS] SRAM AHB_LITE data match
+  [PASS] UART AXI4LITE write OK
+  [PASS] UART AXI4LITE read OK
+  [PASS] UART AXI4LITE data match
+  [PASS] DMA_CH3 AXI4LITE write OK
+  [PASS] DMA_CH3 AXI4LITE read OK
+  [PASS] DMA_CH3 AXI4LITE data match
+SCPU1 (SFR     ) > Phase A: init logging (tap 0)
+SCPU1 (SFR     ) > Phase A done: recorded 2 txns on tap
+SCPU2 (SRAM    ) > Phase A: init logging (tap 1)
+SCPU2 (SRAM    ) > Phase A done: recorded 2 txns on tap
+SCPU3 (UART    ) > Phase A: init logging (tap 2)
+SCPU3 (UART    ) > Phase A done: recorded 2 txns on tap
+SCPU5 (DMA_CH3 ) > Phase A: init logging (tap 36)
+SCPU5 (DMA_CH3 ) > Phase A done: recorded 2 txns on tap
+  [PASS] Agent SFR saw bridge traffic
+  [PASS] Agent SRAM saw bridge traffic
+  [PASS] Agent UART saw bridge traffic
+  [PASS] Agent DMA_CH3 saw bridge traffic
+
+Checklist: 16 passed / 0 failed
+chip_top_example: PASS
+tb/chip_top_example.v:81: $finish called at 395000 (1ps)

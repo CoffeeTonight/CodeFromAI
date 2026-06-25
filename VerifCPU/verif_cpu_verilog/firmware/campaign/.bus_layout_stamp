@@ -1,0 +1,4 @@
+NUM_SCPU=0
+BUS_LAYOUT=axi4lite:0,ahb_lite:0,apb3:0
+MASTER_BUS_LAYOUT=axi4lite:1
+MASTER_ENABLED=1

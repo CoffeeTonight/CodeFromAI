@@ -250,8 +250,14 @@ module verif_cpu_core #(
     output [31:0] data;
     output [1:0]  resp;
     begin
-      if (USE_SOC_BUS)
-        tb_full_campaign.u_soc_bus.bus_read(addr, size, data, resp);
+      if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_read(addr, size, data, resp);
+`else
+        data = 32'h0;
+        resp = 2'd2;
+`endif
+      end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_read(addr, size, data, resp);
       else if (USE_MANIFEST_SOC_BUS) begin
@@ -277,8 +283,13 @@ module verif_cpu_core #(
     input  [2:0]  size;
     output [1:0]  resp;
     begin
-      if (USE_SOC_BUS)
-        tb_full_campaign.u_soc_bus.bus_write(addr, data, size, resp);
+      if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_write(addr, data, size, resp);
+`else
+        resp = 2'd2;
+`endif
+      end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_write(addr, data, size, resp);
       else if (USE_MANIFEST_SOC_BUS) begin
@@ -334,8 +345,11 @@ module verif_cpu_core #(
           if (hw_hit) begin
             data = sanitize_xz_fn(hw_val, "hw_forced");
             hw_force_hit_count = hw_force_hit_count + 1;
-            if (USE_HW_FORCE)
-              tb_full_campaign.u_hw_force.hw_force_record_hit();
+            if (USE_HW_FORCE) begin
+`ifdef VERIF_HW_FORCE_HUB
+              `VERIF_HW_FORCE_HUB.hw_force_record_hit();
+`endif
+            end
             last_bus_valid = 1'b1;
             last_bus_addr  = addr;
             last_bus_data  = data;
@@ -391,9 +405,13 @@ module verif_cpu_core #(
     input [31:0] addr;
     input [31:0] value;
     begin
-      if (USE_HW_FORCE)
-        tb_full_campaign.u_hw_force.hw_force_set(hier_id, addr, value);
-      else
+      if (USE_HW_FORCE) begin
+`ifdef VERIF_HW_FORCE_HUB
+        `VERIF_HW_FORCE_HUB.hw_force_set(hier_id, addr, value);
+`else
+        $display("SCPU%0d > [HWForce] set ignored (no HW force manager)", CPU_ID);
+`endif
+      end else
         $display("SCPU%0d > [HWForce] set ignored (no HW force manager)", CPU_ID);
     end
   endtask
@@ -402,9 +420,13 @@ module verif_cpu_core #(
     input [31:0] hier_id;
     input [31:0] addr;
     begin
-      if (USE_HW_FORCE)
-        tb_full_campaign.u_hw_force.hw_force_clear(hier_id, addr);
-      else
+      if (USE_HW_FORCE) begin
+`ifdef VERIF_HW_FORCE_HUB
+        `VERIF_HW_FORCE_HUB.hw_force_clear(hier_id, addr);
+`else
+        $display("SCPU%0d > [HWForce] release ignored (no HW force manager)", CPU_ID);
+`endif
+      end else
         $display("SCPU%0d > [HWForce] release ignored (no HW force manager)", CPU_ID);
     end
   endtask
@@ -414,9 +436,14 @@ module verif_cpu_core #(
     output [31:0] value;
     output        hit;
     begin
-      if (USE_HW_FORCE)
-        tb_full_campaign.u_hw_force.hw_force_lookup(hierarchy_id, addr, value, hit);
-      else begin
+      if (USE_HW_FORCE) begin
+`ifdef VERIF_HW_FORCE_HUB
+        `VERIF_HW_FORCE_HUB.hw_force_lookup(hierarchy_id, addr, value, hit);
+`else
+        hit   = 1'b0;
+        value = 32'd0;
+`endif
+      end else begin
         hit   = 1'b0;
         value = 32'd0;
       end
@@ -427,12 +454,13 @@ module verif_cpu_core #(
     input  [7:0] sync_id;
     output       need_wait;
     begin
+      need_wait = 1'b0;
+`ifdef VERIF_SYNC_HUB
       if (sync_attached && USE_SHARED_SYNC)
-        tb_full_campaign.u_sync.sync_arrive(CPU_ID, sync_id, need_wait);
-      else begin
-        need_wait = 1'b0;
+        `VERIF_SYNC_HUB.sync_arrive(CPU_ID, sync_id, need_wait);
+      else
+`endif
         $display("SCPU%0d > [Sync] VSYNC solo id=%0d", CPU_ID, sync_id);
-      end
     end
   endtask
 
@@ -444,7 +472,11 @@ module verif_cpu_core #(
       sync_arrive_impl(sync_id, need_wait);
       if (need_wait) begin
         sync_wait_id  = sync_id;
-        sync_wait_gen = tb_full_campaign.u_sync.sync_gen_snapshot(sync_id);
+`ifdef VERIF_SYNC_HUB
+        sync_wait_gen = `VERIF_SYNC_HUB.sync_gen_snapshot(sync_id);
+`else
+        sync_wait_gen = 0;
+`endif
         state         = `CPU_STATE_SYNC_WAIT;
         $display("SCPU%0d > [Sync] waiting id=%0d gen=%0d", CPU_ID, sync_id, sync_wait_gen);
       end
@@ -567,8 +599,11 @@ module verif_cpu_core #(
   task cpu_sync_poll_resume;
     begin
       if (state == `CPU_STATE_SYNC_WAIT &&
-          (!sync_attached || !USE_SHARED_SYNC ||
-           tb_full_campaign.u_sync.sync_can_resume(CPU_ID, sync_wait_id, sync_wait_gen))) begin
+          (!sync_attached || !USE_SHARED_SYNC
+`ifdef VERIF_SYNC_HUB
+           || `VERIF_SYNC_HUB.sync_can_resume(CPU_ID, sync_wait_id, sync_wait_gen)
+`endif
+           )) begin
         state = `CPU_STATE_RUNNING;
         $display("SCPU%0d > [Sync] resumed id=%0d", CPU_ID, sync_wait_id);
       end
@@ -867,15 +902,9 @@ module verif_cpu_core #(
       instr = 32'h00000013;
       if (fw_word_count == 0 && !USE_SHARED_POOL) begin
         $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
-      end else if (USE_SOC_BUS) begin
-        tb_full_campaign.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
-      end else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-        tb_soc_manifest_scale.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
-`elsif VERIF_MANIFEST_SOC_TB
-        tb_soc_manifest.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
-`elsif VERIF_CHIP_SOC_TB
-        chip_top_example.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
+      end else if (USE_SOC_BUS || USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_POOL_HUB
+        `VERIF_POOL_HUB.pool_read_word(CPU_ID[3:0], pc, instr, err);
 `else
         err = 1'b1;
 `endif

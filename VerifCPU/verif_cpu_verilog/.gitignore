@@ -13,9 +13,15 @@ firmware/full_campaign_vcpu.hex
 # Simulation logs
 logs/
 
+# Integration Studio generated TB_DUT
+outputs/
+
 # Python
 __pycache__/
 *.py[cod]
+
+# Local metadata (not part of RTL workflow)
+grok_id.txt
 
 # Editor / OS
 *~

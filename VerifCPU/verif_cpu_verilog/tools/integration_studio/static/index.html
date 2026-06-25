@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Integration Studio — VERIF-CPU-SOC</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Integration Studio</h1>
+      <p class="subtitle">verif_cpu_verilog — gen → hierarchy wiring → TB_DUT module</p>
+    </div>
+    <div class="meta" id="meta-bar">
+      <span class="pill" id="rtl-pill">rtl: …</span>
+      <span class="pill muted" id="out-pill">out: …</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel left">
+      <section class="card">
+        <h2>Generate</h2>
+        <p class="hint">Runs <code>example.sh gen</code> with bus layout options.</p>
+        <div class="gen-grid">
+          <label>--axi <input type="number" id="opt-axi" min="0" max="256" value="1" /></label>
+          <label>--ahb <input type="number" id="opt-ahb" min="0" max="256" value="1" /></label>
+          <label>--apb <input type="number" id="opt-apb" min="0" max="256" value="1" /></label>
+          <label class="full">NUM_SCPU (optional)
+            <input type="number" id="opt-num-scpu" min="0" max="256" placeholder="auto" />
+          </label>
+        </div>
+        <button class="btn primary" id="btn-gen">Gen</button>
+        <pre class="log" id="gen-log">Ready.</pre>
+      </section>
+
+      <section class="card grow">
+        <h2>CPUs</h2>
+        <p class="hint">MVCPU + enabled SCPU from <code>campaign_manifest.h</code></p>
+        <ul class="cpu-list" id="cpu-list"></ul>
+      </section>
+    </aside>
+
+    <section class="panel right">
+      <section class="card editor">
+        <div class="editor-head">
+          <h2 id="editor-title">Hierarchy</h2>
+          <button class="btn accent" id="btn-generate" disabled>Generate TB_DUT</button>
+        </div>
+        <p class="hint" id="editor-hint">Select a CPU on the left, then define bus_port and address map.</p>
+        <form id="hier-form" class="hier-form hidden">
+          <div class="row2">
+            <label>Name <input name="name" required /></label>
+            <label>cpu_id <input name="cpu_id" type="number" readonly /></label>
+          </div>
+          <div class="row2">
+            <label>tap_port <input name="tap_port" type="number" /></label>
+            <label>bus_type
+              <select name="bus_type" id="bus-type-select"></select>
+            </label>
+          </div>
+          <div class="row2">
+            <label>bus_port (signal prefix)
+              <input name="bus_port" placeholder="S01_APB" required />
+            </label>
+            <label class="chk"><input name="wired" type="checkbox" checked /> wired</label>
+          </div>
+          <div class="row2">
+            <label>addr_base <input name="addr_base" placeholder="0x40000000" /></label>
+            <label>addr_size <input name="addr_size" placeholder="0x1000" /></label>
+          </div>
+
+          <section class="bus-signals" id="bus-signals-panel">
+            <div class="bus-signals-head">
+              <h3>AMBA bus signals</h3>
+              <span class="bus-signals-meta" id="bus-signals-meta">Select bus_type</span>
+            </div>
+            <p class="hint">아래 신호 이름을 실제 SoC interconnect RTL 계층 이름에 맞게 입력하세요.</p>
+            <div class="sig-table-wrap">
+              <table class="sig-table" id="sig-table">
+                <thead>
+                  <tr>
+                    <th>Grp</th>
+                    <th>Suffix</th>
+                    <th>W</th>
+                    <th>Dir</th>
+                    <th>Your SoC signal</th>
+                  </tr>
+                </thead>
+                <tbody id="sig-tbody">
+                  <tr><td colspan="5" class="empty">CPU를 선택하면 신호 목록이 표시됩니다.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <div class="fab-row">
+            <label class="full">soc_name <input id="soc-name" placeholder="my_chip" /></label>
+            <label class="full">module_name <input id="module-name" placeholder="tb_dut_my_chip" /></label>
+          </div>
+        </form>
+      </section>
+
+      <section class="card preview">
+        <div class="preview-head">
+          <h2>Module preview</h2>
+          <button class="btn ghost" id="btn-refresh-preview" disabled>Refresh</button>
+        </div>
+        <pre class="code" id="preview-code">// Configure hierarchy and click Refresh or Generate TB_DUT</pre>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

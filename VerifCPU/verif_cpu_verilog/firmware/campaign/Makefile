@@ -20,7 +20,11 @@ COMMON    := common/phase_a.c common/phase_b.c
 REPO_RTL  := $(abspath ../../rtl)
 REPO_INC  := $(abspath ../../include)
 
-.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml
+# Chip-specific hierarchy SSOT (copy from soc_hierarchy_example.yaml — do not edit example in place)
+HIER_YAML ?= soc_hierarchy_example.yaml
+export HIER_YAML
+
+.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen
 
 # Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
 all: config
@@ -52,7 +56,7 @@ manifest: config
 	python3 gen_campaign_manifest.py
 
 icodes: config manifest
-	python3 build_icode_pool.py
+	python3 build_icode_pool.py --yaml $(HIER_YAML)
 
 merge: config $(BUILD_DIR)/icode_pool.bin NOOP $(CPU_ACTIVE)
 	python3 merge_campaign.py
@@ -62,10 +66,14 @@ $(REPO_RTL)/verif_vcpu_soc_cell.v: gen_soc_cell_rtl.py amba_bus_registry.py veri
 
 soc_cell: $(REPO_RTL)/verif_vcpu_soc_cell.v
 
-$(REPO_INC)/verif_soc_bus_connect.vh: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
+bus_connect: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
 	python3 gen_soc_bus_connect.py
 
-bus_connect bus_connect_yaml: $(REPO_INC)/verif_soc_bus_connect.vh
+chip_top_gen: gen_tb_campaign.py $(HIER_YAML)
+	python3 gen_tb_campaign.py --yaml $(HIER_YAML)
+
+bus_connect_yaml: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py $(HIER_YAML)
+	python3 gen_soc_bus_connect.py --yaml $(HIER_YAML)
 
 hex: merge
 

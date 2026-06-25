@@ -11,7 +11,13 @@ module verif_soc_bus;
     output [1:0]  resp;
     reg [1:0] port;
     begin
-      tb_full_campaign.u_soc.decode_read(addr, size, data, resp, port);
+`ifdef VERIF_SOC_DUT_HUB
+      `VERIF_SOC_DUT_HUB.decode_read(addr, size, data, resp, port);
+`else
+      data = 32'h0;
+      resp = 2'd2;
+      port = 2'd3;
+`endif
     end
   endtask
 
@@ -22,7 +28,12 @@ module verif_soc_bus;
     output [1:0]  resp;
     reg [1:0] port;
     begin
-      tb_full_campaign.u_soc.decode_write(addr, data, size, resp, port);
+`ifdef VERIF_SOC_DUT_HUB
+      `VERIF_SOC_DUT_HUB.decode_write(addr, data, size, resp, port);
+`else
+      resp = 2'd2;
+      port = 2'd3;
+`endif
     end
   endtask
 

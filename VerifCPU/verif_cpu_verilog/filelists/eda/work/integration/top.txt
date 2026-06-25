@@ -1,0 +1,1 @@
+verif_vcpu_soc_cell

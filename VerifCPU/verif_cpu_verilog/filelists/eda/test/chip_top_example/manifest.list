@@ -1,0 +1,11 @@
+# EDA compile manifest — Test — chip top smoke
+# Order: incdirs → defines → vcpu → rtl → tb_top
+# VCS:  vcs -sverilog -full64 -F filelists/eda/test/chip_top_example/manifest.list -top chip_top_example
+# xrun: xrun -64bit -sv -F filelists/eda/test/chip_top_example/manifest.list -top chip_top_example
+# Run from verif_cpu_verilog/ (package root)
+
+-F filelists/eda/test/chip_top_example/incdirs.list
+-F filelists/eda/test/chip_top_example/defines.list
+-F filelists/eda/test/chip_top_example/vcpu.list
+-F filelists/eda/test/chip_top_example/rtl.list
+-F filelists/eda/test/chip_top_example/tb_top.list

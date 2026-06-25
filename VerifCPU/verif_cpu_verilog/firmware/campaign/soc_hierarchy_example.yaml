@@ -33,7 +33,7 @@ slaves:
 
   - name: DMA_CH3
     cpu_id: 37
-    tap_port: 37
+    tap_port: 36              # agent snoop channel (≠ cpu_id; matches intake example)
     bus_type: axi
     bus_port: S37_AXI
     addr_base: 0x4A000000

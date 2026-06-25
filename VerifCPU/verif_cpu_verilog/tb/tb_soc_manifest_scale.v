@@ -1,4 +1,6 @@
 // Scale integration TB — flat g_slv[0..N-1] from manifest BUS_LAYOUT + active campaign subset
+// Fabric (wires, stubs, cells, CONNECT) in tb_soc_manifest_scale_gen.vh — edit YAML, not this file.
+
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_platform_defs.vh"
@@ -38,46 +40,6 @@ module tb_soc_manifest_scale;
   `CAMPAIGN_MASTER_INSTANCE
 
   `include "tb_soc_manifest_scale_gen.vh"
-
-  assign S03_AXI_rid = 4'd0;
-  assign S03_AXI_bid = 4'd0;
-  assign S03_AXI_rlast = 1'b1;
-
-  verif_apb_slave_simple #(.BASE(32'h4000_0000)) u_periph_apb (
-    .PCLK(soc_clk), .PRESETn(soc_rstn),
-    .PADDR(S01_APB_PADDR), .PSEL(S01_APB_PSEL), .PENABLE(S01_APB_PENABLE),
-    .PWRITE(S01_APB_PWRITE), .PWDATA(S01_APB_PWDATA), .PSTRB(S01_APB_PSTRB),
-    .PRDATA(S01_APB_PRDATA), .PREADY(S01_APB_PREADY), .PSLVERR(S01_APB_PSLVERR)
-  );
-
-  verif_ahb_lite_slave_simple #(
-    .BASE(32'h8000_0000),
-    .INIT_WORD0(32'hDEADBEEF),
-    .INIT_WORD1(32'hCAFEBABE)
-  ) u_periph_ahb (
-    .HCLK(soc_clk), .HRESETn(soc_rstn),
-    .HADDR(M02_AHB_HADDR), .HSIZE(M02_AHB_HSIZE), .HTRANS(M02_AHB_HTRANS),
-    .HWRITE(M02_AHB_HWRITE), .HWDATA(M02_AHB_HWDATA), .HREADY(M02_AHB_HREADY),
-    .HRDATA(M02_AHB_HRDATA), .HREADYOUT(M02_AHB_HREADYOUT), .HRESP(M02_AHB_HRESP)
-  );
-
-  verif_axi_full_slave_simple #(
-    .BASE(32'hC000_0000),
-    .INIT_WORD0(32'h00000080),
-    .INIT_WORD1(32'hDEADDEAD)
-  ) u_periph_axi (
-    .ACLK(soc_clk), .ARESETn(soc_rstn),
-    .ARID(4'd0), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
-    .ARBURST(2'b01), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
-    .RID(S03_AXI_rid), .RDATA(S03_AXI_rdata), .RRESP(S03_AXI_rresp),
-    .RLAST(S03_AXI_rlast), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
-    .AWID(4'd0), .AWADDR(S03_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S03_AXI_awsize),
-    .AWBURST(2'b01), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
-    .WID(4'd0), .WDATA(S03_AXI_wdata), .WSTRB(S03_AXI_wstrb), .WLAST(1'b1),
-    .WVALID(S03_AXI_wvalid), .WREADY(S03_AXI_wready),
-    .BID(S03_AXI_bid), .BRESP(S03_AXI_bresp), .BVALID(S03_AXI_bvalid), .BREADY(S03_AXI_bready)
-  );
-
   `include "tb_soc_manifest_decode.vh"
 
   integer pass, fail;
@@ -85,7 +47,6 @@ module tb_soc_manifest_scale;
   reg [1:0]  rresp, rport;
   reg        icode_exec_ok, init_ok;
   integer    poll;
-  reg        scale_last_ok;
 
   task check;
     input [8*96:1] name;
@@ -150,18 +111,11 @@ module tb_soc_manifest_scale;
 
     `SOC_MANIFEST_SETUP_CPUS
 
-    $display("\n[1] Phase A — active 3 on flat %0d-cell fabric", `SOC_MANIFEST_SCALE_NUM_WIRED);
+    $display("\n[1] Phase A — active subset on flat %0d-cell fabric",
+             `SOC_MANIFEST_SCALE_NUM_WIRED);
     u_orch.phase_release(`PHASE_INIT, `SOC_MANIFEST_OFF_A);
     `SOC_MANIFEST_RUN_PHASE_A
-
-    check("SFR Phase A stopped", g_slv0.u_bus.u_cpu.sim_stop);
-    check("SRAM Phase A stopped", g_slv1.u_bus.u_cpu.sim_stop);
-    check("UART Phase A stopped", g_slv2.u_bus.u_cpu.sim_stop);
-    check("SFR bus_txn_count > 0", g_slv0.u_bus.u_cpu.bus_txn_count > 0);
-    check("SRAM bus_txn_count > 0", g_slv1.u_bus.u_cpu.bus_txn_count > 0);
-    check("Agent SFR saw traffic", sl_txns[0] > 0);
-    check("Agent SRAM saw traffic", sl_txns[1] > 0);
-    check("Agent UART saw traffic", sl_txns[2] > 0);
+    `SOC_MANIFEST_PHASE_A_CHECKS
 
     $display("\n[2] Phase B — master init_done + hints + collect");
     manifest_master_wait_init_done(init_ok);

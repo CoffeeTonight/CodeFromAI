@@ -9,7 +9,8 @@ VerifCPU VCPU → 고객 SoC 통합 **자율 LLM**용 Obsidian vault.
 | [[01-MISSION]] | I/O 계약 |
 | [[02-INTAKE]] | `customer_soc_intake.template.yaml` |
 | [[03-WORKFLOW]] | S0–S10 |
-| [[04-MODES]] | wrapper / injection |
+| [[13-INTEGRATION-TIERS]] | **paste → yaml-multi → scale** (tier SSOT) |
+| [[04-MODES]] | wrapper / injection × tier |
 | [[05-GENERATE]] | make / python 명령 |
 | [[06-RTL-DERIVE]] | 고객 RTL에서 추출 |
 | [[11-SIMULATION-USER]] | 시뮬 env·실행법 (S2d) → 통합 후 S9 |

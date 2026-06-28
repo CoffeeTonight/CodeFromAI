@@ -1,14 +1,14 @@
 # VERIF-CPU-SOC 검증 요약 — tag `main`
 
-생성일: **2026-06-14**  
+생성일: **2026-06-28**  
 프로젝트: **VERIF-CPU-SOC** · 마일스톤 **M2** (Block RTL & Unit DV)
 
 ## Gate 한눈표
 
 | stage / group | 판정 | run_id | 상세 보고서 |
 |---------------|------|--------|-------------|
-| static / `coi_conn` | **PASS** | `coi-conn-test` | [Static COI connectivity (chip_top)](static_coi_conn.md) |
-| simulation / `slave_rw` | **PASS** | `exit-scan-test2` | [Simulation slave R/W (single / burst / cpu_sync)](simulation_slave_rw.md) |
+| static / `coi_conn` | **PASS** | `reproduce-main-20260628-064247` | [Static COI connectivity (chip_top)](static_coi_conn.md) |
+| simulation / `slave_rw` | **PASS** | `reproduce-main-20260628-064247` | [Simulation slave R/W (single / burst / cpu_sync)](simulation_slave_rw.md) |
 
 ## 빠른 링크
 

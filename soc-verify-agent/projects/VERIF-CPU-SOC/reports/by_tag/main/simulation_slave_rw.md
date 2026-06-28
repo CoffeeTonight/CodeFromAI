@@ -1,6 +1,6 @@
 # 보고서 — simulation / slave_rw
 
-> tag **`main`** · run `exit-scan-test2` · 생성일 2026-06-14
+> tag **`main`** · run `reproduce-main-20260628-064247` · 생성일 2026-06-28
 
 ## 요약
 
@@ -36,8 +36,8 @@
 
 | 파일 | 경로 |
 |------|------|
-| verdict | `runs/exit-scan-test2/verdict_slave_rw.json` |
-| log | `runs/exit-scan-test2/slave_rw.log` |
+| verdict | `runs/reproduce-main-20260628-064247/verdict_slave_rw.json` |
+| log | `runs/reproduce-main-20260628-064247/slave_rw.log` |
 
 ## 선행 조건
 

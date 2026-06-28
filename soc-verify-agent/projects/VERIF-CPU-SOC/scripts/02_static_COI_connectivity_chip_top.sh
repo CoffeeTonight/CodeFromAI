@@ -14,7 +14,7 @@ require_cmd python3
 if ! command -v hier-walk >/dev/null 2>&1; then
   HIERWALK_SRC="${HIERWALK_PATH:-}"
   if [[ -z "$HIERWALK_SRC" ]]; then
-    for candidate in "${HOME}/tools/__CFI/hierwalk" /home/user/Desktop/hierwalk; do
+    for candidate in "${HOME}/tools/hierwalk" /home/user/tools/hierwalk "${HOME}/tools/__CFI/hierwalk" "${HOME}/tools/__CFA/hierwalk" /home/user/tools/__CFI/hierwalk /home/user/tools/__CFA/hierwalk /home/user/Desktop/hierwalk; do
       if [[ -d "$candidate" ]]; then
         HIERWALK_SRC="$candidate"
         break

@@ -11,7 +11,18 @@
       port = 2'd3;
       data = 32'hDEAD_DEAD;
       resp = 2'd2;
-      ;
+      if (addr >= 32'h40000000 && addr < 32'h40001000) begin
+        port = 2'd0;
+        g_slv0.u_bus.u_bridge.bus_read(addr, size, data, resp);
+      end
+      else if (addr >= 32'h80000000 && addr < 32'h80010000) begin
+        port = 2'd1;
+        g_slv1.u_bus.u_bridge.bus_read(addr, size, data, resp);
+      end
+      else if (addr >= 32'hC0000000 && addr < 32'hC0001000) begin
+        port = 2'd2;
+        g_slv2.u_bus.u_bridge.bus_read(addr, size, data, resp);
+      end
     end
   endtask
 
@@ -24,6 +35,17 @@
     begin
       port = 2'd3;
       resp = 2'd2;
-      ;
+      if (addr >= 32'h40000000 && addr < 32'h40001000) begin
+        port = 2'd0;
+        g_slv0.u_bus.u_bridge.bus_write(addr, data, size, resp);
+      end
+      else if (addr >= 32'h80000000 && addr < 32'h80010000) begin
+        port = 2'd1;
+        g_slv1.u_bus.u_bridge.bus_write(addr, data, size, resp);
+      end
+      else if (addr >= 32'hC0000000 && addr < 32'hC0001000) begin
+        port = 2'd2;
+        g_slv2.u_bus.u_bridge.bus_write(addr, data, size, resp);
+      end
     end
   endtask

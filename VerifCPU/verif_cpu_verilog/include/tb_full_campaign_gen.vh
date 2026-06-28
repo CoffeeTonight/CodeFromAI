@@ -8,47 +8,67 @@
 `define CAMPAIGN_ICODE_POOL_BYTES 28672
 `define CAMPAIGN_POOL_READMEMH_MAX 32'h00040000
 `define CAMPAIGN_ICODE_USE_LAZY 0
-`define CAMPAIGN_MEM_WORDS 32'h3000
+`define CAMPAIGN_MEM_WORDS 32'h4000
 
 `define CAMPAIGN_LOAD_FIRMWARE \
   u_pool.pool_load_hex("firmware/full_campaign_unified.hex"); \
   `CAMPAIGN_POOL_ASSIGN_VCPUS \
-  u_pool.pool_assign_region(4'd4, 32'h800, ICODE_POOL_SZ); \
+  u_pool.pool_assign_region(4'd4, 32'h1800, ICODE_POOL_SZ); \
   u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \
   check_eq("Icode pool embedded (readmemh)", !pool_err && pool_word != 32'h00000013); \
 
-`define CAMPAIGN_NUM_VCPUS 1
+`define CAMPAIGN_NUM_VCPUS 3
 `define CAMPAIGN_NUM_AGENTS `CAMPAIGN_MAX_SLOTS
 `define CAMPAIGN_MAX_ICODE_SLOTS 2
-`define CAMPAIGN_TOTAL_ICODE_PASS 2
+`define CAMPAIGN_TOTAL_ICODE_PASS 6
 
 `define CAMPAIGN_POOL_ASSIGN_VCPUS \
-  u_pool.pool_assign_region(0, 32'h0, FW_SIZE); \
+  u_pool.pool_assign_region(1, 32'h0, FW_SIZE); \
+  u_pool.pool_assign_region(2, 32'h800, FW_SIZE); \
+  u_pool.pool_assign_region(3, 32'h1000, FW_SIZE); \
 
 `define CAMPAIGN_SETUP_VCPUS \
-  setup_cpu(0, "MSTR    ", 32'h0, 100); \
+  setup_cpu(1, "SFR     ", 32'h0, 100); \
+  setup_cpu(2, "SRAM    ", 32'h800, 100); \
+  setup_cpu(3, "UART    ", 32'h1000, 100); \
 
 `define CAMPAIGN_RUN_PHASE_A_AGENTS \
-  u_mstr_ag.run_phase_a(); \
+  g_ag[0].u_ag.run_phase_a(); \
+  g_ag[1].u_ag.run_phase_a(); \
+  g_ag[2].u_ag.run_phase_a(); \
 
 `define CAMPAIGN_RUN_PHASE_A_VCORES \
-  run_cpu_core(0, OFF_A, 64, hang_rec); \
+  run_cpu_core(1, OFF_A, 64, hang_rec); \
+  run_cpu_core(2, OFF_A, 64, hang_rec); \
+  run_cpu_core(3, OFF_A, 64, hang_rec); \
 
 `define CAMPAIGN_RUN_PHASE_B_AGENTS \
-  u_mstr_ag.run_phase_b(); \
+  g_ag[0].u_ag.run_phase_b(); \
+  g_ag[1].u_ag.run_phase_b(); \
+  g_ag[2].u_ag.run_phase_b(); \
 
 `define CAMPAIGN_RUN_PHASE_B_VCORES \
-  run_cpu_core(0, OFF_B, 48, hang_rec); \
+  run_cpu_core(1, OFF_B, 48, hang_rec); \
+  run_cpu_core(2, OFF_B, 48, hang_rec); \
+  run_cpu_core(3, OFF_B, 48, hang_rec); \
 
-`define CAMPAIGN_PHASE_B_SLOT_CHECK (mstr_slot_count >= 2)
+`define CAMPAIGN_PHASE_B_SLOT_CHECK (sl_slot_count[0] >= 2 && sl_slot_count[1] >= 2 && sl_slot_count[2] >= 2)
 
 `define CAMPAIGN_ICODE_RV32_EXEC \
-  exec_icode_on_cpu(0, `ICODE_MSTR_SLOT0_PTR, icode_exec_ok); \
-  check_eq("Icode RV32 exec MSTR slot0 (check_sfr_ctrl)", icode_exec_ok); \
+  exec_icode_on_cpu(1, `ICODE_SFR_SLOT0_PTR, icode_exec_ok); \
+  check_eq("Icode RV32 exec SFR slot0 (check_sfr_ctrl)", icode_exec_ok); \
+  exec_icode_on_cpu(2, `ICODE_SRAM_SLOT0_PTR, icode_exec_ok); \
+  check_eq("Icode RV32 exec SRAM slot0 (check_sram_marker)", icode_exec_ok); \
+  exec_icode_on_cpu(3, `ICODE_UART_SLOT0_PTR, icode_exec_ok); \
+  check_eq("Icode RV32 exec UART slot0 (check_uart_baud)", icode_exec_ok); \
 
 `define CAMPAIGN_ICODE_MAP_BUS_CHECKS \
   check_eq("Icode map SFR_CTRL", `ICODE_BUS_CHECK_SFR_CTRL == 32'h40000000); \
   check_eq("Icode map SFR_CFG", `ICODE_BUS_CHECK_SFR_MASK == 32'h40000004); \
+  check_eq("Icode map SRAM_MARKER", `ICODE_BUS_CHECK_SRAM_MARKER == 32'h80000000); \
+  check_eq("Icode map SRAM_AUX", `ICODE_BUS_CHECK_SRAM_AUX == 32'h80000004); \
+  check_eq("Icode map UART_BAUD", `ICODE_BUS_CHECK_UART_BAUD == 32'hC0000000); \
+  check_eq("Icode map UART_IRQ_HANG", `ICODE_BUS_CHECK_UART_IRQ == 32'hC0000010); \
 
 `define CAMPAIGN_ICODE_AGENT_ROUNDS \
   begin : _gen_icode_rounds \
@@ -61,20 +81,28 @@
       end \
       if (_slot == 0) begin \
         u_soc.decode_read(32'h40000000, 3'd4, rdata, rresp, rport); \
-        u_mstr_ag.run_phase_c_slot(rdata, rresp, 0); \
-        check_eq("Multi-icode round0 PASS=1", mstr_pass == 1); \
+        g_ag[0].u_ag.run_phase_c_slot(rdata, rresp, 0); \
+        u_soc.decode_read(32'h80000000, 3'd4, rdata, rresp, rport); \
+        g_ag[1].u_ag.run_phase_c_slot(rdata, rresp, 0); \
+        u_soc.decode_read(32'hC0000000, 3'd4, rdata, rresp, rport); \
+        g_ag[2].u_ag.run_phase_c_slot(rdata, rresp, 0); \
+        check_eq("Multi-icode round0 PASS=3", sl_pass[0] + sl_pass[1] + sl_pass[2] == 3); \
       end \
       if (_slot == 1) begin \
         u_soc.decode_read(32'h40000004, 3'd4, rdata, rresp, rport); \
-        u_mstr_ag.run_phase_c_slot(rdata, rresp, 1); \
+        g_ag[0].u_ag.run_phase_c_slot(rdata, rresp, 1); \
+        u_soc.decode_read(32'h80000004, 3'd4, rdata, rresp, rport); \
+        g_ag[1].u_ag.run_phase_c_slot(rdata, rresp, 1); \
+        u_soc.decode_read(32'hC0000010, 3'd4, rdata, rresp, rport); \
+        g_ag[2].u_ag.run_phase_c_slot(rdata, rresp, 1); \
       end \
     end \
   end
 
 `define CAMPAIGN_ICODE_FINAL_CHECKS \
-  total_pass = mstr_pass; \
-  total_fail = mstr_fail; \
-  check_eq("Platform multi-icode PASS=2", total_pass == `CAMPAIGN_TOTAL_ICODE_PASS && total_fail == 0); \
+  total_pass = sl_pass[0] + sl_pass[1] + sl_pass[2]; \
+  total_fail = sl_fail[0] + sl_fail[1] + sl_fail[2]; \
+  check_eq("Platform multi-icode PASS=6", total_pass == `CAMPAIGN_TOTAL_ICODE_PASS && total_fail == 0); \
   check_eq("Orchestrator reset count", orch_reset_count >= 4); \
 
 // --- example.sh gen default campaign scenario (feature matrix) ---
@@ -86,42 +114,83 @@
 `define CAMPAIGN_PHASE_C_SFR \
   $display("\n[4] Phase C — SFR full ISA + DEADDEAD + X/Z"); \
   u_orch.phase_release(`PHASE_VERIFY, OFF_C); \
-  run_cpu_core(0, OFF_C, 900, hang_rec); \
-  check_eq("SFR assertions pass", u_mstr_cpu.assert_fail == 0 && u_mstr_cpu.assert_pass >= 3); \
-  check_eq("SFR bus activity", u_mstr_cpu.bus_txn_count >= 3); \
-  check_eq("SFR vwave dump", u_mstr_cpu.wave_chg_count > 0); \
-  check_eq("SFR vforce/vdummy/vassert", u_mstr_cpu.assert_pass >= 3); \
-  check_eq("SFR vhw_force hier hit", u_mstr_cpu.hw_force_hit_count >= 1); \
+  run_cpu_core(1, OFF_C, 900, hang_rec); \
+  check_eq("SFR assertions pass", g_cpu[0].u_cpu.assert_fail == 0 && g_cpu[0].u_cpu.assert_pass >= 3); \
+  check_eq("SFR bus activity", g_cpu[0].u_cpu.bus_txn_count >= 3); \
+  check_eq("SFR vwave dump", g_cpu[0].u_cpu.wave_chg_count > 0); \
+  check_eq("SFR vforce/vdummy/vassert", g_cpu[0].u_cpu.assert_pass >= 3); \
+  check_eq("SFR vhw_force hier hit", g_cpu[0].u_cpu.hw_force_hit_count >= 1); \
   check_eq("SFR hw_force table", u_hw_force.force_set_count >= 1); \
-  check_eq("SFR vsync hits", u_mstr_cpu.sync_arrive_count >= 1); \
-  check_eq("SFR PC coverage", u_mstr_cpu.unique_pcs >= 4); \
+  check_eq("SFR vsync hits", g_cpu[0].u_cpu.sync_arrive_count >= 1); \
+  check_eq("SFR PC coverage", g_cpu[0].u_cpu.unique_pcs >= 4); \
 
 `define CAMPAIGN_PHASE_C_SRAM \
-  $display("\n[5] Phase C SRAM skipped (no SRAM VCPU)"); \
+  $display("\n[5] Phase C — SRAM JAL/JALR"); \
+  run_cpu_core(2, OFF_C, 400, hang_rec); \
+  check_eq("SRAM assertions pass", g_cpu[1].u_cpu.assert_fail == 0); \
+  check_eq("SRAM JAL/JALR steps", g_cpu[1].u_cpu.total_steps >= 10); \
+  check_eq("SRAM vsync hits", g_cpu[1].u_cpu.sync_arrive_count >= 1); \
 
 `define CAMPAIGN_UART_WDT \
-  $display("\n[7] UART WDT skipped (no UART VCPU)"); \
+  $display("\n[7] UART WDT hang → recovery → recover fw"); \
+  hang_rec = 0; \
+  run_cpu_core(3, OFF_UART_HANG, 200, hang_rec); \
+  check_eq("WDT hang recovery", hang_rec == 1); \
+  check_eq("WDT fired on hang", g_cpu[2].u_cpu.recovery_count >= 1); \
+  run_cpu_core(3, OFF_UART_RECOVER, 300, hang_rec); \
+  check_eq("UART recover assertions", g_cpu[2].u_cpu.assert_fail == 0); \
+  check_eq("DEADDEAD recovery path", g_cpu[2].u_cpu.recovery_count >= 1); \
+  check_eq("UART vsync solo", g_cpu[2].u_cpu.sync_arrive_count >= 2); \
 
 `define CAMPAIGN_VCD_EXPORT \
-  $sformat(vcd_cpu, "%0s/SCPU0.vcd", log_dir); \
-  u_mstr_cpu.wave_export_vcd(vcd_cpu); \
+  $sformat(vcd_cpu, "%0s/SCPU1.vcd", log_dir); \
+  g_cpu[0].u_cpu.wave_export_vcd(vcd_cpu); \
+  $sformat(vcd_cpu, "%0s/SCPU2.vcd", log_dir); \
+  g_cpu[1].u_cpu.wave_export_vcd(vcd_cpu); \
+  $sformat(vcd_cpu, "%0s/SCPU3.vcd", log_dir); \
+  g_cpu[2].u_cpu.wave_export_vcd(vcd_cpu); \
   check_eq("Main VCD path set", 1); \
 
 `define CAMPAIGN_REPORT_VCORES \
-  $display("  MSTR steps=%0d bus=%0d assert_pass=%0d fail=%0d", u_mstr_cpu.total_steps, u_mstr_cpu.bus_txn_count, u_mstr_cpu.assert_pass, u_mstr_cpu.assert_fail); \
+  $display("  SFR  steps=%0d bus=%0d assert_pass=%0d fail=%0d", g_cpu[0].u_cpu.total_steps, g_cpu[0].u_cpu.bus_txn_count, g_cpu[0].u_cpu.assert_pass, g_cpu[0].u_cpu.assert_fail); \
+  $display("  SRAM steps=%0d bus=%0d assert_pass=%0d fail=%0d", g_cpu[1].u_cpu.total_steps, g_cpu[1].u_cpu.bus_txn_count, g_cpu[1].u_cpu.assert_pass, g_cpu[1].u_cpu.assert_fail); \
+  $display("  UART steps=%0d bus=%0d recov=%0d assert_pass=%0d fail=%0d", g_cpu[2].u_cpu.total_steps, g_cpu[2].u_cpu.bus_txn_count, g_cpu[2].u_cpu.recovery_count, g_cpu[2].u_cpu.assert_pass, g_cpu[2].u_cpu.assert_fail); \
 
 `define CAMPAIGN_CLOSE_VCORE_LOGS \
-  u_mstr_cpu.cpu_close_dedicated_log(); \
+  g_cpu[0].u_cpu.cpu_close_dedicated_log(); \
+  g_cpu[1].u_cpu.cpu_close_dedicated_log(); \
+  g_cpu[2].u_cpu.cpu_close_dedicated_log(); \
 
 `define CAMPAIGN_CONSOLE_STALL \
   $display("\n[3] Console stall / bus_write / resume"); \
-  u_mstr_cpu.cpu_stall(); \
-  u_mstr_cpu.cpu_console_bus_write(32'h4000_0008, 32'h0000_CAFE, 3'd4); \
-  u_mstr_cpu.cpu_resume(); \
-  check_eq("Console stall/resume", u_mstr_cpu.state == `CPU_STATE_RUNNING); \
+  g_cpu[0].u_cpu.cpu_stall(); \
+  g_cpu[0].u_cpu.cpu_console_bus_write(32'h4000_0008, 32'h0000_CAFE, 3'd4); \
+  g_cpu[0].u_cpu.cpu_resume(); \
+  check_eq("Console stall/resume", g_cpu[0].u_cpu.state == `CPU_STATE_RUNNING); \
 
+`define CAMPAIGN_SYNC_BARRIER_ID 10
+`define CAMPAIGN_SYNC_MASK 64'd7
+`define CAMPAIGN_OFF_SYNC_BARRIER 32'h380
 `define CAMPAIGN_SYNC_PARALLEL \
-  $display("\n[3] Multi-CPU sync skipped (<2 active VCPUs)"); \
+  begin : _sync_parallel \
+    reg [31:0] _rel_before; \
+    reg [31:0] _sync_bus0; \
+    reg [31:0] _sync_bus1; \
+    reg [31:0] _sync_bus2; \
+    $display("\n[3] Multi-CPU sync barrier + parallel bus (vsync firmware)"); \
+    _rel_before = u_sync.barrier_release_count; \
+    _sync_bus0 = g_cpu[0].u_cpu.bus_txn_count; \
+    _sync_bus1 = g_cpu[1].u_cpu.bus_txn_count; \
+    _sync_bus2 = g_cpu[2].u_cpu.bus_txn_count; \
+    u_sync.sync_configure(8'd10, 64'd7); \
+    start_cpus_parallel(`CAMPAIGN_OFF_SYNC_BARRIER); \
+    run_cpus_parallel(800); \
+    check_eq("Sync parallel barrier release", u_sync.barrier_release_count == _rel_before + 1); \
+    check_eq("Sync parallel firmware done", (g_cpu[0].u_cpu.request_sim_stop || g_cpu[0].u_cpu.sim_stop) && (g_cpu[1].u_cpu.request_sim_stop || g_cpu[1].u_cpu.sim_stop) && (g_cpu[2].u_cpu.request_sim_stop || g_cpu[2].u_cpu.sim_stop)); \
+  check_eq("Sync parallel bus SFR", _sync_bus0 < g_cpu[0].u_cpu.bus_txn_count); \
+  check_eq("Sync parallel bus SRAM", _sync_bus1 < g_cpu[1].u_cpu.bus_txn_count); \
+  check_eq("Sync parallel bus UART", _sync_bus2 < g_cpu[2].u_cpu.bus_txn_count); \
+  end \
 
 `define CAMPAIGN_EXECUTE \
   `CAMPAIGN_LOAD_FIRMWARE \
@@ -133,8 +202,9 @@
   `CAMPAIGN_RUN_PHASE_A_AGENTS \
   `CAMPAIGN_RUN_PHASE_A_VCORES \
   check_eq("Phase A SoC init (17-step)", 1); \
-  check_eq("Phase A bus txn (SFR)", u_mstr_cpu.bus_txn_count >= 1); \
-  check_eq("Phase A vwdt/vtrace steps", u_mstr_cpu.total_steps >= 4); \
+  check_eq("Phase A bus txn (SFR)", g_cpu[0].u_cpu.bus_txn_count >= 1); \
+  check_eq("Phase A vwdt/vtrace steps", g_cpu[0].u_cpu.total_steps >= 4); \
+  check_eq("Phase A agent snoop", sl_txns[0] >= 1 && sl_txns[1] >= 1 && sl_txns[2] >= 1); \
   $display("\n[2] Phase B — master hints + collect"); \
   `CAMPAIGN_MASTER_WAIT_INIT_DONE \
   u_mstr.phase_release(`PHASE_COLLECT, OFF_B); \
@@ -166,18 +236,36 @@
   );
   `endif
 
-  `ifdef CAMPAIGN_MASTER_HAS_AGENT
-  verif_agent_slave #(.CPU_ID(0), .CPU_NAME("MSTR    "), .TAP_PORT(`CAMPAIGN_MASTER_TAP_PORT)) u_mstr_ag (
-    .phase(orch_phase), .boot_fw_offset(orch_boot_fw), .reset_pulse(orch_reset),
-    .txn_valid(u_soc.stxn_valid[`CAMPAIGN_MASTER_TAP_PORT]),
-    .txn_is_write(u_soc.stxn_wr[`CAMPAIGN_MASTER_TAP_PORT]),
-    .txn_addr(u_soc.stxn_addr[`CAMPAIGN_MASTER_TAP_PORT]),
-    .txn_data(u_soc.stxn_data[`CAMPAIGN_MASTER_TAP_PORT]),
-    .icode_ptr(`ICODE_MSTR_SLOT0_PTR), .icode_kind(3'd0),
-    .slot_count(mstr_slot_count), .verify_pass(mstr_pass),
-    .verify_fail(mstr_fail), .txn_recorded(mstr_txns)
-  );
-  `endif
+  genvar gci;
+  generate
+    for (gci = 0; gci < `CAMPAIGN_MAX_SLOTS; gci = gci + 1) begin : g_cpu
+      verif_cpu_core #(
+        .CPU_ID(gci + 1), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(1), .USE_SHARED_SYNC(1), .USE_HW_FORCE(1)
+      ) u_cpu (
+        .final_pc(), .total_steps(), .sim_stop(),
+        .assert_pass(), .assert_fail(), .bus_txn_count(),
+        .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
+      );
+    end
+  endgenerate
+
+  genvar gi;
+  generate
+    for (gi = 0; gi < `CAMPAIGN_MAX_SLOTS; gi = gi + 1) begin : g_ag
+      localparam [3:0]  CID = gi + 4'd1;
+      localparam [7:0]  TAP = (gi == 0) ? 8'd0 : (gi == 1) ? 8'd1 : (gi == 2) ? 8'd2 : 8'd0;
+      localparam [31:0] ICODE_PTR = (gi == 0) ? `ICODE_SFR_SLOT0_PTR : (gi == 1) ? `ICODE_SRAM_SLOT0_PTR : (gi == 2) ? `ICODE_UART_SLOT0_PTR : 32'h0;
+      localparam [8*8:1] AG_NAME = (gi == 0) ? "SFR     " : (gi == 1) ? "SRAM    " : (gi == 2) ? "UART    " : "RESERVED";
+      verif_agent_slave #(.CPU_ID(CID), .CPU_NAME(AG_NAME), .TAP_PORT(TAP)) u_ag (
+        .phase(orch_phase), .boot_fw_offset(orch_boot_fw), .reset_pulse(orch_reset),
+        .txn_valid(u_soc.stxn_valid[TAP]), .txn_is_write(u_soc.stxn_wr[TAP]),
+        .txn_addr(u_soc.stxn_addr[TAP]), .txn_data(u_soc.stxn_data[TAP]),
+        .icode_ptr(ICODE_PTR), .icode_kind(3'd0),
+        .slot_count(sl_slot_count[gi]), .verify_pass(sl_pass[gi]),
+        .verify_fail(sl_fail[gi]), .txn_recorded(sl_txns[gi])
+      );
+    end
+  endgenerate
 
   task setup_cpu;
     input [3:0] cid;
@@ -187,18 +275,44 @@
     reg [1024*8:1] logpath;
     begin
       case (cid)
-        4'd0: begin
-          u_mstr_cpu.cpu_init();
-          u_mstr_cpu.cpu_set_name(name);
-          u_mstr_cpu.cpu_attach_pool_region(pool_base, FW_SIZE);
-          u_mstr_cpu.cpu_attach_recorder();
-          u_mstr_cpu.cpu_attach_wdt(wdt_to);
-          u_mstr_cpu.cpu_attach_coverage();
-          u_mstr_cpu.cpu_attach_wave_dumper();
-          u_mstr_cpu.cpu_attach_sync();
-          u_mstr_cpu.cpu_set_hierarchy(32'h00000000);
-          $sformat(logpath, "%0s/SCPU0.log", log_dir);
-          u_mstr_cpu.cpu_open_dedicated_log(logpath);
+        4'd1: begin
+          g_cpu[0].u_cpu.cpu_init();
+          g_cpu[0].u_cpu.cpu_set_name(name);
+          g_cpu[0].u_cpu.cpu_attach_pool_region(pool_base, FW_SIZE);
+          g_cpu[0].u_cpu.cpu_attach_recorder();
+          g_cpu[0].u_cpu.cpu_attach_wdt(wdt_to);
+          g_cpu[0].u_cpu.cpu_attach_coverage();
+          g_cpu[0].u_cpu.cpu_attach_wave_dumper();
+          g_cpu[0].u_cpu.cpu_attach_sync();
+          g_cpu[0].u_cpu.cpu_set_hierarchy(32'h00000010);
+          $sformat(logpath, "%0s/SCPU1.log", log_dir);
+          g_cpu[0].u_cpu.cpu_open_dedicated_log(logpath);
+        end
+        4'd2: begin
+          g_cpu[1].u_cpu.cpu_init();
+          g_cpu[1].u_cpu.cpu_set_name(name);
+          g_cpu[1].u_cpu.cpu_attach_pool_region(pool_base, FW_SIZE);
+          g_cpu[1].u_cpu.cpu_attach_recorder();
+          g_cpu[1].u_cpu.cpu_attach_wdt(wdt_to);
+          g_cpu[1].u_cpu.cpu_attach_coverage();
+          g_cpu[1].u_cpu.cpu_attach_wave_dumper();
+          g_cpu[1].u_cpu.cpu_attach_sync();
+          g_cpu[1].u_cpu.cpu_set_hierarchy(32'h00000020);
+          $sformat(logpath, "%0s/SCPU2.log", log_dir);
+          g_cpu[1].u_cpu.cpu_open_dedicated_log(logpath);
+        end
+        4'd3: begin
+          g_cpu[2].u_cpu.cpu_init();
+          g_cpu[2].u_cpu.cpu_set_name(name);
+          g_cpu[2].u_cpu.cpu_attach_pool_region(pool_base, FW_SIZE);
+          g_cpu[2].u_cpu.cpu_attach_recorder();
+          g_cpu[2].u_cpu.cpu_attach_wdt(wdt_to);
+          g_cpu[2].u_cpu.cpu_attach_coverage();
+          g_cpu[2].u_cpu.cpu_attach_wave_dumper();
+          g_cpu[2].u_cpu.cpu_attach_sync();
+          g_cpu[2].u_cpu.cpu_set_hierarchy(32'h00000030);
+          $sformat(logpath, "%0s/SCPU3.log", log_dir);
+          g_cpu[2].u_cpu.cpu_open_dedicated_log(logpath);
         end
         default: ;
       endcase
@@ -213,22 +327,61 @@
     begin
       recovered = 0;
       case (cid)
-        4'd0: begin
-          u_mstr_cpu.pc = offset;
-          u_mstr_cpu.state = `CPU_STATE_RUNNING;
-          u_mstr_cpu.request_sim_stop = 0;
-          u_mstr_cpu.sim_stop = 0;
-          u_mstr_cpu.wdt_count = 0;
-          u_mstr_cpu.wdt_fired = 0;
+        4'd1: begin
+          g_cpu[0].u_cpu.pc = offset;
+          g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[0].u_cpu.request_sim_stop = 0;
+          g_cpu[0].u_cpu.sim_stop = 0;
+          g_cpu[0].u_cpu.wdt_count = 0;
+          g_cpu[0].u_cpu.wdt_fired = 0;
           for (step = 0; step < max_steps; step = step + 1) begin
-            if (u_mstr_cpu.request_sim_stop || u_mstr_cpu.sim_stop)
+            if (g_cpu[0].u_cpu.request_sim_stop || g_cpu[0].u_cpu.sim_stop)
               step = max_steps;
-            else if (u_mstr_cpu.state == `CPU_STATE_SYNC_WAIT)
-              u_mstr_cpu.cpu_sync_poll_resume();
-            else if (u_mstr_cpu.state == `CPU_STATE_RUNNING ||
-                     u_mstr_cpu.state == `CPU_STATE_DUMMY)
-              u_mstr_cpu.cpu_step();
+            else if (g_cpu[0].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+              g_cpu[0].u_cpu.cpu_sync_poll_resume();
+            else if (g_cpu[0].u_cpu.state == `CPU_STATE_RUNNING ||
+                     g_cpu[0].u_cpu.state == `CPU_STATE_DUMMY)
+              g_cpu[0].u_cpu.cpu_step();
           end
+        end
+        4'd2: begin
+          g_cpu[1].u_cpu.pc = offset;
+          g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[1].u_cpu.request_sim_stop = 0;
+          g_cpu[1].u_cpu.sim_stop = 0;
+          g_cpu[1].u_cpu.wdt_count = 0;
+          g_cpu[1].u_cpu.wdt_fired = 0;
+          for (step = 0; step < max_steps; step = step + 1) begin
+            if (g_cpu[1].u_cpu.request_sim_stop || g_cpu[1].u_cpu.sim_stop)
+              step = max_steps;
+            else if (g_cpu[1].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+              g_cpu[1].u_cpu.cpu_sync_poll_resume();
+            else if (g_cpu[1].u_cpu.state == `CPU_STATE_RUNNING ||
+                     g_cpu[1].u_cpu.state == `CPU_STATE_DUMMY)
+              g_cpu[1].u_cpu.cpu_step();
+          end
+        end
+        4'd3: begin
+          rec_before = g_cpu[2].u_cpu.recovery_count;
+          g_cpu[2].u_cpu.pc = offset;
+          g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[2].u_cpu.request_sim_stop = 0;
+          g_cpu[2].u_cpu.sim_stop = 0;
+          if (offset != OFF_UART_HANG) begin
+            g_cpu[2].u_cpu.wdt_count = 0;
+            g_cpu[2].u_cpu.wdt_fired = 0;
+          end
+          for (step = 0; step < max_steps; step = step + 1) begin
+            if (g_cpu[2].u_cpu.request_sim_stop || g_cpu[2].u_cpu.sim_stop)
+              step = max_steps;
+            else if (g_cpu[2].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+              g_cpu[2].u_cpu.cpu_sync_poll_resume();
+            else if (g_cpu[2].u_cpu.state == `CPU_STATE_RUNNING ||
+                     g_cpu[2].u_cpu.state == `CPU_STATE_DUMMY)
+              g_cpu[2].u_cpu.cpu_step();
+          end
+          if (g_cpu[2].u_cpu.recovery_count > rec_before)
+            recovered = 1;
         end
         default: ;
       endcase
@@ -238,12 +391,24 @@
   task start_cpus_parallel;
     input [31:0] offset;
     begin
-      u_mstr_cpu.pc = offset;
-      u_mstr_cpu.state = `CPU_STATE_RUNNING;
-      u_mstr_cpu.request_sim_stop = 0;
-      u_mstr_cpu.sim_stop = 0;
-      u_mstr_cpu.wdt_count = 0;
-      u_mstr_cpu.wdt_fired = 0;
+      g_cpu[0].u_cpu.pc = offset;
+      g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
+      g_cpu[0].u_cpu.request_sim_stop = 0;
+      g_cpu[0].u_cpu.sim_stop = 0;
+      g_cpu[0].u_cpu.wdt_count = 0;
+      g_cpu[0].u_cpu.wdt_fired = 0;
+      g_cpu[1].u_cpu.pc = offset;
+      g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
+      g_cpu[1].u_cpu.request_sim_stop = 0;
+      g_cpu[1].u_cpu.sim_stop = 0;
+      g_cpu[1].u_cpu.wdt_count = 0;
+      g_cpu[1].u_cpu.wdt_fired = 0;
+      g_cpu[2].u_cpu.pc = offset;
+      g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
+      g_cpu[2].u_cpu.request_sim_stop = 0;
+      g_cpu[2].u_cpu.sim_stop = 0;
+      g_cpu[2].u_cpu.wdt_count = 0;
+      g_cpu[2].u_cpu.wdt_fired = 0;
     end
   endtask
 
@@ -254,14 +419,34 @@
     begin
       for (s = 0; s < max_steps; s = s + 1) begin
         all_done = 1;
-        if (!(u_mstr_cpu.request_sim_stop || u_mstr_cpu.sim_stop)) begin
-          if (u_mstr_cpu.state == `CPU_STATE_SYNC_WAIT)
-            u_mstr_cpu.cpu_sync_poll_resume();
-          if (u_mstr_cpu.state == `CPU_STATE_RUNNING ||
-                   u_mstr_cpu.state == `CPU_STATE_DUMMY) begin
-            u_mstr_cpu.cpu_step();
+        if (!(g_cpu[0].u_cpu.request_sim_stop || g_cpu[0].u_cpu.sim_stop)) begin
+          if (g_cpu[0].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+            g_cpu[0].u_cpu.cpu_sync_poll_resume();
+          if (g_cpu[0].u_cpu.state == `CPU_STATE_RUNNING ||
+                   g_cpu[0].u_cpu.state == `CPU_STATE_DUMMY) begin
+            g_cpu[0].u_cpu.cpu_step();
             all_done = 0;
-          end else if (u_mstr_cpu.state == `CPU_STATE_SYNC_WAIT)
+          end else if (g_cpu[0].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+            all_done = 0;
+        end
+        if (!(g_cpu[1].u_cpu.request_sim_stop || g_cpu[1].u_cpu.sim_stop)) begin
+          if (g_cpu[1].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+            g_cpu[1].u_cpu.cpu_sync_poll_resume();
+          if (g_cpu[1].u_cpu.state == `CPU_STATE_RUNNING ||
+                   g_cpu[1].u_cpu.state == `CPU_STATE_DUMMY) begin
+            g_cpu[1].u_cpu.cpu_step();
+            all_done = 0;
+          end else if (g_cpu[1].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+            all_done = 0;
+        end
+        if (!(g_cpu[2].u_cpu.request_sim_stop || g_cpu[2].u_cpu.sim_stop)) begin
+          if (g_cpu[2].u_cpu.state == `CPU_STATE_SYNC_WAIT)
+            g_cpu[2].u_cpu.cpu_sync_poll_resume();
+          if (g_cpu[2].u_cpu.state == `CPU_STATE_RUNNING ||
+                   g_cpu[2].u_cpu.state == `CPU_STATE_DUMMY) begin
+            g_cpu[2].u_cpu.cpu_step();
+            all_done = 0;
+          end else if (g_cpu[2].u_cpu.state == `CPU_STATE_SYNC_WAIT)
             all_done = 0;
         end
         if (all_done) s = max_steps;
@@ -280,7 +465,9 @@
       $display("[Console] tb_full_campaign — call console_cmd / console_sync_cmd");
       $display("  +console_pause  → $stop after VCPU setup (VCS/Xcelium interactive)");
       console_sync_cmd("help", 0, 0, 0);
-      u_mstr_cpu.cpu_console_help();
+      g_cpu[0].u_cpu.cpu_console_help();
+      g_cpu[1].u_cpu.cpu_console_help();
+      g_cpu[2].u_cpu.cpu_console_help();
     end
   endtask
 
@@ -322,9 +509,11 @@
     input [31:0]   a1;
     input [31:0]   a2;
     begin
-      if (cid == 0 || cid == 0) u_mstr_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
-      if (cid > 4'd0)
-        $display("[Console] unknown cpu_id=%0d (active VCPUs 1..0)", cid);
+      if (cid == 0 || cid == 1) g_cpu[0].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid == 0 || cid == 2) g_cpu[1].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid == 0 || cid == 3) g_cpu[2].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
+      if (cid > 4'd3)
+        $display("[Console] unknown cpu_id=%0d (active VCPUs 1..3)", cid);
     end
   endtask
 
@@ -387,18 +576,40 @@
     begin
       ok = 0;
       u_pool.pool_use_array(cid);
-      u_pool.pool_assign_region(cid, 32'h800, ICODE_POOL_SZ);
+      u_pool.pool_assign_region(cid, 32'h1800, ICODE_POOL_SZ);
       case (cid)
-        4'd0: begin
-          txn_before = u_mstr_cpu.bus_txn_count;
-          u_mstr_cpu.pc = icode_ptr;
-          u_mstr_cpu.state = `CPU_STATE_RUNNING;
-          u_mstr_cpu.request_sim_stop = 0;
-          u_mstr_cpu.sim_stop = 0;
+        4'd1: begin
+          txn_before = g_cpu[0].u_cpu.bus_txn_count;
+          g_cpu[0].u_cpu.pc = icode_ptr;
+          g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[0].u_cpu.request_sim_stop = 0;
+          g_cpu[0].u_cpu.sim_stop = 0;
           run_cpu_core(cid, icode_ptr, 48, hang_rec);
-          ok = (u_mstr_cpu.request_sim_stop || u_mstr_cpu.sim_stop)
-               && (u_mstr_cpu.bus_txn_count > txn_before);
+          ok = (g_cpu[0].u_cpu.request_sim_stop || g_cpu[0].u_cpu.sim_stop)
+               && (g_cpu[0].u_cpu.bus_txn_count > txn_before);
           restore_cpu_pool(cid, 32'h0);
+        end
+        4'd2: begin
+          txn_before = g_cpu[1].u_cpu.bus_txn_count;
+          g_cpu[1].u_cpu.pc = icode_ptr;
+          g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[1].u_cpu.request_sim_stop = 0;
+          g_cpu[1].u_cpu.sim_stop = 0;
+          run_cpu_core(cid, icode_ptr, 48, hang_rec);
+          ok = (g_cpu[1].u_cpu.request_sim_stop || g_cpu[1].u_cpu.sim_stop)
+               && (g_cpu[1].u_cpu.bus_txn_count > txn_before);
+          restore_cpu_pool(cid, 32'h800);
+        end
+        4'd3: begin
+          txn_before = g_cpu[2].u_cpu.bus_txn_count;
+          g_cpu[2].u_cpu.pc = icode_ptr;
+          g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
+          g_cpu[2].u_cpu.request_sim_stop = 0;
+          g_cpu[2].u_cpu.sim_stop = 0;
+          run_cpu_core(cid, icode_ptr, 48, hang_rec);
+          ok = (g_cpu[2].u_cpu.request_sim_stop || g_cpu[2].u_cpu.sim_stop)
+               && (g_cpu[2].u_cpu.bus_txn_count > txn_before);
+          restore_cpu_pool(cid, 32'h1000);
         end
         default: ;
       endcase

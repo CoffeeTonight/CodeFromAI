@@ -1,0 +1,2 @@
+#define SFR_CTRL 0x10000000u
+#define SRAM_MARKER 0x20000000u

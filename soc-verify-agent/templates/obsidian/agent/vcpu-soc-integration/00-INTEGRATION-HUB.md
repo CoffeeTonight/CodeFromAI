@@ -15,10 +15,11 @@ cd projects/VERIF-CPU-SOC
 ./scripts/bootstrap_verifcpu_workspace.sh
 ```
 
-- 로컬 SSOT: **`~/tools/__CFI/VerifCPU/verif_cpu_verilog`** (`discovered.yaml` `local_clone_path`)
-- `cache.yaml` `clone.path` = `~/tools/__CFI` · `RTL_ROOT` = `clone.path` + `rtl_subdir`
+- 로컬 SSOT: **`~/tools/__CFA/VerifCPU/verif_cpu_verilog`** (`discovered.yaml` `local_clone_path`)
+- **통합 tier 사다리:** [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]] — paste → yaml-multi → scale
+- `cache.yaml` `clone.path` = `~/tools/__CFA` · `RTL_ROOT` = `clone.path` + `rtl_subdir`
 - `RTL_ROOT` = `ops/intake_resolve.resolve_rtl_root()` 또는 intake `rtl.rtl_root_override`
-- VerifCPU MD SSOT: `{RTL_ROOT}/howto_integrate.md`, `{RTL_ROOT}/vcpu_skill.md`
+- VerifCPU MD SSOT: `{RTL_ROOT}/howto_integrate.md`, `{RTL_ROOT}/vcpu_skill.md`, `{RTL_ROOT}/integration_paste.md`
 - 실패 시 S1 이후 **전부 중단**
 
 ---
@@ -39,7 +40,8 @@ cd projects/VERIF-CPU-SOC
 | 1 | [[agent/vcpu-soc-integration/01-MISSION]] | 입력·출력·금지 사항 |
 | 2 | [[agent/vcpu-soc-integration/02-INTAKE]] | 고객 SoC에서 **무엇을** 수집·파악할지 |
 | 3 | [[agent/vcpu-soc-integration/03-WORKFLOW]] | 단계 그래프 + 각 step 링크 |
-| 4 | [[agent/vcpu-soc-integration/04-MODES]] | wrapper vs injection 선택 |
+| 4 | [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]] | paste / yaml-multi / scale 선택 |
+| 4b | [[agent/vcpu-soc-integration/04-MODES]] | wrapper vs injection (tier 3 vs 1–2) |
 | 5 | [[agent/vcpu-soc-integration/05-GENERATE]] | manifest·VH 생성 명령 |
 | 6 | [[agent/vcpu-soc-integration/06-RTL-DERIVE]] | RTL에서 **무엇을** 뽑을지 |
 | 7 | [[agent/vcpu-soc-integration/11-SIMULATION-USER]] | **통합 후 시뮬** (사용자 env·run) |
@@ -50,7 +52,8 @@ cd projects/VERIF-CPU-SOC
 | 2d | [[agent/vcpu-soc-integration/11-SIMULATION-USER]] | 사용자에게 **시뮬 env·실행법** 질문 (intake `simulation`) |
 | — | [[agent/vcpu-soc-integration/12-EXAMPLE-SCAFFOLD]] | **새 tag/칩 폴더** — gen이 안 만드는 MD·YAML 복사 |
 
-**한 번에 읽지 말 것:** 각 step에서 링크된 SSOT만 열어 필요 필드만 채운다.
+**한 번에 읽지 말 것:** 각 step에서 링크된 SSOT만 열어 필요 필드만 채운다.  
+**tier 표·smoke 명령·PASS 마커**는 [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]] 만 — 다른 노트에 복붙 금지.
 
 ---
 
@@ -58,11 +61,16 @@ cd projects/VERIF-CPU-SOC
 
 | 주제 | SSOT (링크만) | 에이전트가 여기서 파악할 것 |
 |------|----------------|---------------------------|
+| **통합 tier 사다리** | [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]] | tier 1→2→3 · smoke · PASS 마커 |
+| Tier 1 paste (1포트) | VerifCPU `integration_paste.md` | `g_slv0` 직결 · smoke: [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS#tier-1]] |
+| Tier 2 yaml-multi (N포트) | `{RTL_ROOT}/firmware/campaign/soc_integration_ports.yaml` | `role` sync · `soc_integration_example_gen.vh` |
+| Tier 3 scale (CONNECT) | VerifCPU `howto_integrate.md` · `soc_hierarchy_{chip}.yaml` | `CONNECT_SLVxx_*` · orchestrator |
 | Manifest 행 계약 | VerifCPU `vcpu_skill.md` §2 | `cpu_id` / `tap_port` / `bus_port` 혼동 금지 |
-| 신호·CONNECT 매크로 | VerifCPU `howto_integrate.md` | `CONNECT_SLVxx_*`, flat `g_slvN` |
+| 신호·CONNECT 매크로 | VerifCPU `howto_integrate.md` §5 | tier 3 전용 — tier 1–2는 직결 |
+| 워크플로 S0–S10 | [[agent/vcpu-soc-integration/03-WORKFLOW]] | 단계 의존성 |
 | 사람용 절차 요약 | `projects/VERIF-CPU-SOC/howto_integrate2yourSoC.md` | gate 순서 |
-| 예제 top 패턴 | VerifCPU `tb/chip_top_example.v` | orchestrator·pool·CONNECT 배치 |
-| 생성 셀·바인딩 | VerifCPU `include/chip_top_example_gen.vh` | **수동 adapter 불필요** — `USE_MANIFEST_SOC_BUS` |
+| 예제 top 패턴 (tier 3) | VerifCPU `tb/chip_top_example.v` | orchestrator·pool·CONNECT 배치 |
+| 생성 셀·바인딩 (tier 3) | VerifCPU `include/chip_top_example_gen.vh` | **수동 adapter 불필요** — `USE_MANIFEST_SOC_BUS` |
 | bus_type 결정 | VerifCPU `amba_bus_registry.py` | canonical key ↔ RTL module |
 | 검증 gate MD | [[projects/VERIF-CPU-SOC]] | c-compile → coi_conn → slave_rw |
 | intake 템플릿 | `intake/customer_soc_intake.template.yaml` | 필드 스키마 |
@@ -75,25 +83,30 @@ cd projects/VERIF-CPU-SOC
 ```mermaid
 flowchart TB
   HUB[[00-INTEGRATION-HUB]]
+  TIER[[13-INTEGRATION-TIERS]]
   INTAKE[[02-INTAKE]]
   WF[[03-WORKFLOW]]
   GEN[[05-GENERATE]]
-  RTL[[06-RTL-DERIVE]]
+  S45[S5-S6 tier 3 only]
   TOP[S7 top 배선]
   SIM[[11-SIMULATION-USER S9]]
   GATES[[07-VERIFY-GATES S10]]
   DONE[[08-DONE]]
 
+  HUB --> TIER
   HUB --> INTAKE
   INTAKE --> WF
   WF --> GEN
-  WF --> RTL
+  TIER -->|paste yaml_multi| TOP
+  TIER -->|scale| S45
+  S45 --> TOP
   GEN --> TOP
-  RTL --> TOP
   TOP --> SIM
   SIM -->|PASS| GATES
   GATES --> DONE
 ```
+
+tier 1–2: S3/S5/S6 skip — [[agent/vcpu-soc-integration/03-WORKFLOW#dependencies]].
 
 ---
 
@@ -110,8 +123,10 @@ flowchart TB
 |------|-----------|
 | intake (채움) | `projects/VERIF-CPU-SOC/inputs/tags/{tag}/deployment/customer_soc_intake.yaml` |
 | hierarchy SSOT | `{RTL_ROOT}/firmware/campaign/soc_hierarchy_{chip}.yaml` |
-| connect VH | `{RTL_ROOT}/include/verif_soc_bus_connect.vh` (생성) |
-| chip gen VH | `{RTL_ROOT}/include/chip_top_*_gen.vh` (생성) |
-| 고객 top | 사용자 지정 — [[agent/vcpu-soc-integration/04-MODES]] |
+| integration ports (tier 2) | `{RTL_ROOT}/firmware/campaign/soc_integration_ports.yaml` |
+| paste / yaml-multi VH | `soc_cpu_bus_paste_fabric.vh` · `soc_integration_example_gen.vh` (생성) |
+| connect VH (tier 3) | `{RTL_ROOT}/include/verif_soc_bus_connect.vh` (생성) |
+| chip gen VH (tier 3) | `{RTL_ROOT}/include/chip_top_*_gen.vh` (생성) |
+| 고객 top | 사용자 지정 — [[agent/vcpu-soc-integration/04-MODES]] · tier: [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]] |
 
-`RTL_ROOT` = `~/tools/__CFI/VerifCPU/verif_cpu_verilog` (또는 `cache.yaml` `clone.path` + `rtl_subdir`).
+`RTL_ROOT` = `~/tools/__CFA/VerifCPU/verif_cpu_verilog` (또는 `cache.yaml` `clone.path` + `rtl_subdir`).

@@ -1,0 +1,25 @@
+# goal_build_id = 12
+[project]
+name = "socverif-harness"
+version = "0.2.1"
+description = "Environment-adaptive SoC verification harness — discover and verify any sim env"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0"]
+
+[project.scripts]
+socverif = "socverif.cli:main"
+
+[project.entry-points."socverif.adapters"]
+verifcpu = "socverif.adapters.verifcpu:VerifCpuAdapter"
+generic = "socverif.adapters.generic:GenericAdapter"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["socverif*"]
+
+[project.optional-dependencies]
+test = []

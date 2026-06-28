@@ -703,6 +703,109 @@ def cmd_knowledge_sources(args: argparse.Namespace) -> int:
     return 0
 
 
+def _self_harness_paths(root: Path, project: str, run_id: str) -> tuple[Path, Path, Path]:
+    project_dir = root / "projects" / project
+    run_dir = project_dir / "runs" / run_id
+    if not project_dir.is_dir() or not run_dir.is_dir():
+        raise FileNotFoundError(f"project or run not found: {project}/{run_id}")
+    return root, project_dir, run_dir
+
+
+def cmd_self_harness(args: argparse.Namespace) -> int:
+    """Self-harness CLI — mine/propose/validate/held-out/meta-collect."""
+    import sys
+
+    root = Path(args.root).resolve()
+    project = args.project
+    run_id = getattr(args, "run_id", None) or ""
+    sub = args.self_harness_cmd
+
+    if sub == "context":
+        project_dir = root / "projects" / project
+        if not project_dir.is_dir():
+            print(json.dumps({"error": "project not found"}, indent=2))
+            return 2
+        sys.path.insert(0, str(project_dir))
+        from ops.self_harness import retrieve_erl_context
+
+        ctx = retrieve_erl_context(
+            project_dir,
+            stage=args.stage or "",
+            group=args.group or "",
+            error_kind=args.error_kind or "",
+            limit=args.limit,
+        )
+        print(json.dumps({"heuristics": ctx, "count": len(ctx)}, indent=2, ensure_ascii=False))
+        return 0
+
+    try:
+        root, project_dir, run_dir = _self_harness_paths(root, project, run_id)
+    except FileNotFoundError as exc:
+        print(json.dumps({"error": str(exc)}, indent=2))
+        return 2
+
+    sys.path.insert(0, str(project_dir))
+
+    if sub == "mine":
+        from ops.erl_reflect import write_erl_heuristic
+        from ops.self_harness import mine_weaknesses, propose_harness_edits, write_weakness_report
+
+        report = mine_weaknesses(root, project_dir, run_dir)
+        write_weakness_report(run_dir, report)
+        if args.propose:
+            propose_harness_edits(root, project_dir, run_dir, weakness_report=report)
+        sig_path = run_dir / "improvement_signal.json"
+        signals = json.loads(sig_path.read_text(encoding="utf-8")) if sig_path.is_file() else {}
+        write_erl_heuristic(project_dir, run_dir, signals=signals, weakness_report=report)
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return 0
+
+    if sub == "propose":
+        from ops.self_harness import propose_harness_edits
+
+        payload = propose_harness_edits(root, project_dir, run_dir)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if sub == "propose-llm":
+        from ops.self_harness import propose_llm_skill_patches, write_harness_llm_prompt
+
+        payload = propose_llm_skill_patches(root, project_dir, run_dir)
+        write_harness_llm_prompt(root, project_dir, run_dir)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if sub == "validate":
+        from ops.self_harness import validate_harness_proposal
+
+        result = validate_harness_proposal(root, run_dir)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0 if result.get("ok") else 1
+
+    if sub == "held-out":
+        from ops.self_harness import held_out_reverify
+
+        result = held_out_reverify(root, run_dir, project_dir=project_dir)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0 if result.get("ok") else 1
+
+    if sub == "meta-collect":
+        from ops.meta_collect import run_meta_collect
+
+        result = run_meta_collect(root, project_dir, run_dir)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
+
+    if sub == "status":
+        from ops.self_harness import harness_status
+
+        print(json.dumps(harness_status(project_dir, run_dir), indent=2, ensure_ascii=False))
+        return 0
+
+    print(json.dumps({"error": f"unknown self-harness cmd: {sub}"}, indent=2))
+    return 2
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     from soc_verify.setup_wizard import format_setup_summary, run_setup_wizard, setup_status
 
@@ -1004,6 +1107,45 @@ def main() -> int:
     gsv.add_argument("--host", default="127.0.0.1")
     gsv.add_argument("--port", type=int, default=8765)
     gsv.set_defaults(func=cmd_graph_serve)
+
+    sh = sub.add_parser("self-harness", help="Weakness mining, harness proposals, held-out reverify")
+    shsub = sh.add_subparsers(dest="self_harness_cmd", required=True)
+    shm = shsub.add_parser("mine", help="Mine weaknesses from run artifacts")
+    shm.add_argument("project")
+    shm.add_argument("run_id")
+    shm.add_argument("--propose", action="store_true", help="Also write harness_proposal.json")
+    shm.set_defaults(func=cmd_self_harness)
+    shp = shsub.add_parser("propose", help="Generate harness_proposal.json")
+    shp.add_argument("project")
+    shp.add_argument("run_id")
+    shp.set_defaults(func=cmd_self_harness)
+    shpl = shsub.add_parser("propose-llm", help="Generate harness_proposal_llm.json + harness_llm_prompt.json")
+    shpl.add_argument("project")
+    shpl.add_argument("run_id")
+    shpl.set_defaults(func=cmd_self_harness)
+    shv = shsub.add_parser("validate", help="Run pytest validation gate")
+    shv.add_argument("project")
+    shv.add_argument("run_id")
+    shv.set_defaults(func=cmd_self_harness)
+    shh = shsub.add_parser("held-out", help="Held-out pytest + intake replay before promote")
+    shh.add_argument("project")
+    shh.add_argument("run_id")
+    shh.set_defaults(func=cmd_self_harness)
+    shmc = shsub.add_parser("meta-collect", help="Full mine+propose+ERL+llm_brief pipeline")
+    shmc.add_argument("project")
+    shmc.add_argument("run_id")
+    shmc.set_defaults(func=cmd_self_harness)
+    shst = shsub.add_parser("status", help="Artifact status for a run")
+    shst.add_argument("project")
+    shst.add_argument("run_id")
+    shst.set_defaults(func=cmd_self_harness)
+    shctx = shsub.add_parser("context", help="Retrieve ERL heuristics by stage/group")
+    shctx.add_argument("project")
+    shctx.add_argument("--stage", default="")
+    shctx.add_argument("--group", default="")
+    shctx.add_argument("--error-kind", default="")
+    shctx.add_argument("--limit", type=int, default=5)
+    shctx.set_defaults(func=cmd_self_harness)
 
     args = p.parse_args()
     return args.func(args)

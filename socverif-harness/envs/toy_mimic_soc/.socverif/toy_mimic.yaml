@@ -1,0 +1,5 @@
+# Goal-created toy mimic — short TAT user-env learning sandbox
+toy_mimic: true
+mimics: "generic SoC with SFR + SRAM bus (minimal_soc layout)"
+created_for: "soc_validation_flow toy-first policy"
+max_tat_sec: 15

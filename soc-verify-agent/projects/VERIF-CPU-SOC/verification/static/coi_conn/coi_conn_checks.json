@@ -6,15 +6,15 @@
   "checks": [
     {
       "id": "sfr_clk_to_sram_clk",
-      "a": "chip_top_example.u_periph_sfr.PCLK",
-      "b": "chip_top_example.u_periph_sram.HCLK",
+      "a": "chip_top_example.u_stub_sfr.PCLK",
+      "b": "chip_top_example.u_stub_sram.HCLK",
       "expected_connected": true,
       "note": "공유 soc_clk — periphery 간 clock COI 연결"
     },
     {
       "id": "sfr_paddr_to_sram_haddr",
-      "a": "chip_top_example.u_periph_sfr.PADDR",
-      "b": "chip_top_example.u_periph_sram.HADDR",
+      "a": "chip_top_example.u_stub_sfr.PADDR",
+      "b": "chip_top_example.u_stub_sram.HADDR",
       "expected_connected": false,
       "note": "APB SFR vs AHB SRAM 주소망 — 의도적 비연결"
     },

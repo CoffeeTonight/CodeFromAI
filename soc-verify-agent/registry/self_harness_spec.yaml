@@ -1,0 +1,59 @@
+version: self-harness-v3
+instruction_ko: "Phase C: meta_collect graph wiring, LLM prompt patches, held-out intake replay"
+artifacts:
+  weakness_report: "runs/{run_id}/weakness_report.json"
+  harness_proposal: "runs/{run_id}/harness_proposal.json"
+  harness_proposal_llm: "runs/{run_id}/harness_proposal_llm.json"
+  harness_llm_prompt: "runs/{run_id}/harness_llm_prompt.json"
+  harness_validation: "runs/{run_id}/harness_validation.json"
+  harness_held_out_validation: "runs/{run_id}/harness_held_out_validation.json"
+  llm_brief: "runs/{run_id}/llm_brief.json"
+  meta_collect_prompt: "runs/{run_id}/meta_collect_prompt.json"
+weakness_categories:
+  - env_loop
+  - tool_artifact
+  - verification_gap
+  - validation_stall
+  - info_gap
+  - stalemate_spin
+  - stalemate_oscillation
+  - llm_inefficiency
+  - parity_block
+  - promote_block
+harness_layers:
+  skill:
+    globs: [".grok/skills/*/SKILL.md"]
+    auto_apply: false
+    approval: human_or_pytest
+  node_guide:
+    globs: ["projects/*/meta/node_guides.yaml"]
+    auto_apply: true
+    approval: pytest
+  verification_md:
+    globs: ["verification/*/*/*.md"]
+    auto_apply: false
+    approval: human_or_review
+  graph_source:
+    globs: ["src/soc_verify/graphs/*.py"]
+    auto_apply: false
+    approval: human_required
+validation:
+  pytest_targets:
+    - tests/test_self_harness.py
+    - tests/test_self_harness_phase_b.py
+    - tests/test_self_harness_phase_c.py
+  held_out_pytest_targets:
+    - tests/test_intake_resolve.py
+  require_held_out_pass: true
+held_out_intake:
+  representative_yaml: "inputs/tags/main/deployment/customer_soc_intake.example.yaml"
+  require_pass: true
+llm_proposal:
+  default_skill_targets: [".grok/skills/self-harness/SKILL.md"]
+  max_patches_per_run: 5
+erl:
+  max_heuristics_per_retrieval: 5
+  inject_into_llm_brief: true
+meta_collect:
+  integrate_with_meta_graph: true
+  graph_node: meta_collect

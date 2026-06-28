@@ -62,7 +62,10 @@ SOC_MANIFEST_SCALE_DEFS = include/tb_soc_manifest_scale_defs.vh
 SOC_MANIFEST_SCALE_GEN = include/tb_soc_manifest_scale_gen.vh
 MANIFEST_SCALE_BUS_BIND = include/verif_manifest_scale_soc_bus_read.vh include/verif_manifest_scale_soc_bus_write.vh
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists clean clean-artifacts
+PASTE_BUS_BIND = include/verif_paste_soc_bus_read.vh include/verif_paste_soc_bus_write.vh
+SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
+
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen soc-paste soc-integration clean clean-artifacts
 
 # Authoritative gate: iverilog sim + VCD post-check
 verify: full_campaign
@@ -171,6 +174,25 @@ chip-top-example: fw $(SOC_CELL_RTL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DEC
 	$(MAKE) -C firmware/campaign bus_connect_yaml HIER_YAML=$(HIER_YAML)
 	$(MAKE) sim_build/chip_top_example.vvp
 	$(VVP) sim_build/chip_top_example.vvp
+
+gen:
+	$(MAKE) -C firmware/campaign integration_gen
+
+soc-paste: fw $(SOC_CELL_RTL)
+	$(MAKE) sim_build/soc_cpu_bus_paste.vvp
+	$(VVP) sim_build/soc_cpu_bus_paste.vvp
+
+soc-integration: fw $(SOC_CELL_RTL) $(SOC_INTEGRATION_GEN)
+	$(MAKE) sim_build/soc_integration_example.vvp
+	$(VVP) sim_build/soc_integration_example.vvp
+
+sim_build/soc_cpu_bus_paste.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_cpu_bus_paste.v $(PASTE_BUS_BIND)
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -s soc_cpu_bus_paste -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_cpu_bus_paste.v
+
+sim_build/soc_integration_example.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_integration_example.v $(SOC_INTEGRATION_GEN)
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -s soc_integration_example -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_integration_example.v
 
 MANIFEST_RTL = rtl/verif_cpu_bus.v \
                rtl/verif_cpu_unified_pool.v \

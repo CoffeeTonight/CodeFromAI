@@ -1,0 +1,68 @@
+{
+  "goal_build_id": 14,
+  "since": "2026-06-28T04:51:37+00:00",
+  "since_file": "/home/user/grok-workspace/socverif-harness/.socverif/round_start_ts",
+  "source": "round_paths",
+  "gate_only": false,
+  "count": 9,
+  "core_count": 9,
+  "ok": true,
+  "paths": [
+    ".socverif/baseline.json",
+    "GOAL_DELIVERABLE.json",
+    "docs/failed_flow.md",
+    "scripts/run_goal_verification.sh",
+    "scripts/sync_classifier_evidence.sh",
+    "socverif/classifier_evidence.py",
+    "socverif/constants.py",
+    "socverif/workspace_delta.py",
+    "tests/test_classifier_evidence.py"
+  ],
+  "entries": [
+    {
+      "path": ".socverif/baseline.json",
+      "exists": true,
+      "sha256": "d081acd4eddef03e0e36286291bb45965c5898c939066f93c2d756ffdb9355ad"
+    },
+    {
+      "path": "GOAL_DELIVERABLE.json",
+      "exists": true,
+      "sha256": "d9e9ee4c53f0de929de38b6b3cce720fc3a4539e07302db7a0012fe0236d67f7"
+    },
+    {
+      "path": "docs/failed_flow.md",
+      "exists": true,
+      "sha256": "6507582493fb092a519d312dc91f9de94baee1246ecc1cf2df9e9d515bcb40aa"
+    },
+    {
+      "path": "scripts/run_goal_verification.sh",
+      "exists": true,
+      "sha256": "9d7ed5cab3a768853e2002f27e58bddfc873fc5db41f5fa2facce5932aa14c12"
+    },
+    {
+      "path": "scripts/sync_classifier_evidence.sh",
+      "exists": true,
+      "sha256": "56c794aa560d4ce53272d60784968d63a71363def946567161f6ffcde24aa00a"
+    },
+    {
+      "path": "socverif/classifier_evidence.py",
+      "exists": true,
+      "sha256": "7a59c204ecf00c9da8847af341b94fd7b648e54a23e5b959865da4d1aa109ebd"
+    },
+    {
+      "path": "socverif/constants.py",
+      "exists": true,
+      "sha256": "488485e67cfc032c78a603e7f6a22327081e478e52347482e12b7e0f1971889c"
+    },
+    {
+      "path": "socverif/workspace_delta.py",
+      "exists": true,
+      "sha256": "96a3cddd101bc952c6da59a99002ba4b6e044263cb3c4d562830c57076714a69"
+    },
+    {
+      "path": "tests/test_classifier_evidence.py",
+      "exists": true,
+      "sha256": "fb9735a9b3fb4b8894be10a844179f3c1455e5f5ae39c0e88ddb2a999fd39463"
+    }
+  ]
+}

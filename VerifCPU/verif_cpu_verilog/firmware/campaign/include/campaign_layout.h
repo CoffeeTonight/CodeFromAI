@@ -16,6 +16,9 @@
 #define POOL_WORD_STRIDE  0x0800u
 #define POOL_WORD_MASTER  0x0000u
 
-#define POOL_WORD_ICODE   0x0800u
+#define POOL_WORD_SLOT0  0x0000u
+#define POOL_WORD_SLOT1  0x0800u
+#define POOL_WORD_SLOT2  0x1000u
+#define POOL_WORD_ICODE   0x1800u
 
 #endif

@@ -82,7 +82,7 @@ _SKIP_LINE_PATTERNS: list[re.Pattern[str]] = [
 _C_COMPILE_SUCCESS = [
     re.compile(r"\[gen\]\s+Artifacts:", re.I),
     re.compile(r"filelists/eda/"),
-    re.compile(r"iverilog\b.*tb_full_campaign\.vvp", re.I),
+    re.compile(r"-o\s+sim_build/tb_full_campaign\.vvp", re.I),
 ]
 
 _RTL_SIM_SUCCESS = [

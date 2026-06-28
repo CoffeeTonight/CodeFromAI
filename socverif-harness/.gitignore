@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+envs/*/sim_build/
+envs/*/sim_logs/
+envs/*/logs/
+envs/*/build/
+envs/*/generated/
+envs/*/verif_report.json
+envs/*/environment_manifest.yaml
+environment_manifest.yaml
+verif_report.json
+.socverif/scratch/
+*.vcd
+*.vvp

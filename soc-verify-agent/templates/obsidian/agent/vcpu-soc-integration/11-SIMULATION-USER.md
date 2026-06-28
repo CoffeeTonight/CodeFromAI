@@ -29,7 +29,7 @@ VerifCPU 기본(iverilog)은 **참고 SSOT**만 링크 — 사용자 `simulation
 |------|-----------|-------------------------|
 | 환경 구하는 방법 | `environment.setup` | `module load questa/2024` / `docker pull …` |
 | 준비 확인 | `environment.verify_cmd` | `iverilog -V && which vvp` |
-| 통합 직후 실행 | `run.smoke_after_integration` | `cd $RTL_ROOT && make chip-top-example` |
+| 통합 직후 실행 (tier 3 scale) | `run.smoke_after_integration` | `cd $RTL_ROOT && make chip-top-example` |
 | PASS 판정 | `pass.log_markers[]` | `chip_top_example: PASS` |
 
 ### 질문 템플릿
@@ -46,7 +46,7 @@ VerifCPU 기본(iverilog)은 **참고 SSOT**만 링크 — 사용자 `simulation
 
 예제 VerifCPU iverilog만 쓰는 경우:
 - setup: `apt install iverilog` + RISC-V gcc 경로
-- run: `cd $RTL_ROOT && make chip-top-example`
+- run (tier 3 scale): `cd $RTL_ROOT && make chip-top-example`
 ```
 
 응답 후 → `simulation.user_documented: true`

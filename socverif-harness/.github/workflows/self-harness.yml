@@ -1,0 +1,53 @@
+# goal_build_id = 12 — PR (tier 0-1) + nightly (tier 0-2) self-harness
+name: self-harness
+
+on:
+  push:
+    paths:
+      - "socverif/**"
+      - "tests/**"
+      - "envs/**"
+      - ".socverif/**"
+      - "scripts/**"
+      - "run_all_envs.sh"
+      - "pyproject.toml"
+  pull_request:
+    paths:
+      - "socverif/**"
+      - "tests/**"
+      - "envs/**"
+      - ".socverif/**"
+      - "scripts/**"
+      - "run_all_envs.sh"
+      - "pyproject.toml"
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  pr-gate:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y iverilog
+      - run: pip install -e .
+      - run: bash scripts/self_verify_pr.sh
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+  nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y iverilog
+      - run: pip install -e .
+      - run: bash scripts/self_verify_nightly.sh
+        env:
+          PYTHONPATH: ${{ github.workspace }}

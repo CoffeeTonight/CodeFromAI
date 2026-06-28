@@ -9,7 +9,7 @@
 ```bash
 export PROJECT_DIR=/path/to/soc-verify-agent/projects/VERIF-CPU-SOC
 cd "$PROJECT_DIR"
-./scripts/bootstrap_verifcpu_workspace.sh   # 기본: ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+./scripts/bootstrap_verifcpu_workspace.sh   # 기본: ~/tools/__CFA/VerifCPU/verif_cpu_verilog
 cd inputs/tags && ./copy_new_tag.sh my_chip
 ```
 
@@ -28,6 +28,8 @@ VerifCPU 저장소에서 `./example.sh`와 `make full_campaign`이 **PASS**했�
 | **soc-verify-agent** (이 프로젝트) | intake·gate·재현 스크립트로 **통합 검증** | `customer_soc_intake.yaml`, `scripts/0*_*.sh` |
 
 기본 예제는 `simple_soc` / `chip_top_example`에 고정 배선되어 있습니다.  
+**처음 통합할 때는** 복잡한 `chip_top_example` 대신 **`make soc-paste`** + `$RTL_ROOT/integration_paste.md` 를 권장합니다 — **1슬롯·포트 직결·복붙** 패턴입니다.
+
 내 SoC는 **과제 interconnect 포트명·주소맵·top**에 맞게 hierarchy YAML 작성 → generate → top 배선 → smoke sim → formal gate 순으로 진행합니다.
 
 ```mermaid
@@ -48,7 +50,7 @@ flowchart LR
 | `python3` | ops·crystallize | `python3 --version` |
 | `iverilog`, `vvp` | VerifCPU 참조 sim (또는 사이트 EDA) | `iverilog -V` |
 | RISC-V gcc | 펌웨어 빌드 | `riscv64-unknown-elf-gcc --version` |
-| `hier-walk` (gate Step 2) | COI instance 스캔 | `HIERWALK_PATH=~/tools/__CFI/hierwalk pip install -e "$HIERWALK_PATH"` |
+| `hier-walk` (gate Step 2) | COI instance 스캔 | `HIERWALK_PATH=~/tools/__CFA/hierwalk pip install -e "$HIERWALK_PATH"` |
 
 사이트에서 Questa/VCS 등을 쓰면 intake `simulation` 블록에 그에 맞게 적어 둡니다.
 
@@ -56,22 +58,22 @@ flowchart LR
 
 ## 3. 최초 1회 설정 (S0)
 
-**목표:** VerifCPU RTL 경로(`RTL_ROOT`)를 확정합니다. 로컬 SSOT는 **`~/tools/__CFI/VerifCPU/verif_cpu_verilog`** 입니다.
+**목표:** VerifCPU RTL 경로(`RTL_ROOT`)를 확정합니다. 로컬 SSOT는 **`~/tools/__CFA/VerifCPU/verif_cpu_verilog`** 입니다.
 
 ```bash
 cd projects/VERIF-CPU-SOC   # soc-verify-agent 저장소 기준
 ./scripts/bootstrap_verifcpu_workspace.sh
 ```
 
-`discovered.yaml`의 `local_clone_path: ~/tools/__CFI`가 있으면 **clone 없이** 위 경로를 `cache.yaml`에 등록합니다.  
+`discovered.yaml`의 `local_clone_path: ~/tools/__CFA`가 있으면 **clone 없이** 위 경로를 `cache.yaml`에 등록합니다.  
 다른 위치·원격 clone이 필요할 때만:
 
 ```bash
 ./scripts/bootstrap_verifcpu_workspace.sh --tag v1.2.0
-./scripts/bootstrap_verifcpu_workspace.sh --dest ~/tools/__CFI/VerifCPU/verif_cpu_verilog
+./scripts/bootstrap_verifcpu_workspace.sh --dest ~/tools/__CFA/VerifCPU/verif_cpu_verilog
 ```
 
-**RTL_ROOT 확인** (`clone.path` = `~/tools/__CFI` + `rtl_subdir` = `VerifCPU/verif_cpu_verilog`):
+**RTL_ROOT 확인** (`clone.path` = `~/tools/__CFA` + `rtl_subdir` = `VerifCPU/verif_cpu_verilog`):
 
 ```bash
 export RTL_ROOT="$(python3 -c "import sys; sys.path.insert(0,'.'); from ops.intake_resolve import resolve_rtl_root; print(resolve_rtl_root(__import__('pathlib').Path('.')))")"
@@ -79,7 +81,19 @@ echo "$RTL_ROOT"
 test -f "$RTL_ROOT/example.sh" && echo "RTL_ROOT OK"
 ```
 
-`example.sh`가 없으면 경로 오류입니다. `~/tools/__CFI/VerifCPU/verif_cpu_verilog` 존재 여부 또는 `--dest`를 확인하세요.
+`example.sh`가 없으면 경로 오류입니다. `~/tools/__CFA/VerifCPU/verif_cpu_verilog` 존재 여부 또는 `--dest`를 확인하세요.
+
+### 3.1 copy-paste 통합 스모크 (권장 첫 단계)
+
+회사 SoC CPU bus에 VCPU를 붙이기 전, **읽기 쉬운 1슬롯 예제**로 iverilog 검증:
+
+```bash
+cd "$RTL_ROOT"
+make soc-paste    # tb/soc_cpu_bus_paste.v — 기대: soc_cpu_bus_paste: PASS
+```
+
+복사 블록 SSOT: `include/soc_cpu_bus_paste_fabric.vh` · 가이드: `integration_paste.md`  
+바꿀 것 3가지: SoC 포트 prefix · `verif_vcpu_soc_cell_*` bus_type · peripheral base address.
 
 ---
 
@@ -162,47 +176,73 @@ cp soc_hierarchy_example.yaml soc_hierarchy_<MY_CHIP>.yaml
 
 ## 6. 통합 워크플로 (S0–S10, 사람용 요약)
 
-| Step | 할 일 | 대표 명령·산출물 |
-|------|-------|------------------|
-| **S0** | VerifCPU 경로·`RTL_ROOT` | `bootstrap_verifcpu_workspace.sh` → `~/tools/__CFI` |
-| **S1** | 기본 예제 회귀 PASS | `./example.sh gen`, `make full_campaign`, `make chip-top-example` |
-| **S2** | tag 스캐폴드 + intake 작성 | `copy_new_tag.sh`, `customer_soc_intake.yaml` |
-| **S3** | 내 칩 hierarchy YAML | `soc_hierarchy_<MY_CHIP>.yaml` (예제에서 복사) |
-| **S4** | config·manifest·icode | `make config NUM_SCPU=<N>`, `./example.sh gen` (또는 `make soc_init icodes`) |
-| **S5** | connect VH | `python3 gen_soc_bus_connect.py --yaml soc_hierarchy_<MY_CHIP>.yaml` |
-| **S6** | chip top gen VH | `python3 gen_tb_campaign.py --yaml soc_hierarchy_<MY_CHIP>.yaml` |
-| **S7** | 과제 top에 셀·agent·CONNECT 배선 | `verif_soc_bus_connect.vh` include, `g_slv{cpu_id-1}` |
-| **S8** | icode probe (sim 전 오타 검출) | `python3 tools/probe_icodes.py` |
-| **S9** | 통합 직후 smoke sim (**필수**) | intake `simulation.run.smoke_after_integration` |
-| **S10** | soc-verify formal gate | crystallize → `run_VERIF-CPU-SOC_verification_sequence.sh` |
+**통합 난이도 3단계** — intake `chip.integration_tier`에 기록 (`paste` \| `yaml_multi` \| `scale`).
 
-### S1 — 기본 예제 확인
+**SSOT (복붙 금지):**
+
+- **Step 그래프 S0–S10:** vault [`03-WORKFLOW.md`](../../templates/obsidian/agent/vcpu-soc-integration/03-WORKFLOW.md)
+- **tier 표·smoke·PASS 마커·S3/S4b/S5/S6 분기:** vault [`13-INTEGRATION-TIERS.md`](../../templates/obsidian/agent/vcpu-soc-integration/13-INTEGRATION-TIERS.md)
+- **intake·simulation 동기화:** `scripts/sync_intake_simulation_tier.py` — vault [`02-INTAKE.md`](../../templates/obsidian/agent/vcpu-soc-integration/02-INTAKE.md)
+
+아래는 **사람용 명령 예시**만 (tier 표·step 표 없음). tier 분기는 vault를 따른다.
+
+### S1 — campaign + tier smoke
+
+`chip.integration_tier`에 맞게 **하나만** 실행 — 명령 SSOT: `13-INTEGRATION-TIERS.md` §S1.
 
 ```bash
 cd "$RTL_ROOT"
 ./example.sh gen
-make full_campaign
-make chip-top-example
+make full_campaign          # 43/43 — 항상
+
+# integration_tier: paste (기본)
+make soc-paste
+
+# integration_tier: yaml_multi — 아래만 실행 (위 soc-paste 생략)
+# make gen && make soc-integration
+
+# integration_tier: scale — 아래만 실행
+# make chip-top-example
 ```
 
-### S4–S6 — generate (내 yaml 기준)
+### S4 — generate (공통)
 
 ```bash
 cd "$RTL_ROOT/firmware/campaign"
 make config NUM_SCPU=<N>
-cd "$RTL_ROOT" && ./example.sh gen
+cd "$RTL_ROOT" && make gen
+make -C firmware/campaign soc_init icodes
+```
 
+### S4b — tier 2 only
+
+```bash
+# firmware/campaign/soc_integration_ports.yaml 편집 (bus_port, bus_type, role)
+cd "$RTL_ROOT" && make gen    # → include/soc_integration_example_gen.vh
+```
+
+### S5–S6 — tier 3 only
+
+```bash
 cd "$RTL_ROOT/firmware/campaign"
 python3 gen_soc_bus_connect.py --yaml soc_hierarchy_<MY_CHIP>.yaml
 python3 gen_tb_campaign.py --yaml soc_hierarchy_<MY_CHIP>.yaml
 ```
 
-### S7 — top 배선 체크
+### S7 — top 배선
+
+**Tier 1–2 (직결):**
+
+1. `include/soc_cpu_bus_paste_fabric.vh` 또는 `soc_integration_example_gen.vh`의 `g_slvN` 블록을 과제 `chip_top`에 복사  
+2. SoC 포트 prefix · `verif_vcpu_soc_cell_*` · peripheral base 치환  
+3. CONNECT 매크로 **불필요**
+
+**Tier 3 (CONNECT):**
 
 1. `include/verif_soc_bus_connect.vh` include  
 2. `CONNECT_SLV{cpu_id:02d}_*`가 과제 `Sxx_*` 포트명과 **문자열 일치**  
 3. `verif_agent_slave`의 `TAP_PORT` = manifest `tap_port`  
-4. orchestrator·snoop 4신호 (`valid, wr, addr, data`) 연결  
+4. orchestrator·snoop 4신호 (`valid, wr, addr, data`) 연결
 
 신호·매크로 상세: `$RTL_ROOT/howto_integrate.md`
 
@@ -226,14 +266,16 @@ python3 gen_tb_campaign.py --yaml soc_hierarchy_<MY_CHIP>.yaml
 
 배선(S7)과 probe(S8) **이후**, formal gate(S10) **이전**에 smoke sim을 돌립니다.
 
-intake에 기록한 명령 예 (VerifCPU iverilog 참조):
+intake에 기록한 명령 예 (VerifCPU iverilog — **첫 통합은 soc-paste**):
 
 ```bash
 export RTL_ROOT="${RTL_ROOT:-$(pwd)}"
 cd "$RTL_ROOT"
-make chip-top-example 2>&1 | tee sim_smoke.log
-grep -E 'chip_top_example: PASS|16 passed' sim_smoke.log
+make soc-paste 2>&1 | tee sim_smoke.log
+grep -E 'soc_cpu_bus_paste: PASS|4 passed' sim_smoke.log
 ```
+
+scale·yaml hierarchy 검증이 필요할 때만: `make chip-top-example` (16 checks).
 
 Questa·사내 run 스크립트·고객 top injection은 **intake에 적은 명령만** 따릅니다.  
 `pass.log_markers`가 log에 보일 때까지 S10으로 넘어가지 마세요.
@@ -305,19 +347,28 @@ export RTL_ROOT="$(python3 -c "import sys; sys.path.insert(0,'.'); from ops.inta
 # 새 tag
 cd "$PROJECT_DIR/inputs/tags" && ./copy_new_tag.sh "$TAG"
 
-# 예제 회귀
-cd "$RTL_ROOT" && ./example.sh gen && make full_campaign && make chip-top-example
+# S1 — campaign + tier smoke (integration_tier 에 맞게)
+cd "$RTL_ROOT" && ./example.sh gen && make full_campaign
+make soc-paste                    # tier 1 (기본)
+# make gen && make soc-integration   # tier 2
+# make chip-top-example            # tier 3
 
-# 내 칩 generate
+# S4 — generate (공통)
 cd "$RTL_ROOT/firmware/campaign"
 make config NUM_SCPU=<N>
-cd "$RTL_ROOT" && ./example.sh gen
-python3 gen_soc_bus_connect.py --yaml soc_hierarchy_<MY_CHIP>.yaml
-python3 gen_tb_campaign.py --yaml soc_hierarchy_<MY_CHIP>.yaml
+cd "$RTL_ROOT" && make gen
+make -C firmware/campaign soc_init icodes
 
-# probe · smoke
+# S4b — tier 2 only
+# (soc_integration_ports.yaml 편집 후) cd "$RTL_ROOT" && make gen
+
+# S5–S6 — tier 3 only
+# python3 gen_soc_bus_connect.py --yaml soc_hierarchy_<MY_CHIP>.yaml
+# python3 gen_tb_campaign.py --yaml soc_hierarchy_<MY_CHIP>.yaml
+
+# S8 probe · S9 smoke
 cd "$RTL_ROOT" && python3 tools/probe_icodes.py
-# (intake에 적은 smoke 명령 실행)
+# intake simulation.run.smoke_after_integration (tier 1: make soc-paste)
 
 # gate
 cd "$PROJECT_DIR"
@@ -332,10 +383,10 @@ python3 scripts/expand_agent_runbook.py --intake "inputs/tags/$TAG/deployment/cu
 
 | 증상 | 흔한 원인 | 조치 |
 |------|-----------|------|
-| `RTL_ROOT` / `example.sh` 없음 | `__CFI` 경로 없음 | `~/tools/__CFI/VerifCPU/verif_cpu_verilog` 확인 또는 `bootstrap --dest` |
+| `RTL_ROOT` / `example.sh` 없음 | `__CFA` 경로 없음 | `~/tools/__CFA/VerifCPU/verif_cpu_verilog` 확인 또는 `bootstrap --dest` |
 | compile OK, sim X | `S37_AXI` vs `S37_AXI0` 오타 | intake·hierarchy `bus_port` ↔ RTL 포트 재대조 |
 | icode probe FAIL | `soc_regs.h` 주소 불일치 | SFR 맵 갱신 후 `make icodes` |
-| coi_conn endpoint not found | wrong top / VH 미반영 | `./example.sh gen`·S5/S6 선행, `HIERWALK_PATH`·`hier-walk`로 instances.tsv |
+| coi_conn endpoint not found | wrong top / VH 미반영 | tier 3: S5/S6 선행 · tier 1–2: paste/yaml VH 반영 확인 · `hier-walk` instances.tsv |
 | slave_rw tier FAIL | sim 중 C 재빌드 | gate ops는 vvp만 — sim 중 `make -C firmware` 금지 |
 | 예제 16-check OK, 내 top FAIL | 예제 yaml 그대로 사용 | **내 yaml** + 내 top으로 S3–S7 재수행 |
 | gate가 아예 안 돌아감 | intake gate 플래그 false | `simulation.user_documented: true`, `firmware.user_provided: true`, staging `staged` 확인 |

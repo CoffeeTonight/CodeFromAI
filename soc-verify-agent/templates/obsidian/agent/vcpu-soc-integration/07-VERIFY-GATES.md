@@ -2,7 +2,8 @@
 
 태그: `#agent` `#integration` `#project/VERIF-CPU-SOC`  
 상위: [[agent/vcpu-soc-integration/00-INTEGRATION-HUB]]  
-**선행:** [[agent/vcpu-soc-integration/11-SIMULATION-USER]] (S9 smoke PASS)  
+tier SSOT: [[agent/vcpu-soc-integration/13-INTEGRATION-TIERS]]  
+**선행:** [[agent/vcpu-soc-integration/11-SIMULATION-USER]] (S9 smoke PASS — intake `chip.integration_tier`)
 프로젝트: [[projects/VERIF-CPU-SOC]] · Sub-agent: [[SUB_AGENT]]
 
 ---

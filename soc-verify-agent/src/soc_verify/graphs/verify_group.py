@@ -120,6 +120,7 @@ from soc_verify.meta_graph import (
     write_mechanical_meta_proposal,
     write_meta_collect_prompt,
 )
+from soc_verify.self_harness import integrate_meta_collect
 from soc_verify.reproduction_scripts import (
     build_gate_reproduction_prompt,
     validate_gate_step,
@@ -1142,7 +1143,7 @@ def meta_collect_node(state: VerifyGroupState) -> dict[str, Any]:
     write_improvement_signal(run_dir, signals)
     snapshot = build_snapshot(project_dir, run_dir, signals, as_of=state.get("as_of"))
     write_improvement_snapshot(run_dir, snapshot)
-    payload = build_meta_collect_payload(
+    meta_payload = build_meta_collect_payload(
         root=root,
         project_dir=project_dir,
         run_dir=run_dir,
@@ -1150,7 +1151,16 @@ def meta_collect_node(state: VerifyGroupState) -> dict[str, Any]:
         snapshot=snapshot.to_dict(),
         state=dict(state),
     )
-    write_meta_collect_prompt(run_dir, payload)
+    integration = integrate_meta_collect(
+        root,
+        project_dir,
+        run_dir,
+        meta_payload=meta_payload,
+        signals=signals,
+        snapshot=snapshot.to_dict(),
+        state=dict(state),
+    )
+    write_meta_collect_prompt(run_dir, integration["payload"])
     append_graph_trace(run_dir, {"node": "meta_collect", "improvement_index": snapshot.improvement_index})
     return {"improvement_index": snapshot.improvement_index}
 

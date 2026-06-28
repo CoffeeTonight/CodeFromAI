@@ -1,0 +1,9 @@
+#ifndef TOY_REGS_H
+#define TOY_REGS_H
+
+#define TOY_SFR_BASE  0x40001000u
+#define TOY_SRAM_BASE 0x80001000u
+#define TOY_SFR_CTRL  (TOY_SFR_BASE + 0x00u)
+#define TOY_SRAM_MARK (TOY_SRAM_BASE + 0x00u)
+
+#endif

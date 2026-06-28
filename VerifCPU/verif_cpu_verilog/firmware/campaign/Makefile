@@ -24,7 +24,7 @@ REPO_INC  := $(abspath ../../include)
 HIER_YAML ?= soc_hierarchy_example.yaml
 export HIER_YAML
 
-.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen
+.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
 
 # Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
 all: config
@@ -71,6 +71,9 @@ bus_connect: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
 
 chip_top_gen: gen_tb_campaign.py $(HIER_YAML)
 	python3 gen_tb_campaign.py --yaml $(HIER_YAML)
+
+integration_gen: gen_soc_integration_example.py soc_integration_ports.yaml
+	python3 gen_soc_integration_example.py
 
 bus_connect_yaml: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py $(HIER_YAML)
 	python3 gen_soc_bus_connect.py --yaml $(HIER_YAML)

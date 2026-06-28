@@ -1,0 +1,37 @@
+# Optional — SoC AMBA ports to wire VCPU cells (inst-level integration example).
+#
+# Sync: make discover keeps this file aligned with campaign_slots.yaml (match: role).
+# Edit bus_port / bus_type here — discover copies them into campaign_slots active[].
+#
+# When present, make gen generates include/soc_integration_example_gen.vh
+# Run smoke: make soc-integration
+#
+# bus_type: apb3 | apb | ahb_lite | ahb | axi4lite | axi (see campaign_slots.yaml header)
+# bus_port: SoC interconnect wire prefix (must match RTL)
+#
+soc_name: verify_soc_example
+slaves:
+- name: SFR
+  role: sfr
+  cpu_id: 1
+  tap_port: 0
+  bus_type: apb3
+  bus_port: S01_APB
+  addr_base: '0x40000000'
+  addr_size: '0x1000'
+- name: SRAM
+  role: sram
+  cpu_id: 2
+  tap_port: 1
+  bus_type: ahb_lite
+  bus_port: M02_AHB
+  addr_base: '0x80000000'
+  addr_size: '0x10000'
+- name: UART
+  role: uart
+  cpu_id: 3
+  tap_port: 2
+  bus_type: axi4lite
+  bus_port: S03_AXI
+  addr_base: '0xC0000000'
+  addr_size: '0x1000'

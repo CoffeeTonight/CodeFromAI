@@ -71,6 +71,21 @@ def test_scan_passes_complete_vvp_tail():
     assert scan_log_integrity(text) == []
 
 
+def test_judge_log_c_compile_passes_multiline_iverilog_block(tmp_path: Path):
+    log = tmp_path / "c-compile.log"
+    log.write_text(
+        "# gate=c-compile\n"
+        "make gen\n"
+        "[gen] Artifacts: filelists/eda/test/chip_top_example/manifest.list\n"
+        "iverilog -o sim_build/tb_full_campaign.vvp \\\n"
+        "  -f filelists/eda/test/chip_top_example/manifest.list\n"
+        "exit=0\n",
+        encoding="utf-8",
+    )
+    result = judge_log(log, gate="c-compile")
+    assert result.ok, result.hits
+
+
 def test_init_log_includes_started_timestamp(tmp_path: Path):
     log = tmp_path / "c-compile.log"
     init_log(log, gate="c-compile", rtl_root_path=tmp_path / "rtl")

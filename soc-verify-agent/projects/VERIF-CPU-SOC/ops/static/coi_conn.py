@@ -156,7 +156,7 @@ def main() -> int:
     if proc.returncode != 0:
         log_hits.append(f"hier-walk exit {proc.returncode}")
 
-    text_art, logical_art = path_walk_connect_artifact_paths(root, top)
+    text_art, logical_art = path_walk_connect_artifact_paths(root, top, tsv_out=tsv_path)
     if not logical_art.is_file():
         log_hits.append(f"missing path-walk logical TSV: {logical_art}")
     if not text_art.is_file():

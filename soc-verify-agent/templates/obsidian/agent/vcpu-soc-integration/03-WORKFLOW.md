@@ -32,8 +32,8 @@ stateDiagram-v2
 
 | Step | 액션 (요약) | 상세 노트 / SSOT |
 |------|-------------|------------------|
-| **S0** | **VerifCPU 경로** · `RTL_ROOT` | `./scripts/bootstrap_verifcpu_workspace.sh` → `~/tools/__CFI` · `ops/intake_resolve.py` |
-| **S1** | 예제 회귀 PASS | VerifCPU `README.md` — `./example.sh gen`, `make full_campaign`, `make chip-top-example` |
+| **S0** | **VerifCPU 경로** · `RTL_ROOT` | `./scripts/bootstrap_verifcpu_workspace.sh` → `~/tools/__CFA` · `ops/intake_resolve.py` |
+| **S1** | 예제 회귀 PASS (tier 3 scale) | VerifCPU `README.md` — `./example.sh gen`, `make full_campaign`, `make chip-top-example` |
 | **S2** | intake 작성 | [[agent/vcpu-soc-integration/02-INTAKE]] — 펌웨어·**시뮬** 블록 포함 |
 | **S2a** | **새 tag/칩이면 SSOT 복사** | [[agent/vcpu-soc-integration/12-EXAMPLE-SCAFFOLD]] — MD·intake·hierarchy **gen 전** |
 | **S2b** | **사용자에게 펌웨어 C 경로 질문** | [[agent/vcpu-soc-integration/09-FIRMWARE-USER]] — `firmware.user_provided: true` |

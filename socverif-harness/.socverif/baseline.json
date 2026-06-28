@@ -1,0 +1,23 @@
+{
+  "goal_build_id": 20,
+  "round": 20,
+  "min_unit_tests": 149,
+  "self_harness_tier_count": 3,
+  "required_tier_names": [
+    "unit_tests",
+    "selftest",
+    "reference_envs"
+  ],
+  "required_cli_subcommands": [
+    "discover",
+    "run",
+    "loop",
+    "instrument",
+    "inspect"
+  ],
+  "max_tier_duration_sec": {
+    "0": 120,
+    "1": 180,
+    "2": 1200
+  }
+}

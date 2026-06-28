@@ -77,7 +77,7 @@ python3 gen_tb_campaign.py --yaml soc_hierarchy_<chip>.yaml
 | `include/verif_chip_soc_bus_read.vh` | VCPU → bridge bind |
 | `include/verif_chip_soc_bus_write.vh` | 동일 |
 
-Makefile 경로: `make chip-top-example` (선행: S4+S5+S6).
+Makefile 경로 (tier 3 scale): `make chip-top-example` (선행: S4+S5+S6).
 
 ---
 

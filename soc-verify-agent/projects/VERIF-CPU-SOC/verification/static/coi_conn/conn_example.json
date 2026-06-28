@@ -24,7 +24,7 @@
     ],
     "object_minimal": {
       "checks": [
-        ["chip_top_example.u_periph_sfr.PCLK", "chip_top_example.u_periph_sram.HCLK"]
+        ["chip_top_example.u_stub_sfr.PCLK", "chip_top_example.u_stub_sram.HCLK"]
       ]
     },
     "endpoint_alias_examples": {
@@ -53,8 +53,8 @@
       "path": "runs/{run_id}/coi_conn_pairs.txt",
       "lines": [
         "# tab or whitespace separated",
-        "chip_top_example.u_periph_sfr.PCLK\tchip_top_example.u_periph_sram.HCLK",
-        "chip_top_example.u_periph_sfr.PADDR chip_top_example.u_periph_sram.HADDR"
+        "chip_top_example.u_stub_sfr.PCLK\tchip_top_example.u_stub_sram.HCLK",
+        "chip_top_example.u_stub_sfr.PADDR chip_top_example.u_stub_sram.HADDR"
       ]
     }
   },
@@ -113,8 +113,8 @@
       "category": "format",
       "check": {
         "id": "fmt_from_to",
-        "from": "chip_top_example.u_periph_sfr.PCLK",
-        "to": "chip_top_example.u_periph_sram.HCLK"
+        "from": "chip_top_example.u_stub_sfr.PCLK",
+        "to": "chip_top_example.u_stub_sram.HCLK"
       },
       "expected_connected": true,
       "expected_tsv": { "mode": "port-port", "errors_empty": true }
@@ -125,8 +125,8 @@
       "mode": "port-port",
       "check": {
         "id": "mode_port_port_connected",
-        "a": "chip_top_example.u_periph_sfr.PCLK",
-        "b": "chip_top_example.u_periph_sram.HCLK"
+        "a": "chip_top_example.u_stub_sfr.PCLK",
+        "b": "chip_top_example.u_stub_sram.HCLK"
       },
       "expected_connected": true,
       "expected_tsv": {
@@ -143,8 +143,8 @@
       "mode": "port-port",
       "check": {
         "id": "mode_port_port_disconnected",
-        "a": "chip_top_example.u_periph_sfr.PADDR",
-        "b": "chip_top_example.u_periph_sram.HADDR"
+        "a": "chip_top_example.u_stub_sfr.PADDR",
+        "b": "chip_top_example.u_stub_sram.HADDR"
       },
       "expected_connected": false,
       "expected_tsv": {
@@ -161,7 +161,7 @@
       "mode": "port-hierarchy",
       "check": {
         "id": "mode_port_hierarchy",
-        "a": "chip_top_example.u_periph_sfr.PADDR",
+        "a": "chip_top_example.u_stub_sfr.PADDR",
         "b": "chip_top_example.u_ag_1"
       },
       "expected_connected": false,
@@ -213,8 +213,8 @@
       "category": "outcome",
       "check": {
         "id": "outcome_connected_true",
-        "a": "chip_top_example.u_periph_sfr.PCLK",
-        "b": "chip_top_example.u_periph_sram.HCLK"
+        "a": "chip_top_example.u_stub_sfr.PCLK",
+        "b": "chip_top_example.u_stub_sram.HCLK"
       },
       "expected_connected": true,
       "expected_tsv": { "connected": true, "errors_empty": true }
@@ -224,8 +224,8 @@
       "category": "outcome",
       "check": {
         "id": "outcome_connected_false_no_path",
-        "a": "chip_top_example.u_periph_sfr.PADDR",
-        "b": "chip_top_example.u_periph_sram.HADDR"
+        "a": "chip_top_example.u_stub_sfr.PADDR",
+        "b": "chip_top_example.u_stub_sram.HADDR"
       },
       "expected_connected": false,
       "expected_tsv": { "connected": false, "errors_empty": true, "note_contains": "no path" }
@@ -271,7 +271,7 @@
       "check": {
         "id": "error_top_level_net_as_hierarchy",
         "a": "chip_top_example.S01_APB_PADDR",
-        "b": "chip_top_example.u_periph_sfr.PADDR"
+        "b": "chip_top_example.u_stub_sfr.PADDR"
       },
       "expected_connected": false,
       "gate_status": "FAIL",
@@ -329,8 +329,8 @@
       "scan_options": { "include_ff": true },
       "check": {
         "id": "opt_include_ff",
-        "a": "chip_top_example.u_periph_sfr.PCLK",
-        "b": "chip_top_example.u_periph_sram.HCLK"
+        "a": "chip_top_example.u_stub_sfr.PCLK",
+        "b": "chip_top_example.u_stub_sram.HCLK"
       },
       "expected_connected": true,
       "note": "FF 통과 허용 시에도 동일 check 가능 — 정책만 변경"
@@ -341,8 +341,8 @@
       "scan_options": { "connect_trace": true },
       "check": {
         "id": "opt_connect_trace",
-        "a": "chip_top_example.u_periph_sfr.PCLK",
-        "b": "chip_top_example.u_periph_sram.HCLK"
+        "a": "chip_top_example.u_stub_sfr.PCLK",
+        "b": "chip_top_example.u_stub_sram.HCLK"
       },
       "expected_connected": true,
       "note": "hops 열·터미널 path evidence 채움"
@@ -354,14 +354,14 @@
     "checks": [
       {
         "id": "sfr_clk_to_sram_clk",
-        "a": "chip_top_example.u_periph_sfr.PCLK",
-        "b": "chip_top_example.u_periph_sram.HCLK",
+        "a": "chip_top_example.u_stub_sfr.PCLK",
+        "b": "chip_top_example.u_stub_sram.HCLK",
         "expected_connected": true
       },
       {
         "id": "sfr_paddr_to_sram_haddr",
-        "a": "chip_top_example.u_periph_sfr.PADDR",
-        "b": "chip_top_example.u_periph_sram.HADDR",
+        "a": "chip_top_example.u_stub_sfr.PADDR",
+        "b": "chip_top_example.u_stub_sram.HADDR",
         "expected_connected": false
       },
       {
@@ -383,7 +383,7 @@
       "include_ff": false,
       "connect_trace": true,
       "checks": [
-        { "id": "sfr_clk_to_sram_clk", "a": "chip_top_example.u_periph_sfr.PCLK", "b": "chip_top_example.u_periph_sram.HCLK" }
+        { "id": "sfr_clk_to_sram_clk", "a": "chip_top_example.u_stub_sfr.PCLK", "b": "chip_top_example.u_stub_sram.HCLK" }
       ]
     }
   }

@@ -2,8 +2,8 @@
 
 > **이 문서의 역할** — 기본 예제(`./example.sh`, `chip_top_example`, `simple_soc`)가 PASS한 뒤, **과제 실칩 top**에 가상 CPU(SCPU) 검증 블록을 올리는 **사람용 절차 요약**.  
 > **사용자 절차서 (처음 쓰는 사람):** [`USER-PROCEDURE.md`](./USER-PROCEDURE.md) — bootstrap·intake·sim·gate 순서.  
-> **LLM 에이전트**는 Obsidian vault [`templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md`](../../templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md) 를 SSOT로 따른다 (링크·정형 intake·workflow).
-> 신호·매크로·RTL 상세: **`~/tools/__CFI/VerifCPU/verif_cpu_verilog/howto_integrate.md`**, **`vcpu_skill.md`** (`$RTL_ROOT` = 동일 경로 · bootstrap: [`scripts/bootstrap_verifcpu_workspace.sh`](./scripts/bootstrap_verifcpu_workspace.sh)).
+> **LLM 에이전트**는 Obsidian vault [`00-INTEGRATION-HUB.md`](../../templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md) · tier [`13-INTEGRATION-TIERS.md`](../../templates/obsidian/agent/vcpu-soc-integration/13-INTEGRATION-TIERS.md) 를 SSOT로 따른다.
+> 신호·매크로·RTL 상세: **`~/tools/__CFA/VerifCPU/verif_cpu_verilog/howto_integrate.md`**, **`vcpu_skill.md`** (`$RTL_ROOT` = 동일 경로 · bootstrap: [`scripts/bootstrap_verifcpu_workspace.sh`](./scripts/bootstrap_verifcpu_workspace.sh)).
 
 **대상 독자:** SoC RTL/검증 엔지니어 — 주소맵·interconnect 포트명을 알고 있으며, soc-verify-agent gate(c-compile → coi_conn → slave_rw)로 통합을 검증하려는 사람.
 
@@ -53,17 +53,22 @@ flowchart LR
 
 ## 1. 선행 조건 (기본 예제)
 
-아래가 **내 SoC 작업 전** 모두 PASS여야 한다.
+아래 **campaign 회귀**는 모든 tier에서 필수.  
+**tier smoke 명령·PASS 마커 SSOT:** vault `13-INTEGRATION-TIERS.md` — intake `chip.integration_tier`에 맞게 **하나만** 실행.
 
 ```bash
-# RTL_ROOT 확정 (최초 1회 — 기본 ~/tools/__CFI)
+# RTL_ROOT 확정 (최초 1회 — 기본 ~/tools/__CFA)
 cd projects/VERIF-CPU-SOC && ./scripts/bootstrap_verifcpu_workspace.sh
 export RTL_ROOT="$(python3 -c "import sys; sys.path.insert(0,'.'); from ops.intake_resolve import resolve_rtl_root; print(resolve_rtl_root(__import__('pathlib').Path('.')))")"
 
 cd "$RTL_ROOT"
 ./example.sh gen
-make full_campaign          # 43/43, vcd_marker 0xDEADDEAD
-make chip-top-example       # 16 checks (yaml 4-slave 참고)
+make full_campaign          # 43/43, vcd_marker 0xDEADDEAD — 항상
+
+# tier smoke — 13-INTEGRATION-TIERS.md §S1 (integration_tier 에 맞게 하나만):
+#   paste:      make soc-paste
+#   yaml_multi: make gen && make soc-integration
+#   scale:      make chip-top-example
 ```
 
 soc-verify-agent sanity gate:
@@ -73,7 +78,14 @@ cd /path/to/soc-verify-agent/projects/VERIF-CPU-SOC
 ./scripts/01_sanity_VerifCPU_c-compile_and_elab.sh
 ```
 
-**산출물 확인:** `include/tb_full_campaign_gen.vh`, `include/verif_soc_bus_connect.vh`(예제용), `firmware/*.hex`, `include/chip_top_decode.vh`(chip-top gen 시).
+**산출물 확인 (tier별):**
+
+| tier | 확인할 산출물 |
+|------|----------------|
+| 공통 | `include/tb_full_campaign_gen.vh`, `firmware/*.hex` |
+| 1 | `include/soc_cpu_bus_paste_fabric.vh` |
+| 2 | `soc_integration_ports.yaml`, `include/soc_integration_example_gen.vh` |
+| 3 | `verif_soc_bus_connect.vh`, `chip_top_*_gen.vh`, `chip_top_decode.vh` |
 
 ---
 
@@ -197,18 +209,22 @@ python3 gen_soc_bus_connect.py --yaml soc_hierarchy_<MY_CHIP>.yaml
 생성된 `CONNECT_SLVxx_*` 매크로의 `Sxx_*` prefix가 **과제 top 포트명**과 문자열 일치해야 한다.  
 상세 매크로 형식 → `$RTL_ROOT/howto_integrate.md` §5.3.
 
-### Step 5 — 과제 top에 셀·agent·CONNECT 삽입
+### Step 5 — 과제 top 배선 (tier별)
+
+| Tier | 방법 | SSOT |
+|------|------|------|
+| **1 paste** | `g_slv0` 직결 복사 | `integration_paste.md` · `soc_cpu_bus_paste_fabric.vh` |
+| **2 yaml_multi** | `g_slvN` 직결 복사 | `soc_integration_ports.yaml` · `soc_integration_example_gen.vh` |
+| **3 scale** | CONNECT + generate | `verif_soc_bus_connect.vh` · `chip_top_example.v` |
+
+**Tier 3 (CONNECT) 상세:**
 
 1. `include/verif_soc_bus_connect.vh` include
-2. `gen_tb_campaign.py` / `chip_top_example` 패턴으로 `g_slv{cpu_id-1}` generate
+2. `chip_top_example` 패턴으로 `g_slv{cpu_id-1}` generate
 3. `verif_agent_slave` — `TAP_PORT` = manifest `tap_port`
-4. orchestrator 신호 broadcast (`orch_reset`, `orch_phase`, `orch_boot_fw`)
-5. snoop 4신호 (`valid, wr, addr, data`) → `tap_valid[tap_id]`
+4. orchestrator broadcast · snoop 4신호 → `tap_valid[tap_id]`
 
-**과제 interconnect**의 `S37_AXI_*` 등은 CONNECT 매크로가 `g_slv36.u_bus` bridge에 연결한다.  
-셀 내부: `u_bus.u_bridge` = AMBA master, `u_bus.u_cpu` = VCPU (`USE_MANIFEST_SOC_BUS=1`).
-
-Agent/LLM 자동화 시 → `$RTL_ROOT/vcpu_skill.md` · vault `templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md`.
+Agent/LLM → vault `13-INTEGRATION-TIERS.md` · `$RTL_ROOT/vcpu_skill.md`.
 
 ### Step 6 — 통합 직후 smoke 시뮬 (S9, 필수)
 
@@ -216,10 +232,11 @@ Agent/LLM 자동화 시 → `$RTL_ROOT/vcpu_skill.md` · vault `templates/obsidi
 PASS(`pass.log_markers`) 확인 전에는 아래 formal gate(Step 7–8)로 가지 않습니다.
 
 ```bash
-# 예 (VerifCPU iverilog — 사용자가 intake에 명시한 경우만)
+# 예 (VerifCPU iverilog — 첫 통합 smoke, intake에 명시)
 cd "$RTL_ROOT"
-make chip-top-example 2>&1 | tee sim_smoke.log
-# log: chip_top_example: PASS 등
+make soc-paste 2>&1 | tee sim_smoke.log
+# log: soc_cpu_bus_paste: PASS · Checklist: 4 passed / 0 failed
+# scale 검증: make chip-top-example (16 checks)
 ```
 
 Questa·사내 run 스크립트·고객 top injection은 **사용자가 intake에 적은 명령**을 따릅니다.
@@ -284,17 +301,39 @@ c-compile fw **재빌드 없이** tier별 sim:
 
 ## 5. 통합 전 체크리스트
 
-- [ ] `./example.sh` + `make chip-top-example` PASS (기본 예제)
-- [ ] `soc_hierarchy_<MY_CHIP>.yaml` — `bus_port`가 과제 RTL 포트명과 **문자열 일치**
+intake `chip.integration_tier`에 맞는 섹션만 적용.
+
+### 공통
+
+- [ ] `make full_campaign` 43/43 PASS
 - [ ] `addr_base`..`addr_base+size`가 과제 주소맵과 일치
 - [ ] `tap_port` ↔ monitor 채널 1:1
 - [ ] `icode_map.json`의 `bus_addr` / `tap_port`가 manifest와 일치 (probe)
 - [ ] `cpu_id` 중복 없음, master는 `0`만
-- [ ] `verif_soc_bus_connect.vh` 재생성 후 과제 top include 갱신
 - [ ] intake `simulation` 작성 + **통합 직후 smoke sim PASS** (Step 6)
 - [ ] coi_conn 2~3 check PASS (의도적 disconnect 포함)
 - [ ] slave_rw 3-tier log 마커 PASS
 - [ ] soc-verify-agent `verification_sequence` 전체 PASS
+
+### Tier 1 — paste
+
+- [ ] tier 1 smoke PASS — `13-INTEGRATION-TIERS.md` §tier-1
+- [ ] `soc_cpu_bus_paste_fabric.vh` → 과제 top 직결 (포트 · bus_type · base)
+- [ ] CONNECT 매크로 **불필요**
+
+### Tier 2 — yaml_multi
+
+- [ ] `soc_integration_ports.yaml` ↔ `campaign_slots.yaml` role sync
+- [ ] `make gen` → `soc_integration_example_gen.vh` 존재
+- [ ] tier 2 smoke PASS — `13-INTEGRATION-TIERS.md` §tier-2
+- [ ] `g_slvN` 블록 → 과제 top 직결
+
+### Tier 3 — scale
+
+- [ ] tier 3 smoke PASS — `13-INTEGRATION-TIERS.md` §tier-3 (또는 동등)
+- [ ] `soc_hierarchy_<MY_CHIP>.yaml` — `bus_port`가 과제 RTL과 **문자열 일치**
+- [ ] `verif_soc_bus_connect.vh` 재생성 후 과제 top include 갱신
+- [ ] `g_slv[cpu_id-1].u_bus` + `verif_chip_soc_bus_*.vh` (수동 adapter 없음)
 
 ---
 

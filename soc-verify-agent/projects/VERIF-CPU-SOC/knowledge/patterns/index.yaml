@@ -1,0 +1,10 @@
+entries:
+- run_id: demo-self-harness
+  title: simulation / gpio_ext / verification
+  tags:
+  - '#project/VERIF-CPU-SOC'
+  - '#stage/simulation'
+  - '#group/gpio_ext'
+  - '#error_kind/verification'
+  path: knowledge/patterns/demo-self-harness.md
+  updated_at: '2026-06-28T18:52:59.265253+00:00'

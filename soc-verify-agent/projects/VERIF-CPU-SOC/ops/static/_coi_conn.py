@@ -273,15 +273,27 @@ def validate_hierarchy_checks(
     return validated, failed
 
 
+def _connect_tsv_lines(tsv_path: Path) -> list[str]:
+    """Drop hier-walk preamble comments; keep header + data rows."""
+    lines: list[str] = []
+    for raw in tsv_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if raw.startswith("#"):
+            continue
+        lines.append(raw)
+    return lines
+
+
 def parse_connect_tsv(tsv_path: Path) -> dict[str, dict[str, str]]:
     rows: dict[str, dict[str, str]] = {}
-    with tsv_path.open(encoding="utf-8", errors="replace") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
-        for row in reader:
-            cid = (row.get("check_id") or "").strip()
-            if not cid or cid.startswith("#"):
-                continue
-            rows[cid] = {k: (v or "").strip() for k, v in row.items()}
+    body = _connect_tsv_lines(tsv_path)
+    if not body:
+        return rows
+    reader = csv.DictReader(body, delimiter="\t")
+    for row in reader:
+        cid = (row.get("check_id") or row.get("id") or "").strip()
+        if not cid:
+            continue
+        rows[cid] = {k: (v or "").strip() for k, v in row.items()}
     return rows
 
 
@@ -326,17 +338,31 @@ def scan_log_hits(log_path: Path) -> list[str]:
     return hits
 
 
-def path_walk_connect_artifact_paths(rtl_root: Path, top: str) -> tuple[Path, Path]:
+def path_walk_connect_artifact_paths(
+    rtl_root: Path,
+    top: str,
+    *,
+    tsv_out: Path,
+) -> tuple[Path, Path]:
     """
-    Path-walk connect writes fixed names under per-top work dir (not ``-o``).
+    Path-walk connect writes phase TSVs under per-top work dir (not the ``-o`` path).
 
-    Text/logical artifacts: ``{index_cwd}/.db_{TOP}/conn.text.tsv`` and ``conn.tsv``.
+    Names follow hier-walk ``connect_output_paths``: ``{stem}.text.tsv`` and
+    ``{stem}.tsv`` where ``stem`` comes from the configured ``-o`` basename.
     """
     _ensure_hierwalk_import()
     from hierwalk.cache import top_work_dir
 
     work = top_work_dir(top, base=rtl_root)
-    return work / "conn.text.tsv", work / "conn.tsv"
+    try:
+        from hierwalk.connect_artifacts import connect_output_paths
+
+        paths = connect_output_paths(work, tsv_out.name)
+        return paths.text_tsv, paths.logical_tsv
+    except ImportError:
+        logical = work / tsv_out.name
+        text = work / f"{tsv_out.stem}.text{tsv_out.suffix}"
+        return text, logical
 
 
 def build_hierwalk_connect_cmd(
@@ -348,7 +374,7 @@ def build_hierwalk_connect_cmd(
     rtl_root: Path,
     top: str,
 ) -> list[str]:
-    """Path-walk connect: ``conn.text.tsv`` / ``conn.tsv`` land in ``.db_{TOP}/``."""
+    """Path-walk connect: phase TSVs land in ``.db_{TOP}/`` (stem from ``-o``)."""
     cmd = [
         scan_bin,
         str(filelist),
@@ -380,7 +406,7 @@ def stage_path_walk_connect_artifacts(
 
     Returns ``(text_artifact, logical_artifact)`` under the work dir.
     """
-    text_path, logical_path = path_walk_connect_artifact_paths(rtl_root, top)
+    text_path, logical_path = path_walk_connect_artifact_paths(rtl_root, top, tsv_out=tsv_out)
     if logical_path.is_file():
         shutil.copy2(logical_path, tsv_out)
     if text_path.is_file():

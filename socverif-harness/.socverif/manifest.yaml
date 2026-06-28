@@ -1,0 +1,60 @@
+# Self-harness manifest — canonical entry: python3 -m socverif.cli loop .
+# goal_build_id = 12
+self_harness: true
+project_id: socverif-harness
+
+scan_exclude_dirs:
+  - envs
+  - tests/fixtures
+
+eda:
+  vendor: meta
+  simulator: python
+  compile:
+    cmd: ""
+    cwd: "."
+    top: ""
+  sim:
+    cmd: ""
+    cwd: "."
+
+pass_fail:
+  primary: exit_code
+  protocol: exit_code
+  log_glob: ".socverif/scratch/**/*.log"
+
+capabilities:
+  self_harness: true
+  plugin_free: true
+  env_agnostic: true
+
+tiers:
+  - tier: 0
+    name: unit_tests
+    cwd: "."
+    sim_cmd: "SOCVERIF_FAST_UNITTEST=1 python3 -m unittest tests.test_harness tests.test_discovery_stages tests.test_self_harness_modules tests.test_flow_docs tests.test_runner_vlp -q"
+    pass_fail:
+      protocol: exit_code
+
+  - tier: 1
+    name: selftest
+    cwd: "."
+    sim_cmd: "python3 -m socverif.selftest --scratch .socverif/scratch/selftest --skip-pip"
+    pass_fail:
+      protocol: exit_code
+
+  - tier: 2
+    name: reference_envs
+    cwd: "."
+    sim_cmd: "bash run_all_envs.sh"
+    log_glob: ""
+    timeout_sec: 1200
+    pass_fail:
+      protocol: log_pattern
+      pass_patterns:
+        - "\\[OK\\]"
+      require_pass_pattern: true
+
+scan_notes:
+  - "self_harness: artifacts in .socverif/scratch/"
+  - "self_harness: canonical verify = loop . + verify_report"

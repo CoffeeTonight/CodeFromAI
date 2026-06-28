@@ -319,10 +319,82 @@ _REPORTERS = {
     ("simulation", "slave_rw"): _report_slave_rw,
 }
 
+_VERDICT_BASENAMES = {
+    ("static", "coi_conn"): "verdict_coi_conn.json",
+    ("simulation", "slave_rw"): "verdict_slave_rw.json",
+}
 
-def generate(project_dir: Path) -> list[Path]:
+
+def _verdict_rel_path(run_id: str, stage: str, group: str) -> str:
+    base = _VERDICT_BASENAMES.get((stage, group))
+    if base is None:
+        raise KeyError(f"no verdict mapping for {stage}/{group}")
+    return f"runs/{run_id}/{base}"
+
+
+def _sync_index_run_id(index: dict[str, Any], run_id: str) -> None:
+    """Point all gates at one reproduce run (shared RUN_DIR from sequence)."""
+    for gate in index.get("gates") or []:
+        stage = str(gate.get("stage") or "")
+        group = str(gate.get("group") or "")
+        if (stage, group) not in _VERDICT_BASENAMES:
+            continue
+        gate["run_id"] = run_id
+        gate["verdict"] = _verdict_rel_path(run_id, stage, group)
+
+
+def _run_has_gate_verdicts(project_dir: Path, run_id: str) -> bool:
+    run_dir = project_dir / "runs" / run_id
+    return all((run_dir / name).is_file() for name in _VERDICT_BASENAMES.values())
+
+
+def _latest_reproduce_run_id(project_dir: Path, index: dict[str, Any]) -> str | None:
+    """Newest ``runs/reproduce-{tag}-*`` dir that contains all gate verdict JSONs."""
+    tag = str(index.get("tag", "main"))
+    runs_dir = project_dir / "runs"
+    if not runs_dir.is_dir():
+        return None
+    candidates = sorted(
+        (p.name for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith(f"reproduce-{tag}-")),
+        reverse=True,
+    )
+    for run_id in candidates:
+        if _run_has_gate_verdicts(project_dir, run_id):
+            return run_id
+    return None
+
+
+def _resolve_run_id(
+    project_dir: Path,
+    index: dict[str, Any],
+    *,
+    run_id: str | None,
+) -> str | None:
+    if run_id:
+        return run_id
+    missing = any(
+        not (project_dir / str(gate.get("verdict") or "")).is_file()
+        for gate in index.get("gates") or []
+    )
+    if missing:
+        return _latest_reproduce_run_id(project_dir, index)
+    return None
+
+
+def _persist_index(index_path: Path, index: dict[str, Any]) -> None:
+    index["generated_at"] = date.today().isoformat()
+    index_path.write_text(
+        yaml.safe_dump(index, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
+def generate(project_dir: Path, *, run_id: str | None = None) -> list[Path]:
     index_path = project_dir / "reports" / "index.yaml"
     index = _load_yaml(index_path)
+    resolved = _resolve_run_id(project_dir, index, run_id=run_id)
+    if resolved:
+        _sync_index_run_id(index, resolved)
     sequence = _load_sequence(project_dir, index)
     tag = str(index.get("tag", "main"))
     out_dir = project_dir / "reports" / "by_tag" / tag
@@ -366,25 +438,21 @@ def generate(project_dir: Path) -> list[Path]:
     )
     written.append(summary_path)
 
-    # Touch generated_at only — avoid rewriting user-edited gate list structure.
-    raw = index_path.read_text(encoding="utf-8")
-    today = date.today().isoformat()
-    if "generated_at:" in raw:
-        import re
-
-        raw = re.sub(r"(?m)^generated_at:\s*.*$", f"generated_at: {today}", raw, count=1)
-    else:
-        raw = f"generated_at: {today}\n" + raw
-    index_path.write_text(raw, encoding="utf-8")
+    _persist_index(index_path, index)
     return written
 
 
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--project", required=True, help="Project directory (VERIF-CPU-SOC)")
+    p.add_argument(
+        "--run-id",
+        default=None,
+        help="Sync reports/index.yaml gates to this run id (sequence RUN_DIR basename)",
+    )
     args = p.parse_args()
     project = Path(args.project).resolve()
-    paths = generate(project)
+    paths = generate(project, run_id=args.run_id)
     for path in paths:
         print(f"wrote {_rel(project, path)}")
     return 0

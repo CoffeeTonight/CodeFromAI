@@ -22,7 +22,7 @@
 ## iverilog 검증
 
 ```bash
-cd ~/tools/__CFA/VerifCPU/verif_cpu_verilog
+cd ~/tools/_CFA/VerifCPU/verif_cpu_verilog
 make soc-paste
 ```
 

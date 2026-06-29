@@ -4,7 +4,7 @@
 
 | 항목 | 결과 |
 |---|---|
-| Checklist | **25 passed / 0 failed** |
+| Checklist | **43 passed / 0 failed** |
 | Agents icode | PASS=6, FAIL=0 |
 | `vcd_marker` | `0xDEADDEAD` |
 | Master init_done poll | `@0x40000018` poll 0 — PASS |

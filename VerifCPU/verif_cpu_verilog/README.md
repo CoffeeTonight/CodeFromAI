@@ -3,8 +3,12 @@
 **독립 패키지** — `verif_cpu_verilog/` 디렉터리만 복사해도 campaign 빌드·시뮬이 동작합니다.  
 (`firmware/campaign`, `tools/probe_icodes.py` 포함. `verif_cpu_project` 불필요.)
 
+> **역할:** DV 전용 **행위 모델** 검증 CPU — SoC 통합·캠페인 회귀용이며, 합성 가능한 실리콘 CPU RTL 대체가 아닙니다.
+
 공식 검증 게이트는 **iverilog 시뮬레이션 + VCD 후처리**입니다.  
 Python 모델은 동일 TB 흐름을 따르는 cross-check reference이며, PASS/FAIL의 authoritative source는 이 디렉터리입니다.
+
+`make full_campaign`은 **`simple_soc` + 펌웨어 캠페인** 증명입니다. 고객 SoC AMBA 배선·스케일은 **`make soc-paste`**, **`make soc-integration`**, **`make chip-top-example`** tier 스모크로 별도 검증합니다.
 
 ## 빠른 시작
 
@@ -67,6 +71,13 @@ verif_cpu_verilog/
 | **`simple_soc`** | 17-step `soc_init_seq`, SFR/SRAM/UART peripheral |
 
 블록 다이어그램·최근 검증 스냅샷: [architecture_example.md](architecture_example.md)
+
+### AMBA: 구현 vs stub (manifest scale compile)
+
+| 구분 | RTL (예) | 용도 |
+|------|----------|------|
+| **구현** | APB2/3/4/5, AHB/AHB5-lite, AXI-lite/full 마스터·슬레이브 | paste / integration / chip-top 트랜잭션 |
+| **stub** | `verif_chi_master`, `verif_ace_master`, `verif_ace_lite_master`, `verif_axistream_master`, `verif_niu_master` | 60-slot manifest **컴파일·스모크만** (프로토콜 fidelity 없음) |
 
 ## VCPU 특수 명령어 (custom-0)
 

@@ -1,5 +1,10 @@
 # Campaign slot table — SINGLE SOURCE OF TRUTH (max 60 SCPU/VCPU slots)
 #
+# 사람·LLM: 슬롯·버스·targets·chip 메타는 이 파일에만 적는다.
+# 가이드: campaign_slots_GUIDE.md (필드 표·체크리스트)
+# 파생: make discover → soc_integration_ports.yaml, soc_hierarchy_from_slots.yaml
+# intake: sync_intake_slaves_from_slots.py (slaves[] 수동 작성 금지)
+#
 # Only list *active* slaves here. Unused cpu_id values up to max_slots are
 # auto-filled as reserved (enabled: false) — no firmware campaign, no TB steps.
 # External SoC: wire AXI + hierarchy only for enabled slots you use.
@@ -20,6 +25,12 @@ master:
   targets:
     - { sym: SFR_CTRL,     expect: 0x00000001, icode: check_sfr_ctrl }
     - { sym: SFR_CFG,      expect: 0x000000FF, icode: check_sfr_mask }
+
+chip:
+  soc_name: verify_soc_example
+  integration_tier: yaml_multi
+  num_scpu: 3
+  # init_done_addr: 0x40000018
 
 max_slots: 60
 
@@ -43,6 +54,7 @@ active:
     tap_port: 1
     bus_type: ahb_lite
     bus_port: M02_AHB
+    addr_size: 0x10000
     role: sram
     phase_c: cpu_sram/phase_c.c
     targets:

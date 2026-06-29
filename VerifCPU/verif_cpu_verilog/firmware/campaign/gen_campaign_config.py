@@ -564,6 +564,14 @@ def main() -> int:
     num_scpu_explicit = env_nonempty("NUM_SCPU") != ""
     use_stamp = not num_scpu_explicit
     num_scpu_env = env_or_stamp("NUM_SCPU", stamp, use_stamp=use_stamp)
+    if num_scpu_env == "":
+        chip_n = (raw.get("chip") or {}).get("num_scpu")
+        if chip_n is not None and str(chip_n).strip() != "":
+            num_scpu_env = str(int(chip_n))
+            print(
+                f"[config] NUM_SCPU from campaign_slots chip.num_scpu={num_scpu_env}",
+                file=sys.stderr,
+            )
     layout_env = env_or_stamp("BUS_LAYOUT", stamp, use_stamp=use_stamp)
     master_bus_env = env_or_stamp("MASTER_BUS_LAYOUT", stamp, use_stamp=use_stamp)
     master_en_env = env_or_stamp("MASTER_ENABLED", stamp, use_stamp=use_stamp)

@@ -3,7 +3,7 @@ VVP      = vvp
 IVFLAGS  = -g2012 -I include
 
 # Chip hierarchy YAML under firmware/campaign/ (pass to sub-make: make chip-top-example HIER_YAML=soc_hierarchy_my_chip.yaml)
-HIER_YAML ?= soc_hierarchy_example.yaml
+HIER_YAML ?= soc_hierarchy_from_slots.yaml
 export HIER_YAML
 
 RTL = rtl/verif_cpu_bus.v \
@@ -65,7 +65,13 @@ MANIFEST_SCALE_BUS_BIND = include/verif_manifest_scale_soc_bus_read.vh include/v
 PASTE_BUS_BIND = include/verif_paste_soc_bus_read.vh include/verif_paste_soc_bus_write.vh
 SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+
+discover:
+	$(MAKE) -C firmware/campaign discover
+
+config-campaign:
+	$(MAKE) -C firmware/campaign config
 
 # Authoritative gate: iverilog sim + VCD post-check
 verify: full_campaign
@@ -175,7 +181,7 @@ chip-top-example: fw $(SOC_CELL_RTL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DEC
 	$(MAKE) sim_build/chip_top_example.vvp
 	$(VVP) sim_build/chip_top_example.vvp
 
-gen:
+gen: discover
 	$(MAKE) -C firmware/campaign integration_gen
 
 soc-paste: fw $(SOC_CELL_RTL)

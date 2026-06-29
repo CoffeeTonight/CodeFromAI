@@ -248,8 +248,11 @@ def main() -> int:
     args = parser.parse_args()
     yaml_path = Path(args.yaml)
     if not yaml_path.is_file():
-        print(f"[integration] skip — {yaml_path.name} not found", file=sys.stderr)
-        return 0
+        print(
+            f"[integration] ERROR: {yaml_path.name} not found — run make discover",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         import yaml

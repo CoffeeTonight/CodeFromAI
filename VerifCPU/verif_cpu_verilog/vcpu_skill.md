@@ -6,7 +6,9 @@
 
 **Human companion docs:** [howto_integrate.md](howto_integrate.md) (signal-level), [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (procedure), [README.md](README.md) (build gates).
 
-**soc-verify-agent integration vault (LLM):** `soc-verify-agent/templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md` — intake YAML, workflow, gate links (do not duplicate SSOT here).
+**Slot / bus / targets SSOT (human + LLM):** [firmware/campaign/campaign_slots_GUIDE.md](firmware/campaign/campaign_slots_GUIDE.md) — edit **only** `campaign_slots.yaml`.
+
+**soc-verify-agent integration vault (LLM):** `soc-verify-agent/templates/obsidian/agent/vcpu-soc-integration/00-INTEGRATION-HUB.md` — workflow, gate links; slots SSOT: `14-CAMPAIGN-SLOTS-SSOT.md`.
 
 ---
 
@@ -64,7 +66,7 @@ Chip integration validates **manifest `bus_port` ↔ RTL prefix** and **bridge p
 
 ## 2. Central contract — manifest row per slave
 
-Every slave slot `cpu_id` (1..N) has one manifest row. Treat it as the **single source of truth** linking firmware, generated VH, and RTL.
+Every slave slot `cpu_id` (1..N) has one manifest row. **Authoring SSOT:** `firmware/campaign/campaign_slots.yaml` (`active[]`). Generated manifest/VH/RTL wiring derive from it — do not duplicate rows in intake or `soc_hierarchy_*.yaml`.
 
 ```text
 SlaveRecord {

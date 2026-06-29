@@ -21,10 +21,10 @@ REPO_RTL  := $(abspath ../../rtl)
 REPO_INC  := $(abspath ../../include)
 
 # Chip-specific hierarchy SSOT (copy from soc_hierarchy_example.yaml — do not edit example in place)
-HIER_YAML ?= soc_hierarchy_example.yaml
+HIER_YAML ?= soc_hierarchy_from_slots.yaml
 export HIER_YAML
 
-.PHONY: all all-inner clean config soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
+.PHONY: all all-inner clean config discover soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
 
 # Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
 all: config
@@ -35,8 +35,11 @@ all-inner: soc_init icodes manifest NOOP $(CPU_ACTIVE) merge
 	@echo "=== Campaign firmware ready ==="
 	@ls -la $(BUILD_DIR)/*.bin 2>/dev/null | head -20
 
+discover: discover_campaign_slots.py campaign_slots.yaml
+	python3 discover_campaign_slots.py
+
 # Only pass non-empty overrides — empty NUM_SCPU="" must not mask .bus_layout_stamp
-config:
+config: discover
 	@set -e; \
 	env_args=""; \
 	[ -n "$(NUM_SCPU)" ] && env_args="$$env_args NUM_SCPU=$(NUM_SCPU)"; \
@@ -72,7 +75,7 @@ bus_connect: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
 chip_top_gen: gen_tb_campaign.py $(HIER_YAML)
 	python3 gen_tb_campaign.py --yaml $(HIER_YAML)
 
-integration_gen: gen_soc_integration_example.py soc_integration_ports.yaml
+integration_gen: discover gen_soc_integration_example.py soc_integration_ports.yaml
 	python3 gen_soc_integration_example.py
 
 bus_connect_yaml: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py $(HIER_YAML)

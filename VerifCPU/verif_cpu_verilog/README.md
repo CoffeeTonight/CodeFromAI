@@ -60,6 +60,8 @@ verif_cpu_verilog/
 
 펌웨어·매니페스트 소스는 **`firmware/campaign/`** (이 패키지 안에 포함) 에 있습니다.
 
+**SoC N슬롯 통합 SSOT:** [`firmware/campaign/campaign_slots.yaml`](firmware/campaign/campaign_slots.yaml) + [`campaign_slots_GUIDE.md`](firmware/campaign/campaign_slots_GUIDE.md) · 요약 [`ONE_INTEGRATION_SSOT.md`](ONE_INTEGRATION_SSOT.md).
+
 ## 아키텍처 요약
 
 | 구성요소 | 역할 |

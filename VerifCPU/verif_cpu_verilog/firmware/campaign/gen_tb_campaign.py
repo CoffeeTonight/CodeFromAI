@@ -41,6 +41,7 @@ OUT_CHIP_DECODE_VH = os.path.join(INCLUDE_DIR, "chip_top_decode.vh")
 SOC_INIT_SEQ_VH = os.path.join(INCLUDE_DIR, "soc_init_seq.vh")
 ICODE_POOL_BIN = os.path.join(BUILD_DIR, "icode_pool.bin")
 
+from slave_yaml_parser import parse_slave_yaml_ent, require_slave_name_cpu_id  # noqa: E402
 from campaign_pool_policy import (  # noqa: E402
     POOL_READMEMH_MAX_BYTES,
     POOL_WORD_ICODE,
@@ -249,15 +250,17 @@ def load_soc_hierarchy_yaml(path: str) -> list[dict]:
         raw = yaml.safe_load(f)
     out = []
     for ent in raw.get("slaves") or []:
-        bt = normalize_bus_type(str(ent.get("bus_type", "axi4lite")))
-        ab = ent.get("addr_base", 0)
-        az = ent.get("addr_size", 0x1000)
+        full, dpi, _warn = parse_slave_yaml_ent(ent, label=f"hierarchy slave {ent.get('name')}")
+        name, cpu_id = require_slave_name_cpu_id(full, dpi)
+        bt = normalize_bus_type(str(dpi.get("bus_type", "axi4lite")))
+        ab = dpi.get("addr_base", full.get("addr_base", 0))
+        az = dpi.get("addr_size", full.get("addr_size", 0x1000))
         out.append({
-            "name": ent["name"],
-            "cpu_id": int(ent["cpu_id"]),
-            "tap_port": int(ent.get("tap_port", ent["cpu_id"])),
+            "name": name,
+            "cpu_id": cpu_id,
+            "tap_port": int(dpi.get("tap_port", cpu_id)),
             "bus_type": bt,
-            "bus_port": str(ent.get("bus_port", "") or ""),
+            "bus_port": str(dpi.get("bus_port", "") or ""),
             "addr_base": int(ab, 0) if isinstance(ab, str) else int(ab),
             "addr_size": int(az, 0) if isinstance(az, str) else int(az),
         })

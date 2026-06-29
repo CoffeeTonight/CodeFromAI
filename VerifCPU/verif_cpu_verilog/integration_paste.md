@@ -3,6 +3,8 @@
 회사 SoC에 VCPU를 붙일 때 **읽기 쉬운 최소 예제**입니다.  
 복잡한 `chip_top_example`(37슬롯·생성 VH) 대신 **한 파일·한 슬롯·포트 직결** 패턴을 씁니다.
 
+> **manifest·N슬롯 SSOT:** 동일 정보는 `firmware/campaign/campaign_slots.yaml` `active[]` 1행에도 넣으세요 (`campaign_slots_GUIDE.md`). tier2+는 slots만 편집.
+
 ## 3곳만 바꾸면 됨
 
 | # | 바꿀 것 | 예 |

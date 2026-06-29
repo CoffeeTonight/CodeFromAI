@@ -14,6 +14,7 @@ except ImportError:
     yaml = None  # type: ignore
 
 from amba_bus_registry import connect_invoke_macro, connect_slv_tag, normalize_bus_type
+from slave_yaml_parser import parse_slave_yaml_ent, require_slave_name_cpu_id
 from verilog_paths import CAMPAIGN_ROOT, INCLUDE_DIR
 
 ROOT = Path(CAMPAIGN_ROOT)
@@ -65,13 +66,15 @@ def parse_yaml(path: Path) -> list[dict]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     slaves = []
     for ent in raw.get("slaves") or []:
+        full, dpi, _warn = parse_slave_yaml_ent(ent, label=f"bus_connect slave {ent.get('name')}")
+        name, cpu_id = require_slave_name_cpu_id(full, dpi)
         slaves.append({
-            "name": ent["name"],
-            "cpu_id": int(ent["cpu_id"]),
-            "tap_port": int(ent.get("tap_port", ent["cpu_id"])),
+            "name": name,
+            "cpu_id": cpu_id,
+            "tap_port": int(dpi.get("tap_port", cpu_id)),
             "enabled": 1,
-            "bus_type": str(ent.get("bus_type", "axi")).lower(),
-            "bus_port": str(ent.get("bus_port", "") or ""),
+            "bus_type": str(dpi.get("bus_type", "axi")).lower(),
+            "bus_port": str(dpi.get("bus_port", "") or ""),
         })
     return slaves
 

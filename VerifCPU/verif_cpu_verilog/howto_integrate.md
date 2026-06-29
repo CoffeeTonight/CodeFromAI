@@ -44,7 +44,10 @@ Campaign TB는 위 구조의 **동작 검증용 축약 모델**입니다. 실칩
 
 ## 2. SoC hierarchy에서 뽑아야 할 정보
 
-과제 문서·주소맵·interconnect diagram을 보고 **slave 1개당** 아래를 확정합니다.
+과제 문서·주소맵·interconnect diagram을 보고 **slave 1개당** 아래를 확정한 뒤,  
+**`firmware/campaign/campaign_slots.yaml` `active[]`에만** 기록합니다 (`campaign_slots_GUIDE.md`).
+
+intake `slaves[]` / `soc_hierarchy_*.yaml` / `soc_integration_ports.yaml` 은 **편집하지 않습니다** (`make discover` 파생).
 
 ```
 slave_name     : "DMA_CH3"
@@ -70,8 +73,8 @@ targets[]      : { bus_addr, expect, icode_name }
 └────────────────────────────┬────────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 2. soc_hierarchy manifest 작성 (사람이 편집하는 유일한 입력)      │
-│    firmware/campaign/include/ 확장 권장                           │
+│ 2. campaign_slots.yaml 작성 (사람·LLM이 편집하는 유일한 입력)     │
+│    active[] + chip + master → make discover                     │
 └────────────────────────────┬────────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐

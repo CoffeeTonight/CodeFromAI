@@ -33,16 +33,16 @@
   `CONNECT_APB4(SOC_PREF, MST); \
   assign SOC_PREF``_PWAKEUP = MST.PWAKEUP
 
-// AHB-Lite
+// AHB-Lite — HREADY is slave→master (SOC HREADYOUT); master does not drive HREADY
 `define CONNECT_AHB_LITE(SOC_PREF, MST) \
   assign SOC_PREF``_HADDR    = MST.HADDR; \
   assign SOC_PREF``_HSIZE    = MST.HSIZE; \
   assign SOC_PREF``_HTRANS   = MST.HTRANS; \
   assign SOC_PREF``_HWRITE   = MST.HWRITE; \
   assign SOC_PREF``_HWDATA   = MST.HWDATA; \
-  assign SOC_PREF``_HREADY   = MST.HREADY; \
+  assign SOC_PREF``_HREADY   = 1'b1; \
   assign MST.HRDATA    = SOC_PREF``_HRDATA; \
-  assign MST.HREADYOUT = SOC_PREF``_HREADYOUT; \
+  assign MST.HREADY    = SOC_PREF``_HREADYOUT; \
   assign MST.HRESP     = SOC_PREF``_HRESP
 
 // AHB5-Lite — + security / exclusive

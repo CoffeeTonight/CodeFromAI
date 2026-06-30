@@ -76,7 +76,7 @@
     begin : g_slv1
       verif_vcpu_soc_cell_ahb_lite #(.CPU_ID(2)) u_bus (
       .HCLK(soc_clk), .HRESETn(soc_rstn),
-      .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(), .HRDATA(), .HREADYOUT(), .HRESP(),
+      .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HRDATA(), .HREADY(), .HRESP(),
       .snoop_valid(g_slv_snoop_v[1]), .snoop_wr(g_slv_snoop_wr[1]),
       .snoop_addr(g_slv_snoop_addr[1]), .snoop_data(g_slv_snoop_data[1])
       );

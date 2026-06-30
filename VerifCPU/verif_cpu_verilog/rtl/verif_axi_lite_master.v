@@ -1,6 +1,7 @@
 // Behavioral AXI4-Lite master — single-beat read/write for VerifCPU integration
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_axi_lite_master (
   input         ACLK,
@@ -37,17 +38,6 @@ module verif_axi_lite_master (
         3'd1: axsize_for_bytes = 3'b000;
         3'd2: axsize_for_bytes = 3'b001;
         default: axsize_for_bytes = 3'b010;
-      endcase
-    end
-  endfunction
-
-  function [3:0] wstrb_for_bytes;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: wstrb_for_bytes = 4'b0001;
-        3'd2: wstrb_for_bytes = 4'b0011;
-        default: wstrb_for_bytes = 4'b1111;
       endcase
     end
   endfunction
@@ -106,7 +96,7 @@ module verif_axi_lite_master (
           disable axi_read;
         end
       end
-      data = RDATA;
+      data = lane_prdata(RDATA, addr, size);
       resp = (RRESP != 2'b00) ? 2'd2 : 2'd0;
       @(posedge ACLK);
       RREADY = 1'b0;
@@ -131,11 +121,22 @@ module verif_axi_lite_master (
       AWADDR = addr;
       AWSIZE = axsize_for_bytes(size);
       AWVALID = 1'b1;
-      WDATA = data;
-      WSTRB = wstrb_for_bytes(size);
+      WDATA = lane_pwdata(data, addr, size);
+      WSTRB = lane_wstrb(addr, size);
       WVALID = 1'b1;
       guard = 0;
-      while (!AWREADY || !WREADY) begin
+      while (!AWREADY) begin
+        @(posedge ACLK);
+        guard = guard + 1;
+        if (guard > 64) begin
+          AWVALID = 1'b0;
+          WVALID = 1'b0;
+          resp = 2'd2;
+          disable axi_write;
+        end
+      end
+      guard = 0;
+      while (!WREADY) begin
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin

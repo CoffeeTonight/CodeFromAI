@@ -59,7 +59,7 @@ flowchart TB
 | Campaign TB | `task` (default for actives) | `verif_soc_bus` → `simple_soc` tasks | `simple_soc` |
 | Customer top | `apb3`, `ahb_lite`, `axi4lite`, … | AMBA bridge `u_bus` → chip ports | Customer IC + IPs |
 
-Campaign **25/25 PASS** + `0xDEADDEAD` validates firmware, phases, agents, icode pool.  
+Campaign **43/43 PASS** + `0xDEADDEAD` validates firmware, phases, agents, icode pool.  
 Chip integration validates **manifest `bus_port` ↔ RTL prefix** and **bridge protocol**.
 
 ---
@@ -137,6 +137,8 @@ Customer master port at this VCPU is...
 **Shorthand CLI defaults:** `--apb`→`apb3`, `--ahb`→`ahb_lite`, `--axi`→`axi4lite`.  
 **SSOT:** `firmware/campaign/amba_bus_registry.py` (`rtl_module`, `port_fmt`, `rtl_status`).
 
+**RV32I load/store:** `verif_cpu_execute.vh` implements `lb/lh/lw/lbu/lhu` and `sb/sh/sw`. AMBA bridge masters use `include/verif_bus_lane_helpers.vh` for byte/half lane placement on integration paths. Misaligned `lh`/`lhu` (`addr[0]==1`) are not trapped — treat as out of scope unless firmware guarantees word-aligned halfword addresses.
+
 ---
 
 ## 5. Configuration — two input paths
@@ -159,7 +161,8 @@ Flag **order** = ascending `cpu_id` starting at SCPU1.
 For non-contiguous layouts or custom port names, edit:
 
 - `firmware/campaign/campaign_slots.yaml` — active slots + optional `bus_type`/`bus_port`
-- `firmware/campaign/soc_hierarchy_example.yaml` — chip-specific copy for connect-only preview
+- `firmware/campaign/soc_hierarchy_from_slots.yaml` — discover SSOT (default `HIER_YAML`)
+- `firmware/campaign/soc_hierarchy_example.yaml` — intake copy-only reference (do not edit in place)
 
 ```yaml
 - name: DMA_CH3
@@ -329,12 +332,12 @@ endgenerate
 
 | Gate | Command | Proves |
 |------|---------|--------|
-| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 25-check |
+| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 43-check |
 | Bridge RTL | `make soc-bus-all` | 11 AMBA master variants |
 | Bridge VCD | `make soc-bus-vcd` | Protocol + read data |
 | Manifest integration | `make soc-manifest` | 3 active slaves + real bridges (23-check) |
 | Scale integration | `make soc-manifest-scale` | N-slot BUS_LAYOUT flat fabric (26-check) |
-| Chip top example | `make chip-top-example` | yaml hierarchy + bus R/W (16-check) |
+| Chip top example | `make chip-top-example` | yaml hierarchy + bus R/W (12-check) |
 | Chip top | Customer TB + GTKWave | Real interconnect |
 
 ---
@@ -432,7 +435,7 @@ Layout persists in `firmware/campaign/.bus_layout_stamp` across `make icodes`. C
 | Connect VH source | When |
 |-------------------|------|
 | `make bus_connect` | manifest / scale (`soc-manifest`, `soc-manifest-scale`) |
-| `make bus_connect_yaml` | `soc_hierarchy_example.yaml` (`chip-top-example`) |
+| `make bus_connect_yaml` | `soc_hierarchy_from_slots.yaml` (default) or chip copy `soc_hierarchy_<chip>.yaml` |
 
 ---
 
@@ -444,9 +447,9 @@ Layout persists in `firmware/campaign/.bus_layout_stamp` across `make icodes`. C
 - [ ] `g_slv[cpu_id-1].u_bus` = registry `rtl_module`
 - [ ] Agent snoop wired from bridge; `tap_port` matches manifest
 - [ ] Bus adapter: VCPU `bus_read`/`bus_write` reach chip (not internal `verif_cpu_bus` only)
-- [ ] `./example.sh` → 25/25 PASS, `0xDEADDEAD`
+- [ ] `./example.sh` → 43/43 PASS, `0xDEADDEAD`
 - [ ] (optional) `make soc-manifest-scale` → 26/26 after `BUS_LAYOUT`
-- [ ] (optional) `make chip-top-example` → 16/16
+- [ ] (optional) `make chip-top-example` → 12/12
 - [ ] Optional: `make soc-bus-vcd` PASS
 - [ ] Optional: chip top sim — first active CPU reaches expected `bus_addr`
 

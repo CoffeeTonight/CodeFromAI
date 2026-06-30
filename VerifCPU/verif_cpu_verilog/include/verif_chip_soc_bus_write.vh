@@ -3,6 +3,5 @@
           7'd1: chip_top_example.g_slv0.u_bus.u_bridge.bus_write(addr, data, size, resp);
           7'd2: chip_top_example.g_slv1.u_bus.u_bridge.bus_write(addr, data, size, resp);
           7'd3: chip_top_example.g_slv2.u_bus.u_bridge.bus_write(addr, data, size, resp);
-          7'd37: chip_top_example.g_slv36.u_bus.u_bridge.bus_write(addr, data, size, resp);
           default: resp = 2'd2;
         endcase

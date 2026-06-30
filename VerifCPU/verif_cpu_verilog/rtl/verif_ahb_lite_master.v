@@ -1,6 +1,7 @@
 // Behavioral AHB-Lite master — single NONSEQ transfers for VerifCPU integration
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_ahb_lite_master (
   input         HCLK,
@@ -10,9 +11,8 @@ module verif_ahb_lite_master (
   output reg [1:0]  HTRANS,
   output reg        HWRITE,
   output reg [31:0] HWDATA,
-  output reg        HREADY,
+  input         HREADY,
   input  [31:0] HRDATA,
-  input         HREADYOUT,
   input  [1:0]  HRESP,
   output reg        snoop_valid,
   output reg        snoop_wr,
@@ -40,7 +40,6 @@ module verif_ahb_lite_master (
     HTRANS = HTRANS_IDLE;
     HWRITE = 1'b0;
     HWDATA = 32'h0;
-    HREADY = 1'b1;
     snoop_valid = 1'b0;
     snoop_wr = 1'b0;
     snoop_addr = 32'h0;
@@ -71,7 +70,7 @@ module verif_ahb_lite_master (
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
       guard = 0;
-      while (!HREADYOUT) begin
+      while (!HREADY) begin
         @(posedge HCLK);
         guard = guard + 1;
         if (guard > 64) begin
@@ -81,7 +80,7 @@ module verif_ahb_lite_master (
         end
       end
       #1;
-      data = HRDATA;
+      data = lane_prdata(HRDATA, addr, size);
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
@@ -105,11 +104,11 @@ module verif_ahb_lite_master (
       HADDR = addr;
       HSIZE = hsize_for_bytes(size);
       HWRITE = 1'b1;
-      HWDATA = data;
+      HWDATA = lane_pwdata(data, addr, size);
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
       guard = 0;
-      while (!HREADYOUT) begin
+      while (!HREADY) begin
         @(posedge HCLK);
         guard = guard + 1;
         if (guard > 64) begin

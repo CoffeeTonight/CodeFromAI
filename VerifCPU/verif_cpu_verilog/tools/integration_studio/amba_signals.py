@@ -63,9 +63,9 @@ def _ahb_lite_core() -> list[BusSignal]:
         _sig("HTRANS", 2, "to_soc", "AHB", "transfer type"),
         _sig("HWRITE", 1, "to_soc", "AHB"),
         _sig("HWDATA", 32, "to_soc", "AHB", "write data"),
-        _sig("HREADY", 1, "to_soc", "AHB", "master ready"),
+        _sig("HREADY", 1, "from_soc", "AHB", "slave ready → master (SOC HREADYOUT)"),
         _sig("HRDATA", 32, "from_soc", "AHB", "read data"),
-        _sig("HREADYOUT", 1, "from_soc", "AHB", "slave ready"),
+        _sig("HREADYOUT", 1, "from_soc", "AHB", "alias: slave ready out"),
         _sig("HRESP", 2, "from_soc", "AHB", "response"),
     ]
 

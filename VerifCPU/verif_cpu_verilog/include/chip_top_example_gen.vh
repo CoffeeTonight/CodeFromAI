@@ -2,7 +2,7 @@
 // Included inside module chip_top_example
 // Edit soc_hierarchy*.yaml then: make icodes (or make bus_connect_yaml)
 
-  localparam HIER_N = 37;
+  localparam HIER_N = 3;
 
   wire [HIER_N-1:0]        g_slv_snoop_v;
   wire [HIER_N-1:0]        g_slv_snoop_wr;
@@ -33,14 +33,6 @@
   wire [2:0]  S03_AXI_arsize, S03_AXI_awsize;
   wire [3:0]  S03_AXI_wstrb;
   wire [1:0]  S03_AXI_rresp, S03_AXI_bresp;
-
-  wire        S37_AXI_arvalid, S37_AXI_arready, S37_AXI_rvalid, S37_AXI_rready;
-  wire        S37_AXI_awvalid, S37_AXI_awready, S37_AXI_wvalid, S37_AXI_wready;
-  wire        S37_AXI_bvalid, S37_AXI_bready, S37_AXI_rlast;
-  wire [31:0] S37_AXI_araddr, S37_AXI_awaddr, S37_AXI_wdata, S37_AXI_rdata;
-  wire [2:0]  S37_AXI_arsize, S37_AXI_awsize;
-  wire [3:0]  S37_AXI_wstrb;
-  wire [1:0]  S37_AXI_rresp, S37_AXI_bresp;
 
   // Auto-generated stub peripherals — edit soc_hierarchy YAML, not this file
 
@@ -73,21 +65,6 @@
     .BID(u_stub_uart_bid), .BRESP(S03_AXI_bresp), .BVALID(S03_AXI_bvalid), .BREADY(S03_AXI_bready)
   );
 
-  wire [3:0] u_stub_dma_ch3_rid, u_stub_dma_ch3_bid;
-  wire       u_stub_dma_ch3_rlast;
-  verif_axi_full_slave_simple #(.BASE(32'h4A000000)) u_stub_dma_ch3 (
-    .ACLK(soc_clk), .ARESETn(soc_rstn),
-    .ARID(4'd0), .ARADDR(S37_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S37_AXI_arsize),
-    .ARBURST(2'b01), .ARVALID(S37_AXI_arvalid), .ARREADY(S37_AXI_arready),
-    .RID(u_stub_dma_ch3_rid), .RDATA(S37_AXI_rdata), .RRESP(S37_AXI_rresp),
-    .RLAST(u_stub_dma_ch3_rlast), .RVALID(S37_AXI_rvalid), .RREADY(S37_AXI_rready),
-    .AWID(4'd0), .AWADDR(S37_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S37_AXI_awsize),
-    .AWBURST(2'b01), .AWVALID(S37_AXI_awvalid), .AWREADY(S37_AXI_awready),
-    .WID(4'd0), .WDATA(S37_AXI_wdata), .WSTRB(S37_AXI_wstrb), .WLAST(1'b1),
-    .WVALID(S37_AXI_wvalid), .WREADY(S37_AXI_wready),
-    .BID(u_stub_dma_ch3_bid), .BRESP(S37_AXI_bresp), .BVALID(S37_AXI_bvalid), .BREADY(S37_AXI_bready)
-  );
-
   generate
     begin : g_slv0
       verif_vcpu_soc_cell_apb3 #(.CPU_ID(1)) u_bus (
@@ -101,7 +78,7 @@
     begin : g_slv1
       verif_vcpu_soc_cell_ahb_lite #(.CPU_ID(2)) u_bus (
       .HCLK(soc_clk), .HRESETn(soc_rstn),
-      .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(), .HRDATA(), .HREADYOUT(), .HRESP(),
+      .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HRDATA(), .HREADY(), .HRESP(),
       .snoop_valid(g_slv_snoop_v[1]), .snoop_wr(g_slv_snoop_wr[1]),
       .snoop_addr(g_slv_snoop_addr[1]), .snoop_data(g_slv_snoop_data[1])
       );
@@ -113,15 +90,6 @@
       .ARVALID(), .ARADDR(), .ARSIZE(), .RREADY(), .AWVALID(), .AWADDR(), .AWSIZE(), .WVALID(), .WDATA(), .WSTRB(), .BREADY(), .ARREADY(), .RVALID(), .RDATA(), .RRESP(), .AWREADY(), .WREADY(), .BVALID(), .BRESP(),
       .snoop_valid(g_slv_snoop_v[2]), .snoop_wr(g_slv_snoop_wr[2]),
       .snoop_addr(g_slv_snoop_addr[2]), .snoop_data(g_slv_snoop_data[2])
-      );
-    end
-
-    begin : g_slv36
-      verif_vcpu_soc_cell_axi4lite #(.CPU_ID(37)) u_bus (
-      .ACLK(soc_clk), .ARESETn(soc_rstn),
-      .ARVALID(), .ARADDR(), .ARSIZE(), .RREADY(), .AWVALID(), .AWADDR(), .AWSIZE(), .WVALID(), .WDATA(), .WSTRB(), .BREADY(), .ARREADY(), .RVALID(), .RDATA(), .RRESP(), .AWREADY(), .WREADY(), .BVALID(), .BRESP(),
-      .snoop_valid(g_slv_snoop_v[36]), .snoop_wr(g_slv_snoop_wr[36]),
-      .snoop_addr(g_slv_snoop_addr[36]), .snoop_data(g_slv_snoop_data[36])
       );
     end
 
@@ -160,17 +128,6 @@
     .verify_fail(sl_fail[2]), .txn_recorded(sl_txns[2])
   );
 
-  verif_agent_slave #(.CPU_ID(37), .CPU_NAME("DMA_CH3 "), .TAP_PORT(36)) u_ag_37 (
-    .phase(orch_phase), .boot_fw_offset(orch_boot_fw), .reset_pulse(orch_reset),
-    .txn_valid(g_slv_snoop_v[36]),
-    .txn_is_write(g_slv_snoop_wr[36]),
-    .txn_addr(g_slv_snoop_addr[36]),
-    .txn_data(g_slv_snoop_data[36]),
-    .icode_ptr(32'h0), .icode_kind(3'd0),
-    .slot_count(sl_slot_count[36]), .verify_pass(sl_pass[36]),
-    .verify_fail(sl_fail[36]), .txn_recorded(sl_txns[36])
-  );
-
   // Auto-generated CONNECT_SLV* from soc_hierarchy
 
   `ifdef CONNECT_SLV01_APB3
@@ -185,24 +142,17 @@
     `CONNECT_SLV03_AXI4LITE;
   `endif
 
-  `ifdef CONNECT_SLV37_AXI4LITE
-    `CONNECT_SLV37_AXI4LITE;
-  `endif
-
 `define SOC_CHIP_TOP_BUS_TESTS \
   chip_bus_wr_rd("SFR APB3", 32'h40000000, 32'h0000CAFE); \
   chip_bus_wr_rd("SRAM AHB_LITE", 32'h80000000, 32'h12345678); \
   chip_bus_wr_rd("UART AXI4LITE", 32'hC0000000, 32'h000000A5); \
-  chip_bus_wr_rd("DMA_CH3 AXI4LITE", 32'h4A000000, 32'hDEADBEEF); \
 
 `define SOC_CHIP_TOP_RUN_PHASE_A \
   u_ag_1.run_phase_a(); \
   u_ag_2.run_phase_a(); \
   u_ag_3.run_phase_a(); \
-  u_ag_37.run_phase_a(); \
 
 `define SOC_CHIP_TOP_AGENT_CHECKS \
   check("Agent SFR saw bridge traffic", sl_txns[0] > 0); \
   check("Agent SRAM saw bridge traffic", sl_txns[1] > 0); \
   check("Agent UART saw bridge traffic", sl_txns[2] > 0); \
-  check("Agent DMA_CH3 saw bridge traffic", sl_txns[36] > 0); \

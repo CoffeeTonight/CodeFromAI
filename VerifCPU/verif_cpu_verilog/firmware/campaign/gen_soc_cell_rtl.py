@@ -52,17 +52,17 @@ CELL_SPECS: dict[str, dict] = {
     "ahb_lite": {
         "clk": ("HCLK", "HCLK"),
         "rst": ("HRESETn", "HRESETn"),
-        "master_out": ["HADDR", "HSIZE", "HTRANS", "HWRITE", "HWDATA", "HREADY"],
-        "master_in": ["HRDATA", "HREADYOUT", "HRESP"],
+        "master_out": ["HADDR", "HSIZE", "HTRANS", "HWRITE", "HWDATA"],
+        "master_in": ["HRDATA", "HREADY", "HRESP"],
         "module": "verif_ahb_lite_master",
     },
     "ahb5_lite": {
         "clk": ("HCLK", "HCLK"),
         "rst": ("HRESETn", "HRESETn"),
         "master_out": [
-            "HADDR", "HSIZE", "HTRANS", "HWRITE", "HWDATA", "HREADY", "HNONSEC", "HEXCL",
+            "HADDR", "HSIZE", "HTRANS", "HWRITE", "HWDATA", "HNONSEC", "HEXCL",
         ],
-        "master_in": ["HRDATA", "HREADYOUT", "HRESP", "HEXOK"],
+        "master_in": ["HRDATA", "HREADY", "HRESP", "HEXOK"],
         "module": "verif_ahb5_lite_master",
     },
     "ahb": {
@@ -70,9 +70,9 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("HRESETn", "HRESETn"),
         "master_out": [
             "HADDR", "HSIZE", "HTRANS", "HBURST", "HPROT", "HMASTLOCK",
-            "HWRITE", "HWDATA", "HREADY", "HNONSEC", "HEXCL",
+            "HWRITE", "HWDATA", "HNONSEC", "HEXCL",
         ],
-        "master_in": ["HRDATA", "HREADYOUT", "HRESP", "HEXOK"],
+        "master_in": ["HRDATA", "HREADY", "HRESP", "HEXOK"],
         "module": "verif_ahb_master",
     },
     "axi4lite": {
@@ -152,7 +152,9 @@ def _port_decl(name: str, spec: dict) -> str:
     direction = _port_dir(name, spec)
     if name in ("RRESP", "BRESP", "HRESP"):
         return f"{direction} wire [1:0]  {name}"
-    if name in ("HSIZE", "ARSIZE", "AWSIZE", "HTRANS", "HBURST", "ARBURST", "AWBURST"):
+    if name == "HTRANS":
+        return f"{direction} wire [1:0]  {name}"
+    if name in ("HSIZE", "ARSIZE", "AWSIZE", "HBURST", "ARBURST", "AWBURST"):
         return f"{direction} wire [2:0]  {name}"
     if name in ("ARLEN", "AWLEN"):
         return f"{direction} wire [7:0]  {name}"

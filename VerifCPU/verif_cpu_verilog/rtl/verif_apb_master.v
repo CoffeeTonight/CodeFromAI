@@ -1,6 +1,7 @@
 // Behavioral APB3 master — task API for VerifCPU bus_read/bus_write adapters
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_apb_master (
   input         PCLK,
@@ -19,17 +20,6 @@ module verif_apb_master (
   output reg [31:0] snoop_addr,
   output reg [31:0] snoop_data
 );
-
-  function [3:0] strb_for_size;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: strb_for_size = 4'b0001;
-        3'd2: strb_for_size = 4'b0011;
-        default: strb_for_size = 4'b1111;
-      endcase
-    end
-  endfunction
 
   initial begin
     PADDR = 32'h0;
@@ -81,7 +71,7 @@ module verif_apb_master (
         end
       end
       #1;
-      data = PRDATA;
+      data = lane_prdata(PRDATA, addr, size);
       resp = PSLVERR ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
@@ -104,8 +94,8 @@ module verif_apb_master (
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b1;
-      PWDATA = data;
-      PSTRB = strb_for_size(size);
+      PWDATA = lane_pwdata(data, addr, size);
+      PSTRB = lane_wstrb(addr, size);
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);

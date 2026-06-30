@@ -1,6 +1,7 @@
 // Behavioral APB2 master — fixed 2-cycle access, no PREADY/PSLVERR/PSTRB
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_apb2_master (
   input         PCLK,
@@ -54,7 +55,7 @@ module verif_apb2_master (
       PENABLE = 1'b1;
       @(posedge PCLK);
       #1;
-      data = PRDATA;
+      data = lane_prdata(PRDATA, addr, size);
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
       snoop_addr = addr;
@@ -75,7 +76,7 @@ module verif_apb2_master (
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b1;
-      PWDATA = data;
+      PWDATA = lane_pwdata(data, addr, size);
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);

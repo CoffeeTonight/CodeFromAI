@@ -22,7 +22,20 @@ from typing import Literal, Optional
 TOOLS_DIR = Path(__file__).resolve().parent
 VERILOG_ROOT = TOOLS_DIR.parent
 _LEGACY_PY = VERILOG_ROOT.parent / "verif_cpu_project" / "python_model"
-HAS_GOLDEN = _LEGACY_PY.is_dir()
+HAS_GOLDEN = False
+if _LEGACY_PY.is_dir():
+    try:
+        sys.path.insert(0, str(_LEGACY_PY))
+        from verif_cpu.core.cpu import VerifCPU  # noqa: E402,F401
+        from verif_cpu.bus.interface import (  # noqa: E402,F401
+            BusInterface,
+            BusTransaction,
+            BusTransferType,
+        )
+        from verif_cpu.memory.unified_pool import UnifiedFirmwarePool  # noqa: E402,F401
+        HAS_GOLDEN = True
+    except ImportError:
+        pass
 
 # Minimal RV32 + vstop encoders — always available (no python_model)
 _OPCODE_LOAD = 0x03
@@ -82,12 +95,6 @@ def encode_sw(rs2: int, rs1: int, imm: int) -> int:
 def encode_vstop() -> int:
     return _encode_custom(0x00)
 
-
-if HAS_GOLDEN:
-    sys.path.insert(0, str(_LEGACY_PY))
-    from verif_cpu.core.cpu import VerifCPU  # noqa: E402
-    from verif_cpu.bus.interface import BusInterface, BusTransaction, BusTransferType  # noqa: E402
-    from verif_cpu.memory.unified_pool import UnifiedFirmwarePool  # noqa: E402
 
 try:
     import tinyrv as _tinyrv_mod

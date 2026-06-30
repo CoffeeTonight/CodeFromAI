@@ -246,7 +246,7 @@ endgenerate
 생성 RTL: `tb_soc_manifest_scale_defs.vh`, `tb_soc_manifest_scale_gen.vh`, `verif_manifest_scale_soc_bus_*.vh`.  
 layout은 `make config-scale` 또는 `./example.sh gen --axi 58 --ahb 1 --apb 1` 후 `.bus_layout_stamp`로 유지됩니다.
 
-**Chip top 예시** (`make chip-top-example`): `chip_top_example.v` + 생성 VH — yaml 4-slave, orchestrator/agent, bus wr/rd **16 checks**.
+**Chip top 예시** (`make chip-top-example`): `chip_top_example.v` + 생성 VH — yaml 3 active slave, orchestrator/agent, bus wr/rd **12 checks**.
 
 ### 5.4 RTL 블록 — slave 1개 최소 예 (CPU 37)
 
@@ -482,7 +482,7 @@ CPU 100 × SoC 포트 100이 부담이면 **검증 블록 내부 arbiter** 뒤 S
 | `gen_tb_campaign.py` | + `gen_soc_bus_connect.py`, `tb_soc_manifest_gen.vh` |
 | `make soc-manifest` | CONNECT_SLV* + real bridges (Phase A/B/C, 23 checks) |
 | `make soc-manifest-scale` | flat N-slave BUS_LAYOUT compile + active 3 (26 checks) |
-| `make chip-top-example` | orchestrator + agent + bridge bus R/W (16 checks) |
+| `make chip-top-example` | orchestrator + agent + bridge bus R/W (12 checks) |
 
 Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다는 뜻이지, 과제 배선을 대신해 주지는 않습니다.  
 **manifest → generate → include** 절차로 과제 top에 이식합니다.
@@ -509,7 +509,7 @@ Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다
 | `rtl/verif_cpu_core.v` | VCPU 코어 |
 | `rtl/verif_agent.v` | master / slave agent |
 | `README.md` | campaign TB 빌드·시뮬 |
-| `architecture_example.md` | 블록 다이어그램 |
+| `architecture_and_verification.md` | 블록 다이어그램 + 검증 스냅샷 |
 
 ---
 

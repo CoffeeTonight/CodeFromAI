@@ -592,19 +592,19 @@ def _emit_cell_instance(s: dict, gi: int, indent: str = "      ") -> list[str]:
             lines.append(f"{indent}.HEXOK(1'b1),")
         if bt == "ahb_lite":
             lines.append(
-                f"{indent}.HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(),"
-                f" .HRDATA(), .HREADYOUT(), .HRESP(),"
+                f"{indent}.HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(),"
+                f" .HRDATA(), .HREADY(), .HRESP(),"
             )
         elif bt == "ahb5_lite":
             lines.append(
-                f"{indent}.HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(),"
-                f" .HNONSEC(), .HEXCL(), .HRDATA(), .HREADYOUT(), .HRESP(), .HEXOK(),"
+                f"{indent}.HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(),"
+                f" .HNONSEC(), .HEXCL(), .HRDATA(), .HREADY(), .HRESP(), .HEXOK(),"
             )
         else:
             lines.append(
                 f"{indent}.HADDR(), .HSIZE(), .HTRANS(), .HBURST(), .HPROT(), .HMASTLOCK(),"
-                f" .HWRITE(), .HWDATA(), .HREADY(), .HNONSEC(), .HEXCL(),"
-                f" .HRDATA(), .HREADYOUT(), .HRESP(), .HEXOK(),"
+                f" .HWRITE(), .HWDATA(), .HNONSEC(), .HEXCL(),"
+                f" .HRDATA(), .HREADY(), .HRESP(), .HEXOK(),"
             )
     else:
         axi_prot = {"axi3full": 3, "axi4full": 4, "axi5full": 5}.get(bt)

@@ -9,6 +9,9 @@ task execute_instruction;
   reg        is_custom;
   reg [31:0] rs1_val, rs2_val, result, addr, bus_data;
   reg [1:0]  bus_resp;
+  reg [2:0]  load_sz, store_sz;
+  reg [7:0]  load_byte;
+  reg [15:0] load_half;
   begin
     pc_updated = 1'b0;
     step_disasm = "";
@@ -20,17 +23,74 @@ task execute_instruction;
     else if (opcode == `OPCODE_LOAD) begin
       rs1_val = read_reg_fn(rs1);
       addr = rs1_val + imm;
-      do_bus_read(addr, 3'd4, bus_data);
-      write_reg(rd, bus_data);
-      $sformat(step_disasm, "lw x%0d,0x%0h(x%0d)", rd, imm, rs1);
+      case (funct3)
+        3'h0, 3'h4: load_sz = 3'd1;
+        3'h1, 3'h5: load_sz = 3'd2;
+        default:    load_sz = 3'd4;
+      endcase
+      do_bus_read(addr, load_sz, bus_data);
+      case (funct3)
+        3'h0: begin
+          case (addr[1:0])
+            2'd0: load_byte = bus_data[7:0];
+            2'd1: load_byte = bus_data[15:8];
+            2'd2: load_byte = bus_data[23:16];
+            default: load_byte = bus_data[31:24];
+          endcase
+          result = {{24{load_byte[7]}}, load_byte};
+          $sformat(step_disasm, "lb x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+        3'h1: begin
+          load_half = addr[1] ? bus_data[31:16] : bus_data[15:0];
+          result = {{16{load_half[15]}}, load_half};
+          $sformat(step_disasm, "lh x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+        3'h2: begin
+          result = bus_data;
+          $sformat(step_disasm, "lw x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+        3'h4: begin
+          case (addr[1:0])
+            2'd0: load_byte = bus_data[7:0];
+            2'd1: load_byte = bus_data[15:8];
+            2'd2: load_byte = bus_data[23:16];
+            default: load_byte = bus_data[31:24];
+          endcase
+          result = {24'h0, load_byte};
+          $sformat(step_disasm, "lbu x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+        3'h5: begin
+          load_half = addr[1] ? bus_data[31:16] : bus_data[15:0];
+          result = {16'h0, load_half};
+          $sformat(step_disasm, "lhu x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+        default: begin
+          result = bus_data;
+          $sformat(step_disasm, "load? x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end
+      endcase
+      write_reg(rd, result);
       log_inst(pc, step_disasm);
     end
     else if (opcode == `OPCODE_STORE) begin
       rs1_val = read_reg_fn(rs1);
       rs2_val = read_reg_fn(rs2);
       addr = rs1_val + imm;
-      do_bus_write(addr, rs2_val, 3'd4);
-      $sformat(step_disasm, "sw x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+      case (funct3)
+        3'h0: begin
+          store_sz = 3'd1;
+          $sformat(step_disasm, "sb x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+        end
+        3'h1: begin
+          store_sz = 3'd2;
+          $sformat(step_disasm, "sh x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+        end
+        default: begin
+          store_sz = 3'd4;
+          $sformat(step_disasm, "sw x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+        end
+      endcase
+      do_bus_write(addr, rs2_val, store_sz);
       log_inst(pc, step_disasm);
     end
     else if (opcode == `OPCODE_OP_IMM) begin

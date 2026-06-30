@@ -1,3 +1,7 @@
+# VerifCPU 아키텍처 & 검증 스냅샷
+
+> 블록 다이어그램 + 최근 `make full_campaign` 결과. (구 `architecture_example.md`)
+
 ## 검증 결과
 
 `make full_campaign` (iverilog + VCD) **PASS**

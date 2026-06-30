@@ -1,6 +1,7 @@
 // Behavioral AHB5-Lite master — AHB-Lite + HNONSEC / HEXCL
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_ahb5_lite_master (
   input         HCLK,
@@ -10,12 +11,11 @@ module verif_ahb5_lite_master (
   output reg [1:0]  HTRANS,
   output reg        HWRITE,
   output reg [31:0] HWDATA,
-  output reg        HREADY,
   output reg        HNONSEC,
   output reg        HEXCL,
   input             HEXOK,
   input  [31:0] HRDATA,
-  input         HREADYOUT,
+  input         HREADY,
   input  [1:0]  HRESP,
   output reg        snoop_valid,
   output reg        snoop_wr,
@@ -43,7 +43,6 @@ module verif_ahb5_lite_master (
     HTRANS = HTRANS_IDLE;
     HWRITE = 1'b0;
     HWDATA = 32'h0;
-    HREADY = 1'b1;
     HNONSEC = 1'b1;
     HEXCL = 1'b0;
     snoop_valid = 1'b0;
@@ -77,10 +76,10 @@ module verif_ahb5_lite_master (
       HADDR = addr;
       HSIZE = hsize_for_bytes(size);
       HWRITE = is_wr;
-      HWDATA = wdata;
+      HWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
       HTRANS = HTRANS_NONSEQ;
       guard = 0;
-      while (!HREADYOUT) begin
+      while (!HREADY) begin
         @(posedge HCLK);
         guard = guard + 1;
         if (guard > 64) begin
@@ -91,7 +90,7 @@ module verif_ahb5_lite_master (
       end
       @(posedge HCLK);
       #1;
-      if (!is_wr) rdata = HRDATA;
+      if (!is_wr) rdata = lane_prdata(HRDATA, addr, size);
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;
       snoop_wr = is_wr;

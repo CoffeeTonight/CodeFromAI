@@ -72,7 +72,7 @@ verif_cpu_verilog/
 | **`verif_cpu_unified_pool`** | VCPU FW + icode pool (≤256 KiB → readmemh embed) |
 | **`simple_soc`** | 17-step `soc_init_seq`, SFR/SRAM/UART peripheral |
 
-블록 다이어그램·최근 검증 스냅샷: [architecture_example.md](architecture_example.md)
+블록 다이어그램·최근 검증 스냅샷: [architecture_and_verification.md](architecture_and_verification.md)
 
 ### AMBA: 구현 vs stub (manifest scale compile)
 
@@ -484,7 +484,7 @@ make soc-bus-all     # APB/AHB/AXI bridge smoke (11 checks) + VCD
 make soc-bus-vcd     # 위 + verify_amba_bus_vcd.py
 make soc-manifest       # CONNECT_SLV* integration TB — active 3셀 (23 checks)
 make soc-manifest-scale # flat N셀 BUS_LAYOUT compile + active 3 campaign (26 checks)
-make chip-top-example   # chip_top: orchestrator + agent + bus R/W (16 checks)
+make chip-top-example   # chip_top: orchestrator + agent + bus R/W (12 checks)
 make clean           # sim_build/ 삭제
 make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, filelists, scripts)
 ```
@@ -497,7 +497,7 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 | `make soc-bus-all` | 11/11 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite/3/4/5 |
 | `make soc-manifest` | 23/23 | real bridge, 3 active slaves |
 | `make soc-manifest-scale` | 26/26 | 60 `g_slv*` + active 3 Phase A/B/C |
-| `make chip-top-example` | 16/16 | yaml 4 hierarchy + DMA |
+| `make chip-top-example` | 12/12 | yaml 3 active slaves (SFR/SRAM/UART) |
 
 외부 SoC (AXI/AHB/APB) 통합: [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (예제→내 SoC 절차), [howto_integrate.md](howto_integrate.md) §11–12 (신호 상세), [vcpu_skill.md](vcpu_skill.md)
 
@@ -597,6 +597,6 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
 - [vcpu_skill.md](vcpu_skill.md) — **Agentic LLM용** 과제 SoC 통합 스킬 (manifest, bus, top wiring)
 - [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) — 기본 예제 PASS 후 **내 SoC** 이식 절차
 - [howto_integrate.md](howto_integrate.md) — AXI/AMBA 신호·매크로 상세
-- [architecture_example.md](architecture_example.md) — SoC/VCPU/Agent 블록 다이어그램
+- [architecture_and_verification.md](architecture_and_verification.md) — SoC/VCPU/Agent 블록 다이어그램 + 검증 스냅샷
 - `firmware/campaign/amba_bus_registry.py` — bus 타입·CLI·RTL·connect 매크로 SSOT (`rtl_status`: `done` / `smoke` / `manifest_only`)
 - `tools/probe_icodes.py` — icode bus 주소 probe (`requirements.txt` → `tinyrv`)

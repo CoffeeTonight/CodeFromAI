@@ -60,6 +60,17 @@ module verif_axi_lite_master (
     snoop_data = 32'h0;
   end
 
+  task axi_idle;
+    begin
+      ARVALID = 1'b0;
+      RREADY  = 1'b0;
+      AWVALID = 1'b0;
+      WVALID  = 1'b0;
+      WSTRB   = 4'h0;
+      BREADY  = 1'b0;
+    end
+  endtask
+
   task axi_read;
     input  [31:0] addr;
     input  [2:0]  size;
@@ -69,6 +80,7 @@ module verif_axi_lite_master (
     begin
       resp = 2'd0;
       data = 32'h0;
+      axi_idle();
       @(posedge ACLK);
       ARADDR = addr;
       ARSIZE = axsize_for_bytes(size);
@@ -78,8 +90,8 @@ module verif_axi_lite_master (
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          ARVALID = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_read;
         end
       end
@@ -91,15 +103,15 @@ module verif_axi_lite_master (
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          RREADY = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_read;
         end
       end
       data = lane_prdata(RDATA, addr, size);
       resp = (RRESP != 2'b00) ? 2'd2 : 2'd0;
       @(posedge ACLK);
-      RREADY = 1'b0;
+      axi_idle();
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
       snoop_addr = addr;
@@ -117,6 +129,7 @@ module verif_axi_lite_master (
     integer guard;
     begin
       resp = 2'd0;
+      axi_idle();
       @(posedge ACLK);
       AWADDR = addr;
       AWSIZE = axsize_for_bytes(size);
@@ -129,9 +142,8 @@ module verif_axi_lite_master (
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          AWVALID = 1'b0;
-          WVALID = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_write;
         end
       end
@@ -140,9 +152,8 @@ module verif_axi_lite_master (
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          AWVALID = 1'b0;
-          WVALID = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_write;
         end
       end
@@ -155,14 +166,14 @@ module verif_axi_lite_master (
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          BREADY = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_write;
         end
       end
       resp = (BRESP != 2'b00) ? 2'd2 : 2'd0;
       @(posedge ACLK);
-      BREADY = 1'b0;
+      axi_idle();
       snoop_valid = 1'b1;
       snoop_wr = 1'b1;
       snoop_addr = addr;

@@ -3,20 +3,14 @@
 function [31:0] sign_extend_12;
   input [11:0] imm12;
   begin
-    if (imm12[11])
-      sign_extend_12 = {20'hfffff, imm12};
-    else
-      sign_extend_12 = {20'h0, imm12};
+    sign_extend_12 = {{20{imm12[11]}}, imm12};
   end
 endfunction
 
 function [31:0] sign_extend_b_imm;
   input [12:0] raw;
   begin
-    if (raw[12])
-      sign_extend_b_imm = {19'h7ffff, raw[12:0]};
-    else
-      sign_extend_b_imm = {19'h0, raw[12:0]};
+    sign_extend_b_imm = {{19{raw[12]}}, raw[12:0]};
   end
 endfunction
 

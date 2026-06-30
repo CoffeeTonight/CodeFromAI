@@ -57,7 +57,7 @@ module verif_cpu_core #(
   reg [2:0]  problem_count;
 
   // --- Firmware (local fallback) ---
-  reg [31:0] fw_words [0:127];
+  reg [31:0] fw_words [0:FW_WORDS-1];
   reg [31:0] fw_word_count;
   reg [31:0] fw_region_base;
   reg [31:0] fw_region_size;
@@ -536,6 +536,12 @@ module verif_cpu_core #(
       fw_region_base = region_base;
       fw_region_size = region_size;
       fw_word_count  = region_size >> 2;
+      if (fw_word_count > FW_WORDS) begin
+        $display("SCPU%0d > Firmware region %0d words exceeds FW_WORDS=%0d — clamped",
+                 CPU_ID, fw_word_count, FW_WORDS);
+        fw_word_count = FW_WORDS;
+        fw_region_size = FW_WORDS << 2;
+      end
       $readmemh(hexfile, fw_words);
       $display("[UnifiedPool] CPU%0d firmware loaded from %0s (%0d words)",
                CPU_ID, hexfile, fw_word_count);
@@ -652,8 +658,9 @@ module verif_cpu_core #(
 
   task cpu_attach_wave_dumper;
     begin
+      // Opt-in: recording stays off until firmware vwave(WAVE_CMD_ON) or console "vwave on"
       wave_enabled = 1'b0;
-      log_msg("[Wave] WaveDumper attached");
+      log_msg("[Wave] WaveDumper attached (recording off until vwave ON)");
     end
   endtask
 
@@ -916,7 +923,12 @@ module verif_cpu_core #(
         state = `CPU_STATE_STALLED; err = 1'b1;
       end else begin
         word_idx = (fw_region_base + pc) >> 2;
-        instr = fw_words[word_idx];
+        if (word_idx >= FW_WORDS) begin
+          $display("SCPU%0d > Firmware index overflow word_idx=0x%08h (FW_WORDS=%0d)",
+                   CPU_ID, word_idx, FW_WORDS);
+          state = `CPU_STATE_STALLED; err = 1'b1;
+        end else
+          instr = fw_words[word_idx];
       end
     end
   endtask

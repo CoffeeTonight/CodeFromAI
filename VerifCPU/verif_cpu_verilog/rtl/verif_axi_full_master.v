@@ -1,6 +1,7 @@
 // Behavioral AXI3/4/5 full master — single-beat INCR transfers for VerifCPU bus_* API
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_axi_full_master #(
   parameter int AXI_PROT = 4,
@@ -62,17 +63,6 @@ module verif_axi_full_master #(
     end
   endfunction
 
-  function [3:0] wstrb_for_bytes;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: wstrb_for_bytes = 4'b0001;
-        3'd2: wstrb_for_bytes = 4'b0011;
-        default: wstrb_for_bytes = 4'b1111;
-      endcase
-    end
-  endfunction
-
   initial begin
     ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 3'b010; ARBURST = BURST_INCR;
     ARQOS = 0; ARREGION = 0; ARVALID = 0; RREADY = 0;
@@ -81,6 +71,18 @@ module verif_axi_full_master #(
     WID = 0; WDATA = 0; WSTRB = 0; WLAST = 0; WVALID = 0; BREADY = 0;
     snoop_valid = 0; snoop_wr = 0; snoop_addr = 0; snoop_data = 0;
   end
+
+  task axi_idle;
+    begin
+      ARVALID = 1'b0;
+      RREADY  = 1'b0;
+      AWVALID = 1'b0;
+      WVALID  = 1'b0;
+      WSTRB   = 4'h0;
+      WLAST   = 1'b0;
+      BREADY  = 1'b0;
+    end
+  endtask
 
   task axi_read;
     input  [31:0] addr;
@@ -91,6 +93,7 @@ module verif_axi_full_master #(
     begin
       resp = 2'd0;
       data = 32'h0;
+      axi_idle();
       @(posedge ACLK);
       ARID = 0;
       ARADDR = addr;
@@ -105,8 +108,8 @@ module verif_axi_full_master #(
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          ARVALID = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_read;
         end
       end
@@ -118,15 +121,15 @@ module verif_axi_full_master #(
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          RREADY = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_read;
         end
       end
-      data = RDATA;
+      data = lane_prdata(RDATA, addr, size);
       resp = (RRESP != 2'b00) ? 2'd2 : 2'd0;
       @(posedge ACLK);
-      RREADY = 1'b0;
+      axi_idle();
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
       snoop_addr = addr;
@@ -144,6 +147,7 @@ module verif_axi_full_master #(
     integer guard;
     begin
       resp = 2'd0;
+      axi_idle();
       @(posedge ACLK);
       AWID = 0;
       AWADDR = addr;
@@ -154,39 +158,49 @@ module verif_axi_full_master #(
       AWREGION = 4'd0;
       AWATOP = 6'd0;
       AWVALID = 1'b1;
-      WDATA = data;
-      WSTRB = wstrb_for_bytes(size);
+      WDATA = lane_pwdata(data, addr, size);
+      WSTRB = lane_wstrb(addr, size);
       WLAST = 1'b1;
       WVALID = 1'b1;
       if (AXI_PROT == 3) WID = 0;
       guard = 0;
-      while (!AWREADY || !WREADY) begin
+      while (!AWREADY) begin
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          AWVALID = 1'b0;
-          WVALID = 1'b0;
           resp = 2'd2;
+          axi_idle();
+          disable axi_write;
+        end
+      end
+      guard = 0;
+      while (!WREADY) begin
+        @(posedge ACLK);
+        guard = guard + 1;
+        if (guard > 64) begin
+          resp = 2'd2;
+          axi_idle();
           disable axi_write;
         end
       end
       @(posedge ACLK);
       AWVALID = 1'b0;
       WVALID = 1'b0;
+      WLAST = 1'b0;
       BREADY = 1'b1;
       guard = 0;
       while (!BVALID) begin
         @(posedge ACLK);
         guard = guard + 1;
         if (guard > 64) begin
-          BREADY = 1'b0;
           resp = 2'd2;
+          axi_idle();
           disable axi_write;
         end
       end
       resp = (BRESP != 2'b00) ? 2'd2 : 2'd0;
       @(posedge ACLK);
-      BREADY = 1'b0;
+      axi_idle();
       snoop_valid = 1'b1;
       snoop_wr = 1'b1;
       snoop_addr = addr;

@@ -3,16 +3,19 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
-module verif_apb_master (
+module verif_apb_master #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32
+)(
   input         PCLK,
   input         PRESETn,
-  output reg [31:0] PADDR,
+  output reg [ADDR_WIDTH-1:0] PADDR,
   output reg        PSEL,
   output reg        PENABLE,
   output reg        PWRITE,
-  output reg [31:0] PWDATA,
-  output reg [3:0]  PSTRB,
-  input  [31:0] PRDATA,
+  output reg [DATA_WIDTH-1:0] PWDATA,
+  output reg [DATA_WIDTH/8-1:0] PSTRB,
+  input  [DATA_WIDTH-1:0] PRDATA,
   input         PREADY,
   input         PSLVERR,
   output reg        snoop_valid,
@@ -21,13 +24,16 @@ module verif_apb_master (
   output reg [31:0] snoop_data
 );
 
+
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
   initial begin
     PADDR = 32'h0;
     PSEL = 1'b0;
     PENABLE = 1'b0;
     PWRITE = 1'b0;
     PWDATA = 32'h0;
-    PSTRB = 4'h0;
+    PSTRB = {STRB_WIDTH{1'b0}};
     snoop_valid = 1'b0;
     snoop_wr = 1'b0;
     snoop_addr = 32'h0;
@@ -39,7 +45,7 @@ module verif_apb_master (
       PSEL = 1'b0;
       PENABLE = 1'b0;
       PWRITE = 1'b0;
-      PSTRB = 4'h0;
+      PSTRB = {STRB_WIDTH{1'b0}};
       PWDATA = 32'h0;
     end
   endtask
@@ -58,7 +64,7 @@ module verif_apb_master (
       PADDR = addr;
       PWRITE = 1'b0;
       PWDATA = 32'h0;
-      PSTRB = 4'h0;
+      PSTRB = {STRB_WIDTH{1'b0}};
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);

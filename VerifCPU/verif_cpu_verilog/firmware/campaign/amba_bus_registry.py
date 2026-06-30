@@ -5,6 +5,62 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+# SoC interconnect widths — edit here, then: make -C firmware/campaign icodes && make soc_cell
+ADDR_WIDTH_DEFAULT = 32
+DATA_WIDTH_DEFAULT = 32
+AXI_ID_WIDTH_DEFAULT = 4
+AXI_MAX_OUTSTANDING_DEFAULT = 4
+AHB_MAX_OUTSTANDING_DEFAULT = 4
+CHI_MAX_OUTSTANDING_DEFAULT = 4
+AXI_LITE_MAX_OUTSTANDING_DEFAULT = 1
+
+# Bus types exposing non-blocking bus_*_issue/wait/poll on the bridge
+BUS_READ_OUTSTANDING_TYPES: frozenset[str] = frozenset({
+    "axi3full", "axi4full", "axi5full", "ace", "ahb", "chi", "axi4lite",
+})
+BUS_WRITE_OUTSTANDING_TYPES: frozenset[str] = frozenset({
+    "axi3full", "axi4full", "axi5full", "ace", "ahb", "chi", "axi4lite",
+})
+
+# AXI4-Stream (when integrated)
+AXIS_DATA_WIDTH_DEFAULT = DATA_WIDTH_DEFAULT
+
+# CHI packet flit placeholders (manifest/smoke — match your ICN spec)
+CHI_TXREQ_FLIT_WIDTH_DEFAULT = 44
+CHI_TXRSP_FLIT_WIDTH_DEFAULT = 13
+CHI_TXDAT_FLIT_WIDTH_DEFAULT = 146
+
+# NoC NIU vendor placeholder
+NIU_FLIT_WIDTH_DEFAULT = 64
+
+
+def strb_width(data_width: int = DATA_WIDTH_DEFAULT) -> int:
+    return data_width // 8
+
+
+def addr_range(addr_width: int = ADDR_WIDTH_DEFAULT) -> str:
+    return f"[{addr_width - 1}:0]"
+
+
+def data_range(data_width: int = DATA_WIDTH_DEFAULT) -> str:
+    return f"[{data_width - 1}:0]"
+
+
+def strb_range(data_width: int = DATA_WIDTH_DEFAULT) -> str:
+    return f"[{strb_width(data_width) - 1}:0]"
+
+
+def axi_id_range(id_width: int = AXI_ID_WIDTH_DEFAULT) -> str:
+    return f"[{id_width - 1}:0]"
+
+
+def axi_id_zero(id_width: int = AXI_ID_WIDTH_DEFAULT) -> str:
+    return (
+        f"{{VERIF_AXI_ID_WIDTH{{1'b0}}}}"
+        if id_width == AXI_ID_WIDTH_DEFAULT
+        else f"{{{id_width}{{1'b0}}}}"
+    )
+
 
 @dataclass(frozen=True)
 class BusTypeSpec:
@@ -19,6 +75,7 @@ class BusTypeSpec:
     rtl_status: str = "planned"
     cli_flags: tuple[str, ...] = ()
     notes: str = ""
+
 
     @property
     def manifest_only(self) -> bool:
@@ -209,3 +266,11 @@ def connect_slv_tag(bus_type: str) -> str | None:
 def connect_invoke_macro(bus_type: str) -> str | None:
     key = normalize_bus_type(bus_type)
     return CONNECT_SLV_TAGS.get(key, (None, None))[1]
+
+
+def bus_supports_read_outstanding(bus_type: str) -> bool:
+    return normalize_bus_type(bus_type) in BUS_READ_OUTSTANDING_TYPES
+
+
+def bus_supports_write_outstanding(bus_type: str) -> bool:
+    return normalize_bus_type(bus_type) in BUS_WRITE_OUTSTANDING_TYPES

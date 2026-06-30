@@ -2,6 +2,8 @@
 `timescale 1ns/1ps
 
 module verif_ahb_lite_slave_simple #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32,
   parameter [31:0] BASE = 32'h8000_0000,
   parameter [31:0] SIZE = 32'h1000,
   parameter [31:0] INIT_WORD0 = 32'hDEADBEEF,
@@ -9,13 +11,13 @@ module verif_ahb_lite_slave_simple #(
 )(
   input         HCLK,
   input         HRESETn,
-  input  [31:0] HADDR,
+  input  [ADDR_WIDTH-1:0] HADDR,
   input  [2:0]  HSIZE,
   input  [1:0]  HTRANS,
   input         HWRITE,
-  input  [31:0] HWDATA,
+  input  [DATA_WIDTH-1:0] HWDATA,
   input         HREADY,
-  output reg [31:0] HRDATA,
+  output reg [DATA_WIDTH-1:0] HRDATA,
   output reg        HREADYOUT,
   output reg [1:0]  HRESP
 );

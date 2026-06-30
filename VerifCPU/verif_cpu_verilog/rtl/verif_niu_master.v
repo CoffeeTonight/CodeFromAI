@@ -2,15 +2,17 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 
-module verif_niu_master (
+module verif_niu_master #(
+  parameter int FLIT_WIDTH = 64
+)(
   input         CLK,
   input         RESETn,
   output reg        REQ_VALID,
   input             REQ_READY,
-  output reg [63:0] REQ_FLIT,
+  output reg [FLIT_WIDTH-1:0] REQ_FLIT,
   input             RSP_VALID,
   output reg        RSP_READY,
-  input  [63:0] RSP_FLIT,
+  input  [FLIT_WIDTH-1:0] RSP_FLIT,
   output reg        snoop_valid,
   output reg        snoop_wr,
   output reg [31:0] snoop_addr,
@@ -19,7 +21,7 @@ module verif_niu_master (
 
   initial begin
     REQ_VALID = 1'b0;
-    REQ_FLIT = 64'h0;
+    REQ_FLIT = {FLIT_WIDTH{1'b0}};
     RSP_READY = 1'b1;
     snoop_valid = 1'b0;
     snoop_wr = 1'b0;

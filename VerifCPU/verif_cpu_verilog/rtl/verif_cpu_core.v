@@ -107,6 +107,16 @@ module verif_cpu_core #(
   reg        last_bus_wr;
   reg [8*96:1] step_disasm;
 
+  // --- Outstanding bus perf counters (performance model verification) ---
+  integer os_rd_issued;
+  integer os_rd_completed;
+  integer os_wr_issued;
+  integer os_wr_completed;
+  integer os_rd_inflight_peak;
+  integer os_wr_inflight_peak;
+  integer os_rd_inflight_now;
+  integer os_wr_inflight_now;
+
   // --- Coverage ---
   reg        cov_en;
   reg [15:0] cov_assert_total [0:`COV_ASSERT_MAX-1];
@@ -310,6 +320,301 @@ module verif_cpu_core #(
       end
       else
         g_local_bus.u_bus.bus_write(addr, data, size, resp);
+    end
+  endtask
+
+  task bus_read_issue_impl;
+    input  [31:0] addr;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      if (USE_SOC_BUS) begin
+        handle = -1;
+        ok = 1'b0;
+      end
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_read_issue(addr, size, handle, ok);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_read_issue.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_read_issue.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_read_issue.vh"
+`else
+        handle = -1;
+        ok = 1'b0;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_read_issue(addr, size, handle, ok);
+    end
+  endtask
+
+  task bus_read_wait_impl;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    begin
+      if (USE_SOC_BUS) begin
+        data = 32'h0;
+        resp = 2'd2;
+      end
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_read_wait(handle, data, resp);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_read_wait.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_read_wait.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_read_wait.vh"
+`else
+        data = 32'h0;
+        resp = 2'd2;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_read_wait(handle, data, resp);
+    end
+  endtask
+
+  task bus_read_poll_impl;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    output        done;
+    begin
+      if (USE_SOC_BUS) begin
+        data = 32'h0;
+        resp = 2'd2;
+        done = 1'b0;
+      end
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_read_poll(handle, data, resp, done);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_read_poll.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_read_poll.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_read_poll.vh"
+`else
+        data = 32'h0;
+        resp = 2'd2;
+        done = 1'b0;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_read_poll(handle, data, resp, done);
+    end
+  endtask
+
+  task bus_write_issue_impl;
+    input  [31:0] addr;
+    input  [31:0] data;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      if (USE_SOC_BUS) begin
+        handle = -1;
+        ok = 1'b0;
+      end
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_write_issue(addr, data, size, handle, ok);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_write_issue.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_write_issue.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_write_issue.vh"
+`else
+        handle = -1;
+        ok = 1'b0;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_write_issue(addr, data, size, handle, ok);
+    end
+  endtask
+
+  task bus_write_wait_impl;
+    input  integer handle;
+    output [1:0] resp;
+    begin
+      if (USE_SOC_BUS)
+        resp = 2'd2;
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_write_wait(handle, resp);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_write_wait.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_write_wait.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_write_wait.vh"
+`else
+        resp = 2'd2;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_write_wait(handle, resp);
+    end
+  endtask
+
+  task bus_write_poll_impl;
+    input  integer handle;
+    output [1:0] resp;
+    output       done;
+    begin
+      if (USE_SOC_BUS) begin
+        resp = 2'd2;
+        done = 1'b0;
+      end
+      else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_write_poll(handle, resp, done);
+      else if (USE_MANIFEST_SOC_BUS) begin
+`ifdef VERIF_MANIFEST_SCALE_TB
+`include "verif_manifest_scale_soc_bus_write_poll.vh"
+`elsif VERIF_MANIFEST_SOC_TB
+`include "verif_manifest_soc_bus_write_poll.vh"
+`elsif VERIF_CHIP_SOC_TB
+`include "verif_chip_soc_bus_write_poll.vh"
+`else
+        resp = 2'd2;
+        done = 1'b0;
+`endif
+      end
+      else
+        g_local_bus.u_bus.bus_write_poll(handle, resp, done);
+    end
+  endtask
+
+  task os_track_read_issue;
+    input ok;
+    begin
+      if (ok) begin
+        os_rd_issued = os_rd_issued + 1;
+        os_rd_inflight_now = os_rd_inflight_now + 1;
+        if (os_rd_inflight_now > os_rd_inflight_peak)
+          os_rd_inflight_peak = os_rd_inflight_now;
+      end
+    end
+  endtask
+
+  task os_track_read_done;
+    begin
+      if (os_rd_inflight_now > 0)
+        os_rd_inflight_now = os_rd_inflight_now - 1;
+      os_rd_completed = os_rd_completed + 1;
+    end
+  endtask
+
+  task os_track_write_issue;
+    input ok;
+    begin
+      if (ok) begin
+        os_wr_issued = os_wr_issued + 1;
+        os_wr_inflight_now = os_wr_inflight_now + 1;
+        if (os_wr_inflight_now > os_wr_inflight_peak)
+          os_wr_inflight_peak = os_wr_inflight_now;
+      end
+    end
+  endtask
+
+  task os_track_write_done;
+    begin
+      if (os_wr_inflight_now > 0)
+        os_wr_inflight_now = os_wr_inflight_now - 1;
+      os_wr_completed = os_wr_completed + 1;
+    end
+  endtask
+
+  task do_bus_read_issue;
+    input  [31:0] addr;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+        handle = -1;
+        ok = 1'b0;
+      end else begin
+        bus_read_issue_impl(addr, size, handle, ok);
+        os_track_read_issue(ok);
+      end
+    end
+  endtask
+
+  task do_bus_read_wait;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    begin
+      bus_read_wait_impl(handle, data, resp);
+      data = sanitize_xz_fn(data, "bus_read_wait data");
+      os_track_read_done();
+      last_bus_valid = 1'b1;
+      last_bus_data = data;
+      last_bus_wr = 1'b0;
+    end
+  endtask
+
+  task do_bus_read_poll;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    output        done;
+    begin
+      bus_read_poll_impl(handle, data, resp, done);
+      if (done) begin
+        data = sanitize_xz_fn(data, "bus_read_poll data");
+        os_track_read_done();
+      end
+    end
+  endtask
+
+  task do_bus_write_issue;
+    input  [31:0] addr;
+    input  [31:0] data;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+        handle = -1;
+        ok = 1'b0;
+      end else begin
+        bus_write_issue_impl(addr, data, size, handle, ok);
+        os_track_write_issue(ok);
+        last_bus_valid = 1'b1;
+        last_bus_addr = addr;
+        last_bus_data = data;
+        last_bus_wr = 1'b1;
+      end
+    end
+  endtask
+
+  task do_bus_write_wait;
+    input  integer handle;
+    output [1:0] resp;
+    begin
+      bus_write_wait_impl(handle, resp);
+      os_track_write_done();
+    end
+  endtask
+
+  task do_bus_write_poll;
+    input  integer handle;
+    output [1:0] resp;
+    output       done;
+    begin
+      bus_write_poll_impl(handle, resp, done);
+      if (done)
+        os_track_write_done();
     end
   endtask
 
@@ -517,6 +822,10 @@ module verif_cpu_core #(
       instr_steps_traced = 0; trace_depth_out = 0;
       cpu_name = "CPU";
       last_bus_valid = 0;
+      os_rd_issued = 0; os_rd_completed = 0;
+      os_wr_issued = 0; os_wr_completed = 0;
+      os_rd_inflight_peak = 0; os_wr_inflight_peak = 0;
+      os_rd_inflight_now = 0; os_wr_inflight_now = 0;
       for (i = 0; i < 32; i = i + 1) begin
         regs[i] = 0; forced_valid[i] = 0; forced_val[i] = 0;
       end
@@ -784,7 +1093,8 @@ module verif_cpu_core #(
     begin
       $display("SCPU%0d > [Console] commands:", CPU_ID);
       $display("  control: stall resume status step");
-      $display("  bus:     bus_write bus_read  (a0=addr a1=data a2=size)");
+      $display("  bus:     bus_write bus_read bus_read_issue bus_read_wait");
+      $display("           bus_write_issue bus_write_wait os_perf");
       $display("  wdt:     wdt_pet wdt_status");
       $display("  custom:  vstop vwdt_set vwdt_pet vdummy_on vdummy_off");
       $display("           vtrace_enter vtrace_exit vtrace_log vsync vassert");
@@ -865,6 +1175,16 @@ module verif_cpu_core #(
         cpu_console_bus_read(a0, a2[2:0], bus_rdata);
         $display("SCPU%0d > [Console] bus_read data=0x%08h", CPU_ID, bus_rdata);
       end
+      else if (cmd == "bus_read_issue")
+        cpu_console_bus_read_issue(a0, a2[2:0]);
+      else if (cmd == "bus_read_wait")
+        cpu_console_bus_read_wait(a0);
+      else if (cmd == "bus_write_issue")
+        cpu_console_bus_write_issue(a0, a1, a2[2:0]);
+      else if (cmd == "bus_write_wait")
+        cpu_console_bus_write_wait(a0);
+      else if (cmd == "os_perf")
+        cpu_console_os_perf();
       else if (cmd == "wdt_pet")
         cpu_wdt_pet();
       else if (cmd == "wdt_status")
@@ -908,6 +1228,61 @@ module verif_cpu_core #(
         u_rec.recorder_record(1'b0, addr, data, size);
       $display("SCPU%0d > [Console Bus Master] READ  0x%08h => 0x%08h (size=%0d) -> %0s",
                CPU_ID, addr, data, size, (resp == 0) ? "OK" : "ERR");
+    end
+  endtask
+
+  integer os_console_handle;
+
+  task cpu_console_bus_read_issue;
+    input [31:0] addr;
+    input [2:0]  size;
+    reg ok;
+    begin
+      do_bus_read_issue(addr, size, os_console_handle, ok);
+      $display("SCPU%0d > [Console OS] read_issue addr=0x%08h handle=%0d ok=%0d",
+               CPU_ID, addr, os_console_handle, ok);
+    end
+  endtask
+
+  task cpu_console_bus_read_wait;
+    input [31:0] handle;
+    reg [31:0] data;
+    reg [1:0] resp;
+    begin
+      do_bus_read_wait(handle, data, resp);
+      $display("SCPU%0d > [Console OS] read_wait handle=%0d data=0x%08h resp=%0d",
+               CPU_ID, handle, data, resp);
+    end
+  endtask
+
+  task cpu_console_bus_write_issue;
+    input [31:0] addr;
+    input [31:0] data;
+    input [2:0]  size;
+    reg ok;
+    begin
+      do_bus_write_issue(addr, data, size, os_console_handle, ok);
+      $display("SCPU%0d > [Console OS] write_issue addr=0x%08h handle=%0d ok=%0d",
+               CPU_ID, addr, os_console_handle, ok);
+    end
+  endtask
+
+  task cpu_console_bus_write_wait;
+    input [31:0] handle;
+    reg [1:0] resp;
+    begin
+      do_bus_write_wait(handle, resp);
+      $display("SCPU%0d > [Console OS] write_wait handle=%0d resp=%0d",
+               CPU_ID, handle, resp);
+    end
+  endtask
+
+  task cpu_console_os_perf;
+    begin
+      $display("SCPU%0d > [OS perf] rd_issued=%0d rd_done=%0d rd_peak=%0d rd_now=%0d",
+               CPU_ID, os_rd_issued, os_rd_completed, os_rd_inflight_peak, os_rd_inflight_now);
+      $display("SCPU%0d > [OS perf] wr_issued=%0d wr_done=%0d wr_peak=%0d wr_now=%0d",
+               CPU_ID, os_wr_issued, os_wr_completed, os_wr_inflight_peak, os_wr_inflight_now);
     end
   endtask
 

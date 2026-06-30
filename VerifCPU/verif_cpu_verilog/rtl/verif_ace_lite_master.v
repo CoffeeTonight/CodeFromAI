@@ -2,25 +2,28 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 
-module verif_ace_lite_master (
+module verif_ace_lite_master #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32
+)(
   input         ACLK,
   input         ARESETn,
   output wire        ARVALID,
   input              ARREADY,
-  output wire [31:0] ARADDR,
+  output wire [ADDR_WIDTH-1:0] ARADDR,
   output wire [2:0]  ARSIZE,
   input              RVALID,
   output wire        RREADY,
-  input  [31:0] RDATA,
+  input  [DATA_WIDTH-1:0] RDATA,
   input  [1:0]  RRESP,
   output wire        AWVALID,
   input              AWREADY,
-  output wire [31:0] AWADDR,
+  output wire [ADDR_WIDTH-1:0] AWADDR,
   output wire [2:0]  AWSIZE,
   output wire        WVALID,
   input              WREADY,
-  output wire [31:0] WDATA,
-  output wire [3:0]  WSTRB,
+  output wire [DATA_WIDTH-1:0] WDATA,
+  output wire [DATA_WIDTH/8-1:0] WSTRB,
   input              BVALID,
   output wire        BREADY,
   input  [1:0]  BRESP,
@@ -35,7 +38,7 @@ module verif_ace_lite_master (
   output wire [31:0] snoop_data
 );
 
-  verif_axi_lite_master u_axi (
+  verif_axi_lite_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_axi (
     .ACLK(ACLK), .ARESETn(ARESETn),
     .ARVALID(ARVALID), .ARREADY(ARREADY), .ARADDR(ARADDR), .ARSIZE(ARSIZE),
     .RVALID(RVALID), .RREADY(RREADY), .RDATA(RDATA), .RRESP(RRESP),

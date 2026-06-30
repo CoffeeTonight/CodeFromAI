@@ -65,7 +65,7 @@ MANIFEST_SCALE_BUS_BIND = include/verif_manifest_scale_soc_bus_read.vh include/v
 PASTE_BUS_BIND = include/verif_paste_soc_bus_read.vh include/verif_paste_soc_bus_write.vh
 SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
 discover:
 	$(MAKE) -C firmware/campaign discover
@@ -105,9 +105,23 @@ sim_build/tb_soc_bus_bridge.vvp: $(BUS_RTL) tb/tb_soc_bus_bridge.v
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ $(BUS_RTL) tb/tb_soc_bus_bridge.v
 
-sim_build/tb_soc_bus_all.vvp: $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v
+sim_build/tb_soc_bus_all.vvp: $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v include/verif_bus_soc_widths.vh
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v
+
+soc-bus-os: sim_build/tb_axi_outstanding.vvp
+	$(VVP) sim_build/tb_axi_outstanding.vvp
+
+soc-bus-id-ooo: sim_build/tb_axi_id_ooo.vvp
+	$(VVP) sim_build/tb_axi_id_ooo.vvp
+
+sim_build/tb_axi_outstanding.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_outstanding.v include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_outstanding.v
+
+sim_build/tb_axi_id_ooo.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v
 
 fw:
 	$(CAMPAIGN_FW)

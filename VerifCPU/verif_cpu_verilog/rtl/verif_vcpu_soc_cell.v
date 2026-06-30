@@ -17,20 +17,24 @@ endmodule
 // AHB (multi-master) — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_ahb #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
+  ,parameter integer MAX_OUTSTANDING = 4
+  ,parameter integer MAX_OUTSTANDING = 4
 ) (
   input  wire HCLK,
   input  wire HRESETn,
-  output wire [31:0] HADDR,
+  output wire [ADDR_WIDTH-1:0] HADDR,
   output wire [2:0]  HSIZE,
   output wire [1:0]  HTRANS,
   output wire [2:0]  HBURST,
-  output wire        HPROT,
+  output wire [3:0]  HPROT,
   output wire        HMASTLOCK,
   output wire        HWRITE,
-  output wire [31:0] HWDATA,
+  output wire [DATA_WIDTH-1:0] HWDATA,
   output wire        HNONSEC,
   output wire        HEXCL,
-  input wire [31:0] HRDATA,
+  input wire [DATA_WIDTH-1:0] HRDATA,
   input wire        HREADY,
   input wire [1:0]  HRESP,
   input wire        HEXOK,
@@ -39,7 +43,7 @@ module verif_vcpu_soc_cell_ahb #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_ahb_master u_bridge (
+  verif_ahb_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH), .MAX_OUTSTANDING(MAX_OUTSTANDING)) u_bridge (
     .HCLK(HCLK), .HRESETn(HRESETn),
     .HADDR(HADDR),
     .HSIZE(HSIZE),
@@ -85,17 +89,19 @@ endmodule
 // AHB5-Lite — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_ahb5_lite #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire HCLK,
   input  wire HRESETn,
-  output wire [31:0] HADDR,
+  output wire [ADDR_WIDTH-1:0] HADDR,
   output wire [2:0]  HSIZE,
   output wire [1:0]  HTRANS,
   output wire        HWRITE,
-  output wire [31:0] HWDATA,
+  output wire [DATA_WIDTH-1:0] HWDATA,
   output wire        HNONSEC,
   output wire        HEXCL,
-  input wire [31:0] HRDATA,
+  input wire [DATA_WIDTH-1:0] HRDATA,
   input wire        HREADY,
   input wire [1:0]  HRESP,
   input wire        HEXOK,
@@ -104,7 +110,7 @@ module verif_vcpu_soc_cell_ahb5_lite #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_ahb5_lite_master u_bridge (
+  verif_ahb5_lite_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .HCLK(HCLK), .HRESETn(HRESETn),
     .HADDR(HADDR),
     .HSIZE(HSIZE),
@@ -147,15 +153,17 @@ endmodule
 // AHB-Lite — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_ahb_lite #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire HCLK,
   input  wire HRESETn,
-  output wire [31:0] HADDR,
+  output wire [ADDR_WIDTH-1:0] HADDR,
   output wire [2:0]  HSIZE,
   output wire [1:0]  HTRANS,
   output wire        HWRITE,
-  output wire [31:0] HWDATA,
-  input wire [31:0] HRDATA,
+  output wire [DATA_WIDTH-1:0] HWDATA,
+  input wire [DATA_WIDTH-1:0] HRDATA,
   input wire        HREADY,
   input wire [1:0]  HRESP,
   output wire        snoop_valid,
@@ -163,7 +171,7 @@ module verif_vcpu_soc_cell_ahb_lite #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_ahb_lite_master u_bridge (
+  verif_ahb_lite_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .HCLK(HCLK), .HRESETn(HRESETn),
     .HADDR(HADDR),
     .HSIZE(HSIZE),
@@ -203,22 +211,24 @@ endmodule
 // APB2 — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_apb2 #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire PCLK,
   input  wire PRESETn,
-  output wire [31:0] PADDR,
+  output wire [ADDR_WIDTH-1:0] PADDR,
   output wire        PSEL,
   output wire        PENABLE,
   output wire        PWRITE,
-  output wire [31:0] PWDATA,
-  input wire [31:0] PRDATA,
+  output wire [DATA_WIDTH-1:0] PWDATA,
+  input wire [DATA_WIDTH-1:0] PRDATA,
   input wire        PREADY,
   output wire        snoop_valid,
   output wire        snoop_wr,
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_apb2_master u_bridge (
+  verif_apb2_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .PCLK(PCLK), .PRESETn(PRESETn),
     .PADDR(PADDR),
     .PSEL(PSEL),
@@ -257,16 +267,18 @@ endmodule
 // APB3 — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_apb3 #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire PCLK,
   input  wire PRESETn,
-  output wire [31:0] PADDR,
+  output wire [ADDR_WIDTH-1:0] PADDR,
   output wire        PSEL,
   output wire        PENABLE,
   output wire        PWRITE,
-  output wire [31:0] PWDATA,
-  output wire [3:0]  PSTRB,
-  input wire [31:0] PRDATA,
+  output wire [DATA_WIDTH-1:0] PWDATA,
+  output wire [DATA_WIDTH/8-1:0] PSTRB,
+  input wire [DATA_WIDTH-1:0] PRDATA,
   input wire        PREADY,
   input wire        PSLVERR,
   output wire        snoop_valid,
@@ -274,7 +286,7 @@ module verif_vcpu_soc_cell_apb3 #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_apb_master u_bridge (
+  verif_apb_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .PCLK(PCLK), .PRESETn(PRESETn),
     .PADDR(PADDR),
     .PSEL(PSEL),
@@ -315,17 +327,19 @@ endmodule
 // APB4 — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_apb4 #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire PCLK,
   input  wire PRESETn,
-  output wire [31:0] PADDR,
+  output wire [ADDR_WIDTH-1:0] PADDR,
   output wire        PSEL,
   output wire        PENABLE,
   output wire        PWRITE,
-  output wire [31:0] PWDATA,
-  output wire [3:0]  PSTRB,
+  output wire [DATA_WIDTH-1:0] PWDATA,
+  output wire [DATA_WIDTH/8-1:0] PSTRB,
   output wire [2:0]  PPROT,
-  input wire [31:0] PRDATA,
+  input wire [DATA_WIDTH-1:0] PRDATA,
   input wire        PREADY,
   input wire        PSLVERR,
   output wire        snoop_valid,
@@ -333,7 +347,7 @@ module verif_vcpu_soc_cell_apb4 #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_apb4_master u_bridge (
+  verif_apb4_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .PCLK(PCLK), .PRESETn(PRESETn),
     .PADDR(PADDR),
     .PSEL(PSEL),
@@ -375,18 +389,20 @@ endmodule
 // APB5 — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_apb5 #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire PCLK,
   input  wire PRESETn,
-  output wire [31:0] PADDR,
+  output wire [ADDR_WIDTH-1:0] PADDR,
   output wire        PSEL,
   output wire        PENABLE,
   output wire        PWRITE,
-  output wire [31:0] PWDATA,
-  output wire [3:0]  PSTRB,
+  output wire [DATA_WIDTH-1:0] PWDATA,
+  output wire [DATA_WIDTH/8-1:0] PSTRB,
   output wire [2:0]  PPROT,
   output wire        PWAKEUP,
-  input wire [31:0] PRDATA,
+  input wire [DATA_WIDTH-1:0] PRDATA,
   input wire        PREADY,
   input wire        PSLVERR,
   output wire        snoop_valid,
@@ -394,7 +410,7 @@ module verif_vcpu_soc_cell_apb5 #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_apb5_master u_bridge (
+  verif_apb5_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .PCLK(PCLK), .PRESETn(PRESETn),
     .PADDR(PADDR),
     .PSEL(PSEL),
@@ -437,38 +453,42 @@ endmodule
 // AXI3 full — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_axi3full #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
   ,parameter integer AXI_PROT = 3
+  ,parameter integer ID_WIDTH = 4
+  ,parameter integer MAX_OUTSTANDING = 4
 ) (
   input  wire ACLK,
   input  wire ARESETn,
-  output wire [3:0]  ARID,
-  output wire [31:0] ARADDR,
+  output wire [ID_WIDTH-1:0] ARID,
+  output wire [ADDR_WIDTH-1:0] ARADDR,
   output wire [7:0]  ARLEN,
   output wire [2:0]  ARSIZE,
   output wire [2:0]  ARBURST,
   output wire        ARVALID,
   output wire        RREADY,
-  output wire [3:0]  AWID,
-  output wire [31:0] AWADDR,
+  output wire [ID_WIDTH-1:0] AWID,
+  output wire [ADDR_WIDTH-1:0] AWADDR,
   output wire [7:0]  AWLEN,
   output wire [2:0]  AWSIZE,
   output wire [2:0]  AWBURST,
   output wire        AWVALID,
-  output wire [3:0]  WID,
-  output wire [31:0] WDATA,
-  output wire [3:0]  WSTRB,
+  output wire [ID_WIDTH-1:0] WID,
+  output wire [DATA_WIDTH-1:0] WDATA,
+  output wire [DATA_WIDTH/8-1:0] WSTRB,
   output wire        WLAST,
   output wire        WVALID,
   output wire        BREADY,
   input wire        ARREADY,
-  input wire [3:0]  RID,
+  input wire [ID_WIDTH-1:0] RID,
   input wire        RVALID,
-  input wire [31:0] RDATA,
+  input wire [DATA_WIDTH-1:0] RDATA,
   input wire [1:0]  RRESP,
   input wire        RLAST,
   input wire        AWREADY,
   input wire        WREADY,
-  input wire [3:0]  BID,
+  input wire [ID_WIDTH-1:0] BID,
   input wire        BVALID,
   input wire [1:0]  BRESP,
   output wire        snoop_valid,
@@ -476,7 +496,7 @@ module verif_vcpu_soc_cell_axi3full #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_axi_full_master #(.AXI_PROT(AXI_PROT)) u_bridge (
+  verif_axi_full_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH), .AXI_PROT(AXI_PROT), .ID_WIDTH(ID_WIDTH), .MAX_OUTSTANDING(MAX_OUTSTANDING)) u_bridge (
     .ACLK(ACLK), .ARESETn(ARESETn),
     .ARID(ARID),
     .ARADDR(ARADDR),
@@ -538,12 +558,16 @@ endmodule
 // AXI4 full — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_axi4full #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
   ,parameter integer AXI_PROT = 4
+  ,parameter integer ID_WIDTH = 4
+  ,parameter integer MAX_OUTSTANDING = 4
 ) (
   input  wire ACLK,
   input  wire ARESETn,
-  output wire [3:0]  ARID,
-  output wire [31:0] ARADDR,
+  output wire [ID_WIDTH-1:0] ARID,
+  output wire [ADDR_WIDTH-1:0] ARADDR,
   output wire [7:0]  ARLEN,
   output wire [2:0]  ARSIZE,
   output wire [2:0]  ARBURST,
@@ -551,8 +575,8 @@ module verif_vcpu_soc_cell_axi4full #(
   output wire [3:0]  ARREGION,
   output wire        ARVALID,
   output wire        RREADY,
-  output wire [3:0]  AWID,
-  output wire [31:0] AWADDR,
+  output wire [ID_WIDTH-1:0] AWID,
+  output wire [ADDR_WIDTH-1:0] AWADDR,
   output wire [7:0]  AWLEN,
   output wire [2:0]  AWSIZE,
   output wire [2:0]  AWBURST,
@@ -560,21 +584,21 @@ module verif_vcpu_soc_cell_axi4full #(
   output wire [3:0]  AWREGION,
   output wire [5:0]  AWATOP,
   output wire        AWVALID,
-  output wire [3:0]  WID,
-  output wire [31:0] WDATA,
-  output wire [3:0]  WSTRB,
+  output wire [ID_WIDTH-1:0] WID,
+  output wire [DATA_WIDTH-1:0] WDATA,
+  output wire [DATA_WIDTH/8-1:0] WSTRB,
   output wire        WLAST,
   output wire        WVALID,
   output wire        BREADY,
   input wire        ARREADY,
-  input wire [3:0]  RID,
+  input wire [ID_WIDTH-1:0] RID,
   input wire        RVALID,
-  input wire [31:0] RDATA,
+  input wire [DATA_WIDTH-1:0] RDATA,
   input wire [1:0]  RRESP,
   input wire        RLAST,
   input wire        AWREADY,
   input wire        WREADY,
-  input wire [3:0]  BID,
+  input wire [ID_WIDTH-1:0] BID,
   input wire        BVALID,
   input wire [1:0]  BRESP,
   output wire        snoop_valid,
@@ -582,7 +606,7 @@ module verif_vcpu_soc_cell_axi4full #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_axi_full_master #(.AXI_PROT(AXI_PROT)) u_bridge (
+  verif_axi_full_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH), .AXI_PROT(AXI_PROT), .ID_WIDTH(ID_WIDTH), .MAX_OUTSTANDING(MAX_OUTSTANDING)) u_bridge (
     .ACLK(ACLK), .ARESETn(ARESETn),
     .ARID(ARID),
     .ARADDR(ARADDR),
@@ -649,23 +673,25 @@ endmodule
 // AXI4-Lite — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_axi4lite #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
 ) (
   input  wire ACLK,
   input  wire ARESETn,
   output wire        ARVALID,
-  output wire [31:0] ARADDR,
+  output wire [ADDR_WIDTH-1:0] ARADDR,
   output wire [2:0]  ARSIZE,
   output wire        RREADY,
   output wire        AWVALID,
-  output wire [31:0] AWADDR,
+  output wire [ADDR_WIDTH-1:0] AWADDR,
   output wire [2:0]  AWSIZE,
   output wire        WVALID,
-  output wire [31:0] WDATA,
-  output wire [3:0]  WSTRB,
+  output wire [DATA_WIDTH-1:0] WDATA,
+  output wire [DATA_WIDTH/8-1:0] WSTRB,
   output wire        BREADY,
   input wire        ARREADY,
   input wire        RVALID,
-  input wire [31:0] RDATA,
+  input wire [DATA_WIDTH-1:0] RDATA,
   input wire [1:0]  RRESP,
   input wire        AWREADY,
   input wire        WREADY,
@@ -676,7 +702,7 @@ module verif_vcpu_soc_cell_axi4lite #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_axi_lite_master u_bridge (
+  verif_axi_lite_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_bridge (
     .ACLK(ACLK), .ARESETn(ARESETn),
     .ARVALID(ARVALID),
     .ARADDR(ARADDR),
@@ -727,12 +753,16 @@ endmodule
 // AXI5 full — VCPU + bridge (connect VH: g_slv[cpu_id-1].u_bus.u_bridge)
 module verif_vcpu_soc_cell_axi5full #(
   parameter integer CPU_ID = 1
+  ,parameter integer ADDR_WIDTH = 32
+  ,parameter integer DATA_WIDTH = 32
   ,parameter integer AXI_PROT = 5
+  ,parameter integer ID_WIDTH = 4
+  ,parameter integer MAX_OUTSTANDING = 4
 ) (
   input  wire ACLK,
   input  wire ARESETn,
-  output wire [3:0]  ARID,
-  output wire [31:0] ARADDR,
+  output wire [ID_WIDTH-1:0] ARID,
+  output wire [ADDR_WIDTH-1:0] ARADDR,
   output wire [7:0]  ARLEN,
   output wire [2:0]  ARSIZE,
   output wire [2:0]  ARBURST,
@@ -740,8 +770,8 @@ module verif_vcpu_soc_cell_axi5full #(
   output wire [3:0]  ARREGION,
   output wire        ARVALID,
   output wire        RREADY,
-  output wire [3:0]  AWID,
-  output wire [31:0] AWADDR,
+  output wire [ID_WIDTH-1:0] AWID,
+  output wire [ADDR_WIDTH-1:0] AWADDR,
   output wire [7:0]  AWLEN,
   output wire [2:0]  AWSIZE,
   output wire [2:0]  AWBURST,
@@ -749,21 +779,21 @@ module verif_vcpu_soc_cell_axi5full #(
   output wire [3:0]  AWREGION,
   output wire [5:0]  AWATOP,
   output wire        AWVALID,
-  output wire [3:0]  WID,
-  output wire [31:0] WDATA,
-  output wire [3:0]  WSTRB,
+  output wire [ID_WIDTH-1:0] WID,
+  output wire [DATA_WIDTH-1:0] WDATA,
+  output wire [DATA_WIDTH/8-1:0] WSTRB,
   output wire        WLAST,
   output wire        WVALID,
   output wire        BREADY,
   input wire        ARREADY,
-  input wire [3:0]  RID,
+  input wire [ID_WIDTH-1:0] RID,
   input wire        RVALID,
-  input wire [31:0] RDATA,
+  input wire [DATA_WIDTH-1:0] RDATA,
   input wire [1:0]  RRESP,
   input wire        RLAST,
   input wire        AWREADY,
   input wire        WREADY,
-  input wire [3:0]  BID,
+  input wire [ID_WIDTH-1:0] BID,
   input wire        BVALID,
   input wire [1:0]  BRESP,
   output wire        snoop_valid,
@@ -771,7 +801,7 @@ module verif_vcpu_soc_cell_axi5full #(
   output wire [31:0] snoop_addr,
   output wire [31:0] snoop_data
 );
-  verif_axi_full_master #(.AXI_PROT(AXI_PROT)) u_bridge (
+  verif_axi_full_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH), .AXI_PROT(AXI_PROT), .ID_WIDTH(ID_WIDTH), .MAX_OUTSTANDING(MAX_OUTSTANDING)) u_bridge (
     .ACLK(ACLK), .ARESETn(ARESETn),
     .ARID(ARID),
     .ARADDR(ARADDR),

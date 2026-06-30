@@ -2,14 +2,16 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 
-module verif_axistream_master (
+module verif_axistream_master #(
+  parameter int DATA_WIDTH = 32
+)(
   input         ACLK,
   input         ARESETn,
   output reg        TVALID,
   input             TREADY,
-  output reg [31:0] TDATA,
+  output reg [DATA_WIDTH-1:0] TDATA,
   output reg        TLAST,
-  output reg [3:0]  TKEEP,
+  output reg [DATA_WIDTH/8-1:0] TKEEP,
   output reg        snoop_valid,
   output reg        snoop_wr,
   output reg [31:0] snoop_addr,

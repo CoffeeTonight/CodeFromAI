@@ -3,18 +3,21 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
-module verif_apb5_master (
+module verif_apb5_master #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32
+)(
   input         PCLK,
   input         PRESETn,
-  output reg [31:0] PADDR,
+  output reg [ADDR_WIDTH-1:0] PADDR,
   output reg        PSEL,
   output reg        PENABLE,
   output reg        PWRITE,
-  output reg [31:0] PWDATA,
-  output reg [3:0]  PSTRB,
+  output reg [DATA_WIDTH-1:0] PWDATA,
+  output reg [DATA_WIDTH/8-1:0] PSTRB,
   output reg [2:0]  PPROT,
   output reg        PWAKEUP,
-  input  [31:0] PRDATA,
+  input  [DATA_WIDTH-1:0] PRDATA,
   input         PREADY,
   input         PSLVERR,
   output reg        snoop_valid,
@@ -23,13 +26,16 @@ module verif_apb5_master (
   output reg [31:0] snoop_data
 );
 
+
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
   initial begin
     PADDR = 32'h0;
     PSEL = 1'b0;
     PENABLE = 1'b0;
     PWRITE = 1'b0;
     PWDATA = 32'h0;
-    PSTRB = 4'h0;
+    PSTRB = {STRB_WIDTH{1'b0}};
     PPROT = 3'b000;
     PWAKEUP = 1'b0;
     snoop_valid = 1'b0;
@@ -43,7 +49,7 @@ module verif_apb5_master (
       PSEL = 1'b0;
       PENABLE = 1'b0;
       PWRITE = 1'b0;
-      PSTRB = 4'h0;
+      PSTRB = {STRB_WIDTH{1'b0}};
       PWDATA = 32'h0;
       PWAKEUP = 1'b0;
     end
@@ -67,7 +73,7 @@ module verif_apb5_master (
       PADDR = addr;
       PWRITE = is_wr;
       PWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
-      PSTRB = is_wr ? lane_wstrb(addr, size) : 4'h0;
+      PSTRB = is_wr ? lane_wstrb(addr, size) : {STRB_WIDTH{1'b0}};
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);

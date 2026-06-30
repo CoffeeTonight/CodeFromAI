@@ -2,17 +2,19 @@
 `timescale 1ns/1ps
 
 module verif_apb2_slave_simple #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32,
   parameter [31:0] BASE = 32'h4000_0000,
   parameter [31:0] SIZE = 32'h1000
 )(
   input         PCLK,
   input         PRESETn,
-  input  [31:0] PADDR,
+  input  [ADDR_WIDTH-1:0] PADDR,
   input         PSEL,
   input         PENABLE,
   input         PWRITE,
-  input  [31:0] PWDATA,
-  output reg [31:0] PRDATA
+  input  [DATA_WIDTH-1:0] PWDATA,
+  output reg [DATA_WIDTH-1:0] PRDATA
 );
 
   reg [7:0] mem [0:SIZE-1];

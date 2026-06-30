@@ -1,20 +1,25 @@
 // Smoke test: all AMBA APB/AHB/AXI bridge variants (bus_read single-beat)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_soc_widths.vh"
 
 module tb_soc_bus_all;
+
+  localparam integer ADDR_WIDTH = `VERIF_ADDR_WIDTH;
+  localparam integer DATA_WIDTH = `VERIF_DATA_WIDTH;
+  localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
 
   reg clk = 0;
   always #5 clk = ~clk;
 
-  wire [31:0] apb2_rdata, apb3_rdata, apb4_rdata, apb5_rdata;
+  wire [DATA_WIDTH-1:0] apb2_rdata, apb3_rdata, apb4_rdata, apb5_rdata;
   wire        apb3_ready, apb3_slverr, apb4_ready, apb4_slverr, apb5_ready, apb5_slverr;
-  wire [31:0] ahb_rdata, ahb5_rdata, ahbf_rdata;
+  wire [DATA_WIDTH-1:0] ahb_rdata, ahb5_rdata, ahbf_rdata;
   wire        ahb_ro, ahb5_ro, ahbf_ro;
   wire [1:0]  ahb_resp, ahb5_resp, ahbf_resp;
   wire        ahb_hexok, ahb5_hexok, ahbf_hexok;
 
-  wire [31:0] axil_rdata, axi3_rdata, axi4_rdata, axi5_rdata;
+  wire [DATA_WIDTH-1:0] axil_rdata, axi3_rdata, axi4_rdata, axi5_rdata;
   wire        axil_arready, axil_rvalid, axil_awready, axil_wready, axil_bvalid;
   wire [1:0]  axil_rresp, axil_bresp;
   wire        axi3_arready, axi3_rvalid, axi3_awready, axi3_wready, axi3_bvalid, axi3_rlast;
@@ -23,7 +28,7 @@ module tb_soc_bus_all;
   wire [1:0]  axi4_rresp, axi4_bresp;
   wire        axi5_arready, axi5_rvalid, axi5_awready, axi5_wready, axi5_bvalid, axi5_rlast;
   wire [1:0]  axi5_rresp, axi5_bresp;
-  wire [3:0]  axil_rid, axil_bid, axi3_rid, axi3_bid, axi4_rid, axi4_bid, axi5_rid, axi5_bid;
+  wire [AXI_ID_WIDTH-1:0] axil_rid, axil_bid, axi3_rid, axi3_bid, axi4_rid, axi4_bid, axi5_rid, axi5_bid;
 
   wire sn_v, sn_wr;
   wire [31:0] sn_addr, sn_data;
@@ -104,19 +109,19 @@ module tb_soc_bus_all;
     .WVALID(), .WDATA(), .WSTRB(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hC000_0000)) u_axil_s (.ACLK(clk), .ARESETn(1'b1),
-    .ARID(4'd0), .ARADDR(u_axil.ARADDR), .ARLEN(8'd0), .ARSIZE(u_axil.ARSIZE),
+    .ARID({AXI_ID_WIDTH{1'b0}}), .ARADDR(u_axil.ARADDR), .ARLEN(8'd0), .ARSIZE(u_axil.ARSIZE),
     .ARBURST(2'b01), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
     .RID(axil_rid), .RDATA(axil_rdata), .RRESP(axil_rresp), .RLAST(axil_rvalid), .RVALID(axil_rvalid), .RREADY(u_axil.RREADY),
-    .AWID(4'd0), .AWADDR(u_axil.AWADDR), .AWLEN(8'd0), .AWSIZE(u_axil.AWSIZE),
+    .AWID({AXI_ID_WIDTH{1'b0}}), .AWADDR(u_axil.AWADDR), .AWLEN(8'd0), .AWSIZE(u_axil.AWSIZE),
     .AWBURST(2'b01), .AWVALID(u_axil.AWVALID), .AWREADY(axil_awready),
-    .WID(4'd0), .WDATA(u_axil.WDATA), .WSTRB(u_axil.WSTRB), .WLAST(1'b1), .WVALID(u_axil.WVALID), .WREADY(axil_wready),
+    .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axil.WDATA), .WSTRB(u_axil.WSTRB), .WLAST(1'b1), .WVALID(u_axil.WVALID), .WREADY(axil_wready),
     .BID(axil_bid), .BRESP(axil_bresp), .BVALID(axil_bvalid), .BREADY(u_axil.BREADY));
 
   verif_axi_full_master #(.AXI_PROT(3)) u_axi3 (
     .ACLK(clk), .ARESETn(1'b1),
     .ARREADY(axi3_arready), .RVALID(axi3_rvalid), .RDATA(axi3_rdata), .RRESP(axi3_rresp), .RLAST(axi3_rlast),
     .AWREADY(axi3_awready), .WREADY(axi3_wready), .BVALID(axi3_bvalid), .BRESP(axi3_bresp),
-    .RID(4'd0), .BID(4'd0),
+    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -134,7 +139,7 @@ module tb_soc_bus_all;
     .ACLK(clk), .ARESETn(1'b1),
     .ARREADY(axi4_arready), .RVALID(axi4_rvalid), .RDATA(axi4_rdata), .RRESP(axi4_rresp), .RLAST(axi4_rlast),
     .AWREADY(axi4_awready), .WREADY(axi4_wready), .BVALID(axi4_bvalid), .BRESP(axi4_bresp),
-    .RID(4'd0), .BID(4'd0),
+    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -145,14 +150,14 @@ module tb_soc_bus_all;
     .RID(axi4_rid), .RDATA(axi4_rdata), .RRESP(axi4_rresp), .RLAST(axi4_rlast), .RVALID(axi4_rvalid), .RREADY(u_axi4.RREADY),
     .AWID(u_axi4.AWID), .AWADDR(u_axi4.AWADDR), .AWLEN(u_axi4.AWLEN), .AWSIZE(u_axi4.AWSIZE),
     .AWBURST(u_axi4.AWBURST), .AWVALID(u_axi4.AWVALID), .AWREADY(axi4_awready),
-    .WID(4'd0), .WDATA(u_axi4.WDATA), .WSTRB(u_axi4.WSTRB), .WLAST(u_axi4.WLAST), .WVALID(u_axi4.WVALID), .WREADY(axi4_wready),
+    .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axi4.WDATA), .WSTRB(u_axi4.WSTRB), .WLAST(u_axi4.WLAST), .WVALID(u_axi4.WVALID), .WREADY(axi4_wready),
     .BID(axi4_bid), .BRESP(axi4_bresp), .BVALID(axi4_bvalid), .BREADY(u_axi4.BREADY));
 
   verif_axi_full_master #(.AXI_PROT(5)) u_axi5 (
     .ACLK(clk), .ARESETn(1'b1),
     .ARREADY(axi5_arready), .RVALID(axi5_rvalid), .RDATA(axi5_rdata), .RRESP(axi5_rresp), .RLAST(axi5_rlast),
     .AWREADY(axi5_awready), .WREADY(axi5_wready), .BVALID(axi5_bvalid), .BRESP(axi5_bresp),
-    .RID(4'd0), .BID(4'd0),
+    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -163,7 +168,7 @@ module tb_soc_bus_all;
     .RID(axi5_rid), .RDATA(axi5_rdata), .RRESP(axi5_rresp), .RLAST(axi5_rlast), .RVALID(axi5_rvalid), .RREADY(u_axi5.RREADY),
     .AWID(u_axi5.AWID), .AWADDR(u_axi5.AWADDR), .AWLEN(u_axi5.AWLEN), .AWSIZE(u_axi5.AWSIZE),
     .AWBURST(u_axi5.AWBURST), .AWVALID(u_axi5.AWVALID), .AWREADY(axi5_awready),
-    .WID(4'd0), .WDATA(u_axi5.WDATA), .WSTRB(u_axi5.WSTRB), .WLAST(u_axi5.WLAST), .WVALID(u_axi5.WVALID), .WREADY(axi5_wready),
+    .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axi5.WDATA), .WSTRB(u_axi5.WSTRB), .WLAST(u_axi5.WLAST), .WVALID(u_axi5.WVALID), .WREADY(axi5_wready),
     .BID(axi5_bid), .BRESP(axi5_bresp), .BVALID(axi5_bvalid), .BREADY(u_axi5.BREADY));
 
   reg [31:0] rd;

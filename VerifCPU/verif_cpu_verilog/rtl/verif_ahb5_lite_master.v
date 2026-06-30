@@ -3,18 +3,21 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
-module verif_ahb5_lite_master (
+module verif_ahb5_lite_master #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32
+)(
   input         HCLK,
   input         HRESETn,
-  output reg [31:0] HADDR,
+  output reg [ADDR_WIDTH-1:0] HADDR,
   output reg [2:0]  HSIZE,
   output reg [1:0]  HTRANS,
   output reg        HWRITE,
-  output reg [31:0] HWDATA,
+  output reg [DATA_WIDTH-1:0] HWDATA,
   output reg        HNONSEC,
   output reg        HEXCL,
   input             HEXOK,
-  input  [31:0] HRDATA,
+  input  [DATA_WIDTH-1:0] HRDATA,
   input         HREADY,
   input  [1:0]  HRESP,
   output reg        snoop_valid,
@@ -23,6 +26,9 @@ module verif_ahb5_lite_master (
   output reg [31:0] snoop_data
 );
 
+
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
   localparam HTRANS_IDLE   = 2'b00;
   localparam HTRANS_NONSEQ = 2'b10;
 

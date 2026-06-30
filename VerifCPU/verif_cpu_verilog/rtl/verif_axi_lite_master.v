@@ -1,27 +1,31 @@
-// Behavioral AXI4-Lite master — single-beat read/write for VerifCPU integration
+// Behavioral AXI4-Lite master — single-beat + 1 outstanding read + 1 outstanding write
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
-module verif_axi_lite_master (
+module verif_axi_lite_master #(
+  parameter int ADDR_WIDTH = 32,
+  parameter int DATA_WIDTH = 32,
+  parameter int MAX_OUTSTANDING = 1
+)(
   input         ACLK,
   input         ARESETn,
   output reg        ARVALID,
   input             ARREADY,
-  output reg [31:0] ARADDR,
+  output reg [ADDR_WIDTH-1:0] ARADDR,
   output reg [2:0]  ARSIZE,
   input             RVALID,
   output reg        RREADY,
-  input  [31:0] RDATA,
+  input  [DATA_WIDTH-1:0] RDATA,
   input  [1:0]  RRESP,
   output reg        AWVALID,
   input             AWREADY,
-  output reg [31:0] AWADDR,
+  output reg [ADDR_WIDTH-1:0] AWADDR,
   output reg [2:0]  AWSIZE,
   output reg        WVALID,
   input             WREADY,
-  output reg [31:0] WDATA,
-  output reg [3:0]  WSTRB,
+  output reg [DATA_WIDTH-1:0] WDATA,
+  output reg [DATA_WIDTH/8-1:0] WSTRB,
   input             BVALID,
   output reg        BREADY,
   input  [1:0]  BRESP,
@@ -30,6 +34,26 @@ module verif_axi_lite_master (
   output reg [31:0] snoop_addr,
   output reg [31:0] snoop_data
 );
+
+
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+
+  // Lite has no IDs — one read slot and one write slot (may overlap)
+  reg        r_slot_busy;
+  reg        r_slot_ar_done;
+  reg        r_slot_done;
+  reg [31:0] r_slot_addr;
+  reg [2:0]  r_slot_size;
+  reg [31:0] r_slot_data;
+  reg [1:0]  r_slot_resp;
+
+  reg        w_slot_busy;
+  reg        w_slot_done;
+  reg [31:0] w_slot_addr;
+  reg [31:0] w_slot_data;
+  reg [2:0]  w_slot_size;
+  reg [1:0]  w_slot_resp;
 
   function [2:0] axsize_for_bytes;
     input [2:0] sz;
@@ -41,6 +65,16 @@ module verif_axi_lite_master (
       endcase
     end
   endfunction
+
+  task os_reset_slots;
+    begin
+      r_slot_busy = 1'b0;
+      r_slot_ar_done = 1'b0;
+      r_slot_done = 1'b0;
+      w_slot_busy = 1'b0;
+      w_slot_done = 1'b0;
+    end
+  endtask
 
   initial begin
     ARVALID = 1'b0;
@@ -58,138 +92,236 @@ module verif_axi_lite_master (
     snoop_wr = 1'b0;
     snoop_addr = 32'h0;
     snoop_data = 32'h0;
+    os_reset_slots();
+  end
+
+  // R channel — accept beat while read outstanding
+  always @(posedge ACLK or negedge ARESETn) begin
+    if (!ARESETn) begin
+      RREADY <= 1'b0;
+      os_reset_slots();
+    end else begin
+      RREADY <= (r_slot_busy && r_slot_ar_done && !r_slot_done) || RVALID;
+      if (RVALID && RREADY) begin
+        r_slot_data <= lane_prdata(RDATA, r_slot_addr, r_slot_size);
+        r_slot_resp <= (RRESP != 2'b00) ? 2'd2 : 2'd0;
+        r_slot_done <= 1'b1;
+        r_slot_ar_done <= 1'b0;
+        r_slot_busy <= 1'b0;
+      end
+    end
+  end
+
+  // B channel — accept write response while outstanding
+  always @(posedge ACLK or negedge ARESETn) begin
+    if (!ARESETn) begin
+      BREADY <= 1'b0;
+    end else begin
+      BREADY <= w_slot_busy || BVALID;
+      if (BVALID && BREADY) begin
+        w_slot_resp <= (BRESP != 2'b00) ? 2'd2 : 2'd0;
+        w_slot_done <= 1'b1;
+        w_slot_busy <= 1'b0;
+      end
+    end
   end
 
   task axi_idle;
     begin
       ARVALID = 1'b0;
-      RREADY  = 1'b0;
       AWVALID = 1'b0;
       WVALID  = 1'b0;
-      WSTRB   = 4'h0;
-      BREADY  = 1'b0;
+      WSTRB   = {STRB_WIDTH{1'b0}};
     end
   endtask
 
-  task axi_read;
+  // --- Outstanding read API (single slot, handle always 0) ---
+  task bus_read_issue;
     input  [31:0] addr;
     input  [2:0]  size;
-    output [31:0] data;
-    output [1:0]  resp;
+    output integer handle;
+    output        ok;
     integer guard;
     begin
-      resp = 2'd0;
-      data = 32'h0;
-      axi_idle();
-      @(posedge ACLK);
-      ARADDR = addr;
-      ARSIZE = axsize_for_bytes(size);
-      ARVALID = 1'b1;
-      guard = 0;
-      while (!ARREADY) begin
+      handle = 0;
+      ok = !r_slot_busy;
+      if (!ok) begin
+        $display("[axi_lite_os] bus_read_issue: outstanding read slot busy (MAX=%0d)", MAX_OUTSTANDING);
+      end else begin
+        r_slot_busy = 1'b1;
+        r_slot_ar_done = 1'b0;
+        r_slot_done = 1'b0;
+        r_slot_addr = addr;
+        r_slot_size = size;
+        axi_idle();
         @(posedge ACLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          axi_idle();
-          disable axi_read;
+        ARADDR = addr;
+        ARSIZE = axsize_for_bytes(size);
+        ARVALID = 1'b1;
+        guard = 0;
+        while (!ARREADY) begin
+          @(posedge ACLK);
+          guard = guard + 1;
+          if (guard > 64) begin
+            r_slot_busy = 1'b0;
+            ok = 1'b0;
+            axi_idle();
+            disable bus_read_issue;
+          end
         end
-      end
-      @(posedge ACLK);
-      ARVALID = 1'b0;
-      RREADY = 1'b1;
-      guard = 0;
-      while (!RVALID) begin
+        ARVALID = 1'b0;
         @(posedge ACLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          axi_idle();
-          disable axi_read;
-        end
+        r_slot_ar_done = 1'b1;
       end
-      data = lane_prdata(RDATA, addr, size);
-      resp = (RRESP != 2'b00) ? 2'd2 : 2'd0;
-      @(posedge ACLK);
-      axi_idle();
+    end
+  endtask
+
+  task bus_read_poll;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    output        done;
+    begin
+      done = r_slot_done;
+      data = r_slot_data;
+      resp = r_slot_resp;
+    end
+  endtask
+
+  task bus_read_wait;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    begin
+      while (!r_slot_done)
+        @(posedge ACLK);
+      data = r_slot_data;
+      resp = r_slot_resp;
+      r_slot_busy = 1'b0;
+      r_slot_ar_done = 1'b0;
+      r_slot_done = 1'b0;
       snoop_valid = 1'b1;
       snoop_wr = 1'b0;
-      snoop_addr = addr;
+      snoop_addr = r_slot_addr;
       snoop_data = data;
       @(posedge ACLK);
       snoop_valid = 1'b0;
     end
   endtask
 
-  task axi_write;
+  task bus_read_outstanding_count;
+    output integer n;
+    begin
+      n = (r_slot_busy && !r_slot_done) ? 1 : 0;
+    end
+  endtask
+
+  // --- Outstanding write API (single slot, handle always 0) ---
+  task bus_write_issue;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
-    output [1:0]  resp;
+    output integer handle;
+    output        ok;
     integer guard;
     begin
-      resp = 2'd0;
-      axi_idle();
-      @(posedge ACLK);
-      AWADDR = addr;
-      AWSIZE = axsize_for_bytes(size);
-      AWVALID = 1'b1;
-      WDATA = lane_pwdata(data, addr, size);
-      WSTRB = lane_wstrb(addr, size);
-      WVALID = 1'b1;
-      guard = 0;
-      while (!AWREADY) begin
+      handle = 0;
+      ok = !w_slot_busy;
+      if (!ok) begin
+        $display("[axi_lite_os] bus_write_issue: outstanding write slot busy (MAX=%0d)", MAX_OUTSTANDING);
+      end else begin
+        w_slot_busy = 1'b1;
+        w_slot_done = 1'b0;
+        w_slot_addr = addr;
+        w_slot_data = data;
+        w_slot_size = size;
+        axi_idle();
         @(posedge ACLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          axi_idle();
-          disable axi_write;
+        AWADDR = addr;
+        AWSIZE = axsize_for_bytes(size);
+        AWVALID = 1'b1;
+        WDATA = lane_pwdata(data, addr, size);
+        WSTRB = lane_wstrb(addr, size);
+        WVALID = 1'b1;
+        guard = 0;
+        while (!AWREADY) begin
+          @(posedge ACLK);
+          guard = guard + 1;
+          if (guard > 64) begin
+            w_slot_busy = 1'b0;
+            ok = 1'b0;
+            axi_idle();
+            disable bus_write_issue;
+          end
         end
-      end
-      guard = 0;
-      while (!WREADY) begin
+        guard = 0;
+        while (!WREADY) begin
+          @(posedge ACLK);
+          guard = guard + 1;
+          if (guard > 64) begin
+            w_slot_busy = 1'b0;
+            ok = 1'b0;
+            axi_idle();
+            disable bus_write_issue;
+          end
+        end
+        AWVALID = 1'b0;
+        WVALID = 1'b0;
         @(posedge ACLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          axi_idle();
-          disable axi_write;
-        end
       end
-      @(posedge ACLK);
-      AWVALID = 1'b0;
-      WVALID = 1'b0;
-      BREADY = 1'b1;
-      guard = 0;
-      while (!BVALID) begin
+    end
+  endtask
+
+  task bus_write_poll;
+    input  integer handle;
+    output [1:0] resp;
+    output       done;
+    begin
+      done = w_slot_done;
+      resp = w_slot_resp;
+    end
+  endtask
+
+  task bus_write_wait;
+    input  integer handle;
+    output [1:0] resp;
+    begin
+      while (!w_slot_done)
         @(posedge ACLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          axi_idle();
-          disable axi_write;
-        end
-      end
-      resp = (BRESP != 2'b00) ? 2'd2 : 2'd0;
-      @(posedge ACLK);
-      axi_idle();
+      resp = w_slot_resp;
+      w_slot_busy = 1'b0;
+      w_slot_done = 1'b0;
       snoop_valid = 1'b1;
       snoop_wr = 1'b1;
-      snoop_addr = addr;
-      snoop_data = data;
+      snoop_addr = w_slot_addr;
+      snoop_data = w_slot_data;
       @(posedge ACLK);
       snoop_valid = 1'b0;
     end
   endtask
 
+  task bus_write_outstanding_count;
+    output integer n;
+    begin
+      n = (w_slot_busy && !w_slot_done) ? 1 : 0;
+    end
+  endtask
+
+  // Blocking API — issue + wait (backward compatible)
   task bus_read;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
     output [1:0]  resp;
+    integer h;
+    reg ok;
     begin
-      axi_read(addr, size, data, resp);
+      bus_read_issue(addr, size, h, ok);
+      if (!ok) begin
+        data = 32'h0;
+        resp = 2'd2;
+      end else
+        bus_read_wait(h, data, resp);
     end
   endtask
 
@@ -198,8 +330,14 @@ module verif_axi_lite_master (
     input  [31:0] data;
     input  [2:0]  size;
     output [1:0]  resp;
+    integer h;
+    reg ok;
     begin
-      axi_write(addr, data, size, resp);
+      bus_write_issue(addr, data, size, h, ok);
+      if (!ok)
+        resp = 2'd2;
+      else
+        bus_write_wait(h, resp);
     end
   endtask
 

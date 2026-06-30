@@ -9,7 +9,15 @@ import os
 import re
 import sys
 
-from amba_bus_registry import connect_slv_tag  # noqa: E402
+from amba_bus_registry import (  # noqa: E402
+    ADDR_WIDTH_DEFAULT,
+    AXI_ID_WIDTH_DEFAULT,
+    AXI_MAX_OUTSTANDING_DEFAULT,
+    DATA_WIDTH_DEFAULT,
+    bus_supports_read_outstanding,
+    bus_supports_write_outstanding,
+    connect_slv_tag,
+)
 from verilog_paths import (  # noqa: E402
     BUILD_DIR,
     CAMPAIGN_ROOT as ROOT,
@@ -36,6 +44,17 @@ OUT_MANIFEST_SCALE_BUS_WRITE_VH = os.path.join(INCLUDE_DIR, "verif_manifest_scal
 OUT_MANIFEST_DECODE_VH = os.path.join(INCLUDE_DIR, "tb_soc_manifest_decode.vh")
 OUT_CHIP_BUS_READ_VH = os.path.join(INCLUDE_DIR, "verif_chip_soc_bus_read.vh")
 OUT_CHIP_BUS_WRITE_VH = os.path.join(INCLUDE_DIR, "verif_chip_soc_bus_write.vh")
+
+OS_BIND_APIS = (
+    ("read_issue", "bus_read_issue", "addr, size, handle, ok"),
+    ("read_wait", "bus_read_wait", "handle, data, resp"),
+    ("read_poll", "bus_read_poll", "handle, data, resp, done"),
+    ("write_issue", "bus_write_issue", "addr, data, size, handle, ok"),
+    ("write_wait", "bus_write_wait", "handle, resp"),
+    ("write_poll", "bus_write_poll", "handle, resp, done"),
+    ("read_os_count", "bus_read_outstanding_count", "n"),
+    ("write_os_count", "bus_write_outstanding_count", "n"),
+)
 OUT_CHIP_TOP_GEN_VH = os.path.join(INCLUDE_DIR, "chip_top_example_gen.vh")
 OUT_CHIP_DECODE_VH = os.path.join(INCLUDE_DIR, "chip_top_decode.vh")
 SOC_INIT_SEQ_VH = os.path.join(INCLUDE_DIR, "soc_init_seq.vh")
@@ -553,6 +572,8 @@ def generate_chip_top_gen_vh(hierarchy: list[dict]) -> str:
         "",
     ]
     out.extend(emit_chip_top_snoop_wires(max_gi))
+    if _wired_needs_bus_widths(wired):
+        out.extend(emit_bus_soc_width_localparams(wired))
     out.extend(emit_scale_soc_port_wires(wired))
     out.extend(emit_soc_axi_id_assigns(wired))
     out.extend(emit_soc_stub_periph(wired))
@@ -565,10 +586,48 @@ def generate_chip_top_gen_vh(hierarchy: list[dict]) -> str:
     return "\n".join(out)
 
 
+ADDR_V_RANGE = "[VERIF_ADDR_WIDTH-1:0]"
+DATA_V_RANGE = "[VERIF_DATA_WIDTH-1:0]"
+STRB_V_RANGE = "[VERIF_STRB_WIDTH-1:0]"
+AXI_ID_V_RANGE = "[VERIF_AXI_ID_WIDTH-1:0]"
+AXI_ID_V_ZERO = "{VERIF_AXI_ID_WIDTH{1'b0}}"
+
+
+def _wired_needs_bus_widths(wired: list[dict]) -> bool:
+    return len(wired) > 0
+
+
+def emit_bus_soc_width_localparams(wired: list[dict]) -> list[str]:
+    lines = [
+        f"  localparam integer VERIF_ADDR_WIDTH = {ADDR_WIDTH_DEFAULT};",
+        f"  localparam integer VERIF_DATA_WIDTH = {DATA_WIDTH_DEFAULT};",
+        "  localparam integer VERIF_STRB_WIDTH = VERIF_DATA_WIDTH / 8;",
+    ]
+    if any(normalize_bus_type(s["bus_type"]).startswith("axi") for s in wired):
+        lines.append(f"  localparam integer VERIF_AXI_ID_WIDTH = {AXI_ID_WIDTH_DEFAULT};")
+        lines.append(
+            f"  localparam integer VERIF_AXI_MAX_OUTSTANDING = {AXI_MAX_OUTSTANDING_DEFAULT};"
+        )
+    if any(normalize_bus_type(s["bus_type"]) == "ahb" for s in wired):
+        from amba_bus_registry import AHB_MAX_OUTSTANDING_DEFAULT  # noqa: WPS433
+
+        lines.append(
+            f"  localparam integer VERIF_AHB_MAX_OUTSTANDING = {AHB_MAX_OUTSTANDING_DEFAULT};"
+        )
+    lines.extend([
+        "  // SSOT: firmware/campaign/amba_bus_registry.py — regen: make -C firmware/campaign icodes",
+        "",
+    ])
+    return lines
+
+
 def _emit_cell_instance(s: dict, gi: int, indent: str = "      ") -> list[str]:
     mod = cell_module_for(s["bus_type"])
     bt = s["bus_type"]
-    lines = [f"{indent}{mod} #(.CPU_ID({s['cpu_id']})) u_bus ("]
+    width_params = (
+        f".CPU_ID({s['cpu_id']}), .ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH)"
+    )
+    lines = [f"{indent}{mod} #({width_params}) u_bus ("]
     if bt.startswith("apb"):
         lines.append(f"{indent}.PCLK(soc_clk), .PRESETn(soc_rstn),")
         if bt == "apb2":
@@ -609,7 +668,25 @@ def _emit_cell_instance(s: dict, gi: int, indent: str = "      ") -> list[str]:
     else:
         axi_prot = {"axi3full": 3, "axi4full": 4, "axi5full": 5}.get(bt)
         if axi_prot:
-            lines[0] = f"{indent}{mod} #(.CPU_ID({s['cpu_id']}), .AXI_PROT({axi_prot})) u_bus ("
+            lines[0] = (
+                f"{indent}{mod} #(.CPU_ID({s['cpu_id']}), .ADDR_WIDTH(VERIF_ADDR_WIDTH),"
+                f" .DATA_WIDTH(VERIF_DATA_WIDTH), .AXI_PROT({axi_prot}),"
+                f" .ID_WIDTH(VERIF_AXI_ID_WIDTH),"
+                f" .MAX_OUTSTANDING(VERIF_AXI_MAX_OUTSTANDING)) u_bus ("
+            )
+        elif bt == "ahb":
+            lines[0] = (
+                f"{indent}{mod} #(.CPU_ID({s['cpu_id']}), .ADDR_WIDTH(VERIF_ADDR_WIDTH),"
+                f" .DATA_WIDTH(VERIF_DATA_WIDTH),"
+                f" .MAX_OUTSTANDING(VERIF_AHB_MAX_OUTSTANDING)) u_bus ("
+            )
+        elif bt == "ace":
+            lines[0] = (
+                f"{indent}{mod} #(.CPU_ID({s['cpu_id']}), .ADDR_WIDTH(VERIF_ADDR_WIDTH),"
+                f" .DATA_WIDTH(VERIF_DATA_WIDTH), .AXI_PROT(4),"
+                f" .ID_WIDTH(VERIF_AXI_ID_WIDTH),"
+                f" .MAX_OUTSTANDING(VERIF_AXI_MAX_OUTSTANDING)) u_bus ("
+            )
         lines.append(f"{indent}.ACLK(soc_clk), .ARESETn(soc_rstn),")
         if bt == "axi4lite":
             lines.append(
@@ -720,8 +797,8 @@ def emit_soc_axi_id_assigns(slaves: list[dict]) -> list[str]:
             continue
         seen.add(pref)
         lines.extend([
-            f"  assign {pref}_rid = 4'd0;",
-            f"  assign {pref}_bid = 4'd0;",
+            f"  assign {pref}_rid = {AXI_ID_V_ZERO};",
+            f"  assign {pref}_bid = {AXI_ID_V_ZERO};",
             f"  assign {pref}_rlast = 1'b1;",
             "",
         ])
@@ -741,17 +818,30 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
         inst = f"u_stub_{re.sub(r'[^A-Za-z0-9_]', '_', name.lower())}"
         w0, w1 = _stub_init_for_slave(s)
         if bt.startswith("apb"):
-            lines.append(f"  verif_apb_slave_simple #(.BASE(32'h{base:08X})) {inst} (")
-            lines.extend([
-                "    .PCLK(soc_clk), .PRESETn(soc_rstn),",
-                f"    .PADDR({pref}_PADDR), .PSEL({pref}_PSEL), .PENABLE({pref}_PENABLE),",
-                f"    .PWRITE({pref}_PWRITE), .PWDATA({pref}_PWDATA), .PSTRB({pref}_PSTRB),",
-                f"    .PRDATA({pref}_PRDATA), .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR)",
-                "  );",
-                "",
-            ])
+            mod_slave = "verif_apb2_slave_simple" if bt == "apb2" else "verif_apb_slave_simple"
+            lines.append(
+                f"  {mod_slave} #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH),"
+                f" .BASE(32'h{base:08X})) {inst} ("
+            )
+            lines.append("    .PCLK(soc_clk), .PRESETn(soc_rstn),")
+            lines.append(
+                f"    .PADDR({pref}_PADDR), .PSEL({pref}_PSEL), .PENABLE({pref}_PENABLE),"
+                f" .PWRITE({pref}_PWRITE), .PWDATA({pref}_PWDATA),"
+            )
+            if bt == "apb2":
+                lines.append(f"    .PRDATA({pref}_PRDATA)")
+            else:
+                lines.append(
+                    f"    .PSTRB({pref}_PSTRB), .PRDATA({pref}_PRDATA),"
+                    f" .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR)"
+                )
+            lines.extend(["  );", ""])
         elif bt.startswith("ahb"):
-            params = [f".BASE(32'h{base:08X})"]
+            params = [
+                ".ADDR_WIDTH(VERIF_ADDR_WIDTH)",
+                ".DATA_WIDTH(VERIF_DATA_WIDTH)",
+                f".BASE(32'h{base:08X})",
+            ]
             if w0 is not None:
                 params.append(f".INIT_WORD0(32'h{w0:08X})")
             if w1 is not None:
@@ -775,20 +865,25 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
             bid_w = f"{inst}_bid"
             rlast_w = f"{inst}_rlast"
             lines.extend([
-                f"  wire [3:0] {rid_w}, {bid_w};",
+                f"  wire {AXI_ID_V_RANGE} {rid_w}, {bid_w};",
                 f"  wire       {rlast_w};",
             ])
+            params[:0] = [
+                ".ADDR_WIDTH(VERIF_ADDR_WIDTH)",
+                ".DATA_WIDTH(VERIF_DATA_WIDTH)",
+                ".ID_WIDTH(VERIF_AXI_ID_WIDTH)",
+            ]
             lines.append(f"  verif_axi_full_slave_simple #({', '.join(params)}) {inst} (")
             if bt == "axi4lite":
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
-                    f"    .ARID(4'd0), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
+                    f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
                     f"    .ARBURST(2'b01), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST({rlast_w}), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
-                    f"    .AWID(4'd0), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
+                    f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
                     f"    .AWBURST(2'b01), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
-                    f"    .WID(4'd0), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
+                    f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
                     "  );",
@@ -797,13 +892,13 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
             else:
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
-                    f"    .ARID(4'd0), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
+                    f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
                     f"    .ARBURST(2'b01), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST({rlast_w}), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
-                    f"    .AWID(4'd0), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
+                    f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
                     f"    .AWBURST(2'b01), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
-                    f"    .WID(4'd0), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
+                    f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
                     "  );",
@@ -891,19 +986,23 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
         seen.add(pref)
         bt = normalize_bus_type(s["bus_type"])
         if bt.startswith("apb"):
-            lines.extend([
-                f"  wire [31:0] {pref}_PADDR, {pref}_PWDATA, {pref}_PRDATA;",
+            apb_wires = [
+                f"  wire {ADDR_V_RANGE} {pref}_PADDR;",
+                f"  wire {DATA_V_RANGE} {pref}_PWDATA, {pref}_PRDATA;",
                 f"  wire        {pref}_PSEL, {pref}_PENABLE, {pref}_PWRITE;",
-                f"  wire [3:0]  {pref}_PSTRB;",
                 f"  wire        {pref}_PREADY, {pref}_PSLVERR;",
-            ])
+            ]
+            if bt != "apb2":
+                apb_wires.insert(3, f"  wire {STRB_V_RANGE} {pref}_PSTRB;")
+            lines.extend(apb_wires)
             if bt in ("apb4", "apb5"):
                 lines.append(f"  wire [2:0]  {pref}_PPROT;")
             if bt == "apb5":
                 lines.append(f"  wire        {pref}_PWAKEUP;")
         elif bt.startswith("ahb"):
             lines.extend([
-                f"  wire [31:0] {pref}_HADDR, {pref}_HWDATA, {pref}_HRDATA;",
+                f"  wire {ADDR_V_RANGE} {pref}_HADDR;",
+                f"  wire {DATA_V_RANGE} {pref}_HWDATA, {pref}_HRDATA;",
                 f"  wire [2:0]  {pref}_HSIZE;",
                 f"  wire [1:0]  {pref}_HTRANS, {pref}_HRESP;",
                 f"  wire        {pref}_HWRITE, {pref}_HREADY, {pref}_HREADYOUT;",
@@ -923,14 +1022,15 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
                 f"  wire        {pref}_arvalid, {pref}_arready, {pref}_rvalid, {pref}_rready;",
                 f"  wire        {pref}_awvalid, {pref}_awready, {pref}_wvalid, {pref}_wready;",
                 f"  wire        {pref}_bvalid, {pref}_bready, {pref}_rlast;",
-                f"  wire [31:0] {pref}_araddr, {pref}_awaddr, {pref}_wdata, {pref}_rdata;",
+                f"  wire {ADDR_V_RANGE} {pref}_araddr, {pref}_awaddr;",
+                f"  wire {DATA_V_RANGE} {pref}_wdata, {pref}_rdata;",
                 f"  wire [2:0]  {pref}_arsize, {pref}_awsize;",
-                f"  wire [3:0]  {pref}_wstrb;",
+                f"  wire {STRB_V_RANGE} {pref}_wstrb;",
                 f"  wire [1:0]  {pref}_rresp, {pref}_bresp;",
             ])
             if bt != "axi4lite":
                 lines.extend([
-                    f"  wire [3:0]  {pref}_arid, {pref}_awid, {pref}_wid, {pref}_rid, {pref}_bid;",
+                    f"  wire {AXI_ID_V_RANGE} {pref}_arid, {pref}_awid, {pref}_wid, {pref}_rid, {pref}_bid;",
                     f"  wire [7:0]  {pref}_arlen, {pref}_awlen;",
                     f"  wire [1:0]  {pref}_arburst, {pref}_awburst;",
                 ])
@@ -963,6 +1063,8 @@ def generate_soc_manifest_scale_body_vh(wired: list[dict], active: list[dict]) -
         f"  wire [31:0] sl_txns       [0:SCALE_MAX_GI-1];",
         "",
     ]
+    if _wired_needs_bus_widths(wired):
+        out.extend(emit_bus_soc_width_localparams(wired))
     out.extend(emit_scale_soc_port_wires(wired))
     out.extend(emit_soc_axi_id_assigns(wired))
     out.extend(emit_soc_stub_periph(wired))
@@ -1344,6 +1446,93 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
     return lines
 
 
+def _os_api_supported(bus_type: str, api_key: str) -> bool:
+    if api_key.startswith("read"):
+        return bus_supports_read_outstanding(bus_type)
+    if api_key.startswith("write"):
+        return bus_supports_write_outstanding(bus_type)
+    return False
+
+
+def generate_bus_os_bind_vh(
+    slaves: list[dict],
+    xmr_prefix: str,
+    comment: str,
+) -> dict[str, str]:
+    """Per-API case binds for outstanding bus_* tasks (CPU manifest bind)."""
+    out: dict[str, str] = {}
+    for api_key, task_name, arglist in OS_BIND_APIS:
+        lines = [
+            f"// Auto-generated by gen_tb_campaign.py — {comment} {task_name}",
+            "        case (CPU_ID)",
+        ]
+        for s in slaves:
+            gi = s["cpu_id"] - 1
+            cid = s["cpu_id"]
+            path = f"{xmr_prefix}.g_slv{gi}.u_bus.u_bridge"
+            bt = normalize_bus_type(s.get("bus_type") or "task")
+            if _os_api_supported(bt, api_key):
+                lines.append(f"          7'd{cid}: {path}.{task_name}({arglist});")
+            elif api_key.endswith("_issue"):
+                lines.append(
+                    f"          7'd{cid}: begin handle = -1; ok = 1'b0; end"
+                )
+            elif api_key.endswith("_wait"):
+                if api_key.startswith("read"):
+                    lines.append(
+                        f"          7'd{cid}: begin data = 32'h0; resp = 2'd2; end"
+                    )
+                else:
+                    lines.append(f"          7'd{cid}: resp = 2'd2;")
+            elif api_key.endswith("_poll"):
+                if api_key.startswith("read"):
+                    lines.append(
+                        f"          7'd{cid}: begin data = 32'h0; resp = 2'd2; done = 1'b0; end"
+                    )
+                else:
+                    lines.append(
+                        f"          7'd{cid}: begin resp = 2'd2; done = 1'b0; end"
+                    )
+            elif api_key.endswith("_count"):
+                lines.append(f"          7'd{cid}: n = 0;")
+        if api_key.endswith("_issue"):
+            lines.append("          default: begin handle = -1; ok = 1'b0; end")
+        elif api_key.endswith("_wait"):
+            if api_key.startswith("read"):
+                lines.append(
+                    "          default: begin data = 32'h0; resp = 2'd2; end"
+                )
+            else:
+                lines.append("          default: resp = 2'd2;")
+        elif api_key.endswith("_poll"):
+            if api_key.startswith("read"):
+                lines.append(
+                    "          default: begin data = 32'h0; resp = 2'd2; done = 1'b0; end"
+                )
+            else:
+                lines.append(
+                    "          default: begin resp = 2'd2; done = 1'b0; end"
+                )
+        else:
+            lines.append("          default: n = 0;")
+        lines.extend(["        endcase", ""])
+        out[api_key] = "\n".join(lines)
+    return out
+
+
+def write_bus_os_bind_files(
+    slaves: list[dict],
+    xmr_prefix: str,
+    comment: str,
+    prefix: str,
+) -> None:
+    binds = generate_bus_os_bind_vh(slaves, xmr_prefix, comment)
+    for api_key, _task, _args in OS_BIND_APIS:
+        path = os.path.join(INCLUDE_DIR, f"verif_{prefix}_soc_bus_{api_key}.vh")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(binds[api_key])
+
+
 def generate_manifest_bus_bind_vh(
     slaves: list[dict],
     module_name: str = "tb_soc_manifest",
@@ -1423,6 +1612,8 @@ def generate_soc_manifest_body_vh(
         "",
     ]
     out.extend(emit_soc_manifest_snoop_wires(n))
+    if _wired_needs_bus_widths(wired):
+        out.extend(emit_bus_soc_width_localparams(wired))
     out.extend(emit_scale_soc_port_wires(wired))
     out.extend(emit_soc_axi_id_assigns(wired))
     out.extend(emit_soc_stub_periph(wired))
@@ -2460,6 +2651,9 @@ def main() -> int:
         f.write(bus_read)
     with open(OUT_MANIFEST_BUS_WRITE_VH, "w", encoding="utf-8") as f:
         f.write(bus_write)
+    write_bus_os_bind_files(
+        soc_n, "tb_soc_manifest", "tb_soc_manifest", "manifest"
+    )
     scale_read, scale_write = generate_manifest_bus_bind_vh(
         bind_slaves, "tb_soc_manifest_scale"
     )
@@ -2467,6 +2661,9 @@ def main() -> int:
         f.write(scale_read)
     with open(OUT_MANIFEST_SCALE_BUS_WRITE_VH, "w", encoding="utf-8") as f:
         f.write(scale_write)
+    write_bus_os_bind_files(
+        bind_slaves, "tb_soc_manifest_scale", "tb_soc_manifest_scale", "manifest_scale"
+    )
 
     decode_vh = generate_manifest_decode_vh(soc_n, hierarchy)
     with open(OUT_MANIFEST_DECODE_VH, "w", encoding="utf-8") as f:
@@ -2483,6 +2680,9 @@ def main() -> int:
             f.write(chip_read)
         with open(OUT_CHIP_BUS_WRITE_VH, "w", encoding="utf-8") as f:
             f.write(chip_write)
+        write_bus_os_bind_files(
+            hierarchy, "chip_top_example", "chip_top_example", "chip"
+        )
         chip_gen = generate_chip_top_gen_vh(hierarchy)
         with open(OUT_CHIP_TOP_GEN_VH, "w", encoding="utf-8") as f:
             f.write(chip_gen)

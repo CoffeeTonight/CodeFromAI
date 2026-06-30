@@ -2,8 +2,26 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+_CAMPAIGN = Path(__file__).resolve().parents[2] / "firmware" / "campaign"
+if str(_CAMPAIGN) not in sys.path:
+    sys.path.insert(0, str(_CAMPAIGN))
+
+from amba_bus_registry import (  # noqa: E402
+    ADDR_WIDTH_DEFAULT,
+    AXI_ID_WIDTH_DEFAULT,
+    AXIS_DATA_WIDTH_DEFAULT,
+    CHI_TXDAT_FLIT_WIDTH_DEFAULT,
+    CHI_TXREQ_FLIT_WIDTH_DEFAULT,
+    CHI_TXRSP_FLIT_WIDTH_DEFAULT,
+    DATA_WIDTH_DEFAULT,
+    NIU_FLIT_WIDTH_DEFAULT,
+    strb_width,
+)
 
 LEGACY_ALIASES = {"apb": "apb3", "ahb": "ahb_lite", "axi": "axi4lite"}
 
@@ -44,13 +62,13 @@ def _sig(
 
 def _apb_core() -> list[BusSignal]:
     return [
-        _sig("PADDR", 32, "to_soc", "APB", "address"),
+        _sig("PADDR", ADDR_WIDTH_DEFAULT, "to_soc", "APB", "address (ADDR_WIDTH)"),
         _sig("PSEL", 1, "to_soc", "APB"),
         _sig("PENABLE", 1, "to_soc", "APB"),
         _sig("PWRITE", 1, "to_soc", "APB"),
-        _sig("PWDATA", 32, "to_soc", "APB", "write data"),
-        _sig("PSTRB", 4, "to_soc", "APB", "write strobes (APB3+)"),
-        _sig("PRDATA", 32, "from_soc", "APB", "read data"),
+        _sig("PWDATA", DATA_WIDTH_DEFAULT, "to_soc", "APB", "write data (DATA_WIDTH)"),
+        _sig("PSTRB", strb_width(), "to_soc", "APB", "write strobes (DATA_WIDTH/8)"),
+        _sig("PRDATA", DATA_WIDTH_DEFAULT, "from_soc", "APB", "read data"),
         _sig("PREADY", 1, "from_soc", "APB", "slave ready (APB3+)"),
         _sig("PSLVERR", 1, "from_soc", "APB", "slave error (APB3+)"),
     ]
@@ -58,13 +76,13 @@ def _apb_core() -> list[BusSignal]:
 
 def _ahb_lite_core() -> list[BusSignal]:
     return [
-        _sig("HADDR", 32, "to_soc", "AHB", "address"),
+        _sig("HADDR", ADDR_WIDTH_DEFAULT, "to_soc", "AHB", "address (ADDR_WIDTH)"),
         _sig("HSIZE", 3, "to_soc", "AHB", "transfer size"),
         _sig("HTRANS", 2, "to_soc", "AHB", "transfer type"),
         _sig("HWRITE", 1, "to_soc", "AHB"),
-        _sig("HWDATA", 32, "to_soc", "AHB", "write data"),
+        _sig("HWDATA", DATA_WIDTH_DEFAULT, "to_soc", "AHB", "write data"),
         _sig("HREADY", 1, "from_soc", "AHB", "slave ready → master (SOC HREADYOUT)"),
-        _sig("HRDATA", 32, "from_soc", "AHB", "read data"),
+        _sig("HRDATA", DATA_WIDTH_DEFAULT, "from_soc", "AHB", "read data"),
         _sig("HREADYOUT", 1, "from_soc", "AHB", "alias: slave ready out"),
         _sig("HRESP", 2, "from_soc", "AHB", "response"),
     ]
@@ -73,20 +91,20 @@ def _ahb_lite_core() -> list[BusSignal]:
 def _axi_lite_core() -> list[BusSignal]:
     return [
         _sig("arvalid", 1, "to_soc", "AR", "read address valid"),
-        _sig("araddr", 32, "to_soc", "AR", "read address"),
+        _sig("araddr", ADDR_WIDTH_DEFAULT, "to_soc", "AR", "read address (ADDR_WIDTH)"),
         _sig("arsize", 3, "to_soc", "AR", "read size"),
         _sig("arready", 1, "from_soc", "AR", "slave ready for AR"),
         _sig("rvalid", 1, "from_soc", "R", "read data valid"),
-        _sig("rdata", 32, "from_soc", "R", "read data"),
+        _sig("rdata", DATA_WIDTH_DEFAULT, "from_soc", "R", "read data"),
         _sig("rresp", 2, "from_soc", "R", "read response"),
         _sig("rready", 1, "to_soc", "R", "master ready for R"),
         _sig("awvalid", 1, "to_soc", "AW", "write address valid"),
-        _sig("awaddr", 32, "to_soc", "AW", "write address"),
+        _sig("awaddr", ADDR_WIDTH_DEFAULT, "to_soc", "AW", "write address"),
         _sig("awsize", 3, "to_soc", "AW", "write size"),
         _sig("awready", 1, "from_soc", "AW", "slave ready for AW"),
         _sig("wvalid", 1, "to_soc", "W", "write data valid"),
-        _sig("wdata", 32, "to_soc", "W", "write data"),
-        _sig("wstrb", 4, "to_soc", "W", "write strobes"),
+        _sig("wdata", DATA_WIDTH_DEFAULT, "to_soc", "W", "write data"),
+        _sig("wstrb", strb_width(), "to_soc", "W", "write strobes (DATA_WIDTH/8)"),
         _sig("wready", 1, "from_soc", "W", "slave ready for W"),
         _sig("bvalid", 1, "from_soc", "B", "write response valid"),
         _sig("bresp", 2, "from_soc", "B", "write response"),
@@ -96,28 +114,28 @@ def _axi_lite_core() -> list[BusSignal]:
 
 def _axi_full_extra() -> list[BusSignal]:
     return [
-        _sig("arid", 4, "to_soc", "AR", "read ID"),
+        _sig("arid", AXI_ID_WIDTH_DEFAULT, "to_soc", "AR", "read ID (ID_WIDTH)"),
         _sig("arlen", 8, "to_soc", "AR", "burst length"),
         _sig("arburst", 2, "to_soc", "AR", "burst type"),
-        _sig("rid", 4, "from_soc", "R", "read ID"),
+        _sig("rid", AXI_ID_WIDTH_DEFAULT, "from_soc", "R", "read ID"),
         _sig("rlast", 1, "from_soc", "R", "read last"),
-        _sig("awid", 4, "to_soc", "AW", "write ID"),
+        _sig("awid", AXI_ID_WIDTH_DEFAULT, "to_soc", "AW", "write ID"),
         _sig("awlen", 8, "to_soc", "AW", "burst length"),
         _sig("awburst", 2, "to_soc", "AW", "burst type"),
-        _sig("wid", 4, "to_soc", "W", "write ID (AXI3)"),
+        _sig("wid", AXI_ID_WIDTH_DEFAULT, "to_soc", "W", "write ID (AXI3)"),
         _sig("wlast", 1, "to_soc", "W", "write last"),
-        _sig("bid", 4, "from_soc", "B", "write response ID"),
+        _sig("bid", AXI_ID_WIDTH_DEFAULT, "from_soc", "B", "write response ID"),
     ]
 
 
 BUS_SIGNAL_SPECS: dict[str, list[BusSignal]] = {
     "apb2": [
-        _sig("PADDR", 32, "to_soc", "APB"),
+        _sig("PADDR", ADDR_WIDTH_DEFAULT, "to_soc", "APB"),
         _sig("PSEL", 1, "to_soc", "APB"),
         _sig("PENABLE", 1, "to_soc", "APB"),
         _sig("PWRITE", 1, "to_soc", "APB"),
-        _sig("PWDATA", 32, "to_soc", "APB"),
-        _sig("PRDATA", 32, "from_soc", "APB"),
+        _sig("PWDATA", DATA_WIDTH_DEFAULT, "to_soc", "APB"),
+        _sig("PRDATA", DATA_WIDTH_DEFAULT, "from_soc", "APB"),
     ],
     "apb3": _apb_core(),
     "apb4": _apb_core() + [_sig("PPROT", 3, "to_soc", "APB", "protection")],

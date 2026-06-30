@@ -14,6 +14,11 @@ module verif_cpu_bus #(
 );
 
   reg [7:0] mem [0:BUS_SIZE-1];
+  reg [31:0] os_rd_addr;
+  reg [2:0]  os_rd_size;
+  reg [31:0] os_wr_addr;
+  reg [31:0] os_wr_data;
+  reg [2:0]  os_wr_size;
 
   initial begin
     txn_valid    = 1'b0;
@@ -65,6 +70,82 @@ module verif_cpu_bus #(
         txn_size     = size;
       end
     end
+  endtask
+
+  task bus_read_issue;
+    input  [31:0] addr;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      os_rd_addr = addr;
+      os_rd_size = size;
+      handle = 0;
+      ok = 1'b1;
+    end
+  endtask
+
+  task bus_read_wait;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    begin
+      bus_read(os_rd_addr, os_rd_size, data, resp);
+    end
+  endtask
+
+  task bus_read_poll;
+    input  integer handle;
+    output [31:0] data;
+    output [1:0]  resp;
+    output        done;
+    begin
+      bus_read(os_rd_addr, os_rd_size, data, resp);
+      done = 1'b1;
+    end
+  endtask
+
+  task bus_write_issue;
+    input  [31:0] addr;
+    input  [31:0] data;
+    input  [2:0]  size;
+    output integer handle;
+    output        ok;
+    begin
+      os_wr_addr = addr;
+      os_wr_data = data;
+      os_wr_size = size;
+      handle = 0;
+      ok = 1'b1;
+    end
+  endtask
+
+  task bus_write_wait;
+    input  integer handle;
+    output [1:0] resp;
+    begin
+      bus_write(os_wr_addr, os_wr_data, os_wr_size, resp);
+    end
+  endtask
+
+  task bus_write_poll;
+    input  integer handle;
+    output [1:0] resp;
+    output       done;
+    begin
+      bus_write(os_wr_addr, os_wr_data, os_wr_size, resp);
+      done = 1'b1;
+    end
+  endtask
+
+  task bus_read_outstanding_count;
+    output integer n;
+    begin n = 0; end
+  endtask
+
+  task bus_write_outstanding_count;
+    output integer n;
+    begin n = 0; end
   endtask
 
   task bus_write;

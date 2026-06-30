@@ -275,7 +275,7 @@
         4'd1: begin
           txn_before = g_slv0.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
-          u_pool.pool_assign_region(cid, 32'h1800, ICODE_POOL_SZ);
+          u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
           g_slv0.u_bus.u_cpu.pc = icode_ptr;
           g_slv0.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
           g_slv0.u_bus.u_cpu.request_sim_stop = 0;
@@ -289,7 +289,7 @@
         4'd2: begin
           txn_before = g_slv1.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
-          u_pool.pool_assign_region(cid, 32'h1800, ICODE_POOL_SZ);
+          u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
           g_slv1.u_bus.u_cpu.pc = icode_ptr;
           g_slv1.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
           g_slv1.u_bus.u_cpu.request_sim_stop = 0;
@@ -303,7 +303,7 @@
         4'd3: begin
           txn_before = g_slv2.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
-          u_pool.pool_assign_region(cid, 32'h1800, ICODE_POOL_SZ);
+          u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
           g_slv2.u_bus.u_cpu.pc = icode_ptr;
           g_slv2.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
           g_slv2.u_bus.u_cpu.request_sim_stop = 0;

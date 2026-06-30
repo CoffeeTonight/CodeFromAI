@@ -42,7 +42,7 @@ module verif_axi_full_slave_simple #(
   input         BREADY
 );
 
-  reg [7:0] mem [0:4095];
+  reg [7:0] mem [0:SIZE-1];
   integer i;
 
   initial begin

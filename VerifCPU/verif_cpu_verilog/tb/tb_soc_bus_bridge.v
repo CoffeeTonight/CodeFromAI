@@ -37,8 +37,8 @@ module tb_soc_bus_bridge;
 
   verif_ahb_lite_master u_ahb (
     .HCLK(ahb_clk), .HRESETn(1'b1),
-    .HRDATA(ahb_rdata), .HREADYOUT(ahb_readyout), .HRESP(ahb_hresp),
-    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(),
+    .HRDATA(ahb_rdata), .HREADY(ahb_readyout), .HRESP(ahb_hresp),
+    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(),
     .snoop_valid(ahb_sn_v), .snoop_wr(ahb_sn_wr),
     .snoop_addr(ahb_sn_addr), .snoop_data(ahb_sn_data)
   );
@@ -46,7 +46,7 @@ module tb_soc_bus_bridge;
   verif_ahb_lite_slave_simple #(.BASE(32'h8000_0000)) u_ahb_slv (
     .HCLK(ahb_clk), .HRESETn(1'b1),
     .HADDR(u_ahb.HADDR), .HSIZE(u_ahb.HSIZE), .HTRANS(u_ahb.HTRANS),
-    .HWRITE(u_ahb.HWRITE), .HWDATA(u_ahb.HWDATA), .HREADY(u_ahb.HREADY),
+    .HWRITE(u_ahb.HWRITE), .HWDATA(u_ahb.HWDATA), .HREADY(1'b1),
     .HRDATA(ahb_rdata), .HREADYOUT(ahb_readyout), .HRESP(ahb_hresp)
   );
 

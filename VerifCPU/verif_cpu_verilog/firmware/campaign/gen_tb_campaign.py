@@ -1156,7 +1156,7 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
             f"        4'd{s['cpu_id']}: begin",
             f"          txn_before = g_slv{gi}.u_bus.u_cpu.bus_txn_count;",
             f"          u_pool.pool_use_array(cid);",
-            f"          u_pool.pool_assign_region(cid, 32'h{POOL_WORD_ICODE:x}, ICODE_POOL_SZ);",
+            "          u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);",
             f"          g_slv{gi}.u_bus.u_cpu.pc = icode_ptr;",
             f"          g_slv{gi}.u_bus.u_cpu.state = `CPU_STATE_RUNNING;",
             f"          g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0;",
@@ -1228,7 +1228,7 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
             f"`SOC_MANIFEST_POOL_{s['name']}, FW_SIZE); \\"
         )
     lines.extend([
-        f"  u_pool.pool_assign_region(4'd4, 32'h{POOL_WORD_ICODE:x}, ICODE_POOL_SZ); \\",
+        "  u_pool.pool_assign_region(4'd4, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \\",
         "",
         "`define SOC_MANIFEST_SETUP_CPUS \\",
     ])
@@ -1398,6 +1398,7 @@ def generate_soc_manifest_defs_vh(
     ]
     for s in slaves:
         lines.append(f"`define SOC_MANIFEST_POOL_{s['name']} 32'h{s['pool_word']:08X}")
+    lines.append(f"`define SOC_MANIFEST_POOL_ICODE 32'h{POOL_WORD_ICODE:08X}")
     lines.append("")
     lines.extend(emit_soc_manifest_phase_macros(slaves, pool_bytes))
     lines.extend(emit_soc_manifest_phase_a_checks(slaves))
@@ -1900,7 +1901,7 @@ def emit_exec_icode_task(cpus: list[dict], use_lazy: bool) -> list[str]:
     else:
         icode_setup = [
             "      u_pool.pool_use_array(cid);",
-            f"      u_pool.pool_assign_region(cid, 32'h{POOL_WORD_ICODE:x}, ICODE_POOL_SZ);",
+            "      u_pool.pool_assign_region(cid, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ);",
         ]
     lines = [
         "  task restore_cpu_pool;",
@@ -1970,7 +1971,7 @@ def emit_pool_policy_macros(pool_bytes: int, use_lazy: bool) -> list[str]:
             "`define CAMPAIGN_LOAD_FIRMWARE \\",
             f'  u_pool.pool_load_hex("{unified_hex}"); \\',
             "  `CAMPAIGN_POOL_ASSIGN_VCPUS \\",
-            f"  u_pool.pool_assign_region(4'd4, 32'h{POOL_WORD_ICODE:x}, ICODE_POOL_SZ); \\",
+            "  u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \\",
             "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \\",
             '  check_eq("Icode pool embedded (readmemh)", !pool_err && pool_word != 32\'h00000013); \\',
             "",

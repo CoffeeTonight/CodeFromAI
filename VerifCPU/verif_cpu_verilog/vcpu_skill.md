@@ -54,6 +54,8 @@ flowchart TB
   ConnVH["verif_soc_bus_connect.vh"] --> chip
 ```
 
+**Fetch / pool flags (do not confuse):** campaign VCPUs set `USE_SHARED_POOL=0` but still fetch from `verif_cpu_unified_pool` via `USE_SOC_BUS=1` + Makefile `VERIF_POOL_HUB=tb_*.u_pool`. `USE_SHARED_POOL=1` is only for `tb_verification_harness`. Integration cells use `USE_MANIFEST_SOC_BUS=1` + the same `VERIF_POOL_HUB` define. Same pattern for `USE_SHARED_SYNC=1` + `VERIF_SYNC_HUB` (campaign `u_sync`, not harness-only).
+
 | Environment | `bus_type` in manifest | VCPU bus path | SoC model |
 |-------------|------------------------|---------------|-----------|
 | Campaign TB | `task` (default for actives) | `verif_soc_bus` → `simple_soc` tasks | `simple_soc` |
@@ -137,7 +139,7 @@ Customer master port at this VCPU is...
 **Shorthand CLI defaults:** `--apb`→`apb3`, `--ahb`→`ahb_lite`, `--axi`→`axi4lite`.  
 **SSOT:** `firmware/campaign/amba_bus_registry.py` (`rtl_module`, `port_fmt`, `rtl_status`).
 
-**RV32I load/store:** `verif_cpu_execute.vh` implements `lb/lh/lw/lbu/lhu` and `sb/sh/sw`. AMBA bridge masters use `include/verif_bus_lane_helpers.vh` for byte/half lane placement on integration paths. Misaligned `lh`/`lhu` (`addr[0]==1`) are not trapped — treat as out of scope unless firmware guarantees word-aligned halfword addresses.
+**RV32I load/store:** `verif_cpu_execute.vh` implements `lb/lh/lw/lbu/lhu` and `sb/sh/sw`. Sub-word loads (`lb/lbu/lh/lhu`) word-fetch at `{addr[31:2],2'b00}` then `addr[1:0]` lane extract; `lw` keeps byte-sequential size-4 at `addr`. AMBA bridge masters use `include/verif_bus_lane_helpers.vh` for byte/half lane placement. Misaligned `lh`/`lhu` (`addr[0]==1`) are not trapped — firmware should use halfword-aligned addresses when possible.
 
 ---
 
@@ -289,9 +291,10 @@ module verif_vcpu_soc_cell #(
     .snoop_addr  (sn_addr), .snoop_data (sn_data)
   );
 
-  // --- 2) VCPU: USE_SOC_BUS=0; firmware issues bus_read/write ---
+  // --- 2) VCPU: bridge bus via USE_MANIFEST_SOC_BUS; pool via TB VERIF_POOL_HUB ---
   verif_cpu_core #(
-    .CPU_ID(CPU_ID), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(0)
+    .CPU_ID(CPU_ID), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),
+    .USE_SOC_BUS(0), .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu ( ... );
 
   // --- 3) Agent: snoop from bridge, not from cpu core ---

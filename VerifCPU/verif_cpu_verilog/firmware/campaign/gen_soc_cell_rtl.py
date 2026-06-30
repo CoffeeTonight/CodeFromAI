@@ -19,7 +19,7 @@ CELL_SPECS: dict[str, dict] = {
         "master_out": [
             "PADDR", "PSEL", "PENABLE", "PWRITE", "PWDATA",
         ],
-        "master_in": ["PRDATA"],
+        "master_in": ["PRDATA", "PREADY"],
         "module": "verif_apb2_master",
     },
     "apb3": {

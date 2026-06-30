@@ -55,6 +55,7 @@ module verif_ahb5_lite_master (
     begin
       HTRANS = HTRANS_IDLE;
       HWRITE = 1'b0;
+      HWDATA = 32'h0;
       HEXCL = 1'b0;
     end
   endtask
@@ -70,6 +71,7 @@ module verif_ahb5_lite_master (
     begin
       resp = 2'd0;
       rdata = 32'h0;
+      ahb_idle();
       HNONSEC = 1'b1;
       HEXCL = 1'b0;
       @(posedge HCLK);

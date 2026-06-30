@@ -8,12 +8,12 @@
 `define CAMPAIGN_ICODE_POOL_BYTES 28672
 `define CAMPAIGN_POOL_READMEMH_MAX 32'h00040000
 `define CAMPAIGN_ICODE_USE_LAZY 0
-`define CAMPAIGN_MEM_WORDS 32'h4000
+`define CAMPAIGN_MEM_WORDS 32'h3400
 
 `define CAMPAIGN_LOAD_FIRMWARE \
   u_pool.pool_load_hex("firmware/full_campaign_unified.hex"); \
   `CAMPAIGN_POOL_ASSIGN_VCPUS \
-  u_pool.pool_assign_region(4'd4, 32'h1800, ICODE_POOL_SZ); \
+  u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \
   u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \
   check_eq("Icode pool embedded (readmemh)", !pool_err && pool_word != 32'h00000013); \
 
@@ -576,7 +576,7 @@
     begin
       ok = 0;
       u_pool.pool_use_array(cid);
-      u_pool.pool_assign_region(cid, 32'h1800, ICODE_POOL_SZ);
+      u_pool.pool_assign_region(cid, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ);
       case (cid)
         4'd1: begin
           txn_before = g_cpu[0].u_cpu.bus_txn_count;

@@ -50,6 +50,7 @@ module verif_ahb_lite_master (
     begin
       HTRANS = HTRANS_IDLE;
       HWRITE = 1'b0;
+      HWDATA = 32'h0;
     end
   endtask
 
@@ -62,6 +63,7 @@ module verif_ahb_lite_master (
     begin
       resp = 2'd0;
       data = 32'h0;
+      ahb_idle();
       @(posedge HCLK);
       HADDR = addr;
       HSIZE = hsize_for_bytes(size);
@@ -100,6 +102,7 @@ module verif_ahb_lite_master (
     integer guard;
     begin
       resp = 2'd0;
+      ahb_idle();
       @(posedge HCLK);
       HADDR = addr;
       HSIZE = hsize_for_bytes(size);

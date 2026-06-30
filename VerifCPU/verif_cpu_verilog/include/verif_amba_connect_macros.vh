@@ -2,14 +2,15 @@
 `ifndef VERIF_AMBA_CONNECT_MACROS_VH
 `define VERIF_AMBA_CONNECT_MACROS_VH
 
-// APB2 — no PREADY/PSLVERR/PSTRB on master
+// APB2 — optional PREADY stretch; no PSLVERR/PSTRB on master
 `define CONNECT_APB2(SOC_PREF, MST) \
   assign SOC_PREF``_PADDR   = MST.PADDR; \
   assign SOC_PREF``_PSEL    = MST.PSEL; \
   assign SOC_PREF``_PENABLE = MST.PENABLE; \
   assign SOC_PREF``_PWRITE  = MST.PWRITE; \
   assign SOC_PREF``_PWDATA  = MST.PWDATA; \
-  assign MST.PRDATA  = SOC_PREF``_PRDATA
+  assign MST.PRDATA  = SOC_PREF``_PRDATA; \
+  assign MST.PREADY  = SOC_PREF``_PREADY
 
 // APB3
 `define CONNECT_APB3(SOC_PREF, MST) \

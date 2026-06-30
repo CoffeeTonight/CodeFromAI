@@ -7,6 +7,7 @@
 `define SOC_MANIFEST_POOL_SFR 32'h00000000
 `define SOC_MANIFEST_POOL_SRAM 32'h00000800
 `define SOC_MANIFEST_POOL_UART 32'h00001000
+`define SOC_MANIFEST_POOL_ICODE 32'h00001800
 
 `define SOC_MANIFEST_OFF_A 32'h000
 `define SOC_MANIFEST_OFF_B 32'h100
@@ -19,7 +20,7 @@
   u_pool.pool_assign_region(4'd1, `SOC_MANIFEST_POOL_SFR, FW_SIZE); \
   u_pool.pool_assign_region(4'd2, `SOC_MANIFEST_POOL_SRAM, FW_SIZE); \
   u_pool.pool_assign_region(4'd3, `SOC_MANIFEST_POOL_UART, FW_SIZE); \
-  u_pool.pool_assign_region(4'd4, 32'h1800, ICODE_POOL_SZ); \
+  u_pool.pool_assign_region(4'd4, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \
 
 `define SOC_MANIFEST_SETUP_CPUS \
   soc_manifest_setup_cpu(4'd1, "SFR     ", `SOC_MANIFEST_POOL_SFR); \

@@ -109,7 +109,17 @@ SOC_MAX = 0xD000_0000
 MAX_STEPS = 128
 PROBE_PAGE_BYTES = 0x1000  # probe page cache: one 4KiB slice covers entry + first bus txn
 ICODE_SLOT_SIZE = 0x1000
-ICODE_POOL_BASE = 0x1000
+ICODE_POOL_BASE = 0x1000  # byte offset within icode region (first slot ptr)
+LAYOUT_H = VERILOG_ROOT / "firmware" / "campaign" / "include" / "campaign_layout.h"
+
+
+def pool_word_icode() -> int:
+    """Unified pool word address for embedded icode region (SSOT: campaign_layout.h)."""
+    if LAYOUT_H.is_file():
+        m = re.search(r"#define\s+POOL_WORD_ICODE\s+0x([0-9a-fA-F]+)", LAYOUT_H.read_text(encoding="utf-8"))
+        if m:
+            return int(m.group(1), 16)
+    return 0x1800
 
 
 OpKind = Literal["R", "W"]
@@ -495,7 +505,7 @@ def emit_icode_map_vh(path: Path, entries: list[IcodeMapEntry], pool_bytes: int)
         "",
         f"`define ICODE_SLOT_SIZE      32'h{ICODE_SLOT_SIZE:08X}",
         f"`define ICODE_POOL_BASE      32'h{ICODE_POOL_BASE:08X}",
-        f"`define ICODE_POOL_WORD_BASE 32'h0000C000",
+        f"`define ICODE_POOL_WORD_BASE 32'h{pool_word_icode():08X}",
         f"`define ICODE_POOL_BYTES     {pool_bytes}",
         f"`define ICODE_MAP_COUNT      {len(entries)}",
         "",

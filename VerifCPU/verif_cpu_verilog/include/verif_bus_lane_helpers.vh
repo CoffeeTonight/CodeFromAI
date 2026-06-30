@@ -16,7 +16,14 @@ function [31:0] lane_pwdata;
           default: lane_pwdata = {data[7:0], 24'h0};
         endcase
       end
-      3'd2: lane_pwdata = addr[1] ? {16'h0, data[15:0]} : {data[15:0], 16'h0};
+      3'd2: begin
+        case (addr[1:0])
+          2'd0: lane_pwdata = {16'h0, data[15:0]};
+          2'd1: lane_pwdata = {8'h0, data[15:8], data[7:0], 8'h0};
+          2'd2: lane_pwdata = {data[15:0], 16'h0};
+          default: lane_pwdata = {data[7:0], 24'h0};
+        endcase
+      end
       default: lane_pwdata = data;
     endcase
   end
@@ -36,7 +43,14 @@ function [31:0] lane_prdata;
           default: lane_prdata = {24'h0, raw[31:24]};
         endcase
       end
-      3'd2: lane_prdata = addr[1] ? {16'h0, raw[31:16]} : {16'h0, raw[15:0]};
+      3'd2: begin
+        case (addr[1:0])
+          2'd0: lane_prdata = {16'h0, raw[15:0]};
+          2'd1: lane_prdata = {16'h0, raw[23:8]};
+          2'd2: lane_prdata = {16'h0, raw[31:16]};
+          default: lane_prdata = {24'h0, raw[31:24]};
+        endcase
+      end
       default: lane_prdata = raw;
     endcase
   end

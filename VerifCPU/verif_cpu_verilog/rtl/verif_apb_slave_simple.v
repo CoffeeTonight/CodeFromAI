@@ -18,7 +18,7 @@ module verif_apb_slave_simple #(
   output reg        PSLVERR
 );
 
-  reg [7:0] mem [0:4095];
+  reg [7:0] mem [0:SIZE-1];
   integer i;
 
   initial begin

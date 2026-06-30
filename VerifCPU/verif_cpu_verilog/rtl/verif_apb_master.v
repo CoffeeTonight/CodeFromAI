@@ -38,6 +38,9 @@ module verif_apb_master (
     begin
       PSEL = 1'b0;
       PENABLE = 1'b0;
+      PWRITE = 1'b0;
+      PSTRB = 4'h0;
+      PWDATA = 32'h0;
     end
   endtask
 
@@ -50,6 +53,7 @@ module verif_apb_master (
     begin
       resp = 2'd0;
       data = 32'h0;
+      apb_idle();
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b0;
@@ -91,6 +95,7 @@ module verif_apb_master (
     integer guard;
     begin
       resp = 2'd0;
+      apb_idle();
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b1;

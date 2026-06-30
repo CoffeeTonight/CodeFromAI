@@ -76,6 +76,6 @@ def unified_image_bytes(pool_bytes: int) -> int:
 
 
 def unified_mem_words(pool_bytes: int) -> int:
+    """Exact word count for embedded unified.hex — matches $readmemh file length."""
     total = unified_image_bytes(pool_bytes)
-    words = (total + 3) // 4
-    return (words + 0xFFF) & ~0xFFF
+    return (total + 3) // 4

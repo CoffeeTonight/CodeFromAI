@@ -10,7 +10,7 @@ module simple_soc_slave #(
   parameter [31:0] SIZE = 32'h1000
 )();
 
-  reg [7:0] mem [0:65535];
+  reg [7:0] mem [0:SIZE-1];
   integer i;
 
   initial begin

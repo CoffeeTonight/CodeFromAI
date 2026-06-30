@@ -29,7 +29,7 @@ module tb_soc_bus_all;
   wire [31:0] sn_addr, sn_data;
 
   verif_apb2_master u_apb2 (
-    .PCLK(clk), .PRESETn(1'b1), .PRDATA(apb2_rdata),
+    .PCLK(clk), .PRESETn(1'b1), .PRDATA(apb2_rdata), .PREADY(1'b1),
     .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),
     .snoop_valid(sn_v), .snoop_wr(sn_wr), .snoop_addr(sn_addr), .snoop_data(sn_data));
   verif_apb2_slave_simple #(.BASE(32'h4000_0000)) u_apb2_s (
@@ -65,35 +65,35 @@ module tb_soc_bus_all;
     .PRDATA(apb5_rdata), .PREADY(apb5_ready), .PSLVERR(apb5_slverr));
 
   verif_ahb_lite_master u_ahb (
-    .HCLK(clk), .HRESETn(1'b1), .HRDATA(ahb_rdata), .HREADYOUT(ahb_ro), .HRESP(ahb_resp),
-    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(),
+    .HCLK(clk), .HRESETn(1'b1), .HRDATA(ahb_rdata), .HREADY(ahb_ro), .HRESP(ahb_resp),
+    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_ahb_lite_slave_simple u_ahb_s (.HCLK(clk), .HRESETn(1'b1),
     .HADDR(u_ahb.HADDR), .HSIZE(u_ahb.HSIZE), .HTRANS(u_ahb.HTRANS),
-    .HWRITE(u_ahb.HWRITE), .HWDATA(u_ahb.HWDATA), .HREADY(u_ahb.HREADY),
+    .HWRITE(u_ahb.HWRITE), .HWDATA(u_ahb.HWDATA), .HREADY(1'b1),
     .HRDATA(ahb_rdata), .HREADYOUT(ahb_ro), .HRESP(ahb_resp));
 
   assign ahb5_hexok = 1'b1;
   verif_ahb5_lite_master u_ahb5 (
     .HCLK(clk), .HRESETn(1'b1), .HEXOK(ahb5_hexok),
-    .HRDATA(ahb5_rdata), .HREADYOUT(ahb5_ro), .HRESP(ahb5_resp),
-    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HREADY(), .HNONSEC(), .HEXCL(),
+    .HRDATA(ahb5_rdata), .HREADY(ahb5_ro), .HRESP(ahb5_resp),
+    .HADDR(), .HSIZE(), .HTRANS(), .HWRITE(), .HWDATA(), .HNONSEC(), .HEXCL(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_ahb_lite_slave_simple #(.BASE(32'h8100_0000)) u_ahb5_s (.HCLK(clk), .HRESETn(1'b1),
     .HADDR(u_ahb5.HADDR), .HSIZE(u_ahb5.HSIZE), .HTRANS(u_ahb5.HTRANS),
-    .HWRITE(u_ahb5.HWRITE), .HWDATA(u_ahb5.HWDATA), .HREADY(u_ahb5.HREADY),
+    .HWRITE(u_ahb5.HWRITE), .HWDATA(u_ahb5.HWDATA), .HREADY(1'b1),
     .HRDATA(ahb5_rdata), .HREADYOUT(ahb5_ro), .HRESP(ahb5_resp));
 
   assign ahbf_hexok = 1'b1;
   verif_ahb_master u_ahbf (
     .HCLK(clk), .HRESETn(1'b1), .HEXOK(ahbf_hexok),
-    .HRDATA(ahbf_rdata), .HREADYOUT(ahbf_ro), .HRESP(ahbf_resp),
+    .HRDATA(ahbf_rdata), .HREADY(ahbf_ro), .HRESP(ahbf_resp),
     .HADDR(), .HSIZE(), .HTRANS(), .HBURST(), .HPROT(), .HMASTLOCK(),
-    .HWRITE(), .HWDATA(), .HREADY(), .HNONSEC(), .HEXCL(),
+    .HWRITE(), .HWDATA(), .HNONSEC(), .HEXCL(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_ahb_lite_slave_simple #(.BASE(32'h8200_0000)) u_ahbf_s (.HCLK(clk), .HRESETn(1'b1),
     .HADDR(u_ahbf.HADDR), .HSIZE(u_ahbf.HSIZE), .HTRANS(u_ahbf.HTRANS),
-    .HWRITE(u_ahbf.HWRITE), .HWDATA(u_ahbf.HWDATA), .HREADY(u_ahbf.HREADY),
+    .HWRITE(u_ahbf.HWRITE), .HWDATA(u_ahbf.HWDATA), .HREADY(1'b1),
     .HRDATA(ahbf_rdata), .HREADYOUT(ahbf_ro), .HRESP(ahbf_resp));
 
   verif_axi_lite_master u_axil (

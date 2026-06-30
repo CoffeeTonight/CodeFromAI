@@ -1,6 +1,7 @@
 // Behavioral APB5 master — APB4 + PWAKEUP
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_bus_lane_helpers.vh"
 
 module verif_apb5_master (
   input         PCLK,
@@ -22,17 +23,6 @@ module verif_apb5_master (
   output reg [31:0] snoop_data
 );
 
-  function [3:0] strb_for_size;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: strb_for_size = 4'b0001;
-        3'd2: strb_for_size = 4'b0011;
-        default: strb_for_size = 4'b1111;
-      endcase
-    end
-  endfunction
-
   initial begin
     PADDR = 32'h0;
     PSEL = 1'b0;
@@ -52,6 +42,9 @@ module verif_apb5_master (
     begin
       PSEL = 1'b0;
       PENABLE = 1'b0;
+      PWRITE = 1'b0;
+      PSTRB = 4'h0;
+      PWDATA = 32'h0;
       PWAKEUP = 1'b0;
     end
   endtask
@@ -67,13 +60,14 @@ module verif_apb5_master (
     begin
       resp = 2'd0;
       rdata = 32'h0;
+      apb_idle();
       PPROT = 3'b010;
       PWAKEUP = 1'b1;
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = is_wr;
-      PWDATA = wdata;
-      PSTRB = is_wr ? strb_for_size(size) : 4'h0;
+      PWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
+      PSTRB = is_wr ? lane_wstrb(addr, size) : 4'h0;
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);
@@ -91,7 +85,7 @@ module verif_apb5_master (
       if (!is_wr) begin
         @(posedge PCLK);
         #1;
-        rdata = PRDATA;
+        rdata = lane_prdata(PRDATA, addr, size);
       end
       resp = PSLVERR ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;

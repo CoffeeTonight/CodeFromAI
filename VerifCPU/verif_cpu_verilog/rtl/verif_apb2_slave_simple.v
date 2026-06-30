@@ -15,7 +15,7 @@ module verif_apb2_slave_simple #(
   output reg [31:0] PRDATA
 );
 
-  reg [7:0] mem [0:4095];
+  reg [7:0] mem [0:SIZE-1];
   integer i;
 
   initial begin

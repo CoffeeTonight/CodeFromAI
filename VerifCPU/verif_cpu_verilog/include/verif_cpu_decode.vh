@@ -14,6 +14,13 @@ function [31:0] sign_extend_b_imm;
   end
 endfunction
 
+function [31:0] sign_extend_j_imm;
+  input [31:0] raw;
+  begin
+    sign_extend_j_imm = {{11{raw[31]}}, raw[31], raw[19:12], raw[20], raw[30:21], 1'b0};
+  end
+endfunction
+
 task decode_instruction;
   input  [31:0] raw;
   output [6:0]  opcode;
@@ -42,8 +49,7 @@ task decode_instruction;
       b_raw = {raw[31], raw[7], raw[30:25], raw[11:8], 1'b0};
       imm = sign_extend_b_imm(b_raw);
     end else if (opcode == `OPCODE_JAL) begin
-      imm = {raw[31], raw[19:12], raw[20], raw[30:21], 1'b0};
-      if (raw[31]) imm = imm | 32'hffe00000;
+      imm = sign_extend_j_imm(raw);
     end else if (opcode == `OPCODE_LUI || opcode == `OPCODE_AUIPC) begin
       imm = {raw[31:12], 12'b0};
     end else if (is_custom) begin

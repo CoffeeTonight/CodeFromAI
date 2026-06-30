@@ -62,6 +62,7 @@ module verif_ahb_master (
     begin
       HTRANS = HTRANS_IDLE;
       HWRITE = 1'b0;
+      HWDATA = 32'h0;
       HEXCL = 1'b0;
     end
   endtask
@@ -77,6 +78,7 @@ module verif_ahb_master (
     begin
       resp = 2'd0;
       rdata = 32'h0;
+      ahb_idle();
       HBURST = HBURST_INCR;
       HPROT = 4'b0011;
       HMASTLOCK = 1'b0;

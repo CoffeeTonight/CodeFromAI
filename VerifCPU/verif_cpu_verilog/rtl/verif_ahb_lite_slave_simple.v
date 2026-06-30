@@ -20,7 +20,7 @@ module verif_ahb_lite_slave_simple #(
   output reg [1:0]  HRESP
 );
 
-  reg [7:0] mem [0:4095];
+  reg [7:0] mem [0:SIZE-1];
   integer i;
 
   initial begin

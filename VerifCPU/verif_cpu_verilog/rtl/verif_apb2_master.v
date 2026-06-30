@@ -1,4 +1,4 @@
-// Behavioral APB2 master — fixed 2-cycle access, no PREADY/PSLVERR/PSTRB
+// Behavioral APB2 master — optional PREADY stretch with timeout guard
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
@@ -12,6 +12,7 @@ module verif_apb2_master (
   output reg        PWRITE,
   output reg [31:0] PWDATA,
   input  [31:0] PRDATA,
+  input         PREADY,
   output reg        snoop_valid,
   output reg        snoop_wr,
   output reg [31:0] snoop_addr,
@@ -34,6 +35,8 @@ module verif_apb2_master (
     begin
       PSEL = 1'b0;
       PENABLE = 1'b0;
+      PWRITE = 1'b0;
+      PWDATA = 32'h0;
     end
   endtask
 
@@ -42,9 +45,11 @@ module verif_apb2_master (
     input  [2:0]  size;
     output [31:0] data;
     output [1:0]  resp;
+    integer guard;
     begin
       resp = 2'd0;
       data = 32'h0;
+      apb_idle();
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b0;
@@ -54,6 +59,16 @@ module verif_apb2_master (
       @(posedge PCLK);
       PENABLE = 1'b1;
       @(posedge PCLK);
+      guard = 0;
+      while (!PREADY) begin
+        @(posedge PCLK);
+        guard = guard + 1;
+        if (guard > 64) begin
+          resp = 2'd2;
+          apb_idle();
+          disable apb_read;
+        end
+      end
       #1;
       data = lane_prdata(PRDATA, addr, size);
       snoop_valid = 1'b1;
@@ -71,8 +86,10 @@ module verif_apb2_master (
     input  [31:0] data;
     input  [2:0]  size;
     output [1:0]  resp;
+    integer guard;
     begin
       resp = 2'd0;
+      apb_idle();
       @(posedge PCLK);
       PADDR = addr;
       PWRITE = 1'b1;
@@ -82,6 +99,17 @@ module verif_apb2_master (
       @(posedge PCLK);
       PENABLE = 1'b1;
       @(posedge PCLK);
+      guard = 0;
+      while (!PREADY) begin
+        @(posedge PCLK);
+        guard = guard + 1;
+        if (guard > 64) begin
+          resp = 2'd2;
+          apb_idle();
+          disable apb_write;
+        end
+      end
+      #1;
       snoop_valid = 1'b1;
       snoop_wr = 1'b1;
       snoop_addr = addr;

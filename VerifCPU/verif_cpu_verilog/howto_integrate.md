@@ -114,7 +114,9 @@ targets[]      : { bus_addr, expect, icode_name }
 | **Agent snoop** 4개 | `valid, wr, addr, data` | △ 배열 인덱스 1줄 | `tap_valid[tap_id]` |
 | **Orchestrator** | 공통 | ✗ broadcast | `orch_reset`, `phase`, `boot_fw` |
 | **hierarchy_id** | 값만 다름 | ✗ 외부 wire 없음 | `initial cpu_set_hierarchy(id)` |
-| **Unified pool** | region assign | setup task | `cpu_attach_pool_region` |
+| **Unified pool** | region assign | setup task | `cpu_attach_pool_region` + `pool_assign_region` |
+
+**Fetch 플래그 (이름 주의):** `USE_SHARED_POOL=0`이어도 campaign/chip TB는 `USE_SOC_BUS=1` 또는 셀 `USE_MANIFEST_SOC_BUS=1` + Makefile `VERIF_POOL_HUB=tb_*.u_pool`로 unified pool fetch를 씁니다. `USE_SHARED_POOL=1`은 `tb_verification_harness` 전용입니다.
 
 **핵심:** AXI만 무겁고, 나머지는 배열·broadcast·initial로 처리합니다.  
 CPU 100개여도 **사람이 매일 top wiring을 100번 쓰지 않도록** manifest + generate가 담당합니다.
@@ -129,9 +131,9 @@ CPU 100개여도 **사람이 매일 top wiring을 100번 쓰지 않도록** mani
 
 ```c
 static const manifest_slave_t MANIFEST_SLAVES[] = {
-    { "SFR",  1, 0, POOL_WORD_CPU1, 2 },
-    { "SRAM", 2, 1, POOL_WORD_CPU2, 2 },
-    { "UART", 3, 2, POOL_WORD_CPU3, 2 },
+    { "SFR",  1, 0, POOL_WORD_SLOT0, 2 },
+    { "SRAM", 2, 1, POOL_WORD_SLOT1, 2 },
+    { "UART", 3, 2, POOL_WORD_SLOT2, 2 },
 };
 ```
 

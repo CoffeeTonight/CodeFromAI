@@ -29,7 +29,6 @@ module tb_full_campaign;
   localparam FW_SIZE          = 32'h2000;
   localparam NUM_AGENTS       = `CAMPAIGN_MAX_SLOTS;
   localparam SL_AGENT_BANK    = (`CAMPAIGN_MAX_SLOTS == 0) ? 1 : `CAMPAIGN_MAX_SLOTS;
-  localparam POOL_ICODE_WORD  = `ICODE_POOL_WORD_BASE;
   localparam ICODE_POOL_SZ    = `ICODE_POOL_BYTES;
 
   wire [1:0]  orch_phase;

@@ -9,10 +9,15 @@ module verif_cpu_core #(
   parameter FW_WORDS        = 4096,
   parameter BUS_SIZE        = 32'h100000,
   parameter WDT_DEFAULT     = 32'd10000,
+  // USE_SHARED_BUS: harness-only bus (tb_verification_harness.u_shared_bus)
   parameter USE_SHARED_BUS      = 0,
+  // USE_SHARED_POOL: harness-only pool (tb_verification_harness.u_pool)
+  // USE_SOC_BUS / USE_MANIFEST_SOC_BUS: TB VERIF_POOL_HUB unified pool fetch
   parameter USE_SHARED_POOL     = 0,
+  // USE_SOC_BUS: campaign simple_soc task bus; USE_MANIFEST_SOC_BUS: integration bridge bind
   parameter USE_SOC_BUS         = 0,
   parameter USE_MANIFEST_SOC_BUS = 0,
+  // USE_SHARED_SYNC: TB VERIF_SYNC_HUB (campaign u_sync), not harness-exclusive despite the name
   parameter USE_SHARED_SYNC     = 0,
   parameter USE_HW_FORCE        = 0
 )(
@@ -543,7 +548,7 @@ module verif_cpu_core #(
         fw_region_size = FW_WORDS << 2;
       end
       $readmemh(hexfile, fw_words);
-      $display("[UnifiedPool] CPU%0d firmware loaded from %0s (%0d words)",
+      $display("[Firmware] CPU%0d loaded local image from %0s (%0d words)",
                CPU_ID, hexfile, fw_word_count);
     end
   endtask
@@ -555,6 +560,12 @@ module verif_cpu_core #(
       fw_region_base = region_base;
       fw_region_size = region_size;
       fw_word_count  = region_size >> 2;
+      if (fw_word_count > FW_WORDS) begin
+        $display("SCPU%0d > Pool region %0d words exceeds FW_WORDS=%0d — clamped",
+                 CPU_ID, fw_word_count, FW_WORDS);
+        fw_word_count = FW_WORDS;
+        fw_region_size = FW_WORDS << 2;
+      end
       $display("SCPU%0d > Firmware attached: offset=0x%08h, size=%0d", CPU_ID, region_base, region_size);
     end
   endtask
@@ -907,9 +918,7 @@ module verif_cpu_core #(
     begin
       err = 1'b0;
       instr = 32'h00000013;
-      if (fw_word_count == 0 && !USE_SHARED_POOL) begin
-        $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
-      end else if (USE_SOC_BUS || USE_MANIFEST_SOC_BUS) begin
+      if (USE_SOC_BUS || USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_POOL_HUB
         `VERIF_POOL_HUB.pool_read_word(CPU_ID[3:0], pc, instr, err);
 `else
@@ -918,6 +927,8 @@ module verif_cpu_core #(
       end else if (USE_SHARED_POOL) begin
         tb_verification_harness.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
         if (err) state = `CPU_STATE_STALLED;
+      end else if (fw_word_count == 0) begin
+        $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
       end else if (pc + 4 > fw_region_size) begin
         $display("SCPU%0d > Firmware read error at pc=0x%08h", CPU_ID, pc);
         state = `CPU_STATE_STALLED; err = 1'b1;
@@ -984,7 +995,9 @@ module verif_cpu_core #(
         if (fetch_err) ;
         else begin
           decode_instruction(raw, opcode, rd, rs1, rs2, funct3, funct7, imm, is_custom);
-          if (fw_word_count == 0 && !USE_SHARED_POOL) cpu_log_nop();
+          if (fw_word_count == 0 && !USE_SHARED_POOL &&
+              !USE_SOC_BUS && !USE_MANIFEST_SOC_BUS)
+            cpu_log_nop();
 
           if (is_custom) begin
             if (funct7 == `VSEL_STOP) begin

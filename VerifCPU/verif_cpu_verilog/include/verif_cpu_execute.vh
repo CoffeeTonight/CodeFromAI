@@ -7,7 +7,7 @@ task execute_instruction;
   reg [6:0]  funct7;
   reg [31:0] imm;
   reg        is_custom;
-  reg [31:0] rs1_val, rs2_val, result, addr, bus_data;
+  reg [31:0] rs1_val, rs2_val, result, addr, bus_data, bus_data_hi;
   reg [1:0]  bus_resp;
   reg [2:0]  store_sz;
   reg [7:0]  load_byte;
@@ -27,6 +27,11 @@ task execute_instruction;
         do_bus_read(addr, 3'd4, bus_data);
       else
         do_bus_read({addr[31:2], 2'b00}, 3'd4, bus_data);
+      if ((funct3 == 3'h1 || funct3 == 3'h5) && addr[1:0] == 2'd3) begin
+        bus_data_hi = addr + 32'd4;
+        do_bus_read({bus_data_hi[31:2], 2'b00}, 3'd4, bus_data_hi);
+        load_half = {bus_data_hi[7:0], bus_data[31:24]};
+      end
       case (funct3)
         3'h0: begin
           case (addr[1:0])
@@ -39,12 +44,14 @@ task execute_instruction;
           $sformat(step_disasm, "lb x%0d,0x%0h(x%0d)", rd, imm, rs1);
         end
         3'h1: begin
-          case (addr[1:0])
-            2'd0: load_half = bus_data[15:0];
-            2'd1: load_half = bus_data[23:8];
-            2'd2: load_half = bus_data[31:16];
-            default: load_half = {8'h0, bus_data[31:24]};
-          endcase
+          if (addr[1:0] != 2'd3) begin
+            case (addr[1:0])
+              2'd0: load_half = bus_data[15:0];
+              2'd1: load_half = bus_data[23:8];
+              2'd2: load_half = bus_data[31:16];
+              default: load_half = 16'h0;
+            endcase
+          end
           result = {{16{load_half[15]}}, load_half};
           $sformat(step_disasm, "lh x%0d,0x%0h(x%0d)", rd, imm, rs1);
         end
@@ -63,12 +70,14 @@ task execute_instruction;
           $sformat(step_disasm, "lbu x%0d,0x%0h(x%0d)", rd, imm, rs1);
         end
         3'h5: begin
-          case (addr[1:0])
-            2'd0: load_half = bus_data[15:0];
-            2'd1: load_half = bus_data[23:8];
-            2'd2: load_half = bus_data[31:16];
-            default: load_half = {8'h0, bus_data[31:24]};
-          endcase
+          if (addr[1:0] != 2'd3) begin
+            case (addr[1:0])
+              2'd0: load_half = bus_data[15:0];
+              2'd1: load_half = bus_data[23:8];
+              2'd2: load_half = bus_data[31:16];
+              default: load_half = 16'h0;
+            endcase
+          end
           result = {16'h0, load_half};
           $sformat(step_disasm, "lhu x%0d,0x%0h(x%0d)", rd, imm, rs1);
         end

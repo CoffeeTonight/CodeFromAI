@@ -10,7 +10,6 @@ from amba_bus_registry import (
     ADDR_WIDTH_DEFAULT,
     AHB_MAX_OUTSTANDING_DEFAULT,
     AXI_ID_WIDTH_DEFAULT,
-    AHB_MAX_OUTSTANDING_DEFAULT,
     AXI_MAX_OUTSTANDING_DEFAULT,
     BUS_TYPES,
     DATA_WIDTH_DEFAULT,
@@ -108,8 +107,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 3,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [
@@ -123,8 +122,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 4,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [
@@ -138,8 +137,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 5,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [
@@ -217,12 +216,10 @@ def emit_cell_module(key: str, spec: dict, bt_spec) -> list[str]:
     ]
     if mod == "verif_ahb_master":
         lines.append(f"  ,parameter integer MAX_OUTSTANDING = {AHB_MAX_OUTSTANDING_DEFAULT}")
-    if "axi_prot" in spec:
+    elif "axi_prot" in spec:
         lines.append(f"  ,parameter integer AXI_PROT = {spec['axi_prot']}")
         lines.append(f"  ,parameter integer ID_WIDTH = {AXI_ID_WIDTH_DEFAULT}")
         lines.append(f"  ,parameter integer MAX_OUTSTANDING = {AXI_MAX_OUTSTANDING_DEFAULT}")
-    elif spec["module"] == "verif_ahb_master":
-        lines.append(f"  ,parameter integer MAX_OUTSTANDING = {AHB_MAX_OUTSTANDING_DEFAULT}")
     lines.extend([
         ") (",
         f"  input  wire {clk_p},",

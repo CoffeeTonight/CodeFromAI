@@ -35,6 +35,7 @@ module verif_agent_slave #(
   reg     hint_seen;
 
   reg [31:0] expect_val;
+  reg        txn_valid_q;
 
   function [31:0] expected_for_addr;
     input [31:0] addr;
@@ -55,6 +56,7 @@ module verif_agent_slave #(
     txn_recorded   = 0;
     hint_count     = 0;
     init_txn_count = 0;
+    txn_valid_q    = 1'b0;
   end
 
   always @(posedge reset_pulse) begin
@@ -64,20 +66,23 @@ module verif_agent_slave #(
              CPU_ID, CPU_NAME, local_phase, local_pc);
   end
 
-  always @(posedge txn_valid) begin
-    txn_recorded = txn_recorded + 1;
-    if (local_phase == `PHASE_INIT)
-      init_txn_count = init_txn_count + 1;
-    if (local_phase == `PHASE_COLLECT && hint_count < `MAX_HINTS) begin
-      hint_seen = 0;
-      for (hi = 0; hi < hint_count; hi = hi + 1)
-        if (hint_addr[hi] == txn_addr)
-          hint_seen = 1;
-      if (!hint_seen) begin
-        hint_addr[hint_count] = txn_addr;
-        hint_count = hint_count + 1;
+  always @(txn_valid) begin
+    if (txn_valid && !txn_valid_q) begin
+      txn_recorded = txn_recorded + 1;
+      if (local_phase == `PHASE_INIT)
+        init_txn_count = init_txn_count + 1;
+      if (local_phase == `PHASE_COLLECT && hint_count < `MAX_HINTS) begin
+        hint_seen = 0;
+        for (hi = 0; hi < hint_count; hi = hi + 1)
+          if (hint_addr[hi] == txn_addr)
+            hint_seen = 1;
+        if (!hint_seen) begin
+          hint_addr[hint_count] = txn_addr;
+          hint_count = hint_count + 1;
+        end
       end
     end
+    txn_valid_q = txn_valid;
   end
 
   task run_phase_a;

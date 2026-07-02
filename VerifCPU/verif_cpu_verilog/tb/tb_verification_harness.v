@@ -221,6 +221,20 @@ module tb_verification_harness;
     $display("=====================================================================================");
     print_campaign_report();
 
+    if (!(u_cpu1.sim_stop && u_cpu2.sim_stop)) begin
+      $display("[FAIL] Harness main/worker did not reach sim_stop");
+      $fatal(1, "tb_verification_harness FAILED");
+    end
+    if (u_cpu3.recovery_count == 0) begin
+      $display("[FAIL] troublemaker expected recovery_count > 0");
+      $fatal(1, "tb_verification_harness FAILED");
+    end
+    $display("Harness verdict: PASS (assert pass/fail=%0d/%0d, recov=%0d)",
+             u_cpu1.assert_pass + u_cpu2.assert_pass + u_cpu3.assert_pass,
+             u_cpu1.assert_fail + u_cpu2.assert_fail + u_cpu3.assert_fail,
+             u_cpu3.recovery_count);
+    $display("[SUCCESS] Harness PASS");
+
     u_cpu1.cpu_close_dedicated_log();
     u_cpu2.cpu_close_dedicated_log();
     u_cpu3.cpu_close_dedicated_log();

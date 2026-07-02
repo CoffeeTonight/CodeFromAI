@@ -89,6 +89,7 @@
   assign SOC_PREF``_arlen   = MST.ARLEN; \
   assign SOC_PREF``_arsize  = MST.ARSIZE; \
   assign SOC_PREF``_arburst = MST.ARBURST; \
+  assign SOC_PREF``_arprot  = MST.ARPROT; \
   assign SOC_PREF``_arvalid = MST.ARVALID; \
   assign MST.ARREADY = SOC_PREF``_arready; \
   assign MST.RID     = SOC_PREF``_rid; \
@@ -102,6 +103,7 @@
   assign SOC_PREF``_awlen   = MST.AWLEN; \
   assign SOC_PREF``_awsize  = MST.AWSIZE; \
   assign SOC_PREF``_awburst = MST.AWBURST; \
+  assign SOC_PREF``_awprot  = MST.AWPROT; \
   assign SOC_PREF``_awvalid = MST.AWVALID; \
   assign MST.AWREADY = SOC_PREF``_awready; \
   assign SOC_PREF``_wid     = MST.WID; \
@@ -124,6 +126,7 @@
   assign SOC_PREF``_arburst = MST.ARBURST; \
   assign SOC_PREF``_arqos   = MST.ARQOS; \
   assign SOC_PREF``_arregion = MST.ARREGION; \
+  assign SOC_PREF``_arprot  = MST.ARPROT; \
   assign SOC_PREF``_arvalid = MST.ARVALID; \
   assign MST.ARREADY = SOC_PREF``_arready; \
   assign MST.RID     = SOC_PREF``_rid; \
@@ -139,6 +142,7 @@
   assign SOC_PREF``_awburst = MST.AWBURST; \
   assign SOC_PREF``_awqos   = MST.AWQOS; \
   assign SOC_PREF``_awregion = MST.AWREGION; \
+  assign SOC_PREF``_awprot  = MST.AWPROT; \
   assign SOC_PREF``_awvalid = MST.AWVALID; \
   assign MST.AWREADY = SOC_PREF``_awready; \
   assign SOC_PREF``_wdata   = MST.WDATA; \

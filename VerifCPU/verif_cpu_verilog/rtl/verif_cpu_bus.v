@@ -63,11 +63,12 @@ module verif_cpu_bus #(
         for (i = 0; i < size; i = i + 1)
           tmp[i*8 +: 8] = mem[addr + i];
         data = tmp;
-        txn_valid    = 1'b1;
         txn_is_write = 1'b0;
         txn_addr     = addr;
         txn_data     = data;
         txn_size     = size;
+        txn_valid    = 1'b1;
+        #1 txn_valid    = 1'b0;
       end
     end
   endtask
@@ -162,11 +163,12 @@ module verif_cpu_bus #(
       end else begin
         for (i = 0; i < size; i = i + 1)
           mem[addr + i] = data[i*8 +: 8];
-        txn_valid    = 1'b1;
         txn_is_write = 1'b1;
         txn_addr     = addr;
         txn_data     = data;
         txn_size     = size;
+        txn_valid    = 1'b1;
+        #1 txn_valid    = 1'b0;
       end
     end
   endtask

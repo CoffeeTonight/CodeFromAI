@@ -44,13 +44,13 @@
 
   // Auto-generated stub peripherals — edit soc_hierarchy YAML, not this file
 
-  verif_apb_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h00000000)) u_stub_sfr (
+  verif_apb_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h40000000)) u_stub_sfr (
     .PCLK(soc_clk), .PRESETn(soc_rstn),
     .PADDR(S01_APB_PADDR), .PSEL(S01_APB_PSEL), .PENABLE(S01_APB_PENABLE), .PWRITE(S01_APB_PWRITE), .PWDATA(S01_APB_PWDATA),
     .PSTRB(S01_APB_PSTRB), .PRDATA(S01_APB_PRDATA), .PREADY(S01_APB_PREADY), .PSLVERR(S01_APB_PSLVERR)
   );
 
-  verif_ahb_lite_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h00000000), .INIT_WORD0(32'hDEADBEEF), .INIT_WORD1(32'hCAFEBABE)) u_stub_sram (
+  verif_ahb_lite_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h80000000), .INIT_WORD0(32'hDEADBEEF), .INIT_WORD1(32'hCAFEBABE)) u_stub_sram (
     .HCLK(soc_clk), .HRESETn(soc_rstn),
     .HADDR(M02_AHB_HADDR), .HSIZE(M02_AHB_HSIZE), .HTRANS(M02_AHB_HTRANS),
     .HWRITE(M02_AHB_HWRITE), .HWDATA(M02_AHB_HWDATA), .HREADY(M02_AHB_HREADY),
@@ -59,7 +59,7 @@
 
   wire [VERIF_AXI_ID_WIDTH-1:0] u_stub_uart_rid, u_stub_uart_bid;
   wire       u_stub_uart_rlast;
-  verif_axi_full_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .ID_WIDTH(VERIF_AXI_ID_WIDTH), .BASE(32'h00000000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_stub_uart (
+  verif_axi_full_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .ID_WIDTH(VERIF_AXI_ID_WIDTH), .BASE(32'hC0000000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_stub_uart (
     .ACLK(soc_clk), .ARESETn(soc_rstn),
     .ARID({VERIF_AXI_ID_WIDTH{1'b0}}), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
     .ARBURST(2'b01), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),

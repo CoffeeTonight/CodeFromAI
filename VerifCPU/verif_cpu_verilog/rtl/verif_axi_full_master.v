@@ -17,6 +17,7 @@ module verif_axi_full_master #(
   output reg [7:0]  ARLEN,
   output reg [2:0]  ARSIZE,
   output reg [1:0]  ARBURST,
+  output reg [2:0]  ARPROT,
   output reg [3:0]  ARQOS,
   output reg [3:0]  ARREGION,
   output reg        ARVALID,
@@ -32,6 +33,7 @@ module verif_axi_full_master #(
   output reg [7:0]  AWLEN,
   output reg [2:0]  AWSIZE,
   output reg [1:0]  AWBURST,
+  output reg [2:0]  AWPROT,
   output reg [3:0]  AWQOS,
   output reg [3:0]  AWREGION,
   output reg [5:0]  AWATOP,
@@ -196,11 +198,25 @@ module verif_axi_full_master #(
     end
   endtask
 
+  task snoop_pulse;
+    input        is_wr;
+    input [31:0] addr;
+    input [31:0] data;
+    begin
+      snoop_wr = is_wr;
+      snoop_addr = addr;
+      snoop_data = data;
+      snoop_valid = 1'b1;
+      #1;
+      snoop_valid = 1'b0;
+    end
+  endtask
+
   initial begin
     ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 3'b010; ARBURST = BURST_INCR;
-    ARQOS = 0; ARREGION = 0; ARVALID = 0; RREADY = 0;
+    ARPROT = 3'b010; ARQOS = 0; ARREGION = 0; ARVALID = 0; RREADY = 0;
     AWID = 0; AWADDR = 0; AWLEN = 0; AWSIZE = 3'b010; AWBURST = BURST_INCR;
-    AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
+    AWPROT = 3'b010; AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
     WID = 0; WDATA = 0; WSTRB = 0; WLAST = 0; WVALID = 0; BREADY = 0;
     snoop_valid = 0; snoop_wr = 0; snoop_addr = 0; snoop_data = 0;
     os_reset_slots();
@@ -222,6 +238,7 @@ module verif_axi_full_master #(
           r_slot_done[slot] = 1'b1;
           r_slot_ar_done[slot] = 1'b0;
           r_slot_busy[slot] = 1'b0;
+          snoop_pulse(1'b0, r_slot_addr[slot], r_slot_data[slot]);
         end
       end
     end
@@ -240,6 +257,7 @@ module verif_axi_full_master #(
           w_slot_resp[slot] = (BRESP != 2'b00) ? 2'd2 : 2'd0;
           w_slot_done[slot] = 1'b1;
           w_slot_busy[slot] = 1'b0;
+          snoop_pulse(1'b1, w_slot_addr[slot], w_slot_data[slot]);
         end
       end
     end
@@ -280,6 +298,7 @@ module verif_axi_full_master #(
         ARLEN = 8'd0;
         ARSIZE = axsize_for_bytes(size);
         ARBURST = BURST_INCR;
+        ARPROT = 3'b010;
         ARQOS = 4'd0;
         ARREGION = 4'd0;
         ARVALID = 1'b1;
@@ -325,12 +344,6 @@ module verif_axi_full_master #(
       r_slot_busy[handle] = 1'b0;
       r_slot_ar_done[handle] = 1'b0;
       r_slot_done[handle] = 1'b0;
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b0;
-      snoop_addr = r_slot_addr[handle];
-      snoop_data = data;
-      @(posedge ACLK);
-      snoop_valid = 1'b0;
     end
   endtask
 
@@ -364,6 +377,7 @@ module verif_axi_full_master #(
         AWLEN = 8'd0;
         AWSIZE = axsize_for_bytes(size);
         AWBURST = BURST_INCR;
+        AWPROT = 3'b010;
         AWQOS = 4'd0;
         AWREGION = 4'd0;
         AWATOP = 6'd0;
@@ -423,12 +437,6 @@ module verif_axi_full_master #(
       resp = w_slot_resp[handle];
       w_slot_busy[handle] = 1'b0;
       w_slot_done[handle] = 1'b0;
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b1;
-      snoop_addr = w_slot_addr[handle];
-      snoop_data = w_slot_data[handle];
-      @(posedge ACLK);
-      snoop_valid = 1'b0;
     end
   endtask
 

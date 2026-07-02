@@ -2696,7 +2696,7 @@ def main() -> int:
           f"+ decode + manifest bus bind ({len(bind_slaves)} bind slot(s), "
           f"{len(soc_n)} SoC cell(s))")
 
-    scale_wired = manifest_wired_slaves(slaves)
+    scale_wired = manifest_wired_slaves(soc_n)
     scale_defs = generate_soc_manifest_scale_defs_vh(scale_wired)
     with open(OUT_SOC_MANIFEST_SCALE_DEFS_VH, "w", encoding="utf-8") as f:
         f.write(scale_defs)

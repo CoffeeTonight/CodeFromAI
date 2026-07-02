@@ -14,7 +14,7 @@ module tb_axi_id_ooo;
 
   wire arready, rvalid, rlast, awready, wready, bvalid;
   wire [`VERIF_DATA_WIDTH-1:0] rdata;
-  wire [1:0] rresp;
+  wire [1:0] rresp, bresp;
   wire [AXI_ID_WIDTH-1:0] rid, bid;
 
   verif_axi_full_master #(
@@ -24,7 +24,7 @@ module tb_axi_id_ooo;
   ) u_mst (
     .ACLK(clk), .ARESETn(1'b1),
     .ARREADY(arready), .RVALID(rvalid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RID(rid),
-    .AWREADY(awready), .WREADY(wready), .BVALID(bvalid), .BRESP(rresp), .BID(bid),
+    .AWREADY(awready), .WREADY(wready), .BVALID(bvalid), .BRESP(bresp), .BID(bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -48,7 +48,7 @@ module tb_axi_id_ooo;
     .AWBURST(u_mst.AWBURST), .AWVALID(u_mst.AWVALID), .AWREADY(awready),
     .WID(u_mst.WID), .WDATA(u_mst.WDATA), .WSTRB(u_mst.WSTRB), .WLAST(u_mst.WLAST),
     .WVALID(u_mst.WVALID), .WREADY(wready),
-    .BID(bid), .BRESP(rresp), .BVALID(bvalid), .BREADY(u_mst.BREADY)
+    .BID(bid), .BRESP(bresp), .BVALID(bvalid), .BREADY(u_mst.BREADY)
   );
 
   integer pass, fail;

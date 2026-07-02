@@ -33,8 +33,12 @@ module verif_apb2_slave_simple #(
       PRDATA <= {mem[PADDR - BASE + 3], mem[PADDR - BASE + 2],
                  mem[PADDR - BASE + 1], mem[PADDR - BASE + 0]};
     else if (PSEL && PENABLE && PWRITE &&
-             PADDR >= BASE && PADDR + 4 <= BASE + SIZE)
-      mem[PADDR - BASE] <= PWDATA[7:0];
+             PADDR >= BASE && PADDR + 4 <= BASE + SIZE) begin
+      mem[PADDR - BASE + 0] <= PWDATA[7:0];
+      mem[PADDR - BASE + 1] <= PWDATA[15:8];
+      mem[PADDR - BASE + 2] <= PWDATA[23:16];
+      mem[PADDR - BASE + 3] <= PWDATA[31:24];
+    end
   end
 
 endmodule

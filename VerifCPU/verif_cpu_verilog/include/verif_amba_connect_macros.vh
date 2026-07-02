@@ -65,6 +65,7 @@
   assign SOC_PREF``_arvalid = MST.ARVALID; \
   assign SOC_PREF``_araddr  = MST.ARADDR; \
   assign SOC_PREF``_arsize  = MST.ARSIZE; \
+  assign SOC_PREF``_arprot  = MST.ARPROT; \
   assign MST.ARREADY = SOC_PREF``_arready; \
   assign MST.RVALID  = SOC_PREF``_rvalid; \
   assign MST.RDATA   = SOC_PREF``_rdata; \
@@ -73,6 +74,7 @@
   assign SOC_PREF``_awvalid = MST.AWVALID; \
   assign SOC_PREF``_awaddr  = MST.AWADDR; \
   assign SOC_PREF``_awsize  = MST.AWSIZE; \
+  assign SOC_PREF``_awprot  = MST.AWPROT; \
   assign MST.AWREADY = SOC_PREF``_awready; \
   assign SOC_PREF``_wvalid  = MST.WVALID; \
   assign SOC_PREF``_wdata   = MST.WDATA; \

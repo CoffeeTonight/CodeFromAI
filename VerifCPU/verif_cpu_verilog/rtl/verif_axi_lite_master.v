@@ -14,6 +14,7 @@ module verif_axi_lite_master #(
   input             ARREADY,
   output reg [ADDR_WIDTH-1:0] ARADDR,
   output reg [2:0]  ARSIZE,
+  output reg [2:0]  ARPROT,
   input             RVALID,
   output reg        RREADY,
   input  [DATA_WIDTH-1:0] RDATA,
@@ -22,6 +23,7 @@ module verif_axi_lite_master #(
   input             AWREADY,
   output reg [ADDR_WIDTH-1:0] AWADDR,
   output reg [2:0]  AWSIZE,
+  output reg [2:0]  AWPROT,
   output reg        WVALID,
   input             WREADY,
   output reg [DATA_WIDTH-1:0] WDATA,
@@ -80,10 +82,12 @@ module verif_axi_lite_master #(
     ARVALID = 1'b0;
     ARADDR = 32'h0;
     ARSIZE = 3'b010;
+    ARPROT = 3'b010;
     RREADY = 1'b0;
     AWVALID = 1'b0;
     AWADDR = 32'h0;
     AWSIZE = 3'b010;
+    AWPROT = 3'b010;
     WVALID = 1'b0;
     WDATA = 32'h0;
     WSTRB = 4'h0;
@@ -157,6 +161,7 @@ module verif_axi_lite_master #(
         @(posedge ACLK);
         ARADDR = addr;
         ARSIZE = axsize_for_bytes(size);
+        ARPROT = 3'b010;
         ARVALID = 1'b1;
         guard = 0;
         while (!ARREADY) begin
@@ -239,6 +244,7 @@ module verif_axi_lite_master #(
         @(posedge ACLK);
         AWADDR = addr;
         AWSIZE = axsize_for_bytes(size);
+        AWPROT = 3'b010;
         AWVALID = 1'b1;
         WDATA = lane_pwdata(data, addr, size);
         WSTRB = lane_wstrb(addr, size);

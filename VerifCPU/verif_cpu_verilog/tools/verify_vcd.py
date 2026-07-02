@@ -167,8 +167,8 @@ def verify_cpu_vcd(path: str) -> tuple[bool, list[str]]:
     if not _is_valid_vcd_header(body):
         errors.append("not a valid VCD (no $scope / $enddefinitions)")
 
-    if "$scope module TOP" not in body:
-        errors.append("per-CPU VCD missing TOP scope")
+    if "$scope module TOP" not in body and "$scope module SCPU" not in body:
+        errors.append("per-CPU VCD missing CPU scope (TOP or SCPU<n>)")
 
     if " pc " not in body and "$var reg" not in body:
         errors.append("per-CPU VCD missing pc register dump")

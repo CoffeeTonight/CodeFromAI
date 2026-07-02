@@ -24,13 +24,13 @@
 `define VERIF_BUS_AXIS      20
 `define VERIF_BUS_NIU       21
 
-// Agent snoop bundle (protocol-agnostic)
-`define VERIF_SNOOP_PULSE(V, IS_WR, A, D) \
+// Agent snoop bundle pulse — pass reg identifiers for valid/wr/addr/data
+`define VERIF_SNOOP_PULSE(V, WR, ADDR, DATA, IS_WR, A, D) \
   begin \
+    WR = IS_WR; \
+    ADDR = A; \
+    DATA = D; \
     V = 1'b1; \
-    IS_WR = IS_WR; \
-    A = A; \
-    D = D; \
     #1 V = 1'b0; \
   end
 

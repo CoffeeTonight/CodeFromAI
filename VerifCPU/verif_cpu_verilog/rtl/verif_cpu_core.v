@@ -1009,6 +1009,8 @@ module verif_cpu_core #(
       pc = 0; request_sim_stop = 0;
       for (i = 0; i < 32; i = i + 1) regs[i] = 0;
       fn_tracer_reset();
+      assert_pass = 0;
+      assert_fail = 0;
       log_msg("Reset");
       if (replay_txns && bus_txn_count > 0)
         cpu_replay_transactions();

@@ -37,10 +37,12 @@ module verif_axistream_master #(
     begin
       data = 32'h0;
       resp = 2'd2;
-      snoop_valid = 1'b1;
       snoop_wr = 1'b0;
       snoop_addr = addr;
       snoop_data = 32'h0;
+      snoop_valid = 1'b1;
+      #1;
+      snoop_valid = 1'b0;
     end
   endtask
 
@@ -51,10 +53,12 @@ module verif_axistream_master #(
     output [1:0]  resp;
     begin
       resp = 2'd2;
-      snoop_valid = 1'b1;
       snoop_wr = 1'b1;
       snoop_addr = addr;
       snoop_data = data;
+      snoop_valid = 1'b1;
+      #1;
+      snoop_valid = 1'b0;
     end
   endtask
 

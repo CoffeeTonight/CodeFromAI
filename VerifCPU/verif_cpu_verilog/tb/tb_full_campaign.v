@@ -106,7 +106,12 @@ module tb_full_campaign;
     $display("========================================================================");
 
     $dumpfile(vcd_main);
-    $dumpvars(0, tb_full_campaign);
+    $dumpvars(1, tb_full_campaign);
+    $dumpvars(0, tb_full_campaign.u_orch);
+    $dumpvars(0, tb_full_campaign.u_soc);
+    $dumpvars(0, tb_full_campaign.g_ag[0].u_ag);
+    $dumpvars(0, tb_full_campaign.g_ag[1].u_ag);
+    $dumpvars(0, tb_full_campaign.g_ag[2].u_ag);
 
     check_pass = 0;
     check_fail = 0;

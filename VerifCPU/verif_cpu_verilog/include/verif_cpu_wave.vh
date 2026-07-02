@@ -74,7 +74,7 @@ task wave_export_vcd;
       $fwrite(fd, "$date\n    VerifCPU Verilog Model\n$end\n");
       $fwrite(fd, "$version\n    VerifCPU Verilog\n$end\n");
       $fwrite(fd, "$timescale 1ns $end\n\n");
-      $fwrite(fd, "$scope module TOP $end\n");
+      $fwrite(fd, "$scope module SCPU%0d $end\n", CPU_ID);
       $fwrite(fd, "  $var reg 32 pc pc $end\n");
       $fwrite(fd, "$upscope $end\n$enddefinitions $end\n\n");
       last_t = 32'hffffffff;

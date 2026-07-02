@@ -198,19 +198,10 @@ module verif_axi_full_master #(
     end
   endtask
 
-  task snoop_pulse;
-    input        is_wr;
-    input [31:0] addr;
-    input [31:0] data;
-    begin
-      snoop_wr = is_wr;
-      snoop_addr = addr;
-      snoop_data = data;
-      snoop_valid = 1'b1;
-      #1;
-      snoop_valid = 1'b0;
-    end
-  endtask
+  reg        snoop_pending;
+  reg        snoop_pending_wr;
+  reg [31:0] snoop_pending_addr;
+  reg [31:0] snoop_pending_data;
 
   initial begin
     ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 3'b010; ARBURST = BURST_INCR;
@@ -219,7 +210,27 @@ module verif_axi_full_master #(
     AWPROT = 3'b010; AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
     WID = 0; WDATA = 0; WSTRB = 0; WLAST = 0; WVALID = 0; BREADY = 0;
     snoop_valid = 0; snoop_wr = 0; snoop_addr = 0; snoop_data = 0;
+    snoop_pending = 0;
     os_reset_slots();
+  end
+
+  // One-cycle snoop pulse (no #delay tasks inside clocked always)
+  always @(posedge ACLK or negedge ARESETn) begin
+    if (!ARESETn) begin
+      snoop_valid <= 1'b0;
+      snoop_wr    <= 1'b0;
+      snoop_addr  <= 32'h0;
+      snoop_data  <= 32'h0;
+      snoop_pending <= 1'b0;
+    end else if (snoop_pending) begin
+      snoop_wr    <= snoop_pending_wr;
+      snoop_addr  <= snoop_pending_addr;
+      snoop_data  <= snoop_pending_data;
+      snoop_valid <= 1'b1;
+      snoop_pending <= 1'b0;
+    end else begin
+      snoop_valid <= 1'b0;
+    end
   end
 
   // R channel — accept beats while reads are outstanding
@@ -238,7 +249,10 @@ module verif_axi_full_master #(
           r_slot_done[slot] = 1'b1;
           r_slot_ar_done[slot] = 1'b0;
           r_slot_busy[slot] = 1'b0;
-          snoop_pulse(1'b0, r_slot_addr[slot], r_slot_data[slot]);
+          snoop_pending_wr   <= 1'b0;
+          snoop_pending_addr <= r_slot_addr[slot];
+          snoop_pending_data <= r_slot_data[slot];
+          snoop_pending    <= 1'b1;
         end
       end
     end
@@ -257,7 +271,10 @@ module verif_axi_full_master #(
           w_slot_resp[slot] = (BRESP != 2'b00) ? 2'd2 : 2'd0;
           w_slot_done[slot] = 1'b1;
           w_slot_busy[slot] = 1'b0;
-          snoop_pulse(1'b1, w_slot_addr[slot], w_slot_data[slot]);
+          snoop_pending_wr   <= 1'b1;
+          snoop_pending_addr <= w_slot_addr[slot];
+          snoop_pending_data <= w_slot_data[slot];
+          snoop_pending    <= 1'b1;
         end
       end
     end

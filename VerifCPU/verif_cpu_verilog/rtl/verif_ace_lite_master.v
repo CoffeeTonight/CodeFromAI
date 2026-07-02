@@ -38,11 +38,13 @@ module verif_ace_lite_master #(
   output wire [31:0] snoop_data
 );
 
+  wire [2:0] arprot, awprot;
+
   verif_axi_lite_master #(.ADDR_WIDTH(ADDR_WIDTH), .DATA_WIDTH(DATA_WIDTH)) u_axi (
     .ACLK(ACLK), .ARESETn(ARESETn),
-    .ARVALID(ARVALID), .ARREADY(ARREADY), .ARADDR(ARADDR), .ARSIZE(ARSIZE),
+    .ARVALID(ARVALID), .ARREADY(ARREADY), .ARADDR(ARADDR), .ARSIZE(ARSIZE), .ARPROT(arprot),
     .RVALID(RVALID), .RREADY(RREADY), .RDATA(RDATA), .RRESP(RRESP),
-    .AWVALID(AWVALID), .AWREADY(AWREADY), .AWADDR(AWADDR), .AWSIZE(AWSIZE),
+    .AWVALID(AWVALID), .AWREADY(AWREADY), .AWADDR(AWADDR), .AWSIZE(AWSIZE), .AWPROT(awprot),
     .WVALID(WVALID), .WREADY(WREADY), .WDATA(WDATA), .WSTRB(WSTRB),
     .BVALID(BVALID), .BREADY(BREADY), .BRESP(BRESP),
     .snoop_valid(snoop_valid), .snoop_wr(snoop_wr),

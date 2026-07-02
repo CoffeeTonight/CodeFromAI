@@ -86,6 +86,7 @@ module verif_ahb5_lite_master #(
       HWRITE = is_wr;
       HWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
       HTRANS = HTRANS_NONSEQ;
+      @(posedge HCLK);
       guard = 0;
       while (!HREADY) begin
         @(posedge HCLK);

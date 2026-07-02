@@ -93,8 +93,8 @@ CELL_SPECS: dict[str, dict] = {
         "clk": ("ACLK", "ACLK"),
         "rst": ("ARESETn", "ARESETn"),
         "master_out": [
-            "ARVALID", "ARADDR", "ARSIZE", "RREADY",
-            "AWVALID", "AWADDR", "AWSIZE", "WVALID", "WDATA", "WSTRB", "BREADY",
+            "ARVALID", "ARADDR", "ARSIZE", "ARPROT", "RREADY",
+            "AWVALID", "AWADDR", "AWSIZE", "AWPROT", "WVALID", "WDATA", "WSTRB", "BREADY",
         ],
         "master_in": [
             "ARREADY", "RVALID", "RDATA", "RRESP",
@@ -176,7 +176,11 @@ def _port_decl(name: str, spec: dict) -> str:
         return f"{direction} wire [1:0]  {name}"
     if name == "HTRANS":
         return f"{direction} wire [1:0]  {name}"
-    if name in ("HSIZE", "ARSIZE", "AWSIZE", "HBURST", "ARBURST", "AWBURST"):
+    if name in ("HSIZE", "ARSIZE", "AWSIZE", "HBURST"):
+        return f"{direction} wire [2:0]  {name}"
+    if name in ("ARBURST", "AWBURST"):
+        return f"{direction} wire [1:0]  {name}"
+    if name in ("ARPROT", "AWPROT"):
         return f"{direction} wire [2:0]  {name}"
     if name == "HPROT":
         return f"{direction} wire [3:0]  {name}"

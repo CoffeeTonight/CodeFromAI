@@ -1011,6 +1011,7 @@ module verif_cpu_core #(
       fn_tracer_reset();
       assert_pass = 0;
       assert_fail = 0;
+      cov_reset();
       log_msg("Reset");
       if (replay_txns && bus_txn_count > 0)
         cpu_replay_transactions();

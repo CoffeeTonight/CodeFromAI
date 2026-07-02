@@ -2,6 +2,7 @@
 
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
+`include "verif_verdict_policy.vh"
 
 module tb_verification_harness;
 
@@ -31,7 +32,40 @@ module tb_verification_harness;
   reg [1024*8:1] rpt_md;
   integer step, max_steps;
   reg [31:0] rdata;
+  reg [31:0] check_pass;
+  reg [31:0] check_fail;
   integer rpt_fd;
+  integer cov_fail_sum;
+
+  task check_eq;
+    input [8*96:1] name;
+    input        ok;
+    begin
+      if (ok) begin
+        check_pass = check_pass + 1;
+        $display("  [PASS] %0s", name);
+      end else begin
+        check_fail = check_fail + 1;
+        $display("  [FAIL] %0s", name);
+      end
+    end
+  endtask
+
+  function integer cov_assert_fail_sum;
+    input [15:0] cpu_id;
+    integer n;
+    integer i;
+    begin
+      n = 0;
+      case (cpu_id)
+        4'd1: for (i = 0; i < `COV_ASSERT_MAX; i = i + 1) n = n + u_cpu1.cov_assert_failed[i];
+        4'd2: for (i = 0; i < `COV_ASSERT_MAX; i = i + 1) n = n + u_cpu2.cov_assert_failed[i];
+        4'd3: for (i = 0; i < `COV_ASSERT_MAX; i = i + 1) n = n + u_cpu3.cov_assert_failed[i];
+        default: n = 0;
+      endcase
+      cov_assert_fail_sum = n;
+    end
+  endfunction
 
   task console_help;
     begin
@@ -147,6 +181,9 @@ module tb_verification_harness;
     $display("VerifCPU Verification Harness (Verilog)");
     $display("=====================================================================================\n");
 
+    check_pass = 0;
+    check_fail = 0;
+
     u_shared_bus.bus_reset();
     u_pool.pool_load_hex(fw_path);
     u_pool.pool_assign_region(1, 32'd0,   32'd68);
@@ -221,24 +258,31 @@ module tb_verification_harness;
     $display("=====================================================================================");
     print_campaign_report();
 
-    if (!(u_cpu1.sim_stop && u_cpu2.sim_stop)) begin
-      $display("[FAIL] Harness main/worker did not reach sim_stop");
-      $fatal(1, "tb_verification_harness FAILED");
-    end
-    if (u_cpu3.recovery_count == 0) begin
-      $display("[FAIL] troublemaker expected recovery_count > 0");
-      $fatal(1, "tb_verification_harness FAILED");
-    end
-    if (u_cpu3.assert_fail > 0) begin
-      $display("[FAIL] troublemaker assert_fail=%0d after recovery (expected 0)", u_cpu3.assert_fail);
-      $fatal(1, "tb_verification_harness FAILED");
-    end
+    $display("\n=====================================================================================");
+    $display("HARNESS CHECKLIST (recovery tier — see verif_verdict_policy.vh)");
+    $display("=====================================================================================");
+
+    check_eq("Main/worker sim_stop", u_cpu1.sim_stop && u_cpu2.sim_stop);
+    check_eq("Troublemaker recovery_count", u_cpu3.recovery_count >= `VERIF_HARNESS_MIN_RECOVERY);
+    check_eq("Troublemaker assert_fail clean", u_cpu3.assert_fail == 0);
+    cov_fail_sum = cov_assert_fail_sum(3);
+    check_eq("Troublemaker cov epoch clean", cov_fail_sum == 0);
+    check_eq("Cross-CPU injection observed",
+             u_cpu1.assert_fail + u_cpu2.assert_fail > 0);
+
     if (u_cpu1.assert_fail + u_cpu2.assert_fail > 0)
-      $display("[INFO] Harness transient cross-CPU assert_fail=%0d (main=%0d worker=%0d) — forgiven after recovery",
-               u_cpu1.assert_fail + u_cpu2.assert_fail, u_cpu1.assert_fail, u_cpu2.assert_fail);
-    $display("Harness verdict: PASS (recovery_count=%0d, assert pass/fail=%0d/%0d on troublemaker)",
-             u_cpu3.recovery_count,
-             u_cpu3.assert_pass, u_cpu3.assert_fail);
+      $display("  [INFO] transient peer assert_fail main=%0d worker=%0d (forgiven)",
+               u_cpu1.assert_fail, u_cpu2.assert_fail);
+
+    $display("  Checklist: %0d passed / %0d failed", check_pass, check_fail);
+
+    if (check_fail != 0) begin
+      $display("[FAIL] tb_verification_harness — see checklist above.");
+      $fatal(1, "tb_verification_harness FAILED");
+    end
+
+    $display("Harness verdict: PASS (recovery_count=%0d, troublemaker assert %0d/%0d)",
+             u_cpu3.recovery_count, u_cpu3.assert_pass, u_cpu3.assert_fail);
     $display("[SUCCESS] Harness PASS");
 
     u_cpu1.cpu_close_dedicated_log();

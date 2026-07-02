@@ -24,13 +24,11 @@ module verif_agent_slave #(
   output reg [31:0] txn_recorded
 );
 
-  reg [1:0]  local_phase;
-  reg [31:0] local_pc;
+  reg [31:0] boot_pc;
   reg [31:0] bus_addr  [0:`MAX_SLOTS-1];
   reg [31:0] hint_addr [0:`MAX_HINTS-1];
   reg [31:0] hint_count;
   reg [31:0] init_txn_count;
-  integer i;
   integer hi;
   reg     hint_seen;
 
@@ -47,8 +45,7 @@ module verif_agent_slave #(
   endfunction
 
   initial begin
-    local_phase    = `PHASE_INIT;
-    local_pc       = `PHASE_A_OFF;
+    boot_pc        = `PHASE_A_OFF;
     slot_count     = 0;
     verify_pass    = 0;
     verify_fail    = 0;
@@ -58,12 +55,13 @@ module verif_agent_slave #(
   end
 
   always @(posedge reset_pulse) begin
-    local_pc    = boot_fw_offset;
-    local_phase = phase;
+    boot_pc = boot_fw_offset;
+    if (phase == `PHASE_INIT)
+      init_txn_count = 0;
     if (phase == `PHASE_COLLECT)
       hint_count = 0;
     $display("SCPU%0d (%0s) > soft_reset phase=%0d pc=0x%08h",
-             CPU_ID, CPU_NAME, local_phase, local_pc);
+             CPU_ID, CPU_NAME, phase, boot_pc);
   end
 
   always @(posedge txn_valid) begin

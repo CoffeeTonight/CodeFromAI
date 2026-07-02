@@ -11,6 +11,7 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_platform_defs.vh"
+`include "verif_verdict_policy.vh"
 `include "campaign_params.vh"
 `include "campaign_scale.vh"
 `include "campaign_soc_platform.vh"

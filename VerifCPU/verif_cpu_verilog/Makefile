@@ -74,7 +74,7 @@ config-campaign:
 	$(MAKE) -C firmware/campaign config
 
 # Authoritative gate: iverilog sim + VCD post-check
-verify: full_campaign
+verify: harness full_campaign
 
 all: verify
 

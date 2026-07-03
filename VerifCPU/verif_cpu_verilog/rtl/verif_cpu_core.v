@@ -41,6 +41,7 @@ module verif_cpu_core #(
   reg [31:0] sync_arrive_count;
   reg [31:0] hw_force_hit_count;
   reg [31:0] pc;
+  reg [31:0] insn_pc;  // PC of instruction being executed (pre-advance)
   reg [31:0] hierarchy_id;
   reg        trace_enabled;
   reg        verbose_trace;
@@ -1336,7 +1337,7 @@ module verif_cpu_core #(
       if (!wave_enabled) ;
       else begin
         $sformat(scope, "Hier%02h", hierarchy_id[7:0]);
-        wave_record("pc", pc, scope);
+        wave_record("pc", insn_pc, scope);
         r = 1; wave_record("x1", read_reg_fn(1), scope);
         r = 2; wave_record("x2", read_reg_fn(2), scope);
         r = 3; wave_record("x3", read_reg_fn(3), scope);
@@ -1372,6 +1373,7 @@ module verif_cpu_core #(
         cpu_fetch(raw, fetch_err);
         if (fetch_err) ;
         else begin
+          insn_pc = pc;
           decode_instruction(raw, opcode, rd, rs1, rs2, funct3, funct7, imm, is_custom);
           if (fw_word_count == 0 && !USE_SHARED_POOL &&
               !USE_SOC_BUS && !USE_MANIFEST_SOC_BUS)
@@ -1379,12 +1381,12 @@ module verif_cpu_core #(
 
           if (is_custom) begin
             if (funct7 == `VSEL_STOP) begin
-              step_disasm = "vstop (custom)"; log_inst(pc, step_disasm);
+              step_disasm = "vstop (custom)"; log_inst(insn_pc, step_disasm);
             end else if (funct7 == `VSEL_DUMMY_ON) begin
-              step_disasm = "vdummy_on (custom)"; log_inst(pc, step_disasm);
+              step_disasm = "vdummy_on (custom)"; log_inst(insn_pc, step_disasm);
             end else begin
               $sformat(step_disasm, "custom0 sel=0x%02h", funct7);
-              log_inst(pc, step_disasm);
+              log_inst(insn_pc, step_disasm);
             end
             exec_custom(funct7, rd, rs1, rs2, imm);
             pc = pc + 4;
@@ -1393,9 +1395,9 @@ module verif_cpu_core #(
             if (!pc_updated) pc = pc + 4;
           end
 
-          if (cov_en) cov_record_pc(pc);
+          if (cov_en) cov_record_pc(insn_pc);
           cpu_wave_tick();
-          if (instr_trace_en) instr_trace_record(pc, raw, step_disasm);
+          if (instr_trace_en) instr_trace_record(insn_pc, raw, step_disasm);
           wdt_tick();
           if (verbose_trace) cpu_verbose_regs();
         end

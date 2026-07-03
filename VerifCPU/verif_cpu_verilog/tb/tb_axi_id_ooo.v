@@ -68,6 +68,7 @@ module tb_axi_id_ooo;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpvars(0, tb_axi_id_ooo);
     @(posedge clk);
     @(posedge clk);
 

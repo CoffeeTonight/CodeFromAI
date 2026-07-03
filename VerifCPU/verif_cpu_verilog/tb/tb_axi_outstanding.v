@@ -72,6 +72,7 @@ module tb_axi_outstanding;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpvars(0, tb_axi_outstanding);
     @(posedge clk);
     @(posedge clk);
 

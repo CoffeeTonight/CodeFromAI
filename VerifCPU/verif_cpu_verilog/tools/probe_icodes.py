@@ -264,11 +264,13 @@ def _is_soc_addr(addr: int) -> bool:
 
 
 def _addr_setup_words(bus_addr: int) -> list[int]:
-    upper = (bus_addr >> 12) & 0xFFFFF
-    lower = bus_addr & 0xFFF
+    """Match load_soc_addr in verif_insns.h (handles lower-12 sign via +0x800 lui)."""
+    upper = ((bus_addr + 0x800) >> 12) & 0xFFFFF
+    base = upper << 12
+    lower = bus_addr - base
     words = [encode_lui(10, upper)]
     if lower:
-        words.append(encode_addi(10, 10, lower))
+        words.append(encode_addi(10, 10, lower & 0xFFF))
     return words
 
 

@@ -87,7 +87,7 @@ task execute_instruction;
         end
       endcase
       write_reg(rd, result);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_STORE) begin
       rs1_val = read_reg_fn(rs1);
@@ -108,7 +108,7 @@ task execute_instruction;
         end
       endcase
       do_bus_write(addr, rs2_val, store_sz);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_OP_IMM) begin
       rs1_val = read_reg_fn(rs1);
@@ -145,7 +145,7 @@ task execute_instruction;
         $sformat(step_disasm, "xori x%0d,x%0d,0x%0h", rd, rs1, imm);
       else
         $sformat(step_disasm, "op_imm x%0d,x%0d,%0h", rd, rs1, imm);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_OP) begin
       rs1_val = read_reg_fn(rs1);
@@ -185,7 +185,7 @@ task execute_instruction;
         $sformat(step_disasm, "xor x%0d,x%0d,x%0d", rd, rs1, rs2);
       else
         $sformat(step_disasm, "alu_r x%0d,x%0d,x%0d", rd, rs1, rs2);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_BRANCH) begin
       rs1_val = read_reg_fn(rs1);
@@ -211,14 +211,14 @@ task execute_instruction;
         $sformat(step_disasm, "bltu x%0d,x%0d,0x%0h", rs1, rs2, imm);
       else
         $sformat(step_disasm, "bgeu x%0d,x%0d,0x%0h", rs1, rs2, imm);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_JAL) begin
       write_reg(rd, pc + 32'd4);
       pc = pc + imm;
       pc_updated = 1'b1;
       $sformat(step_disasm, "jal x%0d,0x%0h", rd, imm);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_JALR) begin
       rs1_val = read_reg_fn(rs1);
@@ -226,17 +226,17 @@ task execute_instruction;
       pc = (rs1_val + imm) & 32'hfffffffe;
       pc_updated = 1'b1;
       $sformat(step_disasm, "jalr x%0d,x%0d,0x%0h", rd, rs1, imm);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_LUI) begin
       write_reg(rd, imm);
       $sformat(step_disasm, "lui x%0d,0x%0h", rd, imm >> 12);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_AUIPC) begin
       write_reg(rd, pc + imm);
       $sformat(step_disasm, "auipc x%0d,0x%0h", rd, imm >> 12);
-      log_inst(pc, step_disasm);
+      log_inst(insn_pc, step_disasm);
     end
     else begin
       $sformat(step_disasm, "unknown 0x%08h", raw);

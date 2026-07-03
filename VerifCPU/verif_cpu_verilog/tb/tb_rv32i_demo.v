@@ -10,9 +10,22 @@ module tb_rv32i_demo;
   );
 
   integer step, max_steps;
+  integer check_pass, check_fail;
   reg [1024*8:1] fw_path;
 
+  task check_eq;
+    input [8*96:1] name;
+    input cond;
+    begin
+      if (cond) begin check_pass = check_pass + 1; $display("  [PASS] %0s", name); end
+      else begin check_fail = check_fail + 1; $display("  [FAIL] %0s", name); end
+    end
+  endtask
+
   initial begin
+    check_pass = 0;
+    check_fail = 0;
+    $dumpvars(0, tb_rv32i_demo);
     max_steps = 64;
     fw_path = "firmware/rv32i_test.hex";
     $display("======================================================================");
@@ -37,8 +50,12 @@ module tb_rv32i_demo;
     end
     if (u_cpu.sim_stop)
       $display("SCPU1 > vstop received - simulation stopped cleanly");
+    check_eq("vstop received", u_cpu.sim_stop);
+    check_eq("steps executed", u_cpu.total_steps > 0);
+    $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
+    if (check_fail != 0) $fatal(1, "tb_rv32i_demo FAILED");
     $display("\n======================================================================");
-    $display("Demo complete.");
+    $display("Demo complete — PASS");
     $display("======================================================================");
     $finish;
   end

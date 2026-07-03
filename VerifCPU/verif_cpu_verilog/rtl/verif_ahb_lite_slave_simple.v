@@ -1,5 +1,6 @@
 // Simple AHB-Lite slave (behavioral) for bridge smoke tests
 `timescale 1ns/1ps
+`include "verif_bus_lane_helpers.vh"
 
 module verif_ahb_lite_slave_simple #(
   parameter int ADDR_WIDTH = 32,
@@ -22,8 +23,40 @@ module verif_ahb_lite_slave_simple #(
   output reg [1:0]  HRESP
 );
 
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+
   reg [7:0] mem [0:SIZE-1];
   integer i;
+  reg [STRB_WIDTH-1:0] wstrb;
+  integer bi;
+  reg [2:0] acc_sz;
+  reg [31:0] acc_addr;
+
+  function [2:0] hsize_to_acc;
+    input [2:0] hsize;
+    begin
+      case (hsize)
+        3'd0: hsize_to_acc = 3'd1;
+        3'd1: hsize_to_acc = 3'd2;
+        default: hsize_to_acc = 3'd4;
+      endcase
+    end
+  endfunction
+
+  function [31:0] access_span_end;
+    input [31:0] addr;
+    input [2:0]  size;
+    reg [31:0] span;
+    begin
+      case (size)
+        3'd1: span = 32'd1;
+        3'd2: span = 32'd2;
+        default: span = 32'd4;
+      endcase
+      access_span_end = addr + span;
+    end
+  endfunction
 
   initial begin
     HRDATA = 32'h0;
@@ -45,17 +78,22 @@ module verif_ahb_lite_slave_simple #(
     HRDATA <= 32'h0;
     HRESP <= 2'b00;
     if (HTRANS == 2'b10) begin
-      if (HADDR < BASE || HADDR + 4 > BASE + SIZE)
+      acc_sz = hsize_to_acc(HSIZE);
+      acc_addr = HADDR;
+      if (HADDR < BASE || access_span_end(HADDR, acc_sz) > BASE + SIZE)
         HRESP <= 2'b10;
       else if (HWRITE) begin
-        mem[HADDR - BASE + 0] <= HWDATA[7:0];
-        mem[HADDR - BASE + 1] <= HWDATA[15:8];
-        mem[HADDR - BASE + 2] <= HWDATA[23:16];
-        mem[HADDR - BASE + 3] <= HWDATA[31:24];
+        wstrb = lane_wstrb(HADDR, acc_sz);
+        for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
+          if (wstrb[bi])
+            mem[HADDR - BASE + bi] <= HWDATA[bi*8 +: 8];
       end
-      else
-        HRDATA <= {mem[HADDR - BASE + 3], mem[HADDR - BASE + 2],
-                   mem[HADDR - BASE + 1], mem[HADDR - BASE + 0]};
+      else begin
+        acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
+        HRDATA <= lane_prdata({mem[acc_addr + 3], mem[acc_addr + 2],
+                               mem[acc_addr + 1], mem[acc_addr + 0]},
+                              HADDR, acc_sz);
+      end
     end
   end
 

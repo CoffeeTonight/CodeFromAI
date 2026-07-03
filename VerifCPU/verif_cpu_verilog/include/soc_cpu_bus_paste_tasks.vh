@@ -28,6 +28,7 @@
   endtask
 
   initial begin
+    $dumpvars(0, soc_cpu_bus_paste);
     pass = 0;
     fail = 0;
     soc_rstn = 1'b0;

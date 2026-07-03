@@ -22,6 +22,8 @@ module soc_integration_example;
     .reset_count()
   );
 
+  initial $dumpvars(0, soc_integration_example);
+
   `include "soc_integration_example_gen.vh"
 
 endmodule

@@ -59,6 +59,7 @@ module chip_top_example;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpvars(0, chip_top_example);
     soc_rstn = 1'b0;
     repeat (4) @(posedge soc_clk);
     soc_rstn = 1'b1;

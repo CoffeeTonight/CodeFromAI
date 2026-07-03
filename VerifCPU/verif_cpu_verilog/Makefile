@@ -1,6 +1,7 @@
 IVERILOG = iverilog
 VVP      = vvp
 IVFLAGS  = -g2012 -I include
+.DELETE_ON_ERROR:
 
 # Chip hierarchy YAML under firmware/campaign/ (pass to sub-make: make chip-top-example HIER_YAML=soc_hierarchy_my_chip.yaml)
 HIER_YAML ?= soc_hierarchy_from_slots.yaml
@@ -55,6 +56,25 @@ STUB_BUS_RTL = rtl/verif_axistream_master.v \
                rtl/verif_ace_lite_master.v \
                rtl/verif_chi_master.v \
                rtl/verif_niu_master.v
+
+MANIFEST_RTL = rtl/verif_cpu_bus.v \
+               rtl/verif_cpu_unified_pool.v \
+               rtl/verif_cpu_txn_recorder.v \
+               rtl/verif_cpu_core.v \
+               rtl/verif_orchestrator.v \
+               rtl/verif_agent.v
+
+CHIP_TOP_RTL = $(MANIFEST_RTL)
+
+SOC_CELL_GEN = firmware/campaign/gen_soc_cell_rtl.py \
+               firmware/campaign/amba_bus_registry.py \
+               firmware/campaign/verilog_paths.py
+
+GEN_ICODES_SCRIPTS = firmware/campaign/build_icode_pool.py \
+                     tools/probe_icodes.py \
+                     firmware/campaign/gen_tb_campaign.py \
+                     firmware/campaign/gen_campaign_manifest.py \
+                     firmware/campaign/gen_soc_bus_connect.py
 
 BUS_LAYOUT_SCALE ?= axi4lite:58,ahb_lite:1,apb3:1
 NUM_SCPU_SCALE ?= 60
@@ -170,10 +190,10 @@ sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(PA
 	  -DVERIF_HW_FORCE_HUB=tb_full_campaign.u_hw_force \
 	  -o $@ $(FULL_RTL) tb/tb_full_campaign.v
 
-$(SOC_CELL_RTL):
+$(SOC_CELL_RTL): $(SOC_CELL_GEN)
 	$(MAKE) -C firmware/campaign soc_cell
 
-$(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE): firmware/campaign/build/icode_pool.bin
+$(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE): $(GEN_ICODES_SCRIPTS) firmware/campaign/build/icode_pool.bin
 	$(MAKE) -C firmware/campaign icodes HIER_YAML=$(HIER_YAML)
 
 config-scale:
@@ -214,13 +234,6 @@ sim_build/soc_integration_example.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -s soc_integration_example -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_integration_example.v
 
-MANIFEST_RTL = rtl/verif_cpu_bus.v \
-               rtl/verif_cpu_unified_pool.v \
-               rtl/verif_cpu_txn_recorder.v \
-               rtl/verif_cpu_core.v \
-               rtl/verif_orchestrator.v \
-               rtl/verif_agent.v
-
 sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) include/campaign_manifest.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX)
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SOC_TB \
@@ -232,13 +245,6 @@ sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) 
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SCALE_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest_scale.u_pool \
 	  -s tb_soc_manifest_scale -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v
-
-CHIP_TOP_RTL = rtl/verif_cpu_bus.v \
-               rtl/verif_cpu_unified_pool.v \
-               rtl/verif_cpu_txn_recorder.v \
-               rtl/verif_cpu_core.v \
-               rtl/verif_orchestrator.v \
-               rtl/verif_agent.v
 
 sim_build/chip_top_example.vvp: $(CHIP_TOP_RTL) $(BUS_RTL) $(STUB_BUS_RTL) $(SOC_CELL_RTL) tb/chip_top_example.v $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_BUS_BIND) $(SOC_CONNECT_VH) $(SCALE_VH) include/campaign_manifest.vh
 	@mkdir -p sim_build

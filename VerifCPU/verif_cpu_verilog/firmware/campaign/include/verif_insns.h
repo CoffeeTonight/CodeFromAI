@@ -49,7 +49,7 @@
 #define rv_sra(rd, rs1, rs2)   EMIT32( (uint32_t)((0x20u << 25) | ((rs2) << 20) | ((rs1) << 15) | (5u << 12) | ((rd) << 7) | 0x33u) )
 #define rv_slt(rd, rs1, rs2)   EMIT32( (uint32_t)((rs2) << 20) | ((rs1) << 15) | (2u << 12) | ((rd) << 7) | 0x33u )
 #define rv_sltu(rd, rs1, rs2)  EMIT32( (uint32_t)((rs2) << 20) | ((rs1) << 15) | (3u << 12) | ((rd) << 7) | 0x33u )
-#define rv_beq(rs1, rs2, off) EMIT32( (uint32_t)((((off) >> 5) & 0x7Fu) << 25) | ((rs2) << 20) | ((rs1) << 15) | (((off) & 0x1Fu) << 7) | 0x63u )
+#define rv_beq(rs1, rs2, off) EMIT32( (uint32_t)((((off) >> 12) & 1u) << 31) | ((((off) >> 5) & 0x3Fu) << 25) | ((uint32_t)(rs2) << 20) | ((uint32_t)(rs1) << 15) | ((((off) >> 11) & 1u) << 7) | ((((off) >> 1) & 0xFu) << 8) | 0x63u )
 #define rv_jal(rd, off)       EMIT32( (uint32_t)((((off) >> 20) & 1u) << 31) | ((((off) >> 1) & 0x3FFu) << 21) | ((((off) >> 11) & 1u) << 20) | ((((off) >> 12) & 0xFFu) << 12) | ((rd) << 7) | 0x6Fu )
 #define rv_jalr(rd, rs1, off)  EMIT32( (uint32_t)(((off) & 0xFFF) << 20) | ((rs1) << 15) | ((rd) << 7) | 0x67u )
 

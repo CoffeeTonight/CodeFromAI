@@ -72,12 +72,14 @@ module verif_axi_full_slave_simple #(
   reg                  aw_latched;
 
   integer i;
+  reg [31:0] wacc_addr;
 
   function [DATA_WIDTH-1:0] mem_read_word;
     input [ADDR_WIDTH-1:0] addr;
+    reg [31:0] acc;
     begin
-      mem_read_word = {mem[addr - BASE + 3], mem[addr - BASE + 2],
-                       mem[addr - BASE + 1], mem[addr - BASE + 0]};
+      acc = (addr - BASE) & 32'hFFFFFFFC;
+      mem_read_word = {mem[acc + 3], mem[acc + 2], mem[acc + 1], mem[acc + 0]};
     end
   endfunction
 
@@ -240,10 +242,11 @@ module verif_axi_full_slave_simple #(
         slot = bq_find_free();
         if (slot >= 0) begin
           WREADY <= 1'b1;
-          if (WSTRB[0]) mem[lat_awaddr - BASE + 0] <= WDATA[7:0];
-          if (WSTRB[1]) mem[lat_awaddr - BASE + 1] <= WDATA[15:8];
-          if (WSTRB[2]) mem[lat_awaddr - BASE + 2] <= WDATA[23:16];
-          if (WSTRB[3]) mem[lat_awaddr - BASE + 3] <= WDATA[31:24];
+          wacc_addr = (lat_awaddr - BASE) & 32'hFFFFFFFC;
+          if (WSTRB[0]) mem[wacc_addr + 0] <= WDATA[7:0];
+          if (WSTRB[1]) mem[wacc_addr + 1] <= WDATA[15:8];
+          if (WSTRB[2]) mem[wacc_addr + 2] <= WDATA[23:16];
+          if (WSTRB[3]) mem[wacc_addr + 3] <= WDATA[31:24];
           bq_valid[slot] <= 1'b1;
           bq_id[slot] <= lat_awid;
           bq_timer[slot] <= B_LATENCY[7:0];

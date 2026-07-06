@@ -27,6 +27,8 @@ GEN_FW_MK = [
     "firmware/campaign/icodes/icodes.mk",
     "firmware/campaign/.bus_layout_stamp",
     "firmware/campaign/build/.icodes.stamp",
+    "firmware/campaign/build/.fw_default.stamp",
+    "firmware/campaign/build/.fw_scale.stamp",
 ]
 
 GEN_FW_HEX = [

@@ -150,11 +150,17 @@ sim_build/tb_axi_id_ooo.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slav
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v
 
-fw:
-	$(CAMPAIGN_FW)
+$(FW_DEFAULT_STAMP): $(FW_CAMPAIGN_INPUTS) $(ICODES_STAMP)
+	$(MAKE) -C firmware/campaign all
+	@touch $@
 
-fw-scale: config-scale
+$(FW_SCALE_STAMP): config-scale $(ICODES_STAMP)
 	$(MAKE) -C firmware/campaign all NUM_SCPU=$(NUM_SCPU_SCALE) BUS_LAYOUT="$(BUS_LAYOUT_SCALE)"
+	@touch $@
+
+fw: $(FW_DEFAULT_STAMP)
+
+fw-scale: $(FW_SCALE_STAMP)
 
 filelists:
 	python3 tools/gen_filelist.py
@@ -189,11 +195,17 @@ CHIP_TOP_RTL_MK = include/chip_top_rtl.mk
 CHIP_SOC_CELL = rtl/verif_vcpu_soc_cell_chip.v
 
 FW_VCPU_BIN = firmware/campaign/build/full_campaign_vcpu.bin
+FW_UNIFIED_BIN = firmware/campaign/build/full_campaign_unified.bin
 FW_ICODE_BIN = firmware/campaign/build/icode_pool.bin
 FW_UNIFIED_HEX = firmware/full_campaign_unified.hex
 FW_VCPU_HEX = firmware/full_campaign_vcpu.hex
+FW_DEFAULT_STAMP = firmware/campaign/build/.fw_default.stamp
+FW_SCALE_STAMP = firmware/campaign/build/.fw_scale.stamp
+FW_CAMPAIGN_INPUTS = firmware/campaign/campaign_slots.yaml \
+                     firmware/campaign/include/campaign_manifest.h \
+                     firmware/campaign/cpus.mk
 
-sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(GEN_ICODES_SCRIPTS) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) | fw
+sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(GEN_ICODES_SCRIPTS) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) $(FW_DEFAULT_STAMP)
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) \
 	  -DVERIF_SOC_DUT_HUB=tb_full_campaign.u_soc \
@@ -224,7 +236,7 @@ config-scale:
 	$(MAKE) -C firmware/campaign bus_connect
 	$(MAKE) -C firmware/campaign soc_cell
 
-soc-manifest: fw $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND)
+soc-manifest: $(FW_DEFAULT_STAMP) $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND)
 	$(MAKE) -C firmware/campaign bus_connect
 	$(MAKE) sim_build/tb_soc_manifest.vvp
 	$(VVP) sim_build/tb_soc_manifest.vvp
@@ -256,13 +268,13 @@ sim_build/soc_integration_example.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -s soc_integration_example -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_integration_example.v
 
-sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) include/campaign_manifest.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw
+sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) include/campaign_manifest.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) $(FW_DEFAULT_STAMP)
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SOC_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest.u_pool \
 	  -s tb_soc_manifest -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v
 
-sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw-scale
+sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) $(FW_SCALE_STAMP)
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SCALE_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest_scale.u_pool \

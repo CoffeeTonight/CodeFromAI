@@ -9,8 +9,8 @@ module tb_soc_bus_all;
   localparam integer DATA_WIDTH = `VERIF_DATA_WIDTH;
   localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
 
-  localparam integer TB_EXPECTED_PASS = 11;
-  localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 24;
+  localparam integer TB_EXPECTED_PASS = 13;
+  localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 25;
 
   reg clk = 0;
   reg rstn = 0;
@@ -112,7 +112,7 @@ module tb_soc_bus_all;
     .ARVALID(), .ARADDR(), .ARSIZE(), .RREADY(), .AWVALID(), .AWADDR(), .AWSIZE(),
     .WVALID(), .WDATA(), .WSTRB(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
-  verif_axi_full_slave_simple #(.BASE(32'hC000_0000)) u_axil_s (.ACLK(clk), .ARESETn(rstn),
+  verif_axi_full_slave_simple #(.BASE(32'hC000_0000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_axil_s (.ACLK(clk), .ARESETn(rstn),
     .ARID({AXI_ID_WIDTH{1'b0}}), .ARADDR(u_axil.ARADDR), .ARLEN(8'd0), .ARSIZE(u_axil.ARSIZE),
     .ARBURST(2'b01), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
     .RID(axil_rid), .RDATA(axil_rdata), .RRESP(axil_rresp), .RLAST(axil_rvalid), .RVALID(axil_rvalid), .RREADY(u_axil.RREADY),
@@ -214,7 +214,13 @@ module tb_soc_bus_all;
     check("AHB full", resp == 0 && rd == 32'hDEAD_BEEF);
 
     u_axil.bus_read(32'hC000_0000, 3'd4, rd, resp);
-    check("AXI4-Lite", resp == 0 && rd == 32'h0000_00A3);
+    check("AXI4-Lite", resp == 0 && rd == 32'h0000_0080);
+    u_axil.bus_write(32'hC000_0000, 32'h0000_0080, 3'd4, resp);
+    u_axil.bus_write(32'hC000_0010, 32'hDEAD_DEAD, 3'd4, resp);
+    u_axil.bus_read(32'hC000_0000, 3'd4, rd, resp);
+    check("AXI4-Lite seq read0", resp == 0 && rd == 32'h0000_0080);
+    u_axil.bus_read(32'hC000_0010, 3'd4, rd, resp);
+    check("AXI4-Lite seq read1", resp == 0 && rd == 32'hDEAD_DEAD);
     u_axi3.bus_read(32'hA000_0000, 3'd4, rd, resp);
     check("AXI3 full", resp == 0 && rd == 32'h0000_00A3);
     u_axi4.bus_read(32'hA100_0000, 3'd4, rd, resp);

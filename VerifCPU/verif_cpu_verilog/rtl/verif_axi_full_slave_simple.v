@@ -193,7 +193,7 @@ module verif_axi_full_slave_simple #(
       WREADY <= 1'b0;
 
       // Accept AR on rising ARVALID (one request per AR handshake)
-      if (ARVALID && !arvalid_q && !RVALID && rq_count < MAX_OUTSTANDING) begin
+      if (ARVALID && !arvalid_q && rq_count < MAX_OUTSTANDING) begin
         slot = rq_find_free();
         if (slot >= 0) begin
           ARREADY <= 1'b1;

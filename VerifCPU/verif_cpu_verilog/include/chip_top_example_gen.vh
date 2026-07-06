@@ -66,7 +66,7 @@
     .ARID({VERIF_AXI_ID_WIDTH{1'b0}}), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
     .ARBURST(2'b01), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
     .RID(u_stub_uart_rid), .RDATA(S03_AXI_rdata), .RRESP(S03_AXI_rresp),
-    .RLAST(u_stub_uart_rlast), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
+    .RLAST(S03_AXI_rvalid), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
     .AWID({VERIF_AXI_ID_WIDTH{1'b0}}), .AWADDR(S03_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S03_AXI_awsize),
     .AWBURST(2'b01), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
     .WID({VERIF_AXI_ID_WIDTH{1'b0}}), .WDATA(S03_AXI_wdata), .WSTRB(S03_AXI_wstrb), .WLAST(1'b1),

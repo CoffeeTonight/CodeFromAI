@@ -17,7 +17,7 @@ typedef struct {
     uint32_t expect;
 } soc_init_step_t;
 
-#define SOC_INIT_STEP_COUNT 17
+#define SOC_INIT_STEP_COUNT 19
 
 static const soc_init_step_t SOC_INIT_STEPS[SOC_INIT_STEP_COUNT] = {
     /* --- 12 SFR-centric steps (realistic bring-up) --- */
@@ -36,8 +36,10 @@ static const soc_init_step_t SOC_INIT_STEPS[SOC_INIT_STEP_COUNT] = {
     /* --- SRAM / UART markers (icode + campaign checks) --- */
     { SOC_INIT_OP_WRITE, SRAM_MARKER,  0xDEADBEEFu, 0u },
     { SOC_INIT_OP_WRITE, SRAM_AUX,     0xCAFEBABEu, 0u },
-    { SOC_INIT_OP_WRITE, UART_BAUD,    0x00000080u, 0u },
+    { SOC_INIT_OP_WRITE, UART_BAUD,     0x00000080u, 0u },
     { SOC_INIT_OP_WRITE, UART_IRQ_HANG, 0xDEADDEADu, 0u },
+    { SOC_INIT_OP_READ,  UART_BAUD,     0u,          0x00000080u },
+    { SOC_INIT_OP_READ,  UART_IRQ_HANG, 0u,          0xDEADDEADu },
     /* --- Master polls SFR_STATUS bit31 — keep wdata in sync with soc_platform.h --- */
     { SOC_INIT_OP_WRITE, SFR_STATUS,     SOC_INIT_DONE_VALUE, 0u },
 };

@@ -2,7 +2,7 @@
 `ifndef SOC_INIT_SEQ_VH
 `define SOC_INIT_SEQ_VH
 
-`define SOC_INIT_STEP_COUNT 17
+`define SOC_INIT_STEP_COUNT 19
 
 // Include inside simple_soc run_init — uses decode_write/decode_read/r/p/rd
 `define SOC_INIT_RUN_STEPS \
@@ -25,6 +25,10 @@
   decode_write(32'h80000004, 32'hCAFEBABE, 3'd4, r, p); \
   decode_write(32'hC0000000, 32'h00000080, 3'd4, r, p); \
   decode_write(32'hC0000010, 32'hDEADDEAD, 3'd4, r, p); \
+  decode_read(32'hC0000000, 3'd4, rd, r, p); \
+  if (rd !== 32'h00000080) $display("[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h", 32'hC0000000, rd, 32'h00000080); \
+  decode_read(32'hC0000010, 3'd4, rd, r, p); \
+  if (rd !== 32'hDEADDEAD) $display("[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h", 32'hC0000010, rd, 32'hDEADDEAD); \
   decode_write(32'h40000018, 32'h80000000, 3'd4, r, p); \
 
 `endif

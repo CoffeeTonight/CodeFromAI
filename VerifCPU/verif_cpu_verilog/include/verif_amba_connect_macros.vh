@@ -70,7 +70,7 @@
   assign MST.RVALID  = SOC_PREF``_rvalid; \
   assign MST.RDATA   = SOC_PREF``_rdata; \
   assign MST.RRESP   = SOC_PREF``_rresp; \
-  assign MST.RREADY  = SOC_PREF``_rready; \
+  assign SOC_PREF``_rready = MST.RREADY; \
   assign SOC_PREF``_awvalid = MST.AWVALID; \
   assign SOC_PREF``_awaddr  = MST.AWADDR; \
   assign SOC_PREF``_awsize  = MST.AWSIZE; \
@@ -81,7 +81,7 @@
   assign SOC_PREF``_wstrb   = MST.WSTRB; \
   assign MST.WREADY  = SOC_PREF``_wready; \
   assign MST.BVALID  = SOC_PREF``_bvalid; \
-  assign MST.BREADY  = SOC_PREF``_bready; \
+  assign SOC_PREF``_bready = MST.BREADY; \
   assign MST.BRESP   = SOC_PREF``_bresp
 
 // AXI3 full — single-beat capable master (ID + burst + WID)
@@ -99,7 +99,7 @@
   assign MST.RRESP   = SOC_PREF``_rresp; \
   assign MST.RLAST   = SOC_PREF``_rlast; \
   assign MST.RVALID  = SOC_PREF``_rvalid; \
-  assign MST.RREADY  = SOC_PREF``_rready; \
+  assign SOC_PREF``_rready = MST.RREADY; \
   assign SOC_PREF``_awid    = MST.AWID; \
   assign SOC_PREF``_awaddr  = MST.AWADDR; \
   assign SOC_PREF``_awlen   = MST.AWLEN; \
@@ -117,7 +117,7 @@
   assign MST.BID     = SOC_PREF``_bid; \
   assign MST.BRESP   = SOC_PREF``_bresp; \
   assign MST.BVALID  = SOC_PREF``_bvalid; \
-  assign MST.BREADY  = SOC_PREF``_bready
+  assign SOC_PREF``_bready = MST.BREADY
 
 // AXI4 full — no WID; + QoS/Region optional tied in master
 `define CONNECT_AXI4FULL(SOC_PREF, MST) \
@@ -136,7 +136,7 @@
   assign MST.RRESP   = SOC_PREF``_rresp; \
   assign MST.RLAST   = SOC_PREF``_rlast; \
   assign MST.RVALID  = SOC_PREF``_rvalid; \
-  assign MST.RREADY  = SOC_PREF``_rready; \
+  assign SOC_PREF``_rready = MST.RREADY; \
   assign SOC_PREF``_awid    = MST.AWID; \
   assign SOC_PREF``_awaddr  = MST.AWADDR; \
   assign SOC_PREF``_awlen   = MST.AWLEN; \
@@ -155,7 +155,7 @@
   assign MST.BID     = SOC_PREF``_bid; \
   assign MST.BRESP   = SOC_PREF``_bresp; \
   assign MST.BVALID  = SOC_PREF``_bvalid; \
-  assign MST.BREADY  = SOC_PREF``_bready
+  assign SOC_PREF``_bready = MST.BREADY
 
 // AXI5 full — + ATOP on AW
 `define CONNECT_AXI5FULL(SOC_PREF, MST) \

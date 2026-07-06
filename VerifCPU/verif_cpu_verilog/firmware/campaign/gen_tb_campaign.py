@@ -943,7 +943,7 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
                     f"    .ARBURST(2'b01), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
-                    f"    .RLAST({rlast_w}), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
+                    f"    .RLAST({pref}_rvalid), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
                     f"    .AWBURST(2'b01), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
@@ -1326,7 +1326,11 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
             f"          g_slv{gi}.u_bus.u_cpu.state = `CPU_STATE_RUNNING;",
             f"          g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0;",
             f"          g_slv{gi}.u_bus.u_cpu.sim_stop = 0;",
-            f"          soc_manifest_run_cpu(cid, icode_ptr, 48);",
+            f"          soc_manifest_run_cpu(cid, icode_ptr, 256);",
+            f"          if (!g_slv{gi}.u_bus.u_cpu.sim_stop && !g_slv{gi}.u_bus.u_cpu.request_sim_stop)",
+            f"            g_slv{gi}.u_bus.u_cpu.request_sim_stop = 1;",
+            f"          soc_manifest_wait_stopped(64);",
+            f"          repeat (4) @(posedge soc_clk);",
             f"          ok = (g_slv{gi}.u_bus.u_cpu.request_sim_stop || g_slv{gi}.u_bus.u_cpu.sim_stop)",
             f"               && (g_slv{gi}.u_bus.u_cpu.bus_txn_count > txn_before);",
             f"          u_pool.pool_use_array(cid);",
@@ -1475,6 +1479,11 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
     ])
     for slot in range(max_icode_slots):
         lines.append(f"      if (_slot == {slot}) begin \\")
+        for s in slaves:
+            gi = s["cpu_id"] - 1
+            lines.append(f"        g_slv{gi}.u_bus.u_cpu.sim_stop = 1; \\")
+            lines.append(f"        g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0; \\")
+        lines.append("        repeat (2) @(posedge soc_clk); \\")
         for s in active:
             if slot < len(s["targets"]):
                 addr = s["targets"][slot]["addr"]
@@ -2718,14 +2727,14 @@ def main() -> int:
         soc_n, "tb_soc_manifest", "tb_soc_manifest", "manifest"
     )
     scale_read, scale_write = generate_manifest_bus_bind_vh(
-        bind_slaves, "tb_soc_manifest_scale"
+        soc_n, "tb_soc_manifest_scale"
     )
     with open(OUT_MANIFEST_SCALE_BUS_READ_VH, "w", encoding="utf-8") as f:
         f.write(scale_read)
     with open(OUT_MANIFEST_SCALE_BUS_WRITE_VH, "w", encoding="utf-8") as f:
         f.write(scale_write)
     write_bus_os_bind_files(
-        bind_slaves, "tb_soc_manifest_scale", "tb_soc_manifest_scale", "manifest_scale"
+        soc_n, "tb_soc_manifest_scale", "tb_soc_manifest_scale", "manifest_scale"
     )
 
     decode_vh = generate_manifest_decode_vh(soc_n, hierarchy)

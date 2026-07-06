@@ -3,6 +3,6 @@
 `define CAMPAIGN_PARAMS_VH
 
 // Slave SCPU/VCPU: SCPU1 .. SCPU`CAMPAIGN_NUM_SCPU (SCPU0 master is extra)
-`define CAMPAIGN_NUM_SCPU 3
+`define CAMPAIGN_NUM_SCPU 60
 
 `endif

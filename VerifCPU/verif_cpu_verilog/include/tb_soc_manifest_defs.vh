@@ -7,7 +7,7 @@
 `define SOC_MANIFEST_POOL_SFR 32'h00000000
 `define SOC_MANIFEST_POOL_SRAM 32'h00000800
 `define SOC_MANIFEST_POOL_UART 32'h00001000
-`define SOC_MANIFEST_POOL_ICODE 32'h00001800
+`define SOC_MANIFEST_POOL_ICODE 32'h0001E000
 
 `define SOC_MANIFEST_OFF_A 32'h000
 `define SOC_MANIFEST_OFF_B 32'h100
@@ -47,6 +47,10 @@
   manifest_decode_write(32'h80000004, 32'hCAFEBABE, 3'd4, r, p); \
   manifest_decode_write(32'hC0000000, 32'h00000080, 3'd4, r, p); \
   manifest_decode_write(32'hC0000010, 32'hDEADDEAD, 3'd4, r, p); \
+  manifest_decode_read(32'hC0000000, 3'd4, rd, r, p); \
+  if (rd !== 32'h00000080) $display("[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h", 32'hC0000000, rd, 32'h00000080); \
+  manifest_decode_read(32'hC0000010, 3'd4, rd, r, p); \
+  if (rd !== 32'hDEADDEAD) $display("[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h", 32'hC0000010, rd, 32'hDEADDEAD); \
   manifest_decode_write(32'h40000018, 32'h80000000, 3'd4, r, p); \
 
 `define SOC_MANIFEST_RUN_PHASE_A \
@@ -107,6 +111,13 @@
         check("Icode inter-reset pulse", orch_reset_count > orch_rst_before); \
       end \
       if (_slot == 0) begin \
+        g_slv0.u_bus.u_cpu.sim_stop = 1; \
+        g_slv0.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv1.u_bus.u_cpu.sim_stop = 1; \
+        g_slv1.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv2.u_bus.u_cpu.sim_stop = 1; \
+        g_slv2.u_bus.u_cpu.request_sim_stop = 0; \
+        repeat (2) @(posedge soc_clk); \
         manifest_decode_read(32'h40000000, 3'd4, rdata, rresp, rport); \
         u_ag_1.run_phase_c_slot(rdata, rresp, _slot); \
         manifest_decode_read(32'h80000000, 3'd4, rdata, rresp, rport); \
@@ -116,6 +127,13 @@
         check("Multi-icode round0 PASS=3", sl_pass[0] + sl_pass[1] + sl_pass[2] == 3); \
       end \
       if (_slot == 1) begin \
+        g_slv0.u_bus.u_cpu.sim_stop = 1; \
+        g_slv0.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv1.u_bus.u_cpu.sim_stop = 1; \
+        g_slv1.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv2.u_bus.u_cpu.sim_stop = 1; \
+        g_slv2.u_bus.u_cpu.request_sim_stop = 0; \
+        repeat (2) @(posedge soc_clk); \
         manifest_decode_read(32'h40000004, 3'd4, rdata, rresp, rport); \
         u_ag_1.run_phase_c_slot(rdata, rresp, _slot); \
         manifest_decode_read(32'h80000004, 3'd4, rdata, rresp, rport); \

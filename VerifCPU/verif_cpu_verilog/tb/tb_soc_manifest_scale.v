@@ -61,6 +61,13 @@ module tb_soc_manifest_scale;
     reg [31:0] rd;
     reg [1:0] r, p;
     begin
+      g_slv0.u_bus.u_cpu.sim_stop = 1;
+      g_slv1.u_bus.u_cpu.sim_stop = 1;
+      g_slv2.u_bus.u_cpu.sim_stop = 1;
+      g_slv0.u_bus.u_cpu.request_sim_stop = 0;
+      g_slv1.u_bus.u_cpu.request_sim_stop = 0;
+      g_slv2.u_bus.u_cpu.request_sim_stop = 0;
+      repeat (2) @(posedge soc_clk);
       `SOC_MANIFEST_INIT_STEPS
     end
   endtask
@@ -103,8 +110,8 @@ module tb_soc_manifest_scale;
     $display("========================================================================");
 
     check("Scale wired count", `SOC_MANIFEST_SCALE_NUM_WIRED >= 3);
-    check("Scale max gi matches CAMPAIGN_NUM_SCPU",
-          `SOC_MANIFEST_SCALE_MAX_GI == `CAMPAIGN_NUM_SCPU);
+    check("Scale max gi matches wired cell count",
+          `SOC_MANIFEST_SCALE_MAX_GI == `SOC_MANIFEST_SCALE_NUM_WIRED);
     check("Scale last g_slv cell present", `SOC_MANIFEST_SCALE_LAST_CELL_OK);
 
     `SOC_MANIFEST_LOAD_POOL

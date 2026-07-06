@@ -60,6 +60,13 @@ module tb_soc_manifest;
     reg [31:0] rd;
     reg [1:0] r, p;
     begin
+      g_slv0.u_bus.u_cpu.sim_stop = 1;
+      g_slv1.u_bus.u_cpu.sim_stop = 1;
+      g_slv2.u_bus.u_cpu.sim_stop = 1;
+      g_slv0.u_bus.u_cpu.request_sim_stop = 0;
+      g_slv1.u_bus.u_cpu.request_sim_stop = 0;
+      g_slv2.u_bus.u_cpu.request_sim_stop = 0;
+      repeat (2) @(posedge soc_clk);
       `SOC_MANIFEST_INIT_STEPS
     end
   endtask

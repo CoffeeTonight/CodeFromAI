@@ -81,6 +81,17 @@ ICODES_INPUTS = $(GEN_ICODES_SCRIPTS) \
                 firmware/campaign/include/campaign_manifest.h
 ICODES_STAMP = firmware/campaign/build/.icodes.stamp
 
+FW_VCPU_BIN = firmware/campaign/build/full_campaign_vcpu.bin
+FW_UNIFIED_BIN = firmware/campaign/build/full_campaign_unified.bin
+FW_ICODE_BIN = firmware/campaign/build/icode_pool.bin
+FW_UNIFIED_HEX = firmware/full_campaign_unified.hex
+FW_VCPU_HEX = firmware/full_campaign_vcpu.hex
+FW_DEFAULT_STAMP = firmware/campaign/build/.fw_default.stamp
+FW_SCALE_STAMP = firmware/campaign/build/.fw_scale.stamp
+FW_CAMPAIGN_INPUTS = firmware/campaign/campaign_slots.yaml \
+                     firmware/campaign/include/campaign_manifest.h \
+                     firmware/campaign/cpus.mk
+
 BUS_LAYOUT_SCALE ?= axi4lite:58,ahb_lite:1,apb3:1
 NUM_SCPU_SCALE ?= 60
 SOC_MANIFEST_SCALE_DEFS = include/tb_soc_manifest_scale_defs.vh
@@ -151,10 +162,12 @@ sim_build/tb_axi_id_ooo.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slav
 	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v
 
 $(FW_DEFAULT_STAMP): $(FW_CAMPAIGN_INPUTS) $(ICODES_STAMP)
+	@mkdir -p firmware/campaign/build
 	$(MAKE) -C firmware/campaign all
 	@touch $@
 
 $(FW_SCALE_STAMP): config-scale $(ICODES_STAMP)
+	@mkdir -p firmware/campaign/build
 	$(MAKE) -C firmware/campaign all NUM_SCPU=$(NUM_SCPU_SCALE) BUS_LAYOUT="$(BUS_LAYOUT_SCALE)"
 	@touch $@
 
@@ -193,17 +206,6 @@ GEN_TB = include/tb_full_campaign_gen.vh
 GEN_TB_SCRIPT = firmware/campaign/gen_tb_campaign.py
 CHIP_TOP_RTL_MK = include/chip_top_rtl.mk
 CHIP_SOC_CELL = rtl/verif_vcpu_soc_cell_chip.v
-
-FW_VCPU_BIN = firmware/campaign/build/full_campaign_vcpu.bin
-FW_UNIFIED_BIN = firmware/campaign/build/full_campaign_unified.bin
-FW_ICODE_BIN = firmware/campaign/build/icode_pool.bin
-FW_UNIFIED_HEX = firmware/full_campaign_unified.hex
-FW_VCPU_HEX = firmware/full_campaign_vcpu.hex
-FW_DEFAULT_STAMP = firmware/campaign/build/.fw_default.stamp
-FW_SCALE_STAMP = firmware/campaign/build/.fw_scale.stamp
-FW_CAMPAIGN_INPUTS = firmware/campaign/campaign_slots.yaml \
-                     firmware/campaign/include/campaign_manifest.h \
-                     firmware/campaign/cpus.mk
 
 sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(GEN_ICODES_SCRIPTS) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) $(FW_DEFAULT_STAMP)
 	@mkdir -p sim_build

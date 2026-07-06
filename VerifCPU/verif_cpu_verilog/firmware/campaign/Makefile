@@ -42,13 +42,13 @@ discover: discover_campaign_slots.py campaign_slots.yaml
 
 # Only pass non-empty overrides — empty NUM_SCPU="" must not mask .bus_layout_stamp
 config: discover
-	@set -e; \
-	env_args=""; \
-	[ -n "$(NUM_SCPU)" ] && env_args="$$env_args NUM_SCPU=$(NUM_SCPU)"; \
-	[ -n "$(BUS_LAYOUT)" ] && env_args="$$env_args BUS_LAYOUT=$(BUS_LAYOUT)"; \
-	[ -n "$(MASTER_BUS_LAYOUT)" ] && env_args="$$env_args MASTER_BUS_LAYOUT=$(MASTER_BUS_LAYOUT)"; \
-	[ -n "$(MASTER_ENABLED)" ] && env_args="$$env_args MASTER_ENABLED=$(MASTER_ENABLED)"; \
-	eval "env$$env_args python3 gen_campaign_config.py"
+	@( \
+	  [ -z "$(NUM_SCPU)" ] || export NUM_SCPU="$(NUM_SCPU)"; \
+	  [ -z "$(BUS_LAYOUT)" ] || export BUS_LAYOUT="$(BUS_LAYOUT)"; \
+	  [ -z "$(MASTER_BUS_LAYOUT)" ] || export MASTER_BUS_LAYOUT="$(MASTER_BUS_LAYOUT)"; \
+	  [ -z "$(MASTER_ENABLED)" ] || export MASTER_ENABLED="$(MASTER_ENABLED)"; \
+	  python3 gen_campaign_config.py \
+	)
 
 -include cpus.mk
 -include cpu_rules.mk

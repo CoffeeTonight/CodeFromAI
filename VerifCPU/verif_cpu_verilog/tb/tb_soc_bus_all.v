@@ -10,6 +10,7 @@ module tb_soc_bus_all;
   localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
 
   localparam integer TB_EXPECTED_PASS = 11;
+  localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 24;
 
   reg clk = 0;
   reg rstn = 0;

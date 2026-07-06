@@ -4,6 +4,8 @@
 
 module tb_soc_bus_bridge;
 
+  localparam integer TB_EXPECTED_PASS = 6;
+
   reg apb_clk = 0;
   reg ahb_clk = 0;
   reg apb_rstn = 0;

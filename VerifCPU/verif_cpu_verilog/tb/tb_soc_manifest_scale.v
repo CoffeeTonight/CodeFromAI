@@ -92,6 +92,7 @@ module tb_soc_manifest_scale;
     soc_rstn = 1'b0;
     repeat (4) @(posedge soc_clk);
     soc_rstn = 1'b1;
+    repeat (2) @(posedge soc_clk);
 
     $dumpfile("sim_build/tb_soc_manifest_scale.vcd");
     $dumpvars(0, tb_soc_manifest_scale);

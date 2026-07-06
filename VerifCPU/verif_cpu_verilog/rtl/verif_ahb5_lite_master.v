@@ -97,7 +97,6 @@ module verif_ahb5_lite_master #(
           disable ahb_xfer;
         end
       end
-      @(posedge HCLK);
       #1;
       if (!is_wr) rdata = lane_prdata(HRDATA, addr, size);
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;

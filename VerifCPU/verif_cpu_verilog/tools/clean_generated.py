@@ -26,6 +26,7 @@ GEN_FW_MK = [
     "firmware/campaign/cpu_rules.mk",
     "firmware/campaign/icodes/icodes.mk",
     "firmware/campaign/.bus_layout_stamp",
+    "firmware/campaign/build/.icodes.stamp",
 ]
 
 GEN_FW_HEX = [

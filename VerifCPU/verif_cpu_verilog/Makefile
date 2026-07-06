@@ -76,6 +76,11 @@ GEN_ICODES_SCRIPTS = firmware/campaign/build_icode_pool.py \
                      firmware/campaign/gen_campaign_manifest.py \
                      firmware/campaign/gen_soc_bus_connect.py
 
+ICODES_INPUTS = $(GEN_ICODES_SCRIPTS) \
+                firmware/campaign/campaign_slots.yaml \
+                firmware/campaign/include/campaign_manifest.h
+ICODES_STAMP = firmware/campaign/build/.icodes.stamp
+
 BUS_LAYOUT_SCALE ?= axi4lite:58,ahb_lite:1,apb3:1
 NUM_SCPU_SCALE ?= 60
 SOC_MANIFEST_SCALE_DEFS = include/tb_soc_manifest_scale_defs.vh
@@ -87,7 +92,7 @@ SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 SOC_INTEGRATION_SCRIPT = firmware/campaign/gen_soc_integration_example.py
 SOC_INTEGRATION_YAML = firmware/campaign/soc_integration_ports.yaml
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
 discover:
 	$(MAKE) -C firmware/campaign discover
@@ -148,6 +153,9 @@ sim_build/tb_axi_id_ooo.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slav
 fw:
 	$(CAMPAIGN_FW)
 
+fw-scale: config-scale
+	$(MAKE) -C firmware/campaign all NUM_SCPU=$(NUM_SCPU_SCALE) BUS_LAYOUT="$(BUS_LAYOUT_SCALE)"
+
 filelists:
 	python3 tools/gen_filelist.py
 
@@ -198,8 +206,15 @@ sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GE
 $(SOC_CELL_RTL): $(SOC_CELL_GEN)
 	$(MAKE) -C firmware/campaign soc_cell
 
-$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(GEN_ICODES_SCRIPTS) firmware/campaign/build/icode_pool.bin
+$(ICODES_STAMP): $(ICODES_INPUTS)
 	$(MAKE) -C firmware/campaign icodes HIER_YAML=$(HIER_YAML)
+	@touch $@
+
+$(FW_ICODE_BIN): $(ICODES_STAMP)
+	@:
+
+$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(ICODES_STAMP)
+	@:
 
 $(SOC_INTEGRATION_GEN): $(SOC_INTEGRATION_SCRIPT) $(SOC_INTEGRATION_YAML)
 	$(MAKE) -C firmware/campaign integration_gen
@@ -214,8 +229,7 @@ soc-manifest: fw $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_
 	$(MAKE) sim_build/tb_soc_manifest.vvp
 	$(VVP) sim_build/tb_soc_manifest.vvp
 
-soc-manifest-scale: config-scale fw $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) $(SOC_CONNECT_VH)
-	$(MAKE) sim_build/tb_soc_manifest_scale.vvp
+soc-manifest-scale: sim_build/tb_soc_manifest_scale.vvp
 	$(VVP) sim_build/tb_soc_manifest_scale.vvp
 
 chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK)
@@ -248,7 +262,7 @@ sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_
 	  -DVERIF_POOL_HUB=tb_soc_manifest.u_pool \
 	  -s tb_soc_manifest -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v
 
-sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw
+sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw-scale
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SCALE_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest_scale.u_pool \

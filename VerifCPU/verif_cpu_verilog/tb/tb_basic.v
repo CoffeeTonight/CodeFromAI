@@ -29,6 +29,7 @@ module tb_basic;
   initial begin
     check_pass = 0;
     check_fail = 0;
+    $dumpfile("sim_build/tb_basic.vcd");
     $dumpvars(0, tb_basic);
     $display("=== VerifCPU Basic Demo (Verilog) ===\n");
     u_cpu1.cpu_init();

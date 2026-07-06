@@ -170,6 +170,7 @@ module tb_verification_harness;
   endtask
 
   initial begin
+    $dumpfile("sim_build/tb_verification_harness.vcd");
     $dumpvars(0, tb_verification_harness);
     log_dir = "logs/harness_v";
     fw_path = "firmware/harness_unified.hex";

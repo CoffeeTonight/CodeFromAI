@@ -28,6 +28,7 @@
   endtask
 
   initial begin
+    $dumpfile("sim_build/soc_cpu_bus_paste.vcd");
     $dumpvars(0, soc_cpu_bus_paste);
     pass = 0;
     fail = 0;

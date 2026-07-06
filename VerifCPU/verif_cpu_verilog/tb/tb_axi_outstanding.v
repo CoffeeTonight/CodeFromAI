@@ -12,6 +12,7 @@ module tb_axi_outstanding;
   localparam [31:0] BASE = 32'hA000_0000;
 
   reg clk = 0;
+  reg aresetn = 0;
   always #5 clk = ~clk;
 
   wire [DATA_WIDTH-1:0] rdata;
@@ -24,7 +25,7 @@ module tb_axi_outstanding;
     .ID_WIDTH(AXI_ID_WIDTH),
     .MAX_OUTSTANDING(OS_MAX)
   ) u_mst (
-    .ACLK(clk), .ARESETn(1'b1),
+    .ACLK(clk), .ARESETn(aresetn),
     .ARREADY(arready), .RVALID(rvalid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RID(rid),
     .AWREADY(awready), .WREADY(wready), .BVALID(bvalid), .BRESP(bresp), .BID(bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
@@ -42,7 +43,7 @@ module tb_axi_outstanding;
     .INIT_WORD0(32'h11111111),
     .INIT_WORD1(32'h22222222)
   ) u_slv (
-    .ACLK(clk), .ARESETn(1'b1),
+    .ACLK(clk), .ARESETn(aresetn),
     .ARID(u_mst.ARID), .ARADDR(u_mst.ARADDR), .ARLEN(u_mst.ARLEN), .ARSIZE(u_mst.ARSIZE),
     .ARBURST(u_mst.ARBURST), .ARVALID(u_mst.ARVALID), .ARREADY(arready),
     .RID(rid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RVALID(rvalid), .RREADY(u_mst.RREADY),
@@ -72,9 +73,11 @@ module tb_axi_outstanding;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpfile("sim_build/tb_axi_outstanding.vcd");
     $dumpvars(0, tb_axi_outstanding);
-    @(posedge clk);
-    @(posedge clk);
+    repeat (4) @(posedge clk);
+    aresetn = 1'b1;
+    repeat (2) @(posedge clk);
 
     // Sequential baseline — same 4 addresses as outstanding burst
     c0 = $time;

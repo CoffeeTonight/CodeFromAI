@@ -263,31 +263,23 @@ def _is_soc_addr(addr: int) -> bool:
     return SOC_MIN <= addr < SOC_MAX
 
 
-def _addr_setup_words(bus_addr: int) -> list[int]:
-    """Match load_soc_addr in verif_insns.h (handles lower-12 sign via +0x800 lui)."""
-    upper = ((bus_addr + 0x800) >> 12) & 0xFFFFF
+def _load_imm32_words(rd: int, value: int) -> list[int]:
+    """Emit lui/addi sequence for absolute 32-bit value (load_soc_addr rules)."""
+    upper = ((value + 0x800) >> 12) & 0xFFFFF
     base = upper << 12
-    lower = bus_addr - base
-    words = [encode_lui(10, upper)]
+    lower = value - base
+    words = [encode_lui(rd, upper)]
     if lower:
-        words.append(encode_addi(10, 10, lower & 0xFFF))
+        words.append(encode_addi(rd, rd, lower & 0xFFF))
     return words
 
 
 def build_icode_firmware(spec: IcodeSpec) -> tuple[bytes, int]:
-    words = _addr_setup_words(spec.bus_addr)
+    words = _load_imm32_words(10, spec.bus_addr)
     if spec.op == "R":
         words.append(encode_lw(5, 10, 0))
     else:
-        imm = spec.write_data & 0xFFF
-        upper = (spec.write_data >> 12) & 0xFFFFF
-        if upper:
-            words.append(encode_lui(5, upper))
-            rem = spec.write_data - (upper << 12)
-            if rem:
-                words.append(encode_addi(5, 5, rem & 0xFFF))
-        else:
-            words.append(encode_addi(5, 0, imm))
+        words.extend(_load_imm32_words(5, spec.write_data))
         words.append(encode_sw(5, 10, 0))
     words.append(encode_vstop())
     blob = b"".join(struct.pack("<I", w) for w in words)
@@ -439,7 +431,7 @@ def merge_icode_pool(images: list[IcodeImage], total_slots: Optional[int] = None
 def probe_images(images: list[IcodeImage]) -> list[IcodeMapEntry]:
     entries: list[IcodeMapEntry] = []
     for img in images:
-        tr, gr = probe_compiled_bin(img.name, img.blob, exec_pc=0)
+        tr, gr = probe_compiled_bin(img.name, img.blob, exec_pc=img.pool_ptr)
         if tr.error or gr.error:
             raise RuntimeError(f"probe failed for {img.name}: tinyrv={tr.error} golden={gr.error}")
         if tr.got_op != gr.got_op or tr.got_addr != gr.got_addr:

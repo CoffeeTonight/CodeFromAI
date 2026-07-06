@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TB_SOC_BUS_ALL = REPO_ROOT / "tb/tb_soc_bus_all.v"
 
 
 class VcdDB:
@@ -104,13 +108,24 @@ def max_value(series: list[tuple[int, int]]) -> int | None:
     return max((v for _t, v in series), default=None)
 
 
-def errors_for_all_vcd(db: VcdDB) -> list[str]:
+def expected_pass_count(tb_path: Path = TB_SOC_BUS_ALL) -> int:
+    if tb_path.is_file():
+        body = tb_path.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"TB_EXPECTED_PASS\s*=\s*(\d+)", body)
+        if m:
+            return int(m.group(1))
+        return len(re.findall(r"\bcheck\s*\(", body))
+    return 11
+
+
+def errors_for_all_vcd(db: VcdDB, *, expected_pass: int | None = None) -> list[str]:
     errs: list[str] = []
+    want_pass = expected_pass if expected_pass is not None else expected_pass_count()
     final_pass = db.tb_int_final("pass")
     if final_pass is None:
         errs.append("missing pass counter in VCD")
-    elif final_pass != 11:
-        errs.append(f"final pass count={final_pass} (expected 11)")
+    elif final_pass != want_pass:
+        errs.append(f"final pass count={final_pass} (expected {want_pass})")
 
     checks = [
         (lambda: db.series_module("u_apb2", "PSEL"), "APB2 PSEL", lambda s: had_value(s, 1)),

@@ -5,6 +5,8 @@
 #   make all          # build + merge hex
 # =============================================================================
 
+.DELETE_ON_ERROR:
+
 CROSS_COMPILE ?= riscv64-unknown-elf-
 CC      := $(CROSS_COMPILE)gcc
 LD      := $(CROSS_COMPILE)ld

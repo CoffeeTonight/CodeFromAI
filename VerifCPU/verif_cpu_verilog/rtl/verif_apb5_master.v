@@ -78,6 +78,7 @@ module verif_apb5_master #(
       PENABLE = 1'b0;
       @(posedge PCLK);
       PENABLE = 1'b1;
+      @(posedge PCLK);
       guard = 0;
       while (!PREADY) begin
         @(posedge PCLK);
@@ -88,11 +89,9 @@ module verif_apb5_master #(
           disable apb_xfer;
         end
       end
-      if (!is_wr) begin
-        @(posedge PCLK);
-        #1;
+      #1;
+      if (!is_wr)
         rdata = lane_prdata(PRDATA, addr, size);
-      end
       resp = PSLVERR ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;
       snoop_wr = is_wr;

@@ -59,6 +59,7 @@ module chip_top_example;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpfile("sim_build/chip_top_example.vcd");
     $dumpvars(0, chip_top_example);
     soc_rstn = 1'b0;
     repeat (4) @(posedge soc_clk);

@@ -84,6 +84,8 @@ MANIFEST_SCALE_BUS_BIND = include/verif_manifest_scale_soc_bus_read.vh include/v
 
 PASTE_BUS_BIND = include/verif_paste_soc_bus_read.vh include/verif_paste_soc_bus_write.vh
 SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
+SOC_INTEGRATION_SCRIPT = firmware/campaign/gen_soc_integration_example.py
+SOC_INTEGRATION_YAML = firmware/campaign/soc_integration_ports.yaml
 
 .PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
@@ -174,13 +176,16 @@ sim_build/tb_soc_dut.vvp: $(SOC_RTL) tb/tb_soc_dut.v $(PARAMS_VH) $(SCALE_VH)
 	$(IVERILOG) $(IVFLAGS) -o $@ $(SOC_RTL) tb/tb_soc_dut.v
 
 GEN_TB = include/tb_full_campaign_gen.vh
+GEN_TB_SCRIPT = firmware/campaign/gen_tb_campaign.py
+CHIP_TOP_RTL_MK = include/chip_top_rtl.mk
+CHIP_SOC_CELL = rtl/verif_vcpu_soc_cell_chip.v
 
 FW_VCPU_BIN = firmware/campaign/build/full_campaign_vcpu.bin
 FW_ICODE_BIN = firmware/campaign/build/icode_pool.bin
 FW_UNIFIED_HEX = firmware/full_campaign_unified.hex
 FW_VCPU_HEX = firmware/full_campaign_vcpu.hex
 
-sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX)
+sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(GEN_ICODES_SCRIPTS) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) | fw
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) \
 	  -DVERIF_SOC_DUT_HUB=tb_full_campaign.u_soc \
@@ -193,8 +198,11 @@ sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(PA
 $(SOC_CELL_RTL): $(SOC_CELL_GEN)
 	$(MAKE) -C firmware/campaign soc_cell
 
-$(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE): $(GEN_ICODES_SCRIPTS) firmware/campaign/build/icode_pool.bin
+$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(GEN_ICODES_SCRIPTS) firmware/campaign/build/icode_pool.bin
 	$(MAKE) -C firmware/campaign icodes HIER_YAML=$(HIER_YAML)
+
+$(SOC_INTEGRATION_GEN): $(SOC_INTEGRATION_SCRIPT) $(SOC_INTEGRATION_YAML)
+	$(MAKE) -C firmware/campaign integration_gen
 
 config-scale:
 	$(MAKE) -C firmware/campaign config NUM_SCPU=$(NUM_SCPU_SCALE) BUS_LAYOUT="$(BUS_LAYOUT_SCALE)"
@@ -210,7 +218,7 @@ soc-manifest-scale: config-scale fw $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_M
 	$(MAKE) sim_build/tb_soc_manifest_scale.vvp
 	$(VVP) sim_build/tb_soc_manifest_scale.vvp
 
-chip-top-example: fw $(SOC_CELL_RTL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE)
+chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK)
 	$(MAKE) -C firmware/campaign bus_connect_yaml HIER_YAML=$(HIER_YAML)
 	$(MAKE) sim_build/chip_top_example.vvp
 	$(VVP) sim_build/chip_top_example.vvp
@@ -234,23 +242,27 @@ sim_build/soc_integration_example.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -s soc_integration_example -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_integration_example.v
 
-sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) include/campaign_manifest.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX)
+sim_build/tb_soc_manifest.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) include/campaign_manifest.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SOC_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest.u_pool \
 	  -s tb_soc_manifest -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest.v
 
-sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX)
+sim_build/tb_soc_manifest_scale.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_SCALE_BUS_BIND) include/campaign_manifest.vh include/campaign_params.vh include/icode_map.vh $(SOC_CONNECT_VH) $(FW_UNIFIED_HEX) | fw
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_MANIFEST_SCALE_TB \
 	  -DVERIF_POOL_HUB=tb_soc_manifest_scale.u_pool \
 	  -s tb_soc_manifest_scale -o $@ $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/tb_soc_manifest_scale.v
 
-sim_build/chip_top_example.vvp: $(CHIP_TOP_RTL) $(BUS_RTL) $(STUB_BUS_RTL) $(SOC_CELL_RTL) tb/chip_top_example.v $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_BUS_BIND) $(SOC_CONNECT_VH) $(SCALE_VH) include/campaign_manifest.vh
+-include $(CHIP_TOP_RTL_MK)
+CHIP_BUS_RTL ?= $(BUS_RTL)
+CHIP_STUB_RTL ?=
+
+sim_build/chip_top_example.vvp: $(CHIP_TOP_RTL) $(CHIP_BUS_RTL) $(CHIP_STUB_RTL) $(CHIP_SOC_CELL) tb/chip_top_example.v $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_BUS_BIND) $(CHIP_TOP_RTL_MK) $(SOC_CONNECT_VH) $(SCALE_VH) include/campaign_manifest.vh
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -DVERIF_CHIP_SOC_TB \
 	  -DVERIF_POOL_HUB=chip_top_example.u_pool \
-	  -s chip_top_example -o $@ $(CHIP_TOP_RTL) $(BUS_RTL) $(STUB_BUS_RTL) $(SOC_CELL_RTL) tb/chip_top_example.v
+	  -s chip_top_example -o $@ $(CHIP_TOP_RTL) $(CHIP_BUS_RTL) $(CHIP_STUB_RTL) $(CHIP_SOC_CELL) tb/chip_top_example.v
 
 clean:
 	rm -rf sim_build

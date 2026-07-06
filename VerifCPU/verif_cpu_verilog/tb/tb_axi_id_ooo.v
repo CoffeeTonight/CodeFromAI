@@ -10,6 +10,7 @@ module tb_axi_id_ooo;
   localparam [31:0] BASE = 32'hA000_0000;
 
   reg clk = 0;
+  reg aresetn = 0;
   always #5 clk = ~clk;
 
   wire arready, rvalid, rlast, awready, wready, bvalid;
@@ -22,7 +23,7 @@ module tb_axi_id_ooo;
     .ID_WIDTH(AXI_ID_WIDTH),
     .MAX_OUTSTANDING(OS_MAX)
   ) u_mst (
-    .ACLK(clk), .ARESETn(1'b1),
+    .ACLK(clk), .ARESETn(aresetn),
     .ARREADY(arready), .RVALID(rvalid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RID(rid),
     .AWREADY(awready), .WREADY(wready), .BVALID(bvalid), .BRESP(bresp), .BID(bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
@@ -40,7 +41,7 @@ module tb_axi_id_ooo;
     .INIT_WORD0(32'h11111111),
     .INIT_WORD1(32'h22222222)
   ) u_slv (
-    .ACLK(clk), .ARESETn(1'b1),
+    .ACLK(clk), .ARESETn(aresetn),
     .ARID(u_mst.ARID), .ARADDR(u_mst.ARADDR), .ARLEN(u_mst.ARLEN), .ARSIZE(u_mst.ARSIZE),
     .ARBURST(u_mst.ARBURST), .ARVALID(u_mst.ARVALID), .ARREADY(arready),
     .RID(rid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RVALID(rvalid), .RREADY(u_mst.RREADY),
@@ -68,9 +69,11 @@ module tb_axi_id_ooo;
   initial begin
     pass = 0;
     fail = 0;
+    $dumpfile("sim_build/tb_axi_id_ooo.vcd");
     $dumpvars(0, tb_axi_id_ooo);
-    @(posedge clk);
-    @(posedge clk);
+    repeat (4) @(posedge clk);
+    aresetn = 1'b1;
+    repeat (2) @(posedge clk);
 
     fork
       forever @(posedge clk)
@@ -102,6 +105,7 @@ module tb_axi_id_ooo;
     $display("Checklist: %0d passed / %0d failed", pass, fail);
     if (fail != 0) $fatal(1, "tb_axi_id_ooo FAILED");
     $display("[SUCCESS] iverilog ID + OOO collect OK");
+    disable fork;
     $finish;
   end
 

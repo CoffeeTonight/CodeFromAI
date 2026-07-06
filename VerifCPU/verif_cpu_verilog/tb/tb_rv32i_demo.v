@@ -25,6 +25,7 @@ module tb_rv32i_demo;
   initial begin
     check_pass = 0;
     check_fail = 0;
+    $dumpfile("sim_build/tb_rv32i_demo.vcd");
     $dumpvars(0, tb_rv32i_demo);
     max_steps = 64;
     fw_path = "firmware/rv32i_test.hex";

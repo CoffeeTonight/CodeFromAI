@@ -45,6 +45,10 @@ ensure_py_deps() {
   local req="${ROOT}/requirements.txt"
   [[ -f "$req" ]] || die "missing $req"
   need_cmd python3
+  if python3 -c "import tinyrv, yaml" 2>/dev/null; then
+    echo "[deps] tinyrv + PyYAML already available"
+    return 0
+  fi
   echo "[deps] python3 -m pip install -r requirements.txt (tinyrv, PyYAML)"
   python3 -m pip install -r "$req"
 }

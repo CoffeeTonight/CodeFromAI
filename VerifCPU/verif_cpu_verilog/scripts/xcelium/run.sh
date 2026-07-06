@@ -33,10 +33,14 @@ EOF
 fi
 
 echo "[xrun] view=$VIEW top=$TOP → $OUTDIR/xcelium.d"
-eval "$XRUN" -64bit -sv -timescale 1ns/1ps \
+XRUN_EXTRA=()
+if [[ -n "${XRUN_OPTS:-}" ]]; then
+  read -r -a XRUN_EXTRA <<< "$XRUN_OPTS"
+fi
+"$XRUN" -64bit -sv -timescale 1ns/1ps \
   -F "$MANIFEST" -top "$TOP" \
   -access +rwc -status \
   -xmlibdirname "$OUTDIR/xcelium.d" \
-  -clean ${PROBE_TCL} ${XRUN_OPTS:-}
+  -clean ${PROBE_TCL} "${XRUN_EXTRA[@]}"
 echo "[xrun] waves: ${OUTDIR}/xcelium.d/shm"
 echo "[xrun] SimVision: simvision -csdf ${OUTDIR}/xcelium.d"

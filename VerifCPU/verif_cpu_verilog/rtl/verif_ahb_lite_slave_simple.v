@@ -75,7 +75,6 @@ module verif_ahb_lite_slave_simple #(
   end
 
   always @(posedge HCLK) begin
-    HRDATA <= 32'h0;
     HRESP <= 2'b00;
     if (HTRANS == 2'b10) begin
       acc_sz = hsize_to_acc(HSIZE);
@@ -83,16 +82,16 @@ module verif_ahb_lite_slave_simple #(
       if (HADDR < BASE || access_span_end(HADDR, acc_sz) > BASE + SIZE)
         HRESP <= 2'b10;
       else if (HWRITE) begin
+        acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
         wstrb = lane_wstrb(HADDR, acc_sz);
         for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
           if (wstrb[bi])
-            mem[HADDR - BASE + bi] <= HWDATA[bi*8 +: 8];
+            mem[acc_addr + bi] <= HWDATA[bi*8 +: 8];
       end
       else begin
         acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
-        HRDATA <= lane_prdata({mem[acc_addr + 3], mem[acc_addr + 2],
-                               mem[acc_addr + 1], mem[acc_addr + 0]},
-                              HADDR, acc_sz);
+        HRDATA <= {mem[acc_addr + 3], mem[acc_addr + 2],
+                   mem[acc_addr + 1], mem[acc_addr + 0]};
       end
     end
   end

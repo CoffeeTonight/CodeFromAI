@@ -29,8 +29,8 @@ def _define_int(body: str, macro: str, default: int) -> int:
     return int(m.group(1)) if m else default
 
 
-def campaign_expectations() -> tuple[int, int, list[str]]:
-    """Return (min_agent_pass_signals, min_verify_pass_sum, per_cpu_vcd_paths)."""
+def campaign_expectations() -> tuple[int, int, int, list[str]]:
+    """Return (min_agent_pass_signals, min_verify_pass_sum, min_orch_resets, per_cpu_vcd_paths)."""
     params = _read_include("campaign_params.vh")
     master = _read_include("campaign_master.vh")
     tb_gen = _read_include("tb_full_campaign_gen.vh")

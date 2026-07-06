@@ -51,7 +51,7 @@ task wave_record;
       end
       if (allow) begin
         idx = wave_chg_count;
-        wave_time[idx]  = pc;
+        wave_time[idx]  = insn_pc;
         wave_sig[idx]   = sig;
         wave_val[idx]   = val;
         wave_scope[idx] = scope;

@@ -34,7 +34,8 @@ VCD="$(eda_vcd "$VIEW")"
 if [[ -n "$VCD" ]]; then mkdir -p "$(dirname "$VCD")"; fi
 
 echo "[iverilog] view=$VIEW top=$TOP → $VVP_OUT"
-eval "$IVERILOG" -g2012 $(eda_iverilog_f_flags "$VIEW") -s "$TOP" -o "$VVP_OUT"
+read -r -a IV_FLAGS <<< "$(eda_iverilog_f_flags "$VIEW")"
+"$IVERILOG" -g2012 "${IV_FLAGS[@]}" -s "$TOP" -o "$VVP_OUT"
 echo "[iverilog] vvp $VVP_OUT"
 "$VVP" "$VVP_OUT"
 if [[ -n "$VCD" && -f "$VCD" ]]; then

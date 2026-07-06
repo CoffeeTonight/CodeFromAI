@@ -22,7 +22,10 @@ module soc_integration_example;
     .reset_count()
   );
 
-  initial $dumpvars(0, soc_integration_example);
+  initial begin
+    $dumpfile("sim_build/soc_integration_example.vcd");
+    $dumpvars(0, soc_integration_example);
+  end
 
   `include "soc_integration_example_gen.vh"
 

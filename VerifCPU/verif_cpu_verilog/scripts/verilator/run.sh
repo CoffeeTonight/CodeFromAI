@@ -29,10 +29,12 @@ if [[ "${VERILATOR_TRACE:-1}" == "1" ]]; then
   TRACE_ARGS=(--trace-vcd)
 fi
 
+read -r -a VLT_INCDIRS <<< "$(eda_verilator_incdirs "$VIEW")"
+read -r -a VLT_DEFINES <<< "$(eda_verilator_defines "$VIEW")"
 echo "[verilator] view=$VIEW top=$TOP sources=${#SOURCES[@]} → $OUTDIR"
-eval "$VERILATOR" --binary -j 0 --timing \
-  $(eda_verilator_incdirs "$VIEW") \
-  $(eda_verilator_defines "$VIEW") \
+"$VERILATOR" --binary -j 0 --timing \
+  "${VLT_INCDIRS[@]}" \
+  "${VLT_DEFINES[@]}" \
   --top-module "$TOP" \
   -Wno-fatal -Wno-WIDTH -Wno-UNOPTFLAT -Wno-STMTDLY -Wno-DECLFILENAME \
   -Mdir "$OUTDIR" "${TRACE_ARGS[@]}" "${SOURCES[@]}"

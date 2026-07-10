@@ -11,8 +11,13 @@
 `include "icode_bind.vh"
 `include "verif_soc_bus_connect.vh"
 `include "tb_soc_manifest_defs.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_soc_manifest;
+
+  localparam integer TB_EXPECTED_PASS = 24;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   localparam FW_SIZE       = 32'h2000;
   localparam MAX_WAIT      = 32'd50000;
@@ -109,7 +114,7 @@ module tb_soc_manifest;
     $display("========================================================================");
 
     `SOC_MANIFEST_LOAD_POOL
-    check("Pool loaded", 1);
+    check("Icode pool non-NOP", !soc_manifest_pool_err && soc_manifest_pool_word != 32'h00000013);
 
     `SOC_MANIFEST_SETUP_CPUS
 
@@ -132,6 +137,8 @@ module tb_soc_manifest;
 
     $display("");
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_soc_manifest: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "tb_soc_manifest FAILED");
     $display("tb_soc_manifest: PASS");
     $finish;

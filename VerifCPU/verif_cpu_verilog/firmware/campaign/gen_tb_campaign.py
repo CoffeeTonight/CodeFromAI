@@ -83,6 +83,7 @@ OUT_CHIP_DECODE_VH = os.path.join(INCLUDE_DIR, "chip_top_decode.vh")
 SOC_INIT_SEQ_VH = os.path.join(INCLUDE_DIR, "soc_init_seq.vh")
 ICODE_POOL_BIN = os.path.join(BUILD_DIR, "icode_pool.bin")
 
+from manifest_h_parser import parse_slave_rows, parse_master_row, parse_target_blocks  # noqa: E402
 from slave_yaml_parser import parse_slave_yaml_ent, require_slave_name_cpu_id  # noqa: E402
 from campaign_pool_policy import (  # noqa: E402
     POOL_READMEMH_MAX_BYTES,
@@ -194,57 +195,20 @@ def parse_manifest(path: str) -> tuple[list[dict], dict | None]:
     with open(path, encoding="utf-8") as f:
         body = f.read()
 
-    slaves = []
-    for m in re.finditer(
-        r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*,\s*(\d+)'
-        r'(?:\s*,\s*"([^"]*)"\s*,\s*"([^"]*)")?\s*\}',
-        body,
-    ):
-        slaves.append({
-            "name": m.group(1),
-            "cpu_id": int(m.group(2)),
-            "tap": int(m.group(3)),
-            "target_count": int(m.group(4)),
-            "enabled": int(m.group(5)),
-            "bus_type": m.group(6) or "task",
-            "bus_port": m.group(7) or "",
-        })
-
-    master = None
-    m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
-    if m_present and int(m_present.group(1)):
-        mm = re.search(
-            r'static const manifest_master_t MANIFEST_MASTER = \{\s*'
-            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,',
-            body,
-        )
-        if mm:
-            master = {
-                "name": mm.group(1),
-                "cpu_id": 0,
-                "tap": int(mm.group(2)),
-                "enabled": 1,
-            }
-
-    target_blocks = re.findall(
-        r"static const manifest_target_t (MANIFEST_\w+_TARGETS)\[\] = \{(.*?)\};",
-        body,
-        re.S,
-    )
+    slaves = parse_slave_rows(body)
+    master = parse_master_row(body)
+    target_blocks = parse_target_blocks(body)
     targets_by_key = {}
-    for key, block in target_blocks:
-        entries = []
-        for row in re.finditer(
-            r"\{\s*([A-Z0-9_]+)\s*,\s*(0x[0-9a-fA-F]+)u?\s*,\s*\"([^\"]+)\"\s*\}",
-            block,
-        ):
-            entries.append({
-                "sym": row.group(1),
-                "addr": resolve_addr(row.group(1)),
-                "expect": int(row.group(2), 0),
-                "icode": row.group(3),
-            })
-        targets_by_key[key] = entries
+    for key, rows in target_blocks.items():
+        targets_by_key[key] = [
+            {
+                "sym": row["sym"],
+                "addr": resolve_addr(row["sym"]),
+                "expect": int(row["expect"], 0),
+                "icode": row["icode"],
+            }
+            for row in rows
+        ]
 
     for s in slaves:
         key = f"MANIFEST_{s['name']}_TARGETS"
@@ -762,9 +726,9 @@ def _emit_cell_instance(s: dict, gi: int, indent: str = "      ") -> list[str]:
             qos = " .ARQOS(), .ARREGION()," if bt in ("axi4full", "axi5full") else ""
             awqos = " .AWQOS(), .AWREGION(), .AWATOP()," if bt in ("axi4full", "axi5full") else ""
             lines.append(
-                f"{indent}.ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARVALID(), .RREADY(),"
+                f"{indent}.ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARVALID(), .RREADY(),"
                 f"{qos}"
-                f" .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWVALID(),"
+                f" .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWVALID(),"
                 f"{awqos}"
                 f" .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),"
                 f" .ARREADY(), .RID(), .RVALID(), .RDATA(), .RRESP(), .RLAST(),"
@@ -941,11 +905,11 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
-                    f"    .ARBURST(2'b01), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
+                    f"    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST({pref}_rvalid), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
-                    f"    .AWBURST(2'b01), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
+                    f"    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
@@ -956,11 +920,11 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
-                    f"    .ARBURST(2'b01), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
+                    f"    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST({rlast_w}), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
-                    f"    .AWBURST(2'b01), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
+                    f"    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
@@ -1096,6 +1060,7 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
                     f"  wire {AXI_ID_V_RANGE} {pref}_arid, {pref}_awid, {pref}_wid, {pref}_rid, {pref}_bid;",
                     f"  wire [7:0]  {pref}_arlen, {pref}_awlen;",
                     f"  wire [1:0]  {pref}_arburst, {pref}_awburst;",
+                    f"  wire        {pref}_arlock, {pref}_awlock;",
                 ])
             if bt in ("axi4full", "axi5full"):
                 lines.extend([
@@ -1201,8 +1166,18 @@ def emit_soc_manifest_agents(slaves: list[dict]) -> list[str]:
     return lines
 
 
+def _soc_case_fatal(task: str, wired: int) -> list[str]:
+    return [
+        f'        default: $fatal(1, "{task}: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", '
+        f"cid, `SOC_MANIFEST_NUM_WIRED);",
+    ]
+
+
 def emit_soc_manifest_setup(slaves: list[dict]) -> list[str]:
+    wired = len(slaves)
     lines = [
+        f"`define SOC_MANIFEST_NUM_WIRED {wired}",
+        "",
         "  task soc_manifest_setup_cpu;",
         "    input [3:0] cid;",
         "    input [8*8:1] name;",
@@ -1221,7 +1196,7 @@ def emit_soc_manifest_setup(slaves: list[dict]) -> list[str]:
             "        end",
         ])
     lines.extend([
-        "        default: ;",
+        *_soc_case_fatal("soc_manifest_setup_cpu", wired),
         "      endcase",
         "    end",
         "  endtask",
@@ -1242,7 +1217,7 @@ def emit_soc_manifest_setup(slaves: list[dict]) -> list[str]:
             "        end",
         ])
     lines.extend([
-        "        default: ;",
+        *_soc_case_fatal("soc_manifest_run_phase_a", wired),
         "      endcase",
         "    end",
         "  endtask",
@@ -1252,6 +1227,7 @@ def emit_soc_manifest_setup(slaves: list[dict]) -> list[str]:
 
 
 def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
+    wired = len(slaves)
     lines = [
         "  task soc_manifest_run_cpu;",
         "    input [3:0]  cid;",
@@ -1277,7 +1253,7 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
             "        end",
         ])
     lines.extend([
-        "        default: ;",
+        *_soc_case_fatal("soc_manifest_run_cpu", wired),
         "      endcase",
         "    end",
         "  endtask",
@@ -1338,7 +1314,7 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
             "        end",
         ])
     lines.extend([
-        "        default: ;",
+        *_soc_case_fatal("soc_manifest_exec_icode", wired),
         "      endcase",
         "    end",
         "  endtask",
@@ -1388,8 +1364,13 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
         f"`define SOC_MANIFEST_MAX_ICODE_SLOTS {max_icode_slots}",
         f"`define SOC_MANIFEST_TOTAL_ICODE_PASS {total_pass}",
         "",
+        "reg soc_manifest_pool_ok;",
+        "reg [31:0] soc_manifest_pool_word;",
+        "reg        soc_manifest_pool_err;",
+        "",
         "`define SOC_MANIFEST_LOAD_POOL \\",
-        '  u_pool.pool_load_hex("firmware/full_campaign_unified.hex"); \\',
+        '  u_pool.pool_load_hex("firmware/full_campaign_unified.hex", soc_manifest_pool_ok); \\',
+        '  if (!soc_manifest_pool_ok) $fatal(1, "SOC_MANIFEST_LOAD_POOL: pool_load_hex failed"); \\',
     ]
     for s in slaves:
         lines.append(
@@ -1398,6 +1379,7 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
         )
     lines.extend([
         "  u_pool.pool_assign_region(4'd4, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \\",
+        "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, soc_manifest_pool_word, soc_manifest_pool_err); \\",
         "",
         "`define SOC_MANIFEST_SETUP_CPUS \\",
     ])
@@ -1810,7 +1792,16 @@ def emit_agent_generate(slaves: list[dict], max_slots: int) -> list[str]:
     return lines
 
 
+def _case_fatal_default(task: str) -> list[str]:
+    return [
+        f'        default: $fatal(1, "{task}: cid=%0d not wired (CAMPAIGN_NUM_VCPUS=%0d)", '
+        f"cid, `CAMPAIGN_NUM_VCPUS);",
+    ]
+
+
 def emit_setup_cpu_task(cpus: list[dict]) -> list[str]:
+    if not cpus:
+        return []
     lines = [
         "  task setup_cpu;",
         "    input [3:0] cid;",
@@ -1838,7 +1829,7 @@ def emit_setup_cpu_task(cpus: list[dict]) -> list[str]:
             f"          {hdl}.cpu_open_dedicated_log(logpath);",
             "        end",
         ])
-    lines.extend(["        default: ;", "      endcase", "    end", "  endtask", ""])
+    lines.extend([*_case_fatal_default("setup_cpu"), "      endcase", "    end", "  endtask", ""])
     return lines
 
 
@@ -1857,6 +1848,8 @@ def _emit_cpu_run_loop(hdl: str) -> list[str]:
 
 
 def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
+    if not cpus:
+        return []
     uart = next((c for c in cpus if c["role"] == "uart"), None)
     lines = [
         "  task run_cpu_core;",
@@ -1897,7 +1890,7 @@ def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
                 *_emit_cpu_run_loop(hdl),
             ])
         lines.append("        end")
-    lines.extend(["        default: ;", "      endcase", "    end", "  endtask", ""])
+    lines.extend([*_case_fatal_default("run_cpu_core"), "      endcase", "    end", "  endtask", ""])
     return lines
 
 
@@ -2029,8 +2022,8 @@ def emit_console_cmd_task(cpus: list[dict]) -> list[str]:
             f"{hdl}.cpu_console_dispatch(cmd, a0, a1, a2);"
         )
     lines.extend([
-        f"      if (cid > 4'd{max_cid})",
-        f"        $display(\"[Console] unknown cpu_id=%0d (active VCPUs 1..{max_cid})\", cid);",
+        f"      if (cid != 0 && (cid < 1 || cid > 4'd{max_cid}))",
+        f'        $fatal(1, "[Console] unknown cpu_id=%0d (active VCPUs 1..{max_cid})", cid);',
         "    end",
         "  endtask",
         "",
@@ -2058,14 +2051,12 @@ def emit_sync_parallel_macro(cpus: list[dict]) -> list[str]:
         for c in cpus
     )
     checks_bus = []
+    bus_before = []
     for i, c in enumerate(cpus):
         hdl = cpu_hdl(c["id"])
         checks_bus.append(
             f'  check_eq("Sync parallel bus {c["name"]}", _sync_bus{i} < {hdl}.bus_txn_count); \\'
         )
-    bus_before = []
-    for i, c in enumerate(cpus):
-        hdl = cpu_hdl(c["id"])
         bus_before.append(f"    _sync_bus{i} = {hdl}.bus_txn_count; \\")
     return [
         f"`define CAMPAIGN_SYNC_BARRIER_ID {CAMPAIGN_SYNC_BARRIER_ID}",
@@ -2111,10 +2102,13 @@ def emit_campaign_execute_macro(cpus: list[dict]) -> list[str]:
         f'  check_eq("Phase A vwdt/vtrace steps", {sfr_hdl}.total_steps >= 4); \\'
         if sfr_hdl else ""
     )
-    agent_snoop = (
-        "  check_eq(\"Phase A agent snoop\", sl_txns[0] >= 1 && sl_txns[1] >= 1 && sl_txns[2] >= 1); \\"
-        if len(cpus) >= 3 else ""
-    )
+    if cpus:
+        snoop_checks = " && ".join(
+            f"sl_txns[{c['id'] - 1}] >= 1" for c in cpus
+        )
+        agent_snoop = f'  check_eq("Phase A agent snoop", {snoop_checks}); \\'
+    else:
+        agent_snoop = ""
     lines = [
         "`define CAMPAIGN_EXECUTE \\",
         "  `CAMPAIGN_LOAD_FIRMWARE \\",
@@ -2142,6 +2136,7 @@ def emit_campaign_execute_macro(cpus: list[dict]) -> list[str]:
         "  `CAMPAIGN_CONSOLE_STALL \\",
         "  `CAMPAIGN_PHASE_C_SFR \\",
         "  `CAMPAIGN_PHASE_C_SRAM \\",
+        "  `CAMPAIGN_PHASE_C_EXTRA \\",
         '  $display("\\n[6] Platform icode — RV32 pool exec + multi-slot dispatch + inter-reset"); \\',
         "  `CAMPAIGN_ICODE_RV32_EXEC \\",
         "  `CAMPAIGN_ICODE_MAP_BUS_CHECKS \\",
@@ -2201,7 +2196,13 @@ def emit_exec_icode_task(cpus: list[dict], use_lazy: bool) -> list[str]:
             f"          restore_cpu_pool(cid, 32'h{c['pool_word']:x});",
             "        end",
         ])
-    lines.extend(["        default: ;", "      endcase", "    end", "  endtask", ""])
+    lines.extend([
+        *_case_fatal_default("exec_icode_on_cpu"),
+        "      endcase",
+        "    end",
+        "  endtask",
+        "",
+    ])
     return lines
 
 
@@ -2216,12 +2217,14 @@ def emit_pool_policy_macros(pool_bytes: int, use_lazy: bool) -> list[str]:
         f"`define CAMPAIGN_POOL_READMEMH_MAX 32'h{POOL_READMEMH_MAX_BYTES:08X}",
         f"`define CAMPAIGN_ICODE_USE_LAZY {1 if use_lazy else 0}",
         f"`define CAMPAIGN_MEM_WORDS 32'h{mem_words:x}",
+        "reg campaign_pool_load_ok;",
         "",
     ]
     if use_lazy:
         lines.extend([
             "`define CAMPAIGN_LOAD_FIRMWARE \\",
-            f'  u_pool.pool_load_hex("{vcpu_hex}"); \\',
+            f'  u_pool.pool_load_hex("{vcpu_hex}", campaign_pool_load_ok); \\',
+            '  if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \\',
             "  `CAMPAIGN_POOL_ASSIGN_VCPUS \\",
             "  u_pool.pool_bind_file(4'd4, icode_pool_path); \\",
             "  u_pool.pool_assign_region(4'd4, 32'h0, ICODE_POOL_SZ); \\",
@@ -2232,7 +2235,8 @@ def emit_pool_policy_macros(pool_bytes: int, use_lazy: bool) -> list[str]:
     else:
         lines.extend([
             "`define CAMPAIGN_LOAD_FIRMWARE \\",
-            f'  u_pool.pool_load_hex("{unified_hex}"); \\',
+            f'  u_pool.pool_load_hex("{unified_hex}", campaign_pool_load_ok); \\',
+            '  if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \\',
             "  `CAMPAIGN_POOL_ASSIGN_VCPUS \\",
             "  u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \\",
             "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \\",
@@ -2257,12 +2261,15 @@ def emit_macros(
     active = _active_slaves(slaves, master)
     max_icode_slots = max((len(s["targets"]) for s in active), default=0)
     total_pass = sum(len(s["targets"]) for s in active)
+    uart = next((c for c in cpus if c["role"] == "uart"), None)
     lines = emit_pool_policy_macros(pool_bytes, use_lazy)
     lines.extend([
         f"`define CAMPAIGN_NUM_VCPUS {len(cpus)}",
         f"`define CAMPAIGN_NUM_AGENTS `CAMPAIGN_MAX_SLOTS",
         f"`define CAMPAIGN_MAX_ICODE_SLOTS {max_icode_slots}",
         f"`define CAMPAIGN_TOTAL_ICODE_PASS {total_pass}",
+        f"`define CAMPAIGN_MANIFEST_ACTIVE_AGENTS {len(active)}",
+        f"`define CAMPAIGN_UART_CPU_ID {uart['id'] if uart else 0}",
         "",
         "`define CAMPAIGN_POOL_ASSIGN_VCPUS \\",
     ])
@@ -2369,6 +2376,21 @@ def emit_macros(
     )
     lines.append("")
 
+    lines.extend([
+        "initial begin",
+        "  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS)",
+        "    $fatal(1, \"manifest active agents %0d > CAMPAIGN_MAX_SLOTS %0d\",",
+        "           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS);",
+        "  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS != `CAMPAIGN_NUM_VCPUS)",
+        "    $fatal(1, \"manifest active agents %0d != wired VCPUs %0d\",",
+        "           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_NUM_VCPUS);",
+        "  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_ACTIVE_AGENTS)",
+        "    $fatal(1, \"CAMPAIGN_ACTIVE_SLOTS %0d != manifest active %0d\",",
+        "           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_ACTIVE_AGENTS);",
+        "end",
+        "",
+    ])
+
     return lines
 
 
@@ -2388,9 +2410,11 @@ def emit_orchestrator_only_vh(pool_bytes: int, use_lazy: bool, max_slot_count: i
         "`define CAMPAIGN_NUM_AGENTS `CAMPAIGN_MAX_SLOTS",
         "`define CAMPAIGN_MAX_ICODE_SLOTS 0",
         "`define CAMPAIGN_TOTAL_ICODE_PASS 0",
+        "reg campaign_pool_load_ok;",
         "",
         "`define CAMPAIGN_LOAD_FIRMWARE \\",
-        f'  u_pool.pool_load_hex("{hex_path}"); \\',
+        f'  u_pool.pool_load_hex("{hex_path}", campaign_pool_load_ok); \\',
+        '  if (!campaign_pool_load_ok) $fatal(1, "orchestrator-only pool_load_hex failed"); \\',
         "",
     ]
     for macro in (
@@ -2426,9 +2450,10 @@ def emit_orchestrator_only_vh(pool_bytes: int, use_lazy: bool, max_slot_count: i
     lines.extend(_emit_skip_phase_macro(
         "CAMPAIGN_UART_WDT", "\\n[7] UART WDT skipped (orchestrator-only)",
     ))
+    lines.extend(_noop_define("CAMPAIGN_PHASE_C_EXTRA"))
     lines.extend([
         "`define CAMPAIGN_VCD_EXPORT \\",
-        '  check_eq("Main VCD path set", 1); \\',
+        '  check_eq("VCD export skipped (orchestrator-only)", 1); \\',
         "",
     ])
     lines.extend(_emit_skip_phase_macro(
@@ -2491,6 +2516,48 @@ def _emit_skip_phase_macro(name: str, msg: str) -> list[str]:
 def _noop_define(name: str) -> list[str]:
     """Empty macro — must not end with \\ (swallows the next `define in Verilog)."""
     return [f"`define {name} /* no-op */", ""]
+
+
+def _primary_role_cpus(cpus: list[dict]) -> set[int]:
+    """First VCPU per canonical campaign role (SFR/solo, SRAM, UART)."""
+    covered: set[int] = set()
+    for role in ("sfr", "solo"):
+        c = next((x for x in cpus if x["role"] == role), None)
+        if c:
+            covered.add(c["id"])
+            break
+    for role in ("sram", "uart"):
+        c = next((x for x in cpus if x["role"] == role), None)
+        if c:
+            covered.add(c["id"])
+    return covered
+
+
+def emit_phase_c_extra_macro(cpus: list[dict]) -> list[str]:
+    """Generic Phase C for VCPUs beyond the primary SFR/SRAM/UART roles."""
+    primary = _primary_role_cpus(cpus)
+    extras = [c for c in cpus if c["id"] not in primary]
+    if not extras:
+        return _noop_define("CAMPAIGN_PHASE_C_EXTRA")
+    lines = [
+        "`define CAMPAIGN_PHASE_C_EXTRA \\",
+        '  $display("\\n[4b] Phase C — extra VCPUs (role-generalized)"); \\',
+        "  u_orch.phase_release(`PHASE_VERIFY, OFF_C); \\",
+    ]
+    for c in extras:
+        hdl = cpu_hdl(c["id"])
+        steps = 400 if c["role"] in ("sram", "gpio", "spi") else 300
+        lines.append(f"  run_cpu_core({c['id']}, OFF_C, {steps}, hang_rec); \\")
+        lines.append(
+            f'  check_eq("Phase C {c["name"]} ({c["role"]}) assert clean", '
+            f"{hdl}.assert_fail == 0); \\"
+        )
+        lines.append(
+            f'  check_eq("Phase C {c["name"]} ({c["role"]}) steps", '
+            f"{hdl}.total_steps >= 1); \\"
+        )
+    lines.append("")
+    return lines
 
 
 def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
@@ -2564,7 +2631,9 @@ def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
         hdl = cpu_hdl(c["id"])
         lines.append(f'  $sformat(vcd_cpu, "%0s/SCPU{c["id"]}.vcd", log_dir); \\')
         lines.append(f"  {hdl}.wave_export_vcd(vcd_cpu); \\")
-    lines.append('  check_eq("Main VCD path set", 1); \\')
+    if cpus:
+        vcd_hdl = cpu_hdl(cpus[0]["id"])
+        lines.append(f'  check_eq("VCD export wave data", {vcd_hdl}.wave_chg_count > 0); \\')
     lines.append("")
 
     lines.append("`define CAMPAIGN_REPORT_VCORES \\")
@@ -2608,6 +2677,40 @@ def emit_phase_c_and_uart_macros(cpus: list[dict]) -> list[str]:
             '  $display("\\n[3] Console stall skipped (no SFR/solo VCPU)"); \\',
             "",
         ])
+    lines.extend(emit_phase_c_extra_macro(cpus))
+    return lines
+
+
+def emit_campaign_cpu_wiring_guard(cpus: list[dict], slaves: list[dict]) -> list[str]:
+    """Sim-start guard: g_cpu[gi]/g_ag[gi] CPU_ID must match manifest.
+
+    Generator iterates manifest cpus/slaves (N-agnostic). VH uses constant indices
+    because iverilog cannot hierarchical-ref g_cpu[gi] with a runtime loop variable.
+    """
+    active = [s for s in slaves if s.get("enabled")]
+    n = len(cpus)
+    lines = [
+        "// CPU/agent wiring guard — Python loop over manifest; VH constant gi (iverilog)",
+        "initial begin : _campaign_cpu_wiring_guard",
+        f"  if (`CAMPAIGN_NUM_VCPUS != {n})",
+        f"    $fatal(1, \"CAMPAIGN_NUM_VCPUS=%0d expected {n} — rerun make icodes\", "
+        "`CAMPAIGN_NUM_VCPUS);",
+    ]
+    for c in cpus:
+        gi = c["id"] - 1
+        lines.append(f"  if (g_cpu[{gi}].u_cpu.CPU_ID != 4'd{c['id']})")
+        lines.append(
+            f"    $fatal(1, \"g_cpu[{gi}] CPU_ID=%0d expected {c['id']}\", "
+            f"g_cpu[{gi}].u_cpu.CPU_ID);"
+        )
+    for s in active:
+        gi = s["cpu_id"] - 1
+        lines.append(f"  if (g_ag[{gi}].u_ag.CPU_ID != 4'd{s['cpu_id']})")
+        lines.append(
+            f"    $fatal(1, \"g_ag[{gi}] agent CPU_ID=%0d expected {s['cpu_id']}\", "
+            f"g_ag[{gi}].u_ag.CPU_ID);"
+        )
+    lines.extend(["end", ""])
     return lines
 
 
@@ -2636,6 +2739,7 @@ def generate_vh(
     out.extend(emit_vcpu_generate(max_slot_count))
     out.extend(emit_master_agent(master))
     out.extend(emit_agent_generate(slaves, max_slot_count))
+    out.extend(emit_campaign_cpu_wiring_guard(cpus, slaves))
     out.extend(emit_setup_cpu_task(cpus))
     out.extend(emit_run_cpu_task(cpus))
     out.extend(emit_start_cpus_parallel_task(cpus))

@@ -3,27 +3,29 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
-SLAVE_ROW_RE = re.compile(
-    r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*,\s*(\d+)'
-    r'(?:\s*,\s*"([^"]*)"\s*,\s*"([^"]*)")?\s*\}'
-)
+_CAMPAIGN = Path(__file__).resolve().parents[2] / "firmware" / "campaign"
+if str(_CAMPAIGN) not in sys.path:
+    sys.path.insert(0, str(_CAMPAIGN))
+
+from manifest_h_parser import parse_master_row, parse_slave_rows  # noqa: E402
 
 
 def parse_manifest_h(path: Path) -> dict[str, Any]:
     body = path.read_text(encoding="utf-8")
     slaves: list[dict[str, Any]] = []
-    for m in SLAVE_ROW_RE.finditer(body):
+    for s in parse_slave_rows(body):
         slaves.append({
-            "name": m.group(1),
-            "cpu_id": int(m.group(2)),
-            "tap_port": int(m.group(3)),
-            "target_count": int(m.group(4)),
-            "enabled": bool(int(m.group(5))),
-            "bus_type": (m.group(6) or "task").lower(),
-            "bus_port": (m.group(7) or "").strip(),
+            "name": s["name"],
+            "cpu_id": s["cpu_id"],
+            "tap_port": s["tap"],
+            "target_count": s["target_count"],
+            "enabled": bool(s["enabled"]),
+            "bus_type": s.get("bus_type", "task").lower(),
+            "bus_port": s.get("bus_port", ""),
             "role": "scpu",
         })
 
@@ -32,21 +34,16 @@ def parse_manifest_h(path: Path) -> dict[str, Any]:
     m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
     if m_present and int(m_present.group(1)):
         master_present = True
-        mm = re.search(
-            r'static const manifest_master_t MANIFEST_MASTER = \{\s*'
-            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,\s*POOL_WORD_MASTER\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'
-            r'"([^"]*)"\s*,\s*"([^"]*)"\s*,',
-            body,
-        )
-        if mm:
+        row = parse_master_row(body)
+        if row:
             master = {
-                "name": mm.group(1),
+                "name": row["name"],
                 "cpu_id": 0,
-                "tap_port": int(mm.group(2)),
-                "target_count": int(mm.group(3)),
-                "enabled": bool(int(mm.group(4))),
-                "bus_type": (mm.group(5) or "task").lower(),
-                "bus_port": (mm.group(6) or "").strip(),
+                "tap_port": row["tap"],
+                "target_count": row.get("target_count", 0),
+                "enabled": bool(row.get("enabled", 0)),
+                "bus_type": row.get("bus_type", "task"),
+                "bus_port": row.get("bus_port", ""),
                 "role": "mvcpu",
             }
 

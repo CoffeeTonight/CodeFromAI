@@ -107,8 +107,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 3,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARPROT", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWPROT", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARLOCK", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWLOCK", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [

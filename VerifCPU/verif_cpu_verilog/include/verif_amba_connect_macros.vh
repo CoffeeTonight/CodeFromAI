@@ -91,6 +91,7 @@
   assign SOC_PREF``_arlen   = MST.ARLEN; \
   assign SOC_PREF``_arsize  = MST.ARSIZE; \
   assign SOC_PREF``_arburst = MST.ARBURST; \
+  assign SOC_PREF``_arlock  = MST.ARLOCK; \
   assign SOC_PREF``_arprot  = MST.ARPROT; \
   assign SOC_PREF``_arvalid = MST.ARVALID; \
   assign MST.ARREADY = SOC_PREF``_arready; \
@@ -105,6 +106,7 @@
   assign SOC_PREF``_awlen   = MST.AWLEN; \
   assign SOC_PREF``_awsize  = MST.AWSIZE; \
   assign SOC_PREF``_awburst = MST.AWBURST; \
+  assign SOC_PREF``_awlock  = MST.AWLOCK; \
   assign SOC_PREF``_awprot  = MST.AWPROT; \
   assign SOC_PREF``_awvalid = MST.AWVALID; \
   assign MST.AWREADY = SOC_PREF``_awready; \

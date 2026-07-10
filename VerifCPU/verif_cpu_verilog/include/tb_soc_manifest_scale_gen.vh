@@ -62,11 +62,11 @@
   verif_axi_full_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .ID_WIDTH(VERIF_AXI_ID_WIDTH), .BASE(32'hC0000000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_stub_uart (
     .ACLK(soc_clk), .ARESETn(soc_rstn),
     .ARID({VERIF_AXI_ID_WIDTH{1'b0}}), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
-    .ARBURST(2'b01), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
+    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
     .RID(u_stub_uart_rid), .RDATA(S03_AXI_rdata), .RRESP(S03_AXI_rresp),
     .RLAST(S03_AXI_rvalid), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
     .AWID({VERIF_AXI_ID_WIDTH{1'b0}}), .AWADDR(S03_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S03_AXI_awsize),
-    .AWBURST(2'b01), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
+    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
     .WID({VERIF_AXI_ID_WIDTH{1'b0}}), .WDATA(S03_AXI_wdata), .WSTRB(S03_AXI_wstrb), .WLAST(1'b1),
     .WVALID(S03_AXI_wvalid), .WREADY(S03_AXI_wready),
     .BID(u_stub_uart_bid), .BRESP(S03_AXI_bresp), .BVALID(S03_AXI_bvalid), .BREADY(S03_AXI_bready)
@@ -152,6 +152,8 @@
     .verify_fail(sl_fail[2]), .txn_recorded(sl_txns[2])
   );
 
+`define SOC_MANIFEST_NUM_WIRED 3
+
   task soc_manifest_setup_cpu;
     input [3:0] cid;
     input [8*8:1] name;
@@ -176,7 +178,7 @@
           g_slv2.u_bus.u_cpu.cpu_attach_pool_region(pool_base, FW_SIZE);
           g_slv2.u_bus.u_cpu.cpu_attach_recorder();
         end
-        default: ;
+        default: $fatal(1, "soc_manifest_setup_cpu: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", cid, `SOC_MANIFEST_NUM_WIRED);
       endcase
     end
   endtask
@@ -203,7 +205,7 @@
           g_slv2.u_bus.u_cpu.request_sim_stop = 0;
           g_slv2.u_bus.u_cpu.sim_stop = 0;
         end
-        default: ;
+        default: $fatal(1, "soc_manifest_run_phase_a: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", cid, `SOC_MANIFEST_NUM_WIRED);
       endcase
     end
   endtask
@@ -248,7 +250,7 @@
               cyc = max_steps;
           end
         end
-        default: ;
+        default: $fatal(1, "soc_manifest_run_cpu: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", cid, `SOC_MANIFEST_NUM_WIRED);
       endcase
     end
   endtask
@@ -335,7 +337,7 @@
           u_pool.pool_use_array(cid);
           u_pool.pool_assign_region(cid, 32'h1000, FW_SIZE);
         end
-        default: ;
+        default: $fatal(1, "soc_manifest_exec_icode: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", cid, `SOC_MANIFEST_NUM_WIRED);
       endcase
     end
   endtask

@@ -11,6 +11,8 @@ HDR = os.path.join(ROOT, "include", "soc_init_seq.h")
 PLATFORM_HDR = os.path.join(ROOT, "include", "soc_platform.h")
 OUT_VH = os.path.join(INCLUDE_DIR, "soc_init_seq.vh")
 OUT_PLATFORM_VH = os.path.join(INCLUDE_DIR, "campaign_soc_platform.vh")
+OUT_PY = os.path.join(ROOT, "include", "soc_init_steps.py")
+OUT_PLATFORM_PY = os.path.join(ROOT, "include", "soc_platform.py")
 
 SYM_ADDR = {
     "SFR_CTRL": 0x40000000,
@@ -195,6 +197,8 @@ def main() -> int:
     platform = parse_platform(PLATFORM_HDR)
     emit_vh(steps, OUT_VH)
     emit_platform_vh(platform, OUT_PLATFORM_VH)
+    emit_py(steps, OUT_PY)
+    emit_platform_py(platform, OUT_PLATFORM_PY)
     return 0
 
 

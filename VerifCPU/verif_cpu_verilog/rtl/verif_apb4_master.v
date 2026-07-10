@@ -76,15 +76,10 @@ module verif_apb4_master #(
       PENABLE = 1'b1;
       @(posedge PCLK);
       guard = 0;
-      while (!PREADY) begin
+      do begin
         @(posedge PCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          apb_idle();
-          disable apb_xfer;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "apb4 bus_xfer PREADY")
+      end while (!PREADY);
       #1;
       if (!is_wr)
         rdata = lane_prdata(PRDATA, addr, size);

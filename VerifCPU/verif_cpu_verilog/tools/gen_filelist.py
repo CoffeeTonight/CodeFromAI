@@ -74,6 +74,7 @@ STUB_BUS_RTL = [
     "rtl/verif_ace_lite_master.v",
     "rtl/verif_chi_master.v",
     "rtl/verif_niu_master.v",
+    "rtl/verif_asb_master.v",
 ]
 
 # --- Canonical 3-way split (prefer these over legacy per-view .f files) ---

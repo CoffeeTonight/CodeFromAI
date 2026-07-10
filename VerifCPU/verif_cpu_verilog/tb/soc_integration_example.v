@@ -4,8 +4,12 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_platform_defs.vh"
+`include "verif_bus_soc_widths.vh"
+`include "verif_sim_watchdog.vh"
 
 module soc_integration_example;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   reg soc_clk = 0;
   reg soc_rstn = 0;
@@ -21,11 +25,6 @@ module soc_integration_example;
     .reset_pulse(orch_reset),
     .reset_count()
   );
-
-  initial begin
-    $dumpfile("sim_build/soc_integration_example.vcd");
-    $dumpvars(0, soc_integration_example);
-  end
 
   `include "soc_integration_example_gen.vh"
 

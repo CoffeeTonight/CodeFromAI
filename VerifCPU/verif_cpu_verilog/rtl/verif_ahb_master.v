@@ -229,18 +229,10 @@ module verif_ahb_master #(
         slot_pending[handle] = 1'b1;
         @(posedge HCLK);
         guard = 0;
-        while (!HREADY) begin
+        do begin
           @(posedge HCLK);
-          guard = guard + 1;
-          if (guard > 64) begin
-            slot_busy[handle] = 1'b0;
-            slot_pending[handle] = 1'b0;
-            cap_valid = 1'b0;
-            ok = 1'b0;
-            ahb_idle();
-            disable ahb_xfer_issue;
-          end
-        end
+          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_xfer_issue HREADY")
+        end while (!HREADY);
         #1;
         hready_finish_slot(handle);
         cap_valid = 1'b0;
@@ -278,9 +270,13 @@ module verif_ahb_master #(
     input  integer handle;
     output [31:0] data;
     output [1:0]  resp;
+    integer guard;
     begin
-      while (!slot_done[handle])
+      guard = 0;
+      while (!slot_done[handle]) begin
         @(posedge HCLK);
+        `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_read_wait")
+      end
       data = slot_rdata[handle];
       resp = slot_resp[handle];
       slot_busy[handle] = 1'b0;
@@ -327,9 +323,13 @@ module verif_ahb_master #(
   task bus_write_wait;
     input  integer handle;
     output [1:0] resp;
+    integer guard;
     begin
-      while (!slot_done[handle])
+      guard = 0;
+      while (!slot_done[handle]) begin
         @(posedge HCLK);
+        `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_write_wait")
+      end
       resp = slot_resp[handle];
       slot_busy[handle] = 1'b0;
       slot_pending[handle] = 1'b0;

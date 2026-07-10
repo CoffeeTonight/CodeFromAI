@@ -88,15 +88,10 @@ module verif_ahb5_lite_master #(
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
       guard = 0;
-      while (!HREADY) begin
+      do begin
         @(posedge HCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          ahb_idle();
-          disable ahb_xfer;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "ahb5_lite bus_xfer HREADY")
+      end while (!HREADY);
       #1;
       if (!is_wr) rdata = lane_prdata(HRDATA, addr, size);
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;

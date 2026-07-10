@@ -74,13 +74,15 @@ module verif_ahb_lite_slave_simple #(
     mem[7] = INIT_WORD1[31:24];
   end
 
+  // AHB-Lite: HRESP 2'b01 = ERROR (not RETRY 2'b10 — full AHB only)
   always @(posedge HCLK) begin
+    HREADYOUT <= 1'b1;
     HRESP <= 2'b00;
     if (HTRANS == 2'b10) begin
       acc_sz = hsize_to_acc(HSIZE);
       acc_addr = HADDR;
       if (HADDR < BASE || access_span_end(HADDR, acc_sz) > BASE + SIZE)
-        HRESP <= 2'b10;
+        HRESP <= 2'b01;  // ERROR per AHB-Lite spec
       else if (HWRITE) begin
         acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
         wstrb = lane_wstrb(HADDR, acc_sz);

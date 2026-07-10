@@ -78,15 +78,10 @@ module verif_ahb_lite_master #(
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
       guard = 0;
-      while (!HREADY) begin
+      do begin
         @(posedge HCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          ahb_idle();
-          disable ahb_read;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "ahb_lite bus_read HREADY")
+      end while (!HREADY);
       #1;
       data = lane_prdata(HRDATA, addr, size);
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
@@ -117,15 +112,10 @@ module verif_ahb_lite_master #(
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
       guard = 0;
-      while (!HREADY) begin
+      do begin
         @(posedge HCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          ahb_idle();
-          disable ahb_write;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "ahb_lite bus_write HREADY")
+      end while (!HREADY);
       #1;
       resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;

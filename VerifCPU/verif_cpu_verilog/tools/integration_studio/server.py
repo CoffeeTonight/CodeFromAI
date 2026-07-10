@@ -46,6 +46,20 @@ def _read_json(handler: SimpleHTTPRequestHandler) -> dict[str, Any]:
     return json.loads(raw.decode("utf-8") or "{}")
 
 
+def _safe_output_dir(rtl: Path, raw: str | None) -> Path:
+    out = Path(str(raw or DEFAULT_OUT))
+    if not out.is_absolute():
+        out = (rtl / out).resolve()
+    else:
+        out = out.resolve()
+    jail = (rtl / "outputs").resolve()
+    try:
+        out.relative_to(jail)
+    except ValueError as exc:
+        raise ValueError(f"output_dir must be under {jail}") from exc
+    return out
+
+
 def _rtl_root() -> Path:
     env = os.environ.get("VERIF_CPU_RTL_ROOT", "").strip()
     if env:
@@ -191,7 +205,7 @@ class StudioHandler(SimpleHTTPRequestHandler):
                     "module_name": mod_slug,
                 })
 
-            out_dir = Path(str(body.get("output_dir") or DEFAULT_OUT))
+            out_dir = _safe_output_dir(_rtl_root(), body.get("output_dir"))
             out_dir.mkdir(parents=True, exist_ok=True)
             out_path = out_dir / f"{mod_slug}.v"
             out_path.write_text(verilog, encoding="utf-8")

@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_soc_widths.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_soc_bus_all;
 
@@ -11,6 +12,8 @@ module tb_soc_bus_all;
 
   localparam integer TB_EXPECTED_PASS = 13;
   localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 25;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   reg clk = 0;
   reg rstn = 0;
@@ -114,10 +117,10 @@ module tb_soc_bus_all;
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hC000_0000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_axil_s (.ACLK(clk), .ARESETn(rstn),
     .ARID({AXI_ID_WIDTH{1'b0}}), .ARADDR(u_axil.ARADDR), .ARLEN(8'd0), .ARSIZE(u_axil.ARSIZE),
-    .ARBURST(2'b01), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
+    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
     .RID(axil_rid), .RDATA(axil_rdata), .RRESP(axil_rresp), .RLAST(axil_rvalid), .RVALID(axil_rvalid), .RREADY(u_axil.RREADY),
     .AWID({AXI_ID_WIDTH{1'b0}}), .AWADDR(u_axil.AWADDR), .AWLEN(8'd0), .AWSIZE(u_axil.AWSIZE),
-    .AWBURST(2'b01), .AWVALID(u_axil.AWVALID), .AWREADY(axil_awready),
+    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID(u_axil.AWVALID), .AWREADY(axil_awready),
     .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axil.WDATA), .WSTRB(u_axil.WSTRB), .WLAST(1'b1), .WVALID(u_axil.WVALID), .WREADY(axil_wready),
     .BID(axil_bid), .BRESP(axil_bresp), .BVALID(axil_bvalid), .BREADY(u_axil.BREADY));
 
@@ -126,16 +129,16 @@ module tb_soc_bus_all;
     .ARREADY(axi3_arready), .RVALID(axi3_rvalid), .RDATA(axi3_rdata), .RRESP(axi3_rresp), .RLAST(axi3_rlast),
     .AWREADY(axi3_awready), .WREADY(axi3_wready), .BVALID(axi3_bvalid), .BRESP(axi3_bresp),
     .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
-    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
-    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
+    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
+    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hA000_0000)) u_axi3_s (.ACLK(clk), .ARESETn(rstn),
     .ARID(u_axi3.ARID), .ARADDR(u_axi3.ARADDR), .ARLEN(u_axi3.ARLEN), .ARSIZE(u_axi3.ARSIZE),
-    .ARBURST(u_axi3.ARBURST), .ARVALID(u_axi3.ARVALID), .ARREADY(axi3_arready),
+    .ARBURST(u_axi3.ARBURST), .ARLOCK(u_axi3.ARLOCK), .ARVALID(u_axi3.ARVALID), .ARREADY(axi3_arready),
     .RID(axi3_rid), .RDATA(axi3_rdata), .RRESP(axi3_rresp), .RLAST(axi3_rlast), .RVALID(axi3_rvalid), .RREADY(u_axi3.RREADY),
     .AWID(u_axi3.AWID), .AWADDR(u_axi3.AWADDR), .AWLEN(u_axi3.AWLEN), .AWSIZE(u_axi3.AWSIZE),
-    .AWBURST(u_axi3.AWBURST), .AWVALID(u_axi3.AWVALID), .AWREADY(axi3_awready),
+    .AWBURST(u_axi3.AWBURST), .AWLOCK(u_axi3.AWLOCK), .AWVALID(u_axi3.AWVALID), .AWREADY(axi3_awready),
     .WID(u_axi3.WID), .WDATA(u_axi3.WDATA), .WSTRB(u_axi3.WSTRB), .WLAST(u_axi3.WLAST), .WVALID(u_axi3.WVALID), .WREADY(axi3_wready),
     .BID(axi3_bid), .BRESP(axi3_bresp), .BVALID(axi3_bvalid), .BREADY(u_axi3.BREADY));
 
@@ -144,16 +147,16 @@ module tb_soc_bus_all;
     .ARREADY(axi4_arready), .RVALID(axi4_rvalid), .RDATA(axi4_rdata), .RRESP(axi4_rresp), .RLAST(axi4_rlast),
     .AWREADY(axi4_awready), .WREADY(axi4_wready), .BVALID(axi4_bvalid), .BRESP(axi4_bresp),
     .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
-    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
-    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
+    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
+    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hA100_0000)) u_axi4_s (.ACLK(clk), .ARESETn(rstn),
     .ARID(u_axi4.ARID), .ARADDR(u_axi4.ARADDR), .ARLEN(u_axi4.ARLEN), .ARSIZE(u_axi4.ARSIZE),
-    .ARBURST(u_axi4.ARBURST), .ARVALID(u_axi4.ARVALID), .ARREADY(axi4_arready),
+    .ARBURST(u_axi4.ARBURST), .ARLOCK(u_axi4.ARLOCK), .ARVALID(u_axi4.ARVALID), .ARREADY(axi4_arready),
     .RID(axi4_rid), .RDATA(axi4_rdata), .RRESP(axi4_rresp), .RLAST(axi4_rlast), .RVALID(axi4_rvalid), .RREADY(u_axi4.RREADY),
     .AWID(u_axi4.AWID), .AWADDR(u_axi4.AWADDR), .AWLEN(u_axi4.AWLEN), .AWSIZE(u_axi4.AWSIZE),
-    .AWBURST(u_axi4.AWBURST), .AWVALID(u_axi4.AWVALID), .AWREADY(axi4_awready),
+    .AWBURST(u_axi4.AWBURST), .AWLOCK(u_axi4.AWLOCK), .AWVALID(u_axi4.AWVALID), .AWREADY(axi4_awready),
     .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axi4.WDATA), .WSTRB(u_axi4.WSTRB), .WLAST(u_axi4.WLAST), .WVALID(u_axi4.WVALID), .WREADY(axi4_wready),
     .BID(axi4_bid), .BRESP(axi4_bresp), .BVALID(axi4_bvalid), .BREADY(u_axi4.BREADY));
 
@@ -162,16 +165,16 @@ module tb_soc_bus_all;
     .ARREADY(axi5_arready), .RVALID(axi5_rvalid), .RDATA(axi5_rdata), .RRESP(axi5_rresp), .RLAST(axi5_rlast),
     .AWREADY(axi5_awready), .WREADY(axi5_wready), .BVALID(axi5_bvalid), .BRESP(axi5_bresp),
     .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
-    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
-    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
+    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
+    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hA200_0000)) u_axi5_s (.ACLK(clk), .ARESETn(rstn),
     .ARID(u_axi5.ARID), .ARADDR(u_axi5.ARADDR), .ARLEN(u_axi5.ARLEN), .ARSIZE(u_axi5.ARSIZE),
-    .ARBURST(u_axi5.ARBURST), .ARVALID(u_axi5.ARVALID), .ARREADY(axi5_arready),
+    .ARBURST(u_axi5.ARBURST), .ARLOCK(u_axi5.ARLOCK), .ARVALID(u_axi5.ARVALID), .ARREADY(axi5_arready),
     .RID(axi5_rid), .RDATA(axi5_rdata), .RRESP(axi5_rresp), .RLAST(axi5_rlast), .RVALID(axi5_rvalid), .RREADY(u_axi5.RREADY),
     .AWID(u_axi5.AWID), .AWADDR(u_axi5.AWADDR), .AWLEN(u_axi5.AWLEN), .AWSIZE(u_axi5.AWSIZE),
-    .AWBURST(u_axi5.AWBURST), .AWVALID(u_axi5.AWVALID), .AWREADY(axi5_awready),
+    .AWBURST(u_axi5.AWBURST), .AWLOCK(u_axi5.AWLOCK), .AWVALID(u_axi5.AWVALID), .AWREADY(axi5_awready),
     .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axi5.WDATA), .WSTRB(u_axi5.WSTRB), .WLAST(u_axi5.WLAST), .WVALID(u_axi5.WVALID), .WREADY(axi5_wready),
     .BID(axi5_bid), .BRESP(axi5_bresp), .BVALID(axi5_bvalid), .BREADY(u_axi5.BREADY));
 
@@ -229,6 +232,8 @@ module tb_soc_bus_all;
     check("AXI5 full", resp == 0 && rd == 32'h0000_00A3);
 
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_soc_bus_all: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "tb_soc_bus_all failed");
     $display("[SUCCESS] All AMBA bridge variants OK");
     $finish;

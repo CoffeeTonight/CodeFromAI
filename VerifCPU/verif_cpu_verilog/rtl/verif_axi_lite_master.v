@@ -187,16 +187,10 @@ module verif_axi_lite_master #(
         ARPROT = 3'b010;
         ARVALID = 1'b1;
         guard = 0;
-        while (!ARREADY) begin
+        do begin
           @(posedge ACLK);
-          guard = guard + 1;
-          if (guard > 64) begin
-            r_slot_busy = 1'b0;
-            ok = 1'b0;
-            axi_idle();
-            disable bus_read_issue;
-          end
-        end
+          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_read_issue ARREADY")
+        end while (!ARREADY);
         r_slot_ar_done = 1'b1;
         ARVALID = 1'b0;
         @(posedge ACLK);
@@ -220,9 +214,13 @@ module verif_axi_lite_master #(
     input  integer handle;
     output [31:0] data;
     output [1:0]  resp;
+    integer guard;
     begin
-      while (!r_slot_done)
+      guard = 0;
+      while (!r_slot_done) begin
         @(posedge ACLK);
+        `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_read_wait")
+      end
       data = r_slot_data;
       resp = r_slot_resp;
       r_slot_ar_done = 1'b0;
@@ -274,27 +272,15 @@ module verif_axi_lite_master #(
         WSTRB = lane_wstrb(addr, size);
         WVALID = 1'b1;
         guard = 0;
-        while (!AWREADY) begin
+        do begin
           @(posedge ACLK);
-          guard = guard + 1;
-          if (guard > 64) begin
-            w_slot_busy = 1'b0;
-            ok = 1'b0;
-            axi_idle();
-            disable bus_write_issue;
-          end
-        end
+          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_issue AWREADY")
+        end while (!AWREADY);
         guard = 0;
-        while (!WREADY) begin
+        do begin
           @(posedge ACLK);
-          guard = guard + 1;
-          if (guard > 64) begin
-            w_slot_busy = 1'b0;
-            ok = 1'b0;
-            axi_idle();
-            disable bus_write_issue;
-          end
-        end
+          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_issue WREADY")
+        end while (!WREADY);
         AWVALID = 1'b0;
         WVALID = 1'b0;
         @(posedge ACLK);
@@ -315,9 +301,13 @@ module verif_axi_lite_master #(
   task bus_write_wait;
     input  integer handle;
     output [1:0] resp;
+    integer guard;
     begin
-      while (!w_slot_done)
+      guard = 0;
+      while (!w_slot_done) begin
         @(posedge ACLK);
+        `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_wait")
+      end
       resp = w_slot_resp;
       w_slot_busy = 1'b0;
       w_slot_done = 1'b0;

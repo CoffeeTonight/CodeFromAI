@@ -7,8 +7,13 @@
 `include "verif_platform_defs.vh"
 `include "campaign_scale.vh"
 `include "verif_soc_bus_connect.vh"
+`include "verif_sim_watchdog.vh"
 
 module chip_top_example;
+
+  localparam integer TB_EXPECTED_PASS = 12;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   reg soc_clk = 0;
   reg soc_rstn = 0;
@@ -78,6 +83,8 @@ module chip_top_example;
 
     $display("");
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "chip_top_example: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "chip_top_example FAILED");
     $display("chip_top_example: PASS");
     $finish;

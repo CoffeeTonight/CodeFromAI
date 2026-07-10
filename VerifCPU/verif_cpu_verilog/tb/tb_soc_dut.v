@@ -4,10 +4,14 @@
 `timescale 1ns/1ps
 `include "verif_platform_defs.vh"
 `include "campaign_soc_platform.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_soc_dut;
 
   localparam NUM_SLAVES = 3;
+  localparam integer TB_EXPECTED_PASS = 3;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   wire [1:0]  orch_phase;
   wire [31:0] orch_boot_fw;
@@ -122,12 +126,27 @@ module tb_soc_dut;
     $display("[4] Phase C - slave icode execution");
     u_mstr.phase_release(`PHASE_VERIFY, 32'h0);
     u_orch.phase_release(`PHASE_VERIFY, 32'h0);
-    u_soc.decode_read(32'h4000_0000, 3'd4, rdata, rresp, rport);
-    g_slave[0].u_ag.run_phase_c(rdata, rresp);
-    u_soc.decode_read(32'h8000_0000, 3'd4, rdata, rresp, rport);
-    g_slave[1].u_ag.run_phase_c(rdata, rresp);
-    u_soc.decode_read(32'hC000_0000, 3'd4, rdata, rresp, rport);
-    g_slave[2].u_ag.run_phase_c(rdata, rresp);
+    begin : phase_c_sfr
+      integer s;
+      for (s = 0; s < g_slave[0].u_ag.slot_count; s = s + 1) begin
+        u_soc.decode_read(g_slave[0].u_ag.bus_addr[s], 3'd4, rdata, rresp, rport);
+        g_slave[0].u_ag.run_phase_c_slot(rdata, rresp, s);
+      end
+    end
+    begin : phase_c_sram
+      integer s;
+      for (s = 0; s < g_slave[1].u_ag.slot_count; s = s + 1) begin
+        u_soc.decode_read(g_slave[1].u_ag.bus_addr[s], 3'd4, rdata, rresp, rport);
+        g_slave[1].u_ag.run_phase_c_slot(rdata, rresp, s);
+      end
+    end
+    begin : phase_c_uart
+      integer s;
+      for (s = 0; s < g_slave[2].u_ag.slot_count; s = s + 1) begin
+        u_soc.decode_read(g_slave[2].u_ag.bus_addr[s], 3'd4, rdata, rresp, rport);
+        g_slave[2].u_ag.run_phase_c_slot(rdata, rresp, s);
+      end
+    end
 
     $display("");
     $display("========================================================================");
@@ -143,8 +162,9 @@ module tb_soc_dut;
     $display("  TOTAL: PASS=%0d FAIL=%0d", total_pass, total_fail);
     $display("========================================================================");
 
-    if (total_fail != 0 || total_pass != 3) begin
-      $display("[FAIL] SoC verification campaign failed.");
+    if (total_fail != 0 || total_pass != TB_EXPECTED_PASS) begin
+      $display("[FAIL] SoC verification campaign failed (pass=%0d expected %0d).",
+               total_pass, TB_EXPECTED_PASS);
       $fatal(1);
     end
     $display("[SUCCESS] SoC verification campaign completed.");

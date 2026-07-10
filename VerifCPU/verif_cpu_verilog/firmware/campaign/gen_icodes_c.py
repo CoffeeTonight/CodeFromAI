@@ -2,7 +2,7 @@
 """Emit icode .c sources and icodes.mk for the current campaign manifest.
 
 Default (example.sh gen): only icodes referenced in campaign_slots.yaml targets.
-Optional regression: ICODE_CATALOG=50 → full catalog-50 (probe_icodes --verify-50).
+Optional regression: ICODE_CATALOG=full (or legacy =50) → full probe catalog.
 """
 
 from __future__ import annotations
@@ -61,8 +61,13 @@ def discover_hand_written() -> dict[str, Path]:
     return found
 
 
+def _catalog_mode() -> bool:
+    v = os.environ.get("ICODE_CATALOG", "").strip().lower()
+    return v in ("50", "full", "1", "yes", "true")
+
+
 def required_icode_names() -> list[str]:
-    if os.environ.get("ICODE_CATALOG", "").strip() == "50":
+    if _catalog_mode():
         return [s.name for s in build_catalog_50()]
     return manifest_icode_names_hdr(MANIFEST_HDR)
 
@@ -70,15 +75,10 @@ def required_icode_names() -> list[str]:
 def _count_manifest_active_slots() -> int:
     if not MANIFEST_HDR.is_file():
         return 0
+    from manifest_h_parser import parse_slave_rows
+
     body = MANIFEST_HDR.read_text(encoding="utf-8")
-    n = 0
-    for m in re.finditer(
-        r'\{\s*"[^"]+"\s*,\s*\d+\s*,\s*\d+\s*,\s*POOL_WORD_\w+\s*,\s*\d+\s*,\s*(\d+)',
-        body,
-    ):
-        if m.group(1) == "1":
-            n += 1
-    return n
+    return sum(1 for s in parse_slave_rows(body) if s.get("enabled"))
 
 
 def resolve_spec(name: str, catalog: dict[str, IcodeSpec]) -> IcodeSpec:
@@ -94,7 +94,7 @@ def main() -> int:
     catalog = catalog_by_name()
     hand = discover_hand_written()
     names = required_icode_names()
-    mode = "catalog-50" if os.environ.get("ICODE_CATALOG", "").strip() == "50" else "manifest"
+    mode = "catalog-full" if _catalog_mode() else "manifest"
 
     PROBE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -141,7 +141,7 @@ def main() -> int:
     for s in sources:
         print(f"  {s}")
     if mode == "manifest":
-        print("[gen_icodes_c] tip: ICODE_CATALOG=50 for full catalog regression build")
+        print("[gen_icodes_c] tip: ICODE_CATALOG=full for full probe catalog regression build")
     return 0
 
 

@@ -5,6 +5,7 @@ import os
 import re
 import sys
 
+from manifest_h_parser import parse_slave_rows, parse_master_row, parse_target_blocks
 from verilog_paths import CAMPAIGN_ROOT as ROOT, INCLUDE_DIR
 
 HDR = os.path.join(ROOT, "include", "campaign_manifest.h")
@@ -31,56 +32,19 @@ def parse_manifest(path: str) -> tuple[list[dict], dict | None]:
     with open(path, encoding="utf-8") as f:
         body = f.read()
 
-    slaves = []
-    for m in re.finditer(
-        r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*,\s*(\d+)'
-        r'(?:\s*,\s*"([^"]*)"\s*,\s*"([^"]*)")?\s*\}',
-        body,
-    ):
-        slaves.append({
-            "name": m.group(1),
-            "cpu_id": int(m.group(2)),
-            "tap": int(m.group(3)),
-            "target_count": int(m.group(4)),
-            "enabled": int(m.group(5)),
-            "bus_type": m.group(6) or "task",
-            "bus_port": m.group(7) or "",
-        })
-
-    master = None
-    m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
-    if m_present and int(m_present.group(1)):
-        mm = re.search(
-            r"static const manifest_master_t MANIFEST_MASTER = \{\s*"
-            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,',
-            body,
-        )
-        if mm:
-            master = {
-                "name": mm.group(1),
-                "cpu_id": 0,
-                "tap": int(mm.group(2)),
-                "enabled": 1,
-            }
-
-    target_blocks = re.findall(
-        r"static const manifest_target_t (MANIFEST_\w+_TARGETS)\[\] = \{(.*?)\};",
-        body,
-        re.S,
-    )
+    slaves = parse_slave_rows(body)
+    master = parse_master_row(body)
+    target_blocks = parse_target_blocks(body)
     targets_by_key = {}
-    for key, block in target_blocks:
-        entries = []
-        for row in re.finditer(
-            r"\{\s*([A-Z0-9_]+)\s*,\s*(0x[0-9a-fA-F]+)u?\s*,\s*\"([^\"]+)\"\s*\}",
-            block,
-        ):
-            entries.append({
-                "addr": resolve_addr(row.group(1)),
-                "expect": int(row.group(2), 0),
-                "icode": row.group(3),
-            })
-        targets_by_key[key] = entries
+    for key, rows in target_blocks.items():
+        targets_by_key[key] = [
+            {
+                "addr": resolve_addr(row["sym"]),
+                "expect": int(row["expect"], 0),
+                "icode": row["icode"],
+            }
+            for row in rows
+        ]
 
     for s in slaves:
         key = f"MANIFEST_{s['name']}_TARGETS"

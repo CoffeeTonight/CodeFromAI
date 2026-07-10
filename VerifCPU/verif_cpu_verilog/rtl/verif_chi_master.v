@@ -232,9 +232,13 @@ module verif_chi_master #(
     input  integer handle;
     output [31:0] data;
     output [1:0]  resp;
+    integer guard;
     begin
-      while (!r_slot_done[handle])
+      guard = 0;
+      while (!r_slot_done[handle]) begin
         @(posedge CLK);
+        `VERIF_BUS_WAIT_TICK(guard, "chi bus_read_wait")
+      end
       data = r_slot_data[handle];
       resp = r_slot_resp[handle];
       r_slot_done[handle] = 1'b0;
@@ -289,9 +293,13 @@ module verif_chi_master #(
   task bus_write_wait;
     input  integer handle;
     output [1:0] resp;
+    integer guard;
     begin
-      while (!w_slot_done[handle])
+      guard = 0;
+      while (!w_slot_done[handle]) begin
         @(posedge CLK);
+        `VERIF_BUS_WAIT_TICK(guard, "chi bus_write_wait")
+      end
       resp = w_slot_resp[handle];
       w_slot_done[handle] = 1'b0;
       snoop_valid = 1'b1;

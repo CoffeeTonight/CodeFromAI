@@ -1,7 +1,12 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_rv32i_demo;
+
+  localparam integer TB_EXPECTED_PASS = 2;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   verif_cpu_core #(.CPU_ID(1)) u_cpu (
     .final_pc(), .total_steps(), .sim_stop(),
@@ -54,6 +59,8 @@ module tb_rv32i_demo;
     check_eq("vstop received", u_cpu.sim_stop);
     check_eq("steps executed", u_cpu.total_steps > 0);
     $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
+    if (check_pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_rv32i_demo: pass=%0d expected %0d", check_pass, TB_EXPECTED_PASS);
     if (check_fail != 0) $fatal(1, "tb_rv32i_demo FAILED");
     $display("\n======================================================================");
     $display("Demo complete — PASS");

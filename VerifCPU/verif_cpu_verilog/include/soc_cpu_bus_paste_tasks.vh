@@ -54,6 +54,8 @@
     paste_cli_release_bus();
 
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "soc_cpu_bus_paste: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "soc_cpu_bus_paste FAILED");
     $display("soc_cpu_bus_paste: PASS");
     $finish;

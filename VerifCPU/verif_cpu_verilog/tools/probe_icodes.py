@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import struct
 import sys
@@ -186,24 +187,17 @@ def catalog_by_name() -> dict[str, IcodeSpec]:
 
 
 def manifest_icode_names_hdr(manifest_hdr: Path) -> list[str]:
-    """Unique icode names from generated campaign_manifest.h (respects NUM_SCPU)."""
+    """Unique icode names from generated campaign_manifest.h (SSOT parser)."""
     if not manifest_hdr.is_file():
         raise FileNotFoundError(
             f"missing {manifest_hdr} — run make config && make manifest first"
         )
+    campaign_dir = manifest_hdr.resolve().parent.parent
+    sys.path.insert(0, str(campaign_dir))
+    from manifest_h_parser import parse_icode_names  # noqa: E402
+
     body = manifest_hdr.read_text(encoding="utf-8")
-    seen: set[str] = set()
-    names: list[str] = []
-    for m in re.finditer(
-        r'\{\s*[A-Z0-9_]+\s*,\s*0x[0-9a-fA-F]+u?\s*,\s*"([^"]+)"\s*\}',
-        body,
-    ):
-        icode = m.group(1)
-        if icode in seen:
-            continue
-        seen.add(icode)
-        names.append(icode)
-    return names
+    return parse_icode_names(body)
 
 
 def manifest_icode_names(slots_yaml: Path) -> list[str]:
@@ -226,8 +220,8 @@ def manifest_icode_names(slots_yaml: Path) -> list[str]:
     return names
 
 
-def build_catalog_50() -> list[IcodeSpec]:
-    """50 icodes spanning manifest targets + extended SoC map."""
+def build_catalog() -> list[IcodeSpec]:
+    """Probe catalog spanning manifest targets + extended SoC map."""
     specs: list[IcodeSpec] = []
 
     specs.extend([
@@ -254,9 +248,21 @@ def build_catalog_50() -> list[IcodeSpec]:
     for i, off in enumerate((0x00, 0x04, 0x08, 0x0C, 0x10, 0x14, 0x18, 0x1C)):
         specs.append(IcodeSpec(f"probe_uart_w_{off:03x}", 0xC000_0000 + off, "W", write_data=0xB000_0000 + i))
 
-    if len(specs) != 50:
-        raise RuntimeError(f"catalog build error: expected 50 icodes, got {len(specs)}")
+    # Optional regression lock — set PROBE_ICODE_CATALOG_SIZE=N to assert exact count.
+    expected_env = os.environ.get("PROBE_ICODE_CATALOG_SIZE", "").strip()
+    if expected_env:
+        expected = int(expected_env)
+        if len(specs) != expected:
+            raise RuntimeError(
+                f"catalog build error: expected {expected} icodes, got {len(specs)} "
+                f"(unset PROBE_ICODE_CATALOG_SIZE or update recipe)"
+            )
     return specs
+
+
+def build_catalog_50() -> list[IcodeSpec]:
+    """Backward-compatible alias — catalog size follows recipe, not a fixed 50."""
+    return build_catalog()
 
 
 def _is_soc_addr(addr: int) -> bool:
@@ -633,19 +639,23 @@ def run_verification(catalog: list[IcodeSpec], verbose: bool = False) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Probe icode bus addresses with tinyrv")
-    parser.add_argument("--verify-50", action="store_true", help="Run 50-icode verification suite")
+    parser.add_argument(
+        "--verify-catalog", "--verify-50", action="store_true",
+        dest="verify_catalog",
+        help="Run full probe catalog verification (all entries from build_catalog())",
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Print every icode result")
     parser.add_argument("--list", action="store_true", help="List catalog entries")
     args = parser.parse_args()
 
-    catalog = build_catalog_50()
+    catalog = build_catalog()
 
     if args.list:
         for i, s in enumerate(catalog):
             print(f"{i+1:2d}. {s.name:24s} {s.op} 0x{s.bus_addr:08x}")
         return 0
 
-    if args.verify_50:
+    if args.verify_catalog:
         return run_verification(catalog, verbose=args.verbose)
 
     parser.print_help()

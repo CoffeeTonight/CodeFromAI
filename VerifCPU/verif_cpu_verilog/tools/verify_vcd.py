@@ -39,8 +39,12 @@ def campaign_expectations() -> tuple[int, int, int, list[str]]:
     master_vcpu = _define_int(master, "CAMPAIGN_MASTER_VCPU_ENABLED", 0)
     total_pass = _define_int(tb_gen, "CAMPAIGN_TOTAL_ICODE_PASS", 6)
     max_icode_slots = _define_int(tb_gen, "CAMPAIGN_MAX_ICODE_SLOTS", 2)
+    active_agents = _define_int(tb_gen, "CAMPAIGN_MANIFEST_ACTIVE_AGENTS", 0)
+    num_vcpus = _define_int(tb_gen, "CAMPAIGN_NUM_VCPUS", 0)
 
-    min_agents = num_scpu + (1 if master_vcpu else 0)
+    # TB dumps verify_pass only for manifest-active agents, not every SCPU slot.
+    wired_agents = active_agents or num_vcpus or num_scpu
+    min_agents = wired_agents + (1 if master_vcpu else 0)
     if min_agents == 0:
         min_orch_resets = 2
     else:
@@ -50,7 +54,7 @@ def campaign_expectations() -> tuple[int, int, int, list[str]]:
     cpu_vcds: list[str] = []
     if master_vcpu:
         cpu_vcds.append(os.path.join(LOG_FULL, "SCPU0.vcd"))
-    for cid in range(1, num_scpu + 1):
+    for cid in range(1, wired_agents + 1):
         cpu_vcds.append(os.path.join(LOG_FULL, f"SCPU{cid}.vcd"))
 
     return min_agents, total_pass, min_orch_resets, cpu_vcds

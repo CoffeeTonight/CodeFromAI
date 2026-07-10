@@ -128,13 +128,10 @@ module verif_agent_slave #(
   task run_phase_c;
     input [31:0] read_data;
     input [1:0]  read_resp;
-    integer s;
     begin
-      $display("SCPU%0d (%s) > Phase C: dispatch verification icode", CPU_ID, CPU_NAME);
-      for (s = 0; s < slot_count; s = s + 1)
-        run_phase_c_slot(read_data, read_resp, s);
-      $display("SCPU%0d (%s) > Phase C done: pass=%0d fail=%0d",
-               CPU_ID, CPU_NAME, verify_pass, verify_fail);
+      $fatal(1,
+        "SCPU%0d (%s) run_phase_c deprecated — decode_read per slot then run_phase_c_slot",
+        CPU_ID, CPU_NAME);
     end
   endtask
 

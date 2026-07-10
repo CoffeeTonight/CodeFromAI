@@ -2,6 +2,18 @@
 `ifndef VERIF_BUS_DEFS_VH
 `define VERIF_BUS_DEFS_VH
 
+`ifndef VERIF_BUS_WAIT_MAX_CYCLES
+  `define VERIF_BUS_WAIT_MAX_CYCLES 4096
+`endif
+
+// Increment guard inside bus task wait loops; call after each @(posedge clk).
+`define VERIF_BUS_WAIT_TICK(guard, tag) \
+  begin \
+    guard = guard + 1; \
+    if (guard > `VERIF_BUS_WAIT_MAX_CYCLES) \
+      $fatal(1, "[bus] %0s: handshake timeout after %0d cycles", tag, guard); \
+  end
+
 `define VERIF_BUS_TASK      0
 `define VERIF_BUS_NONE      1
 `define VERIF_BUS_AXI4LITE  2

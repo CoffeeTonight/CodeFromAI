@@ -71,15 +71,10 @@ module verif_apb_master #(
       PENABLE = 1'b1;
       @(posedge PCLK);
       guard = 0;
-      while (!PREADY) begin
+      do begin
         @(posedge PCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          apb_idle();
-          disable apb_read;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "apb3 bus_read PREADY")
+      end while (!PREADY);
       #1;
       data = lane_prdata(PRDATA, addr, size);
       resp = PSLVERR ? 2'd2 : 2'd0;
@@ -113,15 +108,10 @@ module verif_apb_master #(
       PENABLE = 1'b1;
       @(posedge PCLK);
       guard = 0;
-      while (!PREADY) begin
+      do begin
         @(posedge PCLK);
-        guard = guard + 1;
-        if (guard > 64) begin
-          resp = 2'd2;
-          apb_idle();
-          disable apb_write;
-        end
-      end
+        `VERIF_BUS_WAIT_TICK(guard, "apb3 bus_write PREADY")
+      end while (!PREADY);
       #1;
       resp = PSLVERR ? 2'd2 : 2'd0;
       snoop_valid = 1'b1;

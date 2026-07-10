@@ -162,7 +162,7 @@ Phase B (COLLECT)  ─── Master gate ───
 Phase C (VERIFY)
   VCPU run OFF_C            ← full ISA / JAL/JALR
   exec_icode_on_cpu()       ← pool에서 icode RV32 실행
-  agent.run_phase_c()       ← slot별 expect 비교
+  agent.run_phase_c_slot()  ← slot별 expect 비교 (`run_phase_c`는 deprecated → $fatal)
   icode inter-reset (orch)
 ```
 

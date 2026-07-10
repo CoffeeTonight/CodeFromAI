@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* custom ID: rd[4:0] + rs1[4:0] as id[9:5] → 10-bit IDs (0..1023); legacy rd-only = 0..31 */
+#define _ENC_CUSTOM_ID_LO(id) ((id) & 0x1Fu)
+#define _ENC_CUSTOM_ID_HI(id) (((id) >> 5) & 0x1Fu)
+#define _ENC_CUSTOM_ID(id)    _ENC_CUSTOM_ID_LO(id)
+
 #define _ENC_CUSTOM(sel, rd, rs1, rs2) \
     (uint32_t)( (((sel) & 0x7Fu) << 25) | (((rs2) & 0x1Fu) << 20) \
                | (((rs1) & 0x1Fu) << 15) | (((rd) & 0x1Fu) << 7) | 0x0Bu )
@@ -14,12 +19,12 @@
 #define vdummy_off()         EMIT32(_ENC_CUSTOM(0x03, 0, 0, 0))
 #define vwdt_pet()           EMIT32(_ENC_CUSTOM(0x04, 0, 0, 0))
 #define vwdt_set_rs1(r)      EMIT32(_ENC_CUSTOM(0x01, 0, r, 0))
-#define vtrace_enter(id)     EMIT32(_ENC_CUSTOM(0x10, id, 0, 0))
-#define vtrace_exit(id)      EMIT32(_ENC_CUSTOM(0x11, id, 0, 0))
-#define vtrace_log(id)       EMIT32(_ENC_CUSTOM(0x12, id, 0, 0))
-#define vsync(id)            EMIT32(_ENC_CUSTOM(0x13, id, 0, 0))
-#define vassert_id(id)       EMIT32(_ENC_CUSTOM(0x14, id, 0, 0))   /* condition: x1 */
-#define vassert_rs1(rs1, id) EMIT32(_ENC_CUSTOM(0x14, id, rs1, 0))
+#define vtrace_enter(id)     EMIT32(_ENC_CUSTOM(0x10, _ENC_CUSTOM_ID_LO(id), _ENC_CUSTOM_ID_HI(id), 0))
+#define vtrace_exit(id)      EMIT32(_ENC_CUSTOM(0x11, _ENC_CUSTOM_ID_LO(id), _ENC_CUSTOM_ID_HI(id), 0))
+#define vtrace_log(id)       EMIT32(_ENC_CUSTOM(0x12, _ENC_CUSTOM_ID_LO(id), _ENC_CUSTOM_ID_HI(id), 0))
+#define vsync(id)            EMIT32(_ENC_CUSTOM(0x13, _ENC_CUSTOM_ID_LO(id), _ENC_CUSTOM_ID_HI(id), 0))
+#define vassert_id(id)          EMIT32(_ENC_CUSTOM(0x14, _ENC_CUSTOM_ID_LO(id), 0, _ENC_CUSTOM_ID_HI(id)))
+#define vassert_rs1(cond_r, id) EMIT32(_ENC_CUSTOM(0x14, _ENC_CUSTOM_ID_LO(id), cond_r, _ENC_CUSTOM_ID_HI(id)))
 #define vforce(rd, rs2)      EMIT32(_ENC_CUSTOM(0x15, rd, 0, rs2))
 #define vrelease(rd)           EMIT32(_ENC_CUSTOM(0x16, rd, 0, 0))
 #define vwave(cmd, arg)        EMIT32(_ENC_CUSTOM(0x17, cmd, arg, 0))

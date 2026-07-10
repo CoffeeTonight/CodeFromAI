@@ -1,7 +1,12 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_basic;
+
+  localparam integer TB_EXPECTED_PASS = 4;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   verif_cpu_core #(.CPU_ID(1)) u_cpu1 (
     .final_pc(), .total_steps(), .sim_stop(),
@@ -48,6 +53,8 @@ module tb_basic;
     check_eq("cpu1 running", u_cpu1.state == `CPU_STATE_RUNNING);
     check_eq("cpu2 running", u_cpu2.state == `CPU_STATE_RUNNING);
     $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
+    if (check_pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_basic: pass=%0d expected %0d", check_pass, TB_EXPECTED_PASS);
     if (check_fail != 0) $fatal(1, "tb_basic FAILED");
     $display("=== Demo Finished — PASS ===");
     $finish;

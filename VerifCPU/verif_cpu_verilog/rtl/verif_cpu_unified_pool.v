@@ -70,11 +70,30 @@ module verif_cpu_unified_pool #(
   // Legacy: load small images entirely into data[] (harness / unit TB)
   task pool_load_hex;
     input [1024*8:1] filename;
+    output        ok;
+    integer       fd;
     begin
-      $readmemh(filename, data);
-      for (i = 0; i < 16; i = i + 1)
-        region_file_backed[i] = 1'b0;
-      $display("[UnifiedPool] Loaded firmware (array) from %0s", filename);
+      ok = 1'b0;
+      fd = $fopen(filename, "r");
+      if (fd == 0) begin
+        $display("[UnifiedPool] ERROR: cannot open %0s", filename);
+        ok = 1'b0;
+      end else begin
+        $fclose(fd);
+        $readmemh(filename, data);
+        ok = 1'b0;
+        for (i = 0; i < 16; i = i + 1)
+          region_file_backed[i] = 1'b0;
+        for (i = 0; i < 64; i = i + 1)
+          if (data[i] !== 32'hxxxxxxxx) begin
+            ok = 1'b1;
+            i = 64;
+          end
+        if (!ok)
+          $display("[UnifiedPool] ERROR: %0s read but pool words are all X", filename);
+        else
+          $display("[UnifiedPool] Loaded firmware (array) from %0s", filename);
+      end
     end
   endtask
 

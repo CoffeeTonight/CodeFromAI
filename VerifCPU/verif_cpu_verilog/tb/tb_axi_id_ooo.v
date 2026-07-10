@@ -2,8 +2,13 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_soc_widths.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_axi_id_ooo;
+
+  localparam integer TB_EXPECTED_PASS = 8;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
   localparam integer OS_MAX = `VERIF_AXI_MAX_OUTSTANDING;
@@ -26,8 +31,8 @@ module tb_axi_id_ooo;
     .ACLK(clk), .ARESETn(aresetn),
     .ARREADY(arready), .RVALID(rvalid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RID(rid),
     .AWREADY(awready), .WREADY(wready), .BVALID(bvalid), .BRESP(bresp), .BID(bid),
-    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
-    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
+    .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
+    .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data()
   );
@@ -43,10 +48,10 @@ module tb_axi_id_ooo;
   ) u_slv (
     .ACLK(clk), .ARESETn(aresetn),
     .ARID(u_mst.ARID), .ARADDR(u_mst.ARADDR), .ARLEN(u_mst.ARLEN), .ARSIZE(u_mst.ARSIZE),
-    .ARBURST(u_mst.ARBURST), .ARVALID(u_mst.ARVALID), .ARREADY(arready),
+    .ARBURST(u_mst.ARBURST), .ARLOCK(u_mst.ARLOCK), .ARVALID(u_mst.ARVALID), .ARREADY(arready),
     .RID(rid), .RDATA(rdata), .RRESP(rresp), .RLAST(rlast), .RVALID(rvalid), .RREADY(u_mst.RREADY),
     .AWID(u_mst.AWID), .AWADDR(u_mst.AWADDR), .AWLEN(u_mst.AWLEN), .AWSIZE(u_mst.AWSIZE),
-    .AWBURST(u_mst.AWBURST), .AWVALID(u_mst.AWVALID), .AWREADY(awready),
+    .AWBURST(u_mst.AWBURST), .AWLOCK(u_mst.AWLOCK), .AWVALID(u_mst.AWVALID), .AWREADY(awready),
     .WID(u_mst.WID), .WDATA(u_mst.WDATA), .WSTRB(u_mst.WSTRB), .WLAST(u_mst.WLAST),
     .WVALID(u_mst.WVALID), .WREADY(wready),
     .BID(bid), .BRESP(bresp), .BVALID(bvalid), .BREADY(u_mst.BREADY)
@@ -103,6 +108,8 @@ module tb_axi_id_ooo;
     check("id3 data BASE+20", d3 == 32'h0);
 
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_axi_id_ooo: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "tb_axi_id_ooo FAILED");
     $display("[SUCCESS] iverilog ID + OOO collect OK");
     disable fork;

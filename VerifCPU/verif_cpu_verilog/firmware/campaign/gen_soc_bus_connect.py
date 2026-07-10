@@ -14,6 +14,7 @@ except ImportError:
     yaml = None  # type: ignore
 
 from amba_bus_registry import connect_invoke_macro, connect_slv_tag, normalize_bus_type
+from manifest_h_parser import parse_master_row, parse_slave_rows
 from slave_yaml_parser import parse_slave_yaml_ent, require_slave_name_cpu_id
 from verilog_paths import CAMPAIGN_ROOT, INCLUDE_DIR
 
@@ -22,41 +23,28 @@ MANIFEST_HDR = ROOT / "include" / "campaign_manifest.h"
 DEFAULT_YAML = ROOT / "soc_hierarchy_example.yaml"
 OUT_VH = Path(INCLUDE_DIR) / "verif_soc_bus_connect.vh"
 
-SLAVE_ROW_RE = re.compile(
-    r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*POOL_WORD_\w+\s*,\s*(\d+)\s*,\s*(\d+)'
-    r'(?:\s*,\s*"([^"]*)"\s*,\s*"([^"]*)")?\s*\}'
-)
-
-
 def parse_manifest_h(path: Path) -> list[dict]:
     body = path.read_text(encoding="utf-8")
     slaves = []
-    for m in SLAVE_ROW_RE.finditer(body):
+    for s in parse_slave_rows(body):
         slaves.append({
-            "name": m.group(1),
-            "cpu_id": int(m.group(2)),
-            "tap_port": int(m.group(3)),
-            "enabled": int(m.group(5)),
-            "bus_type": (m.group(6) or "task").lower(),
-            "bus_port": m.group(7) or "",
+            "name": s["name"],
+            "cpu_id": s["cpu_id"],
+            "tap_port": s["tap"],
+            "enabled": s["enabled"],
+            "bus_type": s.get("bus_type", "task").lower(),
+            "bus_port": s.get("bus_port", ""),
         })
-    m_present = re.search(r"#define\s+CAMPAIGN_MASTER_PRESENT\s+(\d+)", body)
-    if m_present and int(m_present.group(1)):
-        mm = re.search(
-            r'static const manifest_master_t MANIFEST_MASTER = \{\s*'
-            r'"([^"]+)"\s*,\s*0\s*,\s*(\d+)\s*,\s*POOL_WORD_MASTER\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'
-            r'"([^"]*)"\s*,\s*"([^"]*)"\s*,',
-            body,
-        )
-        if mm and int(mm.group(4)):
-            slaves.append({
-                "name": mm.group(1),
-                "cpu_id": 0,
-                "tap_port": int(mm.group(2)),
-                "enabled": 1,
-                "bus_type": (mm.group(5) or "task").lower(),
-                "bus_port": mm.group(6) or "",
-            })
+    master = parse_master_row(body)
+    if master and master.get("enabled"):
+        slaves.append({
+            "name": master["name"],
+            "cpu_id": 0,
+            "tap_port": master["tap"],
+            "enabled": 1,
+            "bus_type": master.get("bus_type", "task"),
+            "bus_port": master.get("bus_port", ""),
+        })
     return slaves
 
 

@@ -22,6 +22,15 @@ make full_campaign    # = verify (권장)
 
 성공 시 체크리스트 **43/43 PASS**, `vcd_marker = 0xDEADDEAD`.
 
+Hang 방지: `Makefile`의 `VVP_TIMEOUT`(기본 600s) + TB `VERIF_SIM_WATCHDOG_NS`(`include/verif_sim_watchdog.vh`).  
+버스 마스터는 READY/HREADY/PREADY 대기·issue 경로 모두 `do-while` + `VERIF_BUS_WAIT_TICK`(4096 cycle) 적용.  
+`tb_verification_harness`만 **step watchdog** (`HARNESS_WATCHDOG_STEPS`) — ns watchdog은 hierarchical bus task와 deadlock.
+
+Silent skip 금지: 생성 TB·campaign task는 미배선 CPU/agent에 `default: $fatal`을 사용합니다.  
+`initial` assertion으로 `CAMPAIGN_MANIFEST_ACTIVE_AGENTS == CAMPAIGN_NUM_VCPUS` 등 manifest/CPU 수 일치를 compile 전 검증합니다.
+
+SSOT 파서: `firmware/campaign/manifest_h_parser.py` — `campaign_manifest.h`·icode 이름·active agent 수를 Python/생성기가 공유합니다.
+
 ## 사전 요구사항
 
 | 도구 | 용도 |
@@ -79,7 +88,7 @@ verif_cpu_verilog/
 | 구분 | RTL (예) | 용도 |
 |------|----------|------|
 | **구현** | APB2/3/4/5, AHB/AHB5-lite, AXI-lite/full 마스터·슬레이브 | paste / integration / chip-top 트랜잭션 |
-| **stub** | `verif_chi_master`, `verif_ace_master`, `verif_ace_lite_master`, `verif_axistream_master`, `verif_niu_master` | 60-slot manifest **컴파일·스모크만** (프로토콜 fidelity 없음) |
+| **stub** | `verif_chi_master`, `verif_ace_master`, `verif_ace_lite_master`, `verif_axistream_master`, `verif_niu_master`, `verif_asb_master` | 60-slot manifest **컴파일·스모크만** (프로토콜 fidelity 없음) |
 
 ## VCPU 특수 명령어 (custom-0)
 
@@ -93,7 +102,8 @@ VCPU는 **RV32I subset** (ALU·shift·branch·jump·lw/sw·lui/auipc) + **검증
 
 ### 인코딩 규칙
 
-모든 매크로는 `_ENC_CUSTOM(sel, rd, rs1, rs2)`로 한 워드를 만듭니다 (`firmware/campaign/include/verif_insns.h`가 **SSOT**).
+모든 매크로는 `_ENC_CUSTOM(sel, rd, rs1, rs2)`로 한 워드를 만듭니다 (`firmware/campaign/include/verif_insns.h`가 **SSOT**).  
+trace/assert/sync ID는 `rd[4:0]` + `rs2[4:0]`(또는 trace용 `rs1[4:0]`)로 **10-bit(0..1023)** 확장 — `0xa0`/`0xc0` collision 방지.
 
 - **selector** → `funct7` (7비트)
 - **레지스터 번호** → `rd` / `rs1` / `rs2` (각 5비트)
@@ -186,10 +196,10 @@ Phase C SFR는 DEADDEAD/X/Z 검증과 함께 사용합니다.
 
 ### 4. 함수 트레이스 — `vtrace_*`
 
-펌웨어가 직접 `SCPU1_FN > func_16 enter` 형태 로그를 냅니다. id는 5비트(`0x00`–`0x1F`)만 인코딩됩니다.
+펌웨어가 직접 `SCPU1_FN > func_16 enter` 형태 로그를 냅니다. trace/assert/sync ID는 **10-bit** (`rd` lo + `rs1`/`rs2` hi) — `0xA0`/`0xC0` collision 방지 (`verif_insns.h` SSOT). `vsync` barrier 테이블은 하위 **8-bit**만 사용 (캠페인 ID ≤255).
 
 ```c
-vtrace_enter(0xA0);
+vtrace_enter(0xA0);   // rd=0, rs1=5 → op_id10=0xA0
 vtrace_log(0xA1);            // 임의 메시지 id
 vtrace_exit(0xA0);             // enter와 쌍 맞추기 (mismatch 시 경고)
 ```
@@ -282,7 +292,7 @@ SCPU1 > [HWForce] READ 0x40000000 => 0x00005000 (hier=0x00000010)
 
 `vsync(id)`는 **barrier 참여**입니다. TB가 먼저 `sync_configure(id, participant_mask)`를 호출해야 합니다.
 
-**캠페인 parallel barrier** (`@0x380`, id=`10`, mask=`0x7` = SCPU1+2+3):
+**캠페인 parallel barrier** (`@0x380`, id=`10`, mask=`0x7` = SCPU1+2+3; N은 `campaign_slots.yaml` → `gen_tb_campaign.py` 루프로 생성):
 
 ```c
 // cpu_sfr/sync_barrier.c (SRAM/UART 동일 패턴)
@@ -295,11 +305,27 @@ vstop();
 
 **solo marker** (`expected[id]==0`): TB configure 없이 호출하면 대기 없이 통과합니다. Phase C에서 `vsync(1)` / `vsync(2)` / `vsync(3)` 이 이 용도입니다.
 
-TB 측 흐름 (`gen_tb_campaign.py` 생성):
+TB 측 흐름 (`gen_tb_campaign.py`가 manifest `cpus[]`를 **Python 루프**로 VH 전개; iverilog는 `g_cpu[gi]` 가변 인덱스 미지원 → VH는 상수 `g_cpu[0..N-1]` + `_campaign_cpu_wiring_guard`):
 
 1. `u_sync.sync_configure(8'd10, 64'd7)`
-2. `start_cpus_parallel(0x380)` — 3 CPU 동시 PC
+2. `start_cpus_parallel(0x380)` — active VCPU 동시 PC
 3. `run_cpus_parallel(800)` — `SYNC_WAIT` 중 `sync_poll`로 resume
+
+**AXI lock vs atomic:** `bus_read_locked()`로 `ARLOCK=1` 구동·slave 전달 검증. `verif_axi_arbiter_2m1s`는 lock 시 grant 고정. 일반 트랜잭션은 `ARLOCK`/`AWLOCK` idle 0. AXI4 배타 접근은 `AWATOP=6'h02` (`bus_write_exclusive`) + `make soc-bus-protocol` (38 checks).
+
+---
+
+## Integration Studio (LLM TB/DUT 생성)
+
+`tools/integration_studio/` — manifest 기반 Verilog TB/DUT 초안 생성 웹 UI.
+
+```bash
+./tools/integration_studio/run.sh   # http://127.0.0.1:8765
+```
+
+- **출력 경로 제한:** `server.py` `_safe_output_dir()` — `output_dir`는 `<rtl_root>/outputs/` 아래만 허용 (path traversal 차단).
+- **기본 출력:** `outputs/integration_studio/<module>.v`
+- manifest 파싱 SSOT: `manifest_h_parser.py` (campaign generator와 동일 regex)
 
 ---
 
@@ -424,7 +450,7 @@ make -C firmware/campaign config NUM_SCPU=40
 
 make -C firmware/campaign bus_connect    # manifest 기준 connect VH (active + reserved)
 make -C firmware/campaign bus_connect_yaml   # soc_hierarchy_example.yaml (chip top 전용)
-make soc-bus-all                         # 11종 bridge smoke + VCD
+make soc-bus-all                         # 13 checks bridge smoke + VCD
 make soc-bus-vcd                         # bridge VCD 파형 자동 검증
 python3 tools/verify_amba_bus_vcd.py sim_build/tb_soc_bus_all.vcd
 ```
@@ -459,7 +485,7 @@ make all           # SFR/SRAM/UART .bin + merge → unified.hex
 
 | 입력 | 스크립트 | Verilog 산출 |
 |------|----------|--------------|
-| `include/soc_init_seq.h` | `gen_soc_init.py` | `include/soc_init_seq.vh`, `campaign_soc_platform.vh` |
+| `include/soc_init_seq.h` | `gen_soc_init.py` | `include/soc_init_seq.vh`, `campaign_soc_platform.vh`, `include/soc_init_steps.py`, `include/soc_platform.py` |
 | `include/campaign_manifest.h` | `gen_campaign_manifest.py` | `include/campaign_manifest.vh` |
 | `icodes/**/*.c` | `build_icode_pool.py` | `include/icode_map.vh`, `icode_bind.vh`, `tb_full_campaign_gen.vh`, `tb_soc_manifest_*.vh`, `tb_soc_manifest_scale_*.vh` |
 | `soc_hierarchy_example.yaml` | `gen_soc_bus_connect.py`, `gen_soc_cell_rtl.py` | `verif_soc_bus_connect.vh`, `rtl/verif_vcpu_soc_cell.v` |
@@ -471,7 +497,7 @@ make all           # SFR/SRAM/UART .bin + merge → unified.hex
 
 ```bash
 make full_campaign   # ★ 공식 캠페인 (fw 빌드 + TB + VCD gate)
-make verify          # full_campaign 별칭
+make verify          # harness + full_campaign + soc-bus-protocol (공식 regression)
 make all             # verify 와 동일
 
 make fw              # 펌웨어만 재빌드 (iverilog 생략)
@@ -480,11 +506,20 @@ make rv32i           # RV32I 데모 TB
 make harness         # verification harness TB
 make soc             # simple_soc DUT TB
 make soc-bus         # APB3 + AHB-Lite bridge smoke
-make soc-bus-all     # APB/AHB/AXI bridge smoke (11 checks) + VCD
+make soc-bus-all     # APB/AHB/AXI bridge smoke (13 checks) + VCD
+make soc-bus-protocol # AHB/AXI + burst + 2-master arbiter + axlock tie-0 + AWATOP (40 checks)
+make soc-bus-os       # AXI outstanding read/write (7 checks)
+make soc-bus-id-ooo   # AXI ID out-of-order completion (8 checks)
 make soc-bus-vcd     # 위 + verify_amba_bus_vcd.py
-make soc-manifest       # CONNECT_SLV* integration TB — active 3셀 (23 checks)
-make soc-manifest-scale # flat N셀 BUS_LAYOUT compile + active 3 campaign (26 checks)
+make soc-paste        # paste-style SoC bus wiring smoke (4 checks)
+make soc-integration  # direct inst integration example (12 checks)
+make soc-manifest       # CONNECT_SLV* integration TB — active 3셀 (24 checks)
+make soc-manifest-scale # flat N셀 BUS_LAYOUT compile + active 3 campaign (27 checks)
 make chip-top-example   # chip_top: orchestrator + agent + bus R/W (12 checks)
+make discover         # campaign_slots.yaml → soc_integration_ports.yaml
+make gen              # manifest/connect/cell/TB 재생성
+make fw-scale         # scale layout 펌웨어 빌드
+make filelists        # EDA filelist 생성
 make clean           # sim_build/ 삭제
 make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, filelists, scripts)
 ```
@@ -493,10 +528,15 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 
 | 타깃 | 체크 | 비고 |
 |------|------|------|
-| `make full_campaign` | 43/43 + VCD | 공식 regression |
-| `make soc-bus-all` | 11/11 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite/3/4/5 |
-| `make soc-manifest` | 23/23 | real bridge, 3 active slaves |
-| `make soc-manifest-scale` | 26/26 | 60 `g_slv*` + active 3 Phase A/B/C |
+| `make verify` | harness 5 + campaign 43 + protocol 40 | 공식 regression gate |
+| `make full_campaign` | 43/43 + VCD | 캠페인 단독 |
+| `make basic` / `rv32i` | 4 / 2 | 코어 smoke + `VERIF_SIM_WATCHDOG_NS` |
+| `make soc-bus-all` | 13/13 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
+| `make soc-bus-protocol` | 40/40 | AHB/AXI errors, INCR/WRAP R/W burst, 4KiB cross, 2M arb/AW, ARLOCK, AWATOP |
+| `make soc-bus-os` / `soc-bus-id-ooo` | 7 / 8 | AXI outstanding + ID OOO |
+| `make soc-integration` | 12/12 | paste-style direct inst wiring |
+| `make soc-manifest` | 24/24 | real bridge, 3 active slaves, `TB_EXPECTED_PASS` gate |
+| `make soc-manifest-scale` | 27/27 | 60 `g_slv*` + active 3 Phase A/B/C |
 | `make chip-top-example` | 12/12 | yaml 3 active slaves (SFR/SRAM/UART) |
 
 외부 SoC (AXI/AHB/APB) 통합: [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (예제→내 SoC 절차), [howto_integrate.md](howto_integrate.md) §11–12 (신호 상세), [vcpu_skill.md](vcpu_skill.md)
@@ -600,3 +640,7 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
 - [architecture_and_verification.md](architecture_and_verification.md) — SoC/VCPU/Agent 블록 다이어그램 + 검증 스냅샷
 - `firmware/campaign/amba_bus_registry.py` — bus 타입·CLI·RTL·connect 매크로 SSOT (`rtl_status`: `done` / `smoke` / `manifest_only`)
 - `tools/probe_icodes.py` — icode bus 주소 probe (`requirements.txt` → `tinyrv`)
+  - `python3 tools/probe_icodes.py --list` — catalog 항목 나열 (크기는 recipe에서 결정, 고정 50 아님)
+  - `python3 tools/probe_icodes.py --verify-catalog` — 전체 catalog tinyrv 회귀
+  - `ICODE_CATALOG=full make -C firmware/campaign icodes` — manifest 대신 full catalog로 probe C 생성
+  - `PROBE_ICODE_CATALOG_SIZE=N` — 선택적 회귀 lock (recipe 변경 시 N 업데이트)

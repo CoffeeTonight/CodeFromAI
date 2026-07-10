@@ -1,5 +1,7 @@
 IVERILOG = iverilog
 VVP      = vvp
+VVP_TIMEOUT ?= 600
+RUN_VVP  = timeout $(VVP_TIMEOUT) $(VVP)
 IVFLAGS  = -g2012 -I include
 .DELETE_ON_ERROR:
 
@@ -55,7 +57,8 @@ STUB_BUS_RTL = rtl/verif_axistream_master.v \
                rtl/verif_ace_master.v \
                rtl/verif_ace_lite_master.v \
                rtl/verif_chi_master.v \
-               rtl/verif_niu_master.v
+               rtl/verif_niu_master.v \
+               rtl/verif_asb_master.v
 
 MANIFEST_RTL = rtl/verif_cpu_bus.v \
                rtl/verif_cpu_unified_pool.v \
@@ -103,7 +106,7 @@ SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 SOC_INTEGRATION_SCRIPT = firmware/campaign/gen_soc_integration_example.py
 SOC_INTEGRATION_YAML = firmware/campaign/soc_integration_ports.yaml
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-protocol soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
 discover:
 	$(MAKE) -C firmware/campaign discover
@@ -112,28 +115,28 @@ config-campaign:
 	$(MAKE) -C firmware/campaign config
 
 # Authoritative gate: iverilog sim + VCD post-check
-verify: harness full_campaign
+verify: harness full_campaign soc-bus-protocol
 
 all: verify
 
 basic: sim_build/tb_basic.vvp
-	$(VVP) sim_build/tb_basic.vvp
+	$(RUN_VVP) sim_build/tb_basic.vvp
 
 rv32i: sim_build/tb_rv32i_demo.vvp
-	$(VVP) sim_build/tb_rv32i_demo.vvp
+	$(RUN_VVP) sim_build/tb_rv32i_demo.vvp
 
 harness: sim_build/tb_verification_harness.vvp
 	mkdir -p logs/harness_v
-	$(VVP) sim_build/tb_verification_harness.vvp
+	$(RUN_VVP) sim_build/tb_verification_harness.vvp
 
 soc: sim_build/tb_soc_dut.vvp
-	$(VVP) sim_build/tb_soc_dut.vvp
+	$(RUN_VVP) sim_build/tb_soc_dut.vvp
 
 soc-bus: sim_build/tb_soc_bus_bridge.vvp
-	$(VVP) sim_build/tb_soc_bus_bridge.vvp
+	$(RUN_VVP) sim_build/tb_soc_bus_bridge.vvp
 
 soc-bus-all: sim_build/tb_soc_bus_all.vvp
-	$(VVP) sim_build/tb_soc_bus_all.vvp
+	$(RUN_VVP) sim_build/tb_soc_bus_all.vvp
 	python3 tools/verify_amba_bus_vcd.py sim_build/tb_soc_bus_all.vcd
 
 soc-bus-vcd: soc-bus soc-bus-all
@@ -147,11 +150,18 @@ sim_build/tb_soc_bus_all.vvp: $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v inc
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v
 
+soc-bus-protocol: sim_build/tb_amba_protocol.vvp
+	$(RUN_VVP) sim_build/tb_amba_protocol.vvp
+
 soc-bus-os: sim_build/tb_axi_outstanding.vvp
-	$(VVP) sim_build/tb_axi_outstanding.vvp
+	$(RUN_VVP) sim_build/tb_axi_outstanding.vvp
 
 soc-bus-id-ooo: sim_build/tb_axi_id_ooo.vvp
-	$(VVP) sim_build/tb_axi_id_ooo.vvp
+	$(RUN_VVP) sim_build/tb_axi_id_ooo.vvp
+
+sim_build/tb_amba_protocol.vvp: rtl/verif_ahb_lite_master.v rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v rtl/verif_axi_arbiter_2m1s.v tb/tb_amba_protocol.v include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_ahb_lite_master.v rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v rtl/verif_axi_arbiter_2m1s.v tb/tb_amba_protocol.v
 
 sim_build/tb_axi_outstanding.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_outstanding.v include/verif_bus_soc_widths.vh
 	@mkdir -p sim_build
@@ -180,7 +190,7 @@ filelists:
 
 full_campaign: fw sim_build/tb_full_campaign.vvp
 	mkdir -p $(LOG_FULL)
-	$(VVP) sim_build/tb_full_campaign.vvp
+	$(RUN_VVP) sim_build/tb_full_campaign.vvp
 	$(VCD_CHK) $(VCD_MAIN)
 
 sim_build/tb_basic.vvp: $(RTL) tb/tb_basic.v
@@ -241,10 +251,10 @@ config-scale:
 soc-manifest: $(FW_DEFAULT_STAMP) $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND)
 	$(MAKE) -C firmware/campaign bus_connect
 	$(MAKE) sim_build/tb_soc_manifest.vvp
-	$(VVP) sim_build/tb_soc_manifest.vvp
+	$(RUN_VVP) sim_build/tb_soc_manifest.vvp
 
 soc-manifest-scale: sim_build/tb_soc_manifest_scale.vvp
-	$(VVP) sim_build/tb_soc_manifest_scale.vvp
+	$(RUN_VVP) sim_build/tb_soc_manifest_scale.vvp
 
 chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK)
 	$(MAKE) -C firmware/campaign bus_connect_yaml HIER_YAML=$(HIER_YAML)

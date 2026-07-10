@@ -9,9 +9,11 @@
 `define CAMPAIGN_POOL_READMEMH_MAX 32'h00040000
 `define CAMPAIGN_ICODE_USE_LAZY 0
 `define CAMPAIGN_MEM_WORDS 32'h1fc00
+reg campaign_pool_load_ok;
 
 `define CAMPAIGN_LOAD_FIRMWARE \
-  u_pool.pool_load_hex("firmware/full_campaign_unified.hex"); \
+  u_pool.pool_load_hex("firmware/full_campaign_unified.hex", campaign_pool_load_ok); \
+  if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \
   `CAMPAIGN_POOL_ASSIGN_VCPUS \
   u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \
   u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \
@@ -21,6 +23,8 @@
 `define CAMPAIGN_NUM_AGENTS `CAMPAIGN_MAX_SLOTS
 `define CAMPAIGN_MAX_ICODE_SLOTS 2
 `define CAMPAIGN_TOTAL_ICODE_PASS 6
+`define CAMPAIGN_MANIFEST_ACTIVE_AGENTS 3
+`define CAMPAIGN_UART_CPU_ID 3
 
 `define CAMPAIGN_POOL_ASSIGN_VCPUS \
   u_pool.pool_assign_region(1, 32'h0, FW_SIZE); \
@@ -105,6 +109,18 @@
   check_eq("Platform multi-icode PASS=6", total_pass == `CAMPAIGN_TOTAL_ICODE_PASS && total_fail == 0); \
   check_eq("Orchestrator reset count", orch_reset_count >= 4); \
 
+initial begin
+  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS)
+    $fatal(1, "manifest active agents %0d > CAMPAIGN_MAX_SLOTS %0d",
+           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS);
+  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS != `CAMPAIGN_NUM_VCPUS)
+    $fatal(1, "manifest active agents %0d != wired VCPUs %0d",
+           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_NUM_VCPUS);
+  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_ACTIVE_AGENTS)
+    $fatal(1, "CAMPAIGN_ACTIVE_SLOTS %0d != manifest active %0d",
+           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_ACTIVE_AGENTS);
+end
+
 // --- example.sh gen default campaign scenario (feature matrix) ---
 // Platform: Phase A/B/C orchestrator, master init_done, agent snoop, icode pool
 // Custom insn: vstop vwdt vtrace vsync vassert vforce/vrelease vhw_force/vhw_release vwave
@@ -149,7 +165,7 @@
   g_cpu[1].u_cpu.wave_export_vcd(vcd_cpu); \
   $sformat(vcd_cpu, "%0s/SCPU3.vcd", log_dir); \
   g_cpu[2].u_cpu.wave_export_vcd(vcd_cpu); \
-  check_eq("Main VCD path set", 1); \
+  check_eq("VCD export wave data", g_cpu[0].u_cpu.wave_chg_count > 0); \
 
 `define CAMPAIGN_REPORT_VCORES \
   $display("  SFR  steps=%0d bus=%0d assert_pass=%0d fail=%0d", g_cpu[0].u_cpu.total_steps, g_cpu[0].u_cpu.bus_txn_count, g_cpu[0].u_cpu.assert_pass, g_cpu[0].u_cpu.assert_fail); \
@@ -167,6 +183,8 @@
   g_cpu[0].u_cpu.cpu_console_bus_write(32'h4000_0008, 32'h0000_CAFE, 3'd4); \
   g_cpu[0].u_cpu.cpu_resume(); \
   check_eq("Console stall/resume", g_cpu[0].u_cpu.state == `CPU_STATE_RUNNING); \
+
+`define CAMPAIGN_PHASE_C_EXTRA /* no-op */
 
 `define CAMPAIGN_SYNC_BARRIER_ID 10
 `define CAMPAIGN_SYNC_MASK 64'd7
@@ -218,6 +236,7 @@
   `CAMPAIGN_CONSOLE_STALL \
   `CAMPAIGN_PHASE_C_SFR \
   `CAMPAIGN_PHASE_C_SRAM \
+  `CAMPAIGN_PHASE_C_EXTRA \
   $display("\n[6] Platform icode — RV32 pool exec + multi-slot dispatch + inter-reset"); \
   `CAMPAIGN_ICODE_RV32_EXEC \
   `CAMPAIGN_ICODE_MAP_BUS_CHECKS \
@@ -267,6 +286,24 @@
     end
   endgenerate
 
+// CPU/agent wiring guard — Python loop over manifest; VH constant gi (iverilog)
+initial begin : _campaign_cpu_wiring_guard
+  if (`CAMPAIGN_NUM_VCPUS != 3)
+    $fatal(1, "CAMPAIGN_NUM_VCPUS=%0d expected 3 — rerun make icodes", `CAMPAIGN_NUM_VCPUS);
+  if (g_cpu[0].u_cpu.CPU_ID != 4'd1)
+    $fatal(1, "g_cpu[0] CPU_ID=%0d expected 1", g_cpu[0].u_cpu.CPU_ID);
+  if (g_cpu[1].u_cpu.CPU_ID != 4'd2)
+    $fatal(1, "g_cpu[1] CPU_ID=%0d expected 2", g_cpu[1].u_cpu.CPU_ID);
+  if (g_cpu[2].u_cpu.CPU_ID != 4'd3)
+    $fatal(1, "g_cpu[2] CPU_ID=%0d expected 3", g_cpu[2].u_cpu.CPU_ID);
+  if (g_ag[0].u_ag.CPU_ID != 4'd1)
+    $fatal(1, "g_ag[0] agent CPU_ID=%0d expected 1", g_ag[0].u_ag.CPU_ID);
+  if (g_ag[1].u_ag.CPU_ID != 4'd2)
+    $fatal(1, "g_ag[1] agent CPU_ID=%0d expected 2", g_ag[1].u_ag.CPU_ID);
+  if (g_ag[2].u_ag.CPU_ID != 4'd3)
+    $fatal(1, "g_ag[2] agent CPU_ID=%0d expected 3", g_ag[2].u_ag.CPU_ID);
+end
+
   task setup_cpu;
     input [3:0] cid;
     input [8*8:1] name;
@@ -314,7 +351,7 @@
           $sformat(logpath, "%0s/SCPU3.log", log_dir);
           g_cpu[2].u_cpu.cpu_open_dedicated_log(logpath);
         end
-        default: ;
+        default: $fatal(1, "setup_cpu: cid=%0d not wired (CAMPAIGN_NUM_VCPUS=%0d)", cid, `CAMPAIGN_NUM_VCPUS);
       endcase
     end
   endtask
@@ -383,7 +420,7 @@
           if (g_cpu[2].u_cpu.recovery_count > rec_before)
             recovered = 1;
         end
-        default: ;
+        default: $fatal(1, "run_cpu_core: cid=%0d not wired (CAMPAIGN_NUM_VCPUS=%0d)", cid, `CAMPAIGN_NUM_VCPUS);
       endcase
     end
   endtask
@@ -512,8 +549,8 @@
       if (cid == 0 || cid == 1) g_cpu[0].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
       if (cid == 0 || cid == 2) g_cpu[1].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
       if (cid == 0 || cid == 3) g_cpu[2].u_cpu.cpu_console_dispatch(cmd, a0, a1, a2);
-      if (cid > 4'd3)
-        $display("[Console] unknown cpu_id=%0d (active VCPUs 1..3)", cid);
+      if (cid != 0 && (cid < 1 || cid > 4'd3))
+        $fatal(1, "[Console] unknown cpu_id=%0d (active VCPUs 1..3)", cid);
     end
   endtask
 
@@ -611,7 +648,7 @@
                && (g_cpu[2].u_cpu.bus_txn_count > txn_before);
           restore_cpu_pool(cid, 32'h1000);
         end
-        default: ;
+        default: $fatal(1, "exec_icode_on_cpu: cid=%0d not wired (CAMPAIGN_NUM_VCPUS=%0d)", cid, `CAMPAIGN_NUM_VCPUS);
       endcase
     end
   endtask

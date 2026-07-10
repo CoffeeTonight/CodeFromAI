@@ -18,8 +18,13 @@
 `include "campaign_manifest.vh"
 `include "icode_map.vh"
 `include "icode_bind.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_full_campaign;
+
+  localparam integer TB_EXPECTED_PASS = 43;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   localparam OFF_A            = 32'h000;
   localparam OFF_B            = 32'h100;
@@ -130,6 +135,8 @@ module tb_full_campaign;
 
     `CAMPAIGN_CLOSE_VCORE_LOGS
 
+    if (check_pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_full_campaign: pass=%0d expected %0d", check_pass, TB_EXPECTED_PASS);
     if (check_fail != 0) begin
       vcd_marker = 32'hBADC0DE;
       $display("[FAIL] iverilog campaign — see checklist above.");

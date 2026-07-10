@@ -1,10 +1,13 @@
 // Smoke test: VerifCPU APB/AHB bridge bus_read/write tasks
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+`include "verif_sim_watchdog.vh"
 
 module tb_soc_bus_bridge;
 
   localparam integer TB_EXPECTED_PASS = 6;
+
+  `VERIF_SIM_WATCHDOG_NS
 
   reg apb_clk = 0;
   reg ahb_clk = 0;
@@ -99,6 +102,8 @@ module tb_soc_bus_bridge;
     check("AHB half read", resp == 2'd0 && rd[15:0] == 16'hBEEF);
 
     $display("Checklist: %0d passed / %0d failed", pass, fail);
+    if (pass != TB_EXPECTED_PASS)
+      $fatal(1, "tb_soc_bus_bridge: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "tb_soc_bus_bridge failed");
     $display("[SUCCESS] APB/AHB bridges OK");
     $finish;

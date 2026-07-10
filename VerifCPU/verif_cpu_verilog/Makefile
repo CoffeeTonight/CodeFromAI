@@ -5,6 +5,19 @@ RUN_VVP  = timeout $(VVP_TIMEOUT) $(VVP)
 IVFLAGS  = -g2012 -I include
 .DELETE_ON_ERROR:
 
+.PHONY: version-check
+version-check:
+	@command -v $(IVERILOG) >/dev/null 2>&1 || \
+		(echo "ERROR: iverilog not found (apt install iverilog)" && exit 1)
+	@mkdir -p sim_build
+	@printf '%s\n' 'module _verif_cpu_ver_check; endmodule' > sim_build/_ver_check.v
+	@$(IVERILOG) $(IVFLAGS) -o sim_build/_ver_check.vvp sim_build/_ver_check.v 2>/dev/null && \
+		rm -f sim_build/_ver_check.vvp sim_build/_ver_check.v || \
+		(rm -f sim_build/_ver_check.v; \
+		 echo "ERROR: iverilog lacks -g2012 support (upgrade iverilog)" && exit 1)
+	@command -v python3 >/dev/null 2>&1 || \
+		(echo "ERROR: python3 not found" && exit 1)
+
 # Chip hierarchy YAML under firmware/campaign/ (pass to sub-make: make chip-top-example HIER_YAML=soc_hierarchy_my_chip.yaml)
 HIER_YAML ?= soc_hierarchy_from_slots.yaml
 export HIER_YAML
@@ -115,7 +128,7 @@ config-campaign:
 	$(MAKE) -C firmware/campaign config
 
 # Authoritative gate: iverilog sim + VCD post-check
-verify: harness full_campaign soc-bus-protocol
+verify: version-check harness full_campaign soc-bus-protocol
 
 all: verify
 
@@ -135,7 +148,7 @@ soc: sim_build/tb_soc_dut.vvp
 soc-bus: sim_build/tb_soc_bus_bridge.vvp
 	$(RUN_VVP) sim_build/tb_soc_bus_bridge.vvp
 
-soc-bus-all: sim_build/tb_soc_bus_all.vvp
+soc-bus-all: version-check sim_build/tb_soc_bus_all.vvp
 	$(RUN_VVP) sim_build/tb_soc_bus_all.vvp
 	python3 tools/verify_amba_bus_vcd.py sim_build/tb_soc_bus_all.vcd
 

@@ -23,7 +23,7 @@ module verif_axi_full_slave_simple #(
   input  [1:0]  ARBURST,
   input         ARLOCK,   // AXI3 — ignored (no lock semantics in behavioral slave)
   input         ARVALID,
-  output reg        ARREADY,
+  output wire       ARREADY,
   output reg [ID_WIDTH-1:0] RID,
   output reg [DATA_WIDTH-1:0] RDATA,
   output reg [1:0]  RRESP,
@@ -37,7 +37,7 @@ module verif_axi_full_slave_simple #(
   input  [1:0]  AWBURST,
   input         AWLOCK,   // AXI3 — ignored
   input         AWVALID,
-  output reg        AWREADY,
+  output wire       AWREADY,
   input  [ID_WIDTH-1:0] WID,
   input  [DATA_WIDTH-1:0] WDATA,
   input  [DATA_WIDTH/8-1:0] WSTRB,
@@ -58,6 +58,7 @@ module verif_axi_full_slave_simple #(
   reg [ADDR_WIDTH-1:0] rq_addr [0:MAX_OUTSTANDING-1];
   reg [7:0]  rq_arlen [0:MAX_OUTSTANDING-1];
   reg [1:0]  rq_burst [0:MAX_OUTSTANDING-1];
+  reg [2:0]  rq_arsize [0:MAX_OUTSTANDING-1];
   reg [7:0]  rq_beat [0:MAX_OUTSTANDING-1];
   reg [ADDR_WIDTH-1:0] rq_cur_addr [0:MAX_OUTSTANDING-1];
   reg [7:0]  rq_timer [0:MAX_OUTSTANDING-1];
@@ -225,6 +226,8 @@ module verif_axi_full_slave_simple #(
   wire aw_hs;
   wire w_hs;
   assign aw_ready_w = !aw_latched;
+  assign ARREADY = ARESETn && ar_ready_w;
+  assign AWREADY = ARESETn && aw_ready_w;
   assign ar_hs = ARVALID && ARREADY;
   assign aw_hs = AWVALID && AWREADY;
   assign w_hs = aw_latched && WVALID && WREADY;
@@ -234,12 +237,10 @@ module verif_axi_full_slave_simple #(
   end
 
   initial begin
-    ARREADY = 1'b0;
     aw_latched = 1'b0;
     RID = {ID_WIDTH{1'b0}};
     RVALID = 1'b0;
     RLAST = 1'b0;
-    AWREADY = 1'b0;
     WREADY = 1'b0;
     BID = {ID_WIDTH{1'b0}};
     BVALID = 1'b0;
@@ -264,12 +265,10 @@ module verif_axi_full_slave_simple #(
   always @(posedge ACLK or negedge ARESETn) begin
     integer slot;
     if (!ARESETn) begin
-      ARREADY <= 1'b0;
       aw_latched <= 1'b0;
       RID <= {ID_WIDTH{1'b0}};
       RVALID <= 1'b0;
       RLAST <= 1'b0;
-      AWREADY <= 1'b0;
       WREADY <= 1'b0;
       BID <= {ID_WIDTH{1'b0}};
       BVALID <= 1'b0;
@@ -280,8 +279,6 @@ module verif_axi_full_slave_simple #(
         bq_valid[i] <= 1'b0;
       end
     end else begin
-      ARREADY <= ar_ready_w;
-      AWREADY <= aw_ready_w;
       WREADY <= 1'b0;
 
       // Level-sensitive AR handshake at posedge (same-cycle VALID+READY safe)
@@ -294,6 +291,7 @@ module verif_axi_full_slave_simple #(
           rq_cur_addr[slot] <= ARADDR;
           rq_arlen[slot] <= ARLEN;
           rq_burst[slot] <= ARBURST;
+          rq_arsize[slot] <= ARSIZE;
           rq_beat[slot] <= 8'd0;
           rq_timer[slot] <= R_LATENCY[7:0];
           rq_count <= rq_count + 1;
@@ -331,7 +329,7 @@ module verif_axi_full_slave_simple #(
             RLAST <= 1'b0;
             rq_beat[slot] <= rq_beat[slot] + 1'b1;
             rq_cur_addr[slot] <= axi_next_burst_addr(rq_cur_addr[slot], rq_addr[slot],
-                                                     rq_arlen[slot], rq_burst[slot], 3'b010);
+                                                     rq_arlen[slot], rq_burst[slot], rq_arsize[slot]);
           end
           RVALID <= 1'b1;
         end

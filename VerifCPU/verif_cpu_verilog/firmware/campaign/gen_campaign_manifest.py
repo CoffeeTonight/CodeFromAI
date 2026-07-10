@@ -6,26 +6,11 @@ import re
 import sys
 
 from manifest_h_parser import parse_slave_rows, parse_master_row, parse_target_blocks
+from soc_addr_map import SYM_ADDR, resolve_addr
 from verilog_paths import CAMPAIGN_ROOT as ROOT, INCLUDE_DIR
 
 HDR = os.path.join(ROOT, "include", "campaign_manifest.h")
 OUT_VH = os.path.join(INCLUDE_DIR, "campaign_manifest.vh")
-
-SYM_ADDR = {
-    "SFR_CTRL": 0x40000000,
-    "SFR_CFG": 0x40000004,
-    "SRAM_MARKER": 0x80000000,
-    "SRAM_AUX": 0x80000004,
-    "UART_BAUD": 0xC0000000,
-    "UART_IRQ_HANG": 0xC0000010,
-}
-
-
-def resolve_addr(token: str) -> int:
-    token = token.strip()
-    if token in SYM_ADDR:
-        return SYM_ADDR[token]
-    return int(token, 0)
 
 
 def parse_manifest(path: str) -> tuple[list[dict], dict | None]:

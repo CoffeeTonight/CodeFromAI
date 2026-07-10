@@ -14,6 +14,7 @@ except ImportError:
 
 from amba_bus_registry import bus_port_for, normalize_bus_type, parse_layout_segment_types
 from master_config import load_master, master_has_agent, pool_vcpu_regions
+from soc_addr_map import resolve_addr
 from verilog_paths import CAMPAIGN_ROOT as ROOT, INCLUDE_DIR
 
 SLOTS_YAML = Path(ROOT) / "campaign_slots.yaml"
@@ -26,24 +27,8 @@ OUT_PARAMS_VH = Path(INCLUDE_DIR) / "campaign_params.vh"
 OUT_PLATFORM_VH = Path(INCLUDE_DIR) / "campaign_master.vh"
 LAYOUT_STAMP = Path(ROOT) / ".bus_layout_stamp"
 
-SYM_ADDR = {
-    "SFR_CTRL": 0x40000000,
-    "SFR_CFG": 0x40000004,
-    "SRAM_MARKER": 0x80000000,
-    "SRAM_AUX": 0x80000004,
-    "UART_BAUD": 0xC0000000,
-    "UART_IRQ_HANG": 0xC0000010,
-}
-
 REGION_BYTES = 0x2000
 NOOP_PHASE_C = "cpu_generic/noop.c"
-
-
-def resolve_addr(token: str) -> int:
-    token = token.strip()
-    if token in SYM_ADDR:
-        return SYM_ADDR[token]
-    return int(token, 0)
 
 
 def expand_slots_to_max(slots: list[dict], max_slots: int, stride: int) -> list[dict]:

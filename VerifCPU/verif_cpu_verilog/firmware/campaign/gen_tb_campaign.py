@@ -19,7 +19,9 @@ from amba_bus_registry import (  # noqa: E402
     bus_supports_read_outstanding,
     bus_supports_write_outstanding,
     connect_slv_tag,
+    normalize_bus_type,
 )
+from soc_addr_map import SYM_ADDR, resolve_addr  # noqa: E402
 from verilog_paths import (  # noqa: E402
     BUILD_DIR,
     CAMPAIGN_ROOT as ROOT,
@@ -94,22 +96,6 @@ from campaign_pool_policy import (  # noqa: E402
 )
 
 SCALE_VH = os.path.join(INCLUDE_DIR, "campaign_scale.vh")
-
-SYM_ADDR = {
-    "SFR_CTRL": 0x40000000,
-    "SFR_CFG": 0x40000004,
-    "SRAM_MARKER": 0x80000000,
-    "SRAM_AUX": 0x80000004,
-    "UART_BAUD": 0xC0000000,
-    "UART_IRQ_HANG": 0xC0000010,
-}
-
-
-def resolve_addr(token: str) -> int:
-    token = token.strip()
-    if token in SYM_ADDR:
-        return SYM_ADDR[token]
-    return int(token, 0)
 
 
 def parse_cpus_mk(path: str) -> list[dict]:
@@ -233,12 +219,6 @@ def load_pool_bytes(path: str) -> int:
 
 def _padded_name(name: str, width: int = 8) -> str:
     return name.ljust(width)
-
-
-def normalize_bus_type(name: str) -> str:
-    n = name.strip().lower()
-    aliases = {"apb": "apb3", "ahb": "ahb_lite", "axi": "axi4lite"}
-    return aliases.get(n, n)
 
 
 def cell_module_for(bus_type: str) -> str:

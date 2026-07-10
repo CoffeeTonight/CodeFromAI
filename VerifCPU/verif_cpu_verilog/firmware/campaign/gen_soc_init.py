@@ -5,6 +5,7 @@ import os
 import re
 import sys
 
+from soc_addr_map import SYM_ADDR, resolve_addr
 from verilog_paths import CAMPAIGN_ROOT as ROOT, INCLUDE_DIR
 
 HDR = os.path.join(ROOT, "include", "soc_init_seq.h")
@@ -13,23 +14,6 @@ OUT_VH = os.path.join(INCLUDE_DIR, "soc_init_seq.vh")
 OUT_PLATFORM_VH = os.path.join(INCLUDE_DIR, "campaign_soc_platform.vh")
 OUT_PY = os.path.join(ROOT, "include", "soc_init_steps.py")
 OUT_PLATFORM_PY = os.path.join(ROOT, "include", "soc_platform.py")
-
-SYM_ADDR = {
-    "SFR_CTRL": 0x40000000,
-    "SFR_CFG": 0x40000004,
-    "SFR_CLK": 0x40000008,
-    "SFR_INT_EN": 0x4000000C,
-    "SFR_DMA_SRC": 0x40000010,
-    "SFR_DMA_DST": 0x40000014,
-    "SFR_STATUS": 0x40000018,
-    "SFR_GPIO_DIR": 0x4000001C,
-    "SFR_GPIO_OUT": 0x40000020,
-    "SFR_GPIO_IN": 0x40000024,
-    "SRAM_MARKER": 0x80000000,
-    "SRAM_AUX": 0x80000004,
-    "UART_BAUD": 0xC0000000,
-    "UART_IRQ_HANG": 0xC0000010,
-}
 
 
 def parse_platform(path: str) -> dict[str, int]:

@@ -11,6 +11,7 @@ module tb_soc_bus_all;
   localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
 
   localparam integer TB_EXPECTED_PASS = 13;
+  // Consumed by tools/verify_amba_bus_vcd.py (soc-bus-all / soc-bus-vcd gate)
   localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 25;
 
   `VERIF_SIM_WATCHDOG_NS
@@ -231,7 +232,8 @@ module tb_soc_bus_all;
     u_axi5.bus_read(32'hA200_0000, 3'd4, rd, resp);
     check("AXI5 full", resp == 0 && rd == 32'h0000_00A3);
 
-    $display("Checklist: %0d passed / %0d failed", pass, fail);
+    $display("Checklist: %0d passed / %0d failed (VCD protocol checks: %0d)",
+             pass, fail, TB_EXPECTED_PROTOCOL_CHECKS);
     if (pass != TB_EXPECTED_PASS)
       $fatal(1, "tb_soc_bus_all: pass=%0d expected %0d", pass, TB_EXPECTED_PASS);
     if (fail != 0) $fatal(1, "tb_soc_bus_all failed");

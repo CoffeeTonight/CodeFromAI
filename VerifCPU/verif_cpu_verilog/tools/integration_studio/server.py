@@ -24,7 +24,7 @@ sys.path.insert(0, str(STUDIO_DIR))
 
 from amba_signals import bus_signals_for, list_supported_bus_types  # noqa: E402
 from manifest_parser import load_manifest  # noqa: E402
-from studio_defaults import defaults_from_rtl  # noqa: E402
+from studio_defaults import _slug, defaults_from_rtl  # noqa: E402
 from tb_dut_gen import generate_tb_dut_module  # noqa: E402
 
 _gen_lock = threading.Lock()
@@ -197,7 +197,7 @@ class StudioHandler(SimpleHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 return _json_response(self, HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
 
-            mod_slug = module_name or default_mod
+            mod_slug = _slug(module_name or default_mod)
             if path == "/api/preview":
                 return _json_response(self, HTTPStatus.OK, {
                     "ok": True,

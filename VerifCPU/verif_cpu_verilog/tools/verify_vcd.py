@@ -64,6 +64,11 @@ def _is_valid_vcd_header(body: str) -> bool:
     return "$enddefinitions" in body and "$scope" in body
 
 
+def _has_xz(val: str) -> bool:
+    low = val.lower()
+    return "x" in low or "z" in low
+
+
 def _final_signal_value(body: str, sig_id: str) -> str | None:
     """Return last binary value assigned to VCD signal id (e.g. '7')."""
     last: str | None = None
@@ -71,6 +76,15 @@ def _final_signal_value(body: str, sig_id: str) -> str | None:
     for m in pat.finditer(body):
         last = m.group(1)
     return last
+
+
+def _bin_value_or_error(val: str | None, label: str, errors: list[str]) -> str | None:
+    if val is None:
+        return None
+    if _has_xz(val):
+        errors.append(f"X/Z detected in {label}")
+        return None
+    return val
 
 
 def verify_main_vcd(
@@ -102,10 +116,12 @@ def verify_main_vcd(
     else:
         m = re.search(r"\$var reg 32 (\S+) vcd_marker", body)
         if m:
-            marker_val = _final_signal_value(body, m.group(1))
-            if marker_val is None:
+            raw_marker = _final_signal_value(body, m.group(1))
+            if raw_marker is None:
                 errors.append("vcd_marker never toggled in VCD timeline")
-            elif marker_val != DEAD_BIN:
+            elif _has_xz(raw_marker):
+                errors.append("X/Z detected in vcd_marker")
+            elif raw_marker != DEAD_BIN:
                 errors.append(
                     f"vcd_marker final value {marker_val!r} != 0xDEADDEAD "
                     f"(expected {DEAD_BIN})"
@@ -122,8 +138,10 @@ def verify_main_vcd(
     # Orchestrator reset pulses (phase + icode inter-reset)
     m = re.search(r"\$var (?:wire|reg) 32 (\S+) orch_reset_count", body)
     if m:
-        rst_val = _final_signal_value(body, m.group(1))
-        rst_n = int(rst_val.replace("x", "0").replace("z", "0"), 2) if rst_val else 0
+        rst_val = _bin_value_or_error(
+            _final_signal_value(body, m.group(1)), "orch_reset_count", errors
+        )
+        rst_n = int(rst_val, 2) if rst_val else 0
         if rst_val is None or rst_n < min_orch_resets:
             errors.append(
                 f"orch_reset_count < {min_orch_resets} "
@@ -138,9 +156,9 @@ def verify_main_vcd(
     elif len(pass_ids) >= min_agents:
         total_pass = 0
         for sid in pass_ids[:min_agents]:
-            v = _final_signal_value(body, sid)
+            v = _bin_value_or_error(_final_signal_value(body, sid), f"verify_pass[{sid}]", errors)
             if v:
-                total_pass += int(v.replace("x", "0").replace("z", "0"), 2)
+                total_pass += int(v, 2)
         if total_pass < min_pass_sum:
             errors.append(
                 f"agent verify_pass sum={total_pass} "

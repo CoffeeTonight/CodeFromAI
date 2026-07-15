@@ -123,7 +123,7 @@ def verify_main_vcd(
                 errors.append("X/Z detected in vcd_marker")
             elif raw_marker != DEAD_BIN:
                 errors.append(
-                    f"vcd_marker final value {marker_val!r} != 0xDEADDEAD "
+                    f"vcd_marker final value {raw_marker!r} != 0xDEADDEAD "
                     f"(expected {DEAD_BIN})"
                 )
         else:

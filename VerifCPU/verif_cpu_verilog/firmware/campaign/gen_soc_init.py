@@ -5,7 +5,7 @@ import os
 import re
 import sys
 
-from soc_addr_map import SYM_ADDR, resolve_addr
+from soc_addr_map import resolve_addr
 from verilog_paths import CAMPAIGN_ROOT as ROOT, INCLUDE_DIR
 
 HDR = os.path.join(ROOT, "include", "soc_init_seq.h")
@@ -24,10 +24,7 @@ def parse_platform(path: str) -> dict[str, int]:
         m = re.search(rf"#define\s+{name}\s+(0x[0-9a-fA-F]+|\w+)", body)
         if not m:
             raise ValueError(f"missing {name} in {path}")
-        tok = m.group(1)
-        if tok in SYM_ADDR:
-            return SYM_ADDR[tok]
-        return int(tok, 0)
+        return resolve_addr(m.group(1))
 
     return {
         "addr": _val("SOC_INIT_DONE_ADDR"),
@@ -76,8 +73,6 @@ def parse_header(path: str) -> list[dict]:
     }
 
     def _tok_int(tok: str, platform: dict[str, int] | None) -> int:
-        if tok in SYM_ADDR:
-            return SYM_ADDR[tok]
         if tok in platform_tokens and platform is not None:
             key = tok.replace("SOC_INIT_DONE_", "").lower()
             if key == "addr":
@@ -86,7 +81,7 @@ def parse_header(path: str) -> list[dict]:
                 return platform["mask"]
             if key == "value":
                 return platform["value"]
-        return int(tok.rstrip("u"), 0)
+        return resolve_addr(tok.rstrip("u"))
 
     platform_cfg: dict[str, int] | None = None
     if os.path.isfile(PLATFORM_HDR):
@@ -114,7 +109,7 @@ def emit_vh(steps: list[dict], path: str) -> None:
         "`define SOC_INIT_RUN_STEPS \\",
     ]
     for i, s in enumerate(steps):
-        addr = SYM_ADDR[s["sym"]]
+        addr = resolve_addr(s["sym"])
         if s["op"] == 0:
             lines.append(
                 f"  decode_write(32'h{addr:08X}, 32'h{s['wdata']:08X}, 3'd4, r, p); \\"
@@ -160,7 +155,7 @@ def emit_py(steps: list[dict], path: str) -> None:
         "SOC_INIT_STEPS = [",
     ]
     for s in steps:
-        addr = SYM_ADDR[s["sym"]]
+        addr = resolve_addr(s["sym"])
         if s["op"] == 0:
             lines.append(f'    ("write", 0x{addr:08X}, 0x{s["wdata"]:08X}, 4),')
         else:

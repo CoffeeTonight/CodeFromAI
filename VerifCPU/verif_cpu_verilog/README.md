@@ -311,7 +311,7 @@ TB 측 흐름 (`gen_tb_campaign.py`가 manifest `cpus[]`를 **Python 루프**로
 2. `start_cpus_parallel(0x380)` — active VCPU 동시 PC
 3. `run_cpus_parallel(800)` — `SYNC_WAIT` 중 `sync_poll`로 resume
 
-**AXI lock vs atomic:** `bus_read_locked()`로 `ARLOCK=1` 구동·slave 전달 검증. `verif_axi_arbiter_2m1s`는 lock 시 grant 고정. 일반 트랜잭션은 `ARLOCK`/`AWLOCK` idle 0. AXI4 배타 접근은 `AWATOP=6'h02` (`bus_write_exclusive`) + `make soc-bus-protocol` (38 checks).
+**AXI lock vs atomic:** `bus_read_locked()`로 `ARLOCK=1` 구동·slave 전달 검증. `verif_axi_arbiter_2m1s`는 lock 시 grant 고정. 일반 트랜잭션은 `ARLOCK`/`AWLOCK` idle 0. AXI4 배타 접근은 `AWATOP=6'h02` (`bus_write_exclusive`) + `make soc-bus-protocol` (40 checks).
 
 ---
 

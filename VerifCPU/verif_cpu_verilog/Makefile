@@ -17,6 +17,10 @@ version-check:
 		 echo "ERROR: iverilog lacks -g2012 support (upgrade iverilog)" && exit 1)
 	@command -v python3 >/dev/null 2>&1 || \
 		(echo "ERROR: python3 not found" && exit 1)
+	@$(MAKE) --version 2>/dev/null | python3 -c "import sys,re; \
+m=re.search(r'(\d+)\.(\d+)', sys.stdin.read()); \
+sys.exit(1 if not m or int(m.group(1))<4 or (int(m.group(1))==4 and int(m.group(2))<3) else 0)" || \
+		(echo "ERROR: GNU Make >= 4.3 required (got: $$($(MAKE) --version | head -1))" && exit 1)
 
 # Chip hierarchy YAML under firmware/campaign/ (pass to sub-make: make chip-top-example HIER_YAML=soc_hierarchy_my_chip.yaml)
 HIER_YAML ?= soc_hierarchy_from_slots.yaml

@@ -335,11 +335,13 @@ endgenerate
 
 | Gate | Command | Proves |
 |------|---------|--------|
-| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 43-check |
-| Bridge RTL | `make soc-bus-all` | 11 AMBA master variants |
-| Bridge VCD | `make soc-bus-vcd` | Protocol + read data |
-| Manifest integration | `make soc-manifest` | 3 active slaves + real bridges (23-check) |
-| Scale integration | `make soc-manifest-scale` | N-slot BUS_LAYOUT flat fabric (26-check) |
+| Official regression | `make verify` | harness 5 + campaign 43 + protocol 40 |
+| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 43-check + VCD |
+| Bridge RTL | `make soc-bus-all` | 11 AMBA master variants (13-check) |
+| Bridge VCD | `make soc-bus-vcd` | 25 protocol checks + read data |
+| AMBA protocol | `make soc-bus-protocol` | burst/errors/arb/lock (40-check) |
+| Manifest integration | `make soc-manifest` | 3 active slaves + real bridges (24-check) |
+| Scale integration | `make soc-manifest-scale` | N-slot BUS_LAYOUT flat fabric (27-check) |
 | Chip top example | `make chip-top-example` | yaml hierarchy + bus R/W (12-check) |
 | Chip top | Customer TB + GTKWave | Real interconnect |
 

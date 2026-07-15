@@ -238,6 +238,7 @@ view별 shortcut: `scripts/<sim>/<view>.sh` → `run.sh <view>` 호출.
 | SoC init 17-step 시퀀스 | `firmware/campaign/include/soc_init_seq.h` | ✅ | `include/soc_init_seq.vh` |
 | SoC 플랫폼 상수·에이전트 | `firmware/campaign/include/soc_platform.h` | ✅ | `include/campaign_soc_platform.vh` |
 | 레지스터 주소·이름 | `firmware/campaign/include/soc_regs.h` | ✅ | 펌웨어·icode·TB 체크에 반영 (연쇄 rebuild) |
+| 주소 심볼 (generator) | `firmware/campaign/soc_addr_map.py` | ✅ SSOT | `gen_soc_init.py`·`gen_tb_campaign.py` 등 Python import |
 | VCPU Phase A/B 공통 | `firmware/campaign/common/phase_*.c` | ✅ | `build/*.bin` → `*.hex` |
 | 슬롯별 Phase C 펌웨어 | `firmware/campaign/cpu_sfr/`, `cpu_sram/`, `cpu_uart/` … | ✅ | 해당 `cpu_*.bin` |
 | icode 검증 루틴 | `firmware/campaign/icodes/{sfr,sram,uart}/*.c` (hand) | ✅ | manifest `targets[].icode`만 컴파일 |

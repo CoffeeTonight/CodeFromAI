@@ -70,8 +70,8 @@
 │  │  ┌──────────── VCPU FW regions (8KiB each) ────────────────┐  │           │
 │  │  │ word 0x0000: CPU1/SFR  │ 0x0800: CPU2/SRAM │ 0x1000: UART│  │           │
 │  │  └─────────────────────────────────────────────────────────┘  │           │
-│  │  ┌──────────── icode pool (50 slots x 4KiB) ──────────────┐  │           │
-│  │  │ word 0x1800: icode_pool.bin (probe + manifest icodes)   │  │           │
+│  │  ┌──────────── icode pool (manifest/probe recipe) ────────┐  │           │
+│  │  │ word 0x1E000: icode_pool.bin (probe + manifest icodes)  │  │           │
 │  │  │ ≤256KiB → readmemh embed  │  >256KiB → lazy file+4KiB pg │  │           │
 │  │  └─────────────────────────────────────────────────────────┘  │           │
 │  └─────────────────────────────────────────────────────────────┘           │
@@ -136,7 +136,7 @@ SoC 안에는 **애플리케이션 CPU 코어가 없습니다**. SFR/SRAM/UART�
   0x0800      0x02000       CPU2 VCPU FW  (SRAM)
   0x1000      0x04000       CPU3 VCPU FW  (UART)
   ...
-  0x1800      0x06000       icode pool (embedded when ≤256 KiB)
+  0x1E000     0x78000       icode pool (POOL_WORD_ICODE; embedded when ≤256 KiB)
             ├ icode slot ptrs from icode_map (e.g. +0x1000 check_sfr_ctrl)
             └ spacing per POOL_WORD_STRIDE / manifest layout
 ```
@@ -172,6 +172,7 @@ Phase C (VERIFY)
 
 ```
 cpus.mk              → VCPU 개수/ID/pool_word → gen_tb_campaign.vh
+soc_addr_map.py      → 주소 심볼 SSOT          → gen_soc_init / gen_tb_campaign / manifest
 campaign_manifest.h  → Agent tap/slot/icode   → campaign_manifest.vh
 soc_platform.h       → Master INIT_DONE param  → campaign_soc_platform.vh
 icodes/**/*.c        → icode pool               → icode_map.json + pool.bin

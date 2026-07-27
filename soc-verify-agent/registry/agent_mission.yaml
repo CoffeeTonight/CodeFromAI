@@ -1,0 +1,35 @@
+# SSOT — 에이전트 업무 (detect-first)
+contract: agent_mission_v1
+
+primary:
+  id: detect
+  purpose_ko: |
+    주어진 검증 환경에 오류가 있는지, 토이 복제로 빨리 잡는다.
+  command: soc-verify agent detect --from <PROJECT>
+  tat_target_s: 30
+  success:
+    - CLEAN_L0 또는 ERRORS_L0 + errors[]
+    - scope=L0 명시 (heavy gen/sim 미포함)
+  levels:
+    L0: 경로·구조·툴·ops 계약·flow 복기 smoke
+    L1: 선택 gen/dry-run
+    L2: heavy — detect 아님
+
+secondary:
+  - id: bootcamp
+    purpose_ko: 시나리오 연습 + 실환경 low-risk 적용
+  - id: settle
+    purpose_ko: 잔여 오류를 토이에 되먹이며 정착
+
+tat_policy:
+  toy_first: true
+  detect_uses_gate_direct: true
+  full_graph_lap_not_default_for_detect: true
+  training_scenario_skips_trust_penalty: true
+
+process_docs:
+  soual: .grok/soual.md
+  goal: goal.md
+  plan: plan.md
+  execute: execute.md
+  fail: fail.md

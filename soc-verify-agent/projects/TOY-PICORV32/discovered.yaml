@@ -1,0 +1,13 @@
+project_id: TOY-PICORV32
+source: toy_scaffold_from_OSS-PICORV32
+title: YosysHQ picorv32
+git_url: https://github.com/oss/oss-picorv32.git
+local_clone_path: /home/user/tools/oss-soc-samples/picorv32
+rtl_subdir: ''
+root_marker: Makefile
+doc_rev: r1.0
+doc_path: oss/OSS-PICORV32
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-18'
+  source: toy_scaffold_from_OSS-PICORV32

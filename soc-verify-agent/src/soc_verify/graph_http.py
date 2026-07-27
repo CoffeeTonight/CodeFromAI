@@ -62,6 +62,7 @@ class GraphApiHandler(BaseHTTPRequestHandler):
                 project_id=body.get("project_id", ""),
                 stage=body.get("stage", ""),
                 group=body.get("group", ""),
+                run_profile=body.get("run_profile", "") or body.get("profile", ""),
             )
             _json_response(self, 201, out)
             return

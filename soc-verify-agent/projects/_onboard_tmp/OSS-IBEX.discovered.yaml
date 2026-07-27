@@ -1,0 +1,6 @@
+project_id: OSS-IBEX
+title: OSS-IBEX
+local_clone_path: /home/user/tools/oss-soc-samples/ibex
+rtl_subdir: ''
+root_marker: Makefile
+source: onboard_clone

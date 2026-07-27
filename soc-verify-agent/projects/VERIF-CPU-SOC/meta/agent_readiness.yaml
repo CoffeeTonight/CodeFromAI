@@ -1,0 +1,17 @@
+contract: agent_production_readiness_v1
+project_id: VERIF-CPU-SOC
+toy_ok: true
+preflight_group: sanity/oss_preflight
+next_commands:
+- soc-verify --root . lap --project VERIF-CPU-SOC --stage sanity --group oss_preflight
+  --profile training --scenario pass
+- soc-verify --root . verify VERIF-CPU-SOC sanity c-compile
+applied: false
+results:
+- id: install_oss_preflight
+  status: dry_run
+  summary: Install sanity/oss_preflight gate (toy-equivalent smoke before heavy gates)
+- id: production_ready_gate
+  status: skipped_manual
+  summary: Run production smoke then heavy gate after preflight PASS
+written_at: '2026-07-17T08:00:43.260843+00:00'

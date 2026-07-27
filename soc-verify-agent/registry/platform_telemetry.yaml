@@ -2236,13 +2236,77 @@ uses:
   success_rate: 0.75
   extra:
     verify_results_count: 1
+- at: '2026-07-15T15:40:56.505735+00:00'
+  date: '2026-07-15'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: da63aaa780ae
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: FAIL
+  success: false
+  trust_score: 0.7000000000000001
+  trust_delta: null
+  success_rate: 0.0
+  extra:
+    improvement_index: 0.6369
+    question_sharpness: 2.33
+- at: '2026-07-15T15:52:08.658031+00:00'
+  date: '2026-07-15'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 7365f0b8eda0
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: -0.1
+  success_rate: 0.6
+  extra:
+    improvement_index: 0.9225
+    question_sharpness: 3.0
+- at: '2026-07-15T15:56:25.678253+00:00'
+  date: '2026-07-15'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 9d7f0bc0bbd0
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6
+  extra:
+    improvement_index: 0.87
+    question_sharpness: 3.0
+- at: '2026-07-15T16:51:28.067165+00:00'
+  date: '2026-07-15'
+  kind: verify_group_complete
+  graph_id: verify_group
+  run_id: 9386578a0b93
+  project_id: EXAMPLE-SOC
+  stage: simulation
+  group: gpio_ext
+  verdict: PASS
+  success: true
+  trust_score: 0.6000000000000001
+  trust_delta: 0.0
+  success_rate: 0.6
+  extra:
+    improvement_index: 0.87
+    question_sharpness: 3.0
 cumulative:
-  total_uses: 142
-  verify_runs: 105
+  total_uses: 146
+  verify_runs: 109
   orchestrator_runs: 37
-  pass_count: 141
-  fail_count: 1
-  success_rate: 0.993
+  pass_count: 144
+  fail_count: 2
+  success_rate: 0.9863
   trust_samples:
   - run_id: c621c4ad3c36
     trust: 1.0
@@ -2556,5 +2620,17 @@ cumulative:
   - run_id: e06d451ae5d8
     trust: 0.6000000000000001
     delta: null
-  code_edit_count: 181
-last_updated: '2026-06-23'
+  - run_id: da63aaa780ae
+    trust: 0.7000000000000001
+    delta: null
+  - run_id: 7365f0b8eda0
+    trust: 0.6000000000000001
+    delta: -0.1
+  - run_id: 9d7f0bc0bbd0
+    trust: 0.6000000000000001
+    delta: 0.0
+  - run_id: 9386578a0b93
+    trust: 0.6000000000000001
+    delta: 0.0
+  code_edit_count: 190
+last_updated: '2026-07-15'

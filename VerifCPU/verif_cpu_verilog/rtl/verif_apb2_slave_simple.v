@@ -1,5 +1,11 @@
-// Simple APB2 slave — fixed latency, no PREADY/PSLVERR/PSTRB
+// Simple APB2 slave — no PREADY/PSLVERR/PSTRB
+// Writes merge into word-aligned mem using lane_wstrb from access size.
+// Size is not on the wire: master must RMW for narrow stores (apb2 master does).
+// This slave treats every write as a full-word PWDATA overlay with strb=all-ones
+// only when PADDR is word-aligned; for unaligned PADDR writes a single byte.
+// Prefer: master always presents full-word PWDATA after RMW (see verif_apb2_master).
 `timescale 1ns/1ps
+`include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
 module verif_apb2_slave_simple #(
@@ -23,42 +29,40 @@ module verif_apb2_slave_simple #(
 
   reg [7:0] mem [0:SIZE-1];
   integer i;
-  reg [STRB_WIDTH-1:0] wstrb;
   integer bi;
-
-  function [2:0] infer_write_size;
-    input [31:0] addr;
-    input [31:0] wdata;
-    begin
-      if (addr[1:0] != 2'b00)
-        infer_write_size = 3'd1;
-      else if (wdata[31:16] != 0)
-        infer_write_size = 3'd4;
-      else if (wdata[15:8] != 0)
-        infer_write_size = 3'd2;
-      else
-        infer_write_size = 3'd1;
-    end
-  endfunction
+  reg [STRB_WIDTH-1:0] wstrb;
+  reg [31:0] a_rel;
+  reg [2:0]  wr_sz;
 
   initial begin
     PRDATA = 32'h0;
-    for (i = 0; i < 4096; i = i + 1)
+    for (i = 0; i < SIZE; i = i + 1)
       mem[i] = 8'h0;
     mem[0] = 8'h02;
   end
 
-  always @(posedge PCLK) begin
-    if (PSEL && PENABLE && !PWRITE &&
-        PADDR >= BASE && PADDR + 4 <= BASE + SIZE)
-      PRDATA <= {mem[PADDR - BASE + 3], mem[PADDR - BASE + 2],
-                 mem[PADDR - BASE + 1], mem[PADDR - BASE + 0]};
-    else if (PSEL && PENABLE && PWRITE &&
-             PADDR >= BASE && PADDR + 4 <= BASE + SIZE) begin
-      wstrb = lane_wstrb(PADDR, infer_write_size(PADDR, PWDATA));
-      for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
-        if (wstrb[bi])
-          mem[PADDR - BASE + bi] <= PWDATA[bi*8 +: 8];
+  always @(posedge PCLK or negedge PRESETn) begin
+    if (!PRESETn) begin
+      PRDATA <= 32'h0;
+    end else if (PSEL && PENABLE && PADDR >= BASE) begin
+      a_rel = (PADDR - BASE) & 32'hFFFFFFFC;
+      // Non-wrapping 4-byte word window in mem[] (no +4 wrap false-accept)
+      if (`VERIF_BUS_SPAN_OK(a_rel, 32'd4, SIZE)) begin
+        if (!PWRITE) begin
+          PRDATA <= {mem[a_rel + 3], mem[a_rel + 2],
+                     mem[a_rel + 1], mem[a_rel + 0]};
+        end else begin
+          // Master RMW for narrow: full-word PWDATA on aligned; unaligned = byte
+          if (PADDR[1:0] == 2'b00)
+            wr_sz = 3'd4;
+          else
+            wr_sz = 3'd1;
+          wstrb = lane_wstrb(PADDR, wr_sz);
+          for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
+            if (wstrb[bi])
+              mem[a_rel + bi] <= PWDATA[bi*8 +: 8];
+        end
+      end
     end
   end
 

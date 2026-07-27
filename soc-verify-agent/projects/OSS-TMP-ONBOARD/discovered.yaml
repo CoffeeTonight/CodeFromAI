@@ -1,0 +1,15 @@
+project_id: OSS-TMP-ONBOARD
+source: onboard_discovered
+title: OSS-TMP-ONBOARD
+git_url: ''
+local_clone_path: /home/user/tools/__CFI/soc-verify-agent
+rtl_subdir: ''
+root_marker: pyproject.toml
+required_artifacts: []
+doc_rev: r1.0
+doc_path: oss/OSS-TMP-ONBOARD
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-19'
+  source: onboard_discovered
+  from_file: /tmp/pytest-of-user/pytest-13/test_register_from_discovered0/d.yaml

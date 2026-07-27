@@ -1,0 +1,10 @@
+project_id: MINI-SOC
+source: mini_soc_template
+title: "MINI SoC — fast training lap fixture"
+git_url: git@example.com:rtl/mini-soc.git
+doc_rev: r1.0
+doc_path: confluence/SOC/MINI/training-lap
+current_milestone: M1
+intake:
+  fetched_at: 2026-07-16
+  source: mini_soc_template

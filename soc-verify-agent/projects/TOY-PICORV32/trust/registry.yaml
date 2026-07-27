@@ -1,0 +1,12 @@
+scripts:
+  oss_smoke.py:
+    script: oss_smoke.py
+    status: draft
+    trust_score: 1.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 0
+    successes: 0
+    one_shot_success_rate: 1.0
+    last_tag: main
+    last_result: PASS

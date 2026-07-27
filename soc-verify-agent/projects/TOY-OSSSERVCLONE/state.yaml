@@ -1,0 +1,22 @@
+as_of: '2026-07-19'
+active: true
+schedule_plan: toy-training-v1
+current_milestone: M1
+sync:
+  fetched_at: '2026-07-19'
+  source: intake
+milestones:
+- id: M1
+  label: Toy lap — OSS-SERV-CLONE
+  window:
+  - '2026-07-19'
+  - '2026-12-31'
+  active: true
+  status: in_progress
+verification_groups_due:
+- stage: sanity
+  group: oss_smoke
+  milestone: M1
+  due: '2026-07-19'
+  status: pending
+environment_profile: toy-training

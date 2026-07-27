@@ -1,0 +1,123 @@
+{
+  "contract": "multi_env_detect_v1",
+  "completed_at": "2026-07-18T12:55:03.047218+00:00",
+  "elapsed_s": 16.427,
+  "n_envs": 4,
+  "rows": [
+    {
+      "id": "OSS-VERIFCPU",
+      "level": 0,
+      "status": "CLEAN_L0",
+      "elapsed_s": 2.331,
+      "paradigm": "cpu_fw",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 0,
+      "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+      "note": "cpu_fw campaign style",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-VERIFCPU/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-VERIFCPU",
+      "level": 1,
+      "status": "CLEAN_L1",
+      "elapsed_s": 2.269,
+      "paradigm": "cpu_fw",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 0,
+      "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+      "note": "cpu_fw campaign style",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-VERIFCPU/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-PICORV32",
+      "level": 0,
+      "status": "CLEAN_L0",
+      "elapsed_s": 2.029,
+      "paradigm": "cpu_fw",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 3,
+      "rtl_root": "/home/user/tools/oss-soc-samples/picorv32",
+      "note": "RISC-V core + firmware + testbench",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-PICORV32/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-PICORV32",
+      "level": 1,
+      "status": "ERRORS_L1",
+      "elapsed_s": 2.241,
+      "paradigm": "cpu_fw",
+      "error_count": 1,
+      "errors": [
+        {
+          "kind": "deliverable",
+          "severity": "high",
+          "summary": "L1: cpu_fw has no prebuilt hex/bin under firmware/",
+          "fix": "build firmware once or restore hex/bin artifacts",
+          "source": "l1",
+          "evidence": [
+            "firmware/**/*.hex"
+          ]
+        }
+      ],
+      "warning_count": 3,
+      "rtl_root": "/home/user/tools/oss-soc-samples/picorv32",
+      "note": "RISC-V core + firmware + testbench",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-PICORV32/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-IBEX",
+      "level": 0,
+      "status": "CLEAN_L0",
+      "elapsed_s": 2.056,
+      "paradigm": "rtl_sim",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 3,
+      "rtl_root": "/home/user/tools/oss-soc-samples/ibex",
+      "note": "production-grade CPU + dv/",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-IBEX/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-IBEX",
+      "level": 1,
+      "status": "CLEAN_L1",
+      "elapsed_s": 1.834,
+      "paradigm": "rtl_sim",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 3,
+      "rtl_root": "/home/user/tools/oss-soc-samples/ibex",
+      "note": "production-grade CPU + dv/",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-IBEX/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-SERV",
+      "level": 0,
+      "status": "CLEAN_L0",
+      "elapsed_s": 1.416,
+      "paradigm": "rtl_sim",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 4,
+      "rtl_root": "/home/user/tools/oss-soc-samples/serv",
+      "note": "minimal core + sw + bench (no top Makefile)",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-SERV/reports/agent_detect/DETECT.md"
+    },
+    {
+      "id": "OSS-SERV",
+      "level": 1,
+      "status": "CLEAN_L1",
+      "elapsed_s": 1.943,
+      "paradigm": "rtl_sim",
+      "error_count": 0,
+      "errors": [],
+      "warning_count": 4,
+      "rtl_root": "/home/user/tools/oss-soc-samples/serv",
+      "note": "minimal core + sw + bench (no top Makefile)",
+      "report_md": "/home/user/tools/__CFI/soc-verify-agent/projects/OSS-SERV/reports/agent_detect/DETECT.md"
+    }
+  ]
+}

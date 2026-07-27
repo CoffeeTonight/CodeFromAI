@@ -4,6 +4,7 @@
 `timescale 1ns/1ps
 `include "campaign_scale.vh"
 `include "soc_init_seq.vh"
+`include "verif_bus_defs.vh"
 
 module simple_soc_slave #(
   parameter [31:0] BASE = 32'h0,
@@ -28,7 +29,8 @@ module simple_soc_slave #(
     begin
       r = 2'd0;
       d = 32'h0;
-      if (a < BASE || a + sz > BASE + SIZE) begin
+      // Non-wrapping span — a+sz wrap must not false-accept
+      if (!`VERIF_BUS_REL_SPAN_OK(a, {29'b0, sz}, BASE, SIZE)) begin
         r = 2'd2;
         d = 32'hDEAD_DEAD;
       end else begin
@@ -51,7 +53,7 @@ module simple_soc_slave #(
     integer j;
     begin
       r = 2'd0;
-      if (a < BASE || a + sz > BASE + SIZE)
+      if (!`VERIF_BUS_REL_SPAN_OK(a, {29'b0, sz}, BASE, SIZE))
         r = 2'd2;
       else begin
         for (j = 0; j < sz; j = j + 1)

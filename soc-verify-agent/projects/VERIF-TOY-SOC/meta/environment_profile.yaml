@@ -1,0 +1,3 @@
+profile_id: verif-toy-training
+description: Lightweight VerifCPU OSS smoke profile for training laps
+env: {}

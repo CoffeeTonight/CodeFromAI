@@ -1,0 +1,9 @@
+stage: sanity
+group: oss_smoke
+milestone: M1
+schedule: ''
+depends_on: []
+gates:
+- oss_presence
+owner: platform
+source: toy_scaffold_from_OSS-IBEX

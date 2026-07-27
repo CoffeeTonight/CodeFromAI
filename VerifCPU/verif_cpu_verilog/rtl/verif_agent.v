@@ -121,6 +121,10 @@ module verif_agent_slave #(
           verify_fail = verify_fail + 1;
           $display("SCPU%0d (%s) >   FAIL", CPU_ID, CPU_NAME);
         end
+      end else begin
+        verify_fail = verify_fail + 1;
+        $display("SCPU%0d (%s) >   FAIL slot_idx=%0d out of range (count=%0d)",
+                 CPU_ID, CPU_NAME, slot_idx, slot_count);
       end
     end
   endtask

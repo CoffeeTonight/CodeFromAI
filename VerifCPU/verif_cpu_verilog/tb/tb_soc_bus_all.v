@@ -10,7 +10,8 @@ module tb_soc_bus_all;
   localparam integer DATA_WIDTH = `VERIF_DATA_WIDTH;
   localparam integer AXI_ID_WIDTH = `VERIF_AXI_ID_WIDTH;
 
-  localparam integer TB_EXPECTED_PASS = 13;
+  // 18 base + 2 true-OS poll→wait (AXI4-Lite + AXI4 full)
+  localparam integer TB_EXPECTED_PASS = 20;
   // Consumed by tools/verify_amba_bus_vcd.py (soc-bus-all / soc-bus-vcd gate)
   localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 25;
 
@@ -129,7 +130,7 @@ module tb_soc_bus_all;
     .ACLK(clk), .ARESETn(rstn),
     .ARREADY(axi3_arready), .RVALID(axi3_rvalid), .RDATA(axi3_rdata), .RRESP(axi3_rresp), .RLAST(axi3_rlast),
     .AWREADY(axi3_awready), .WREADY(axi3_wready), .BVALID(axi3_bvalid), .BRESP(axi3_bresp),
-    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
+    .RID(axi3_rid), .BID(axi3_bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -147,7 +148,7 @@ module tb_soc_bus_all;
     .ACLK(clk), .ARESETn(rstn),
     .ARREADY(axi4_arready), .RVALID(axi4_rvalid), .RDATA(axi4_rdata), .RRESP(axi4_rresp), .RLAST(axi4_rlast),
     .AWREADY(axi4_awready), .WREADY(axi4_wready), .BVALID(axi4_bvalid), .BRESP(axi4_bresp),
-    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
+    .RID(axi4_rid), .BID(axi4_bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -165,7 +166,7 @@ module tb_soc_bus_all;
     .ACLK(clk), .ARESETn(rstn),
     .ARREADY(axi5_arready), .RVALID(axi5_rvalid), .RDATA(axi5_rdata), .RRESP(axi5_rresp), .RLAST(axi5_rlast),
     .AWREADY(axi5_awready), .WREADY(axi5_wready), .BVALID(axi5_bvalid), .BRESP(axi5_bresp),
-    .RID({AXI_ID_WIDTH{1'b0}}), .BID({AXI_ID_WIDTH{1'b0}}),
+    .RID(axi5_rid), .BID(axi5_bid),
     .ARID(), .ARADDR(), .ARLEN(), .ARSIZE(), .ARBURST(), .ARLOCK(), .ARQOS(), .ARREGION(), .ARVALID(), .RREADY(),
     .AWID(), .AWADDR(), .AWLEN(), .AWSIZE(), .AWBURST(), .AWLOCK(), .AWQOS(), .AWREGION(), .AWATOP(), .AWVALID(),
     .WID(), .WDATA(), .WSTRB(), .WLAST(), .WVALID(), .BREADY(),
@@ -231,6 +232,80 @@ module tb_soc_bus_all;
     check("AXI4 full", resp == 0 && rd == 32'h0000_00A3);
     u_axi5.bus_read(32'hA200_0000, 3'd4, rd, resp);
     check("AXI5 full", resp == 0 && rd == 32'h0000_00A3);
+
+    // Narrow lane + AHB full pipeline OS
+    u_apb3.bus_write(32'h4000_0008, 32'h0000_0011, 3'd1, resp);
+    u_apb3.bus_read(32'h4000_0008, 3'd1, rd, resp);
+    check("APB3 byte lane", resp == 0 && rd[7:0] == 8'h11);
+    u_ahb.bus_write(32'h8000_0005, 32'h0000_0022, 3'd1, resp);
+    u_ahb.bus_read(32'h8000_0005, 3'd1, rd, resp);
+    check("AHB-Lite byte lane", resp == 0 && rd[7:0] == 8'h22);
+    u_axi4.bus_write(32'hA100_0008, 32'h0000_0033, 3'd1, resp);
+    u_axi4.bus_read(32'hA100_0008, 3'd1, rd, resp);
+    check("AXI4 byte lane", resp == 0 && rd[7:0] == 8'h33);
+    begin : ahbf_os
+      integer h0, h1;
+      reg ok0, ok1;
+      reg [1:0] r0, r1;
+      reg [31:0] d0, d1;
+      u_ahbf.bus_write(32'h8200_0020, 32'hA5A5_0001, 3'd4, resp);
+      u_ahbf.bus_write(32'h8200_0024, 32'hA5A5_0002, 3'd4, resp);
+      u_ahbf.bus_read_issue(32'h8200_0020, 3'd4, h0, ok0);
+      u_ahbf.bus_read_issue(32'h8200_0024, 3'd4, h1, ok1);
+      check("AHB full dual issue", ok0 && ok1);
+      u_ahbf.bus_read_wait(h0, d0, r0);
+      u_ahbf.bus_read_wait(h1, d1, r1);
+      check("AHB full dual data", r0 == 0 && r1 == 0 &&
+            d0 == 32'hA5A5_0001 && d1 == 32'hA5A5_0002);
+    end
+
+    // True-OS: poll peeks; wait reaps (mutate mem after poll → wait still old data)
+    begin : axil_os_poll_wait
+      integer h;
+      reg ok, done;
+      reg [1:0] r_poll, r_wait;
+      reg [31:0] d_poll, d_wait;
+      u_axil.bus_write(32'hC000_0020, 32'h1111_2222, 3'd4, resp);
+      u_axil.bus_read_issue(32'hC000_0020, 3'd4, h, ok);
+      begin : _axil_poll
+        integer g;
+        g = 0;
+        done = 1'b0;
+        while (!done && g < 64) begin
+          @(posedge clk);
+          u_axil.bus_read_poll(h, d_poll, r_poll, done);
+          g = g + 1;
+        end
+      end
+      u_axil.bus_write(32'hC000_0020, 32'h3333_4444, 3'd4, resp);
+      u_axil.bus_read_wait(h, d_wait, r_wait);
+      check("AXI-Lite OS poll→wait cache",
+            ok && done && r_poll == 2'd0 && r_wait == 2'd0 &&
+            d_poll == 32'h1111_2222 && d_wait == 32'h1111_2222);
+    end
+    begin : axi4_os_poll_wait
+      integer h;
+      reg ok, done;
+      reg [1:0] r_poll, r_wait;
+      reg [31:0] d_poll, d_wait;
+      u_axi4.bus_write(32'hA100_0030, 32'h5555_6666, 3'd4, resp);
+      u_axi4.bus_read_issue(32'hA100_0030, 3'd4, h, ok);
+      begin : _axi4_poll
+        integer g;
+        g = 0;
+        done = 1'b0;
+        while (!done && g < 64) begin
+          @(posedge clk);
+          u_axi4.bus_read_poll(h, d_poll, r_poll, done);
+          g = g + 1;
+        end
+      end
+      u_axi4.bus_write(32'hA100_0030, 32'h7777_8888, 3'd4, resp);
+      u_axi4.bus_read_wait(h, d_wait, r_wait);
+      check("AXI4 OS poll→wait cache",
+            ok && done && r_poll == 2'd0 && r_wait == 2'd0 &&
+            d_poll == 32'h5555_6666 && d_wait == 32'h5555_6666);
+    end
 
     $display("Checklist: %0d passed / %0d failed (VCD protocol checks: %0d)",
              pass, fail, TB_EXPECTED_PROTOCOL_CHECKS);

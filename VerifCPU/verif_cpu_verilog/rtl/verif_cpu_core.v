@@ -1,6 +1,7 @@
 // VerifCPU Core - full feature parity with python_model (non-synthesizable)
 
 `include "verif_cpu_defs.vh"
+`include "verif_bus_defs.vh"
 
 
 module verif_cpu_core #(
@@ -60,7 +61,15 @@ module verif_cpu_core #(
   reg        fmem_valid [0:`FORCED_MEM_MAX-1];
   reg [7:0]  fmem_count;
   reg [31:0] problem_addrs [0:7];
-  reg [2:0]  problem_count;
+  reg [3:0]  problem_count;  // 0..8, max 8 sticky fault addresses
+  reg        last_bus_err;
+  reg [31:0] bus_fault_count;
+  // Per-handle address for OS wait/poll fault (multi-outstanding safe)
+  reg [31:0] os_rd_haddr [0:`VERIF_CPU_OS_HANDLE_MAX-1];
+  reg [31:0] os_wr_haddr [0:`VERIF_CPU_OS_HANDLE_MAX-1];
+  // Issued not yet reaped by wait (true-OS in-flight vs empty/double-wait)
+  reg        os_rd_open [0:`VERIF_CPU_OS_HANDLE_MAX-1];
+  reg        os_wr_open [0:`VERIF_CPU_OS_HANDLE_MAX-1];
 
   // --- Firmware (local fallback) ---
   reg [31:0] fw_words [0:FW_WORDS-1];
@@ -251,7 +260,7 @@ module verif_cpu_core #(
 
   function is_problem_addr;
     input [31:0] addr;
-    reg [2:0] i;
+    integer i;
     begin
       is_problem_addr = 1'b0;
       for (i = 0; i < problem_count; i = i + 1)
@@ -259,6 +268,25 @@ module verif_cpu_core #(
           is_problem_addr = 1'b1;
     end
   endfunction
+
+  // Record bus fault: poison path + sticky problem addr (subsequent access skipped)
+  task note_bus_fault;
+    input [31:0] addr;
+    integer i;
+    reg       already;
+    begin
+      last_bus_err = 1'b1;
+      bus_fault_count = bus_fault_count + 1;
+      already = 1'b0;
+      for (i = 0; i < problem_count; i = i + 1)
+        if (problem_addrs[i] == addr)
+          already = 1'b1;
+      if (!already && problem_count < 4'd8) begin
+        problem_addrs[problem_count] = addr;
+        problem_count = problem_count + 4'd1;
+      end
+    end
+  endtask
 
   task bus_read_impl;
     input  [31:0] addr;
@@ -271,7 +299,7 @@ module verif_cpu_core #(
         `VERIF_SOC_BUS_HUB.bus_read(addr, size, data, resp);
 `else
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else if (USE_SHARED_BUS)
@@ -285,7 +313,7 @@ module verif_cpu_core #(
 `include "verif_chip_soc_bus_read.vh"
 `else
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else
@@ -303,7 +331,7 @@ module verif_cpu_core #(
 `ifdef VERIF_SOC_BUS_HUB
         `VERIF_SOC_BUS_HUB.bus_write(addr, data, size, resp);
 `else
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else if (USE_SHARED_BUS)
@@ -316,7 +344,7 @@ module verif_cpu_core #(
 `elsif VERIF_CHIP_SOC_TB
 `include "verif_chip_soc_bus_write.vh"
 `else
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else
@@ -331,8 +359,12 @@ module verif_cpu_core #(
     output        ok;
     begin
       if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_read_issue(addr, size, handle, ok);
+`else
         handle = -1;
         ok = 1'b0;
+`endif
       end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_read_issue(addr, size, handle, ok);
@@ -359,8 +391,12 @@ module verif_cpu_core #(
     output [1:0]  resp;
     begin
       if (USE_SOC_BUS) begin
-        data = 32'h0;
-        resp = 2'd2;
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_read_wait(handle, data, resp);
+`else
+        data = 32'hDEADDEAD;
+        resp = `VERIF_BUS_RESP_SOFT;
+`endif
       end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_read_wait(handle, data, resp);
@@ -373,7 +409,7 @@ module verif_cpu_core #(
 `include "verif_chip_soc_bus_read_wait.vh"
 `else
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else
@@ -388,9 +424,13 @@ module verif_cpu_core #(
     output        done;
     begin
       if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_read_poll(handle, data, resp, done);
+`else
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
         done = 1'b0;
+`endif
       end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_read_poll(handle, data, resp, done);
@@ -403,7 +443,7 @@ module verif_cpu_core #(
 `include "verif_chip_soc_bus_read_poll.vh"
 `else
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
         done = 1'b0;
 `endif
       end
@@ -420,8 +460,12 @@ module verif_cpu_core #(
     output        ok;
     begin
       if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_write_issue(addr, data, size, handle, ok);
+`else
         handle = -1;
         ok = 1'b0;
+`endif
       end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_write_issue(addr, data, size, handle, ok);
@@ -446,8 +490,13 @@ module verif_cpu_core #(
     input  integer handle;
     output [1:0] resp;
     begin
-      if (USE_SOC_BUS)
-        resp = 2'd2;
+      if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_write_wait(handle, resp);
+`else
+        resp = `VERIF_BUS_RESP_SOFT;
+`endif
+      end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_write_wait(handle, resp);
       else if (USE_MANIFEST_SOC_BUS) begin
@@ -458,7 +507,7 @@ module verif_cpu_core #(
 `elsif VERIF_CHIP_SOC_TB
 `include "verif_chip_soc_bus_write_wait.vh"
 `else
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
 `endif
       end
       else
@@ -472,8 +521,12 @@ module verif_cpu_core #(
     output       done;
     begin
       if (USE_SOC_BUS) begin
-        resp = 2'd2;
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_write_poll(handle, resp, done);
+`else
+        resp = `VERIF_BUS_RESP_SOFT;
         done = 1'b0;
+`endif
       end
       else if (USE_SHARED_BUS)
         tb_verification_harness.u_shared_bus.bus_write_poll(handle, resp, done);
@@ -485,7 +538,7 @@ module verif_cpu_core #(
 `elsif VERIF_CHIP_SOC_TB
 `include "verif_chip_soc_bus_write_poll.vh"
 `else
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
         done = 1'b0;
 `endif
       end
@@ -508,9 +561,11 @@ module verif_cpu_core #(
 
   task os_track_read_done;
     begin
-      if (os_rd_inflight_now > 0)
+      // Wait reaps only (poll is peek). Idempotent if wait called twice.
+      if (os_rd_inflight_now > 0) begin
         os_rd_inflight_now = os_rd_inflight_now - 1;
-      os_rd_completed = os_rd_completed + 1;
+        os_rd_completed = os_rd_completed + 1;
+      end
     end
   endtask
 
@@ -528,11 +583,32 @@ module verif_cpu_core #(
 
   task os_track_write_done;
     begin
-      if (os_wr_inflight_now > 0)
+      if (os_wr_inflight_now > 0) begin
         os_wr_inflight_now = os_wr_inflight_now - 1;
-      os_wr_completed = os_wr_completed + 1;
+        os_wr_completed = os_wr_completed + 1;
+      end
     end
   endtask
+
+  function [31:0] os_haddr_rd;
+    input integer handle;
+    begin
+      if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX)
+        os_haddr_rd = os_rd_haddr[handle];
+      else
+        os_haddr_rd = last_bus_addr;
+    end
+  endfunction
+
+  function [31:0] os_haddr_wr;
+    input integer handle;
+    begin
+      if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX)
+        os_haddr_wr = os_wr_haddr[handle];
+      else
+        os_haddr_wr = last_bus_addr;
+    end
+  endfunction
 
   task do_bus_read_issue;
     input  [31:0] addr;
@@ -546,6 +622,14 @@ module verif_cpu_core #(
       end else begin
         bus_read_issue_impl(addr, size, handle, ok);
         os_track_read_issue(ok);
+        if (ok) begin
+          last_bus_addr = addr;
+          last_bus_wr = 1'b0;
+          if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX) begin
+            os_rd_haddr[handle] = addr;
+            os_rd_open[handle] = 1'b1;
+          end
+        end
       end
     end
   endtask
@@ -554,13 +638,39 @@ module verif_cpu_core #(
     input  integer handle;
     output [31:0] data;
     output [1:0]  resp;
+    reg [31:0] faddr;
+    reg        was_open;
     begin
+      faddr = os_haddr_rd(handle);
+      was_open = (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX && os_rd_open[handle]);
+      // Always wait_impl so true-OS blocks while in-flight (masters soft-fail empty)
       bus_read_wait_impl(handle, data, resp);
-      data = sanitize_xz_fn(data, "bus_read_wait data");
-      os_track_read_done();
-      last_bus_valid = 1'b1;
-      last_bus_data = data;
-      last_bus_wr = 1'b0;
+      if (was_open) begin
+        os_rd_open[handle] = 1'b0;
+        if (resp == `VERIF_BUS_RESP_OK) begin
+          last_bus_err = 1'b0;
+          data = sanitize_xz_fn(data, "bus_read_wait data");
+        end else begin
+          last_bus_err = 1'b1;
+          // SOFT (1) = free/desync — no sticky problem_addrs. SLV/DEC (2/3) = real bus fault.
+          if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC)
+            note_bus_fault(faddr);
+          data = 32'hDEADDEAD;
+        end
+        os_track_read_done();
+        last_bus_valid = 1'b1;
+        last_bus_addr  = faddr;
+        last_bus_data = data;
+        last_bus_wr = 1'b0;
+      end else begin
+        // empty / double-wait: no sticky problem_addrs, no track
+        data = 32'hDEADDEAD;
+        resp = `VERIF_BUS_RESP_SOFT;
+        last_bus_err = 1'b1;
+        last_bus_valid = 1'b1;
+        last_bus_data = 32'hDEADDEAD;
+        last_bus_wr = 1'b0;
+      end
     end
   endtask
 
@@ -569,11 +679,23 @@ module verif_cpu_core #(
     output [31:0] data;
     output [1:0]  resp;
     output        done;
+    reg [31:0] faddr;
     begin
+      faddr = os_haddr_rd(handle);
       bus_read_poll_impl(handle, data, resp, done);
+      // Peek only: no os_track / note_bus_fault (wait reaps + faults)
       if (done) begin
-        data = sanitize_xz_fn(data, "bus_read_poll data");
-        os_track_read_done();
+        if (resp == `VERIF_BUS_RESP_OK) begin
+          last_bus_err = 1'b0;
+          data = sanitize_xz_fn(data, "bus_read_poll data");
+        end else begin
+          last_bus_err = 1'b1;
+          data = 32'hDEADDEAD;
+        end
+        last_bus_valid = 1'b1;
+        last_bus_addr  = faddr;
+        last_bus_data = data;
+        last_bus_wr = 1'b0;
       end
     end
   endtask
@@ -591,10 +713,16 @@ module verif_cpu_core #(
       end else begin
         bus_write_issue_impl(addr, data, size, handle, ok);
         os_track_write_issue(ok);
-        last_bus_valid = 1'b1;
-        last_bus_addr = addr;
-        last_bus_data = data;
-        last_bus_wr = 1'b1;
+        if (ok) begin
+          last_bus_valid = 1'b1;
+          last_bus_addr = addr;
+          last_bus_data = data;
+          last_bus_wr = 1'b1;
+          if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX) begin
+            os_wr_haddr[handle] = addr;
+            os_wr_open[handle] = 1'b1;
+          end
+        end
       end
     end
   endtask
@@ -602,9 +730,33 @@ module verif_cpu_core #(
   task do_bus_write_wait;
     input  integer handle;
     output [1:0] resp;
+    reg [31:0] faddr;
+    reg        was_open;
     begin
+      faddr = os_haddr_wr(handle);
+      was_open = (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX && os_wr_open[handle]);
       bus_write_wait_impl(handle, resp);
-      os_track_write_done();
+      if (was_open) begin
+        os_wr_open[handle] = 1'b0;
+        if (resp == `VERIF_BUS_RESP_OK) begin
+          last_bus_err = 1'b0;
+        end else begin
+          last_bus_err = 1'b1;
+          last_bus_data = 32'hDEADDEAD;
+          if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC)
+            note_bus_fault(faddr);
+        end
+        os_track_write_done();
+        last_bus_valid = 1'b1;
+        last_bus_addr = faddr;
+        last_bus_wr = 1'b1;
+      end else begin
+        resp = `VERIF_BUS_RESP_SOFT;
+        last_bus_err = 1'b1;
+        last_bus_valid = 1'b1;
+        last_bus_data = 32'hDEADDEAD;
+        last_bus_wr = 1'b1;
+      end
     end
   endtask
 
@@ -613,9 +765,10 @@ module verif_cpu_core #(
     output [1:0] resp;
     output       done;
     begin
+      // Peek only — wait reaps and tracks
       bus_write_poll_impl(handle, resp, done);
       if (done)
-        os_track_write_done();
+        last_bus_err = (resp != `VERIF_BUS_RESP_OK);
     end
   endtask
 
@@ -633,6 +786,7 @@ module verif_cpu_core #(
       force_hit = 1'b0;
       if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
         data = 32'hDEADDEAD;
+        last_bus_err   = 1'b1;
         last_bus_valid = 1'b1;
         last_bus_addr  = addr;
         last_bus_data  = data;
@@ -645,6 +799,7 @@ module verif_cpu_core #(
             last_bus_addr  = addr;
             last_bus_data  = data;
             last_bus_wr    = 1'b0;
+            last_bus_err   = 1'b0;
             force_hit = 1'b1;
             if (recorder_attached)
               u_rec.recorder_record(1'b0, addr, data, size);
@@ -665,6 +820,7 @@ module verif_cpu_core #(
             last_bus_addr  = addr;
             last_bus_data  = data;
             last_bus_wr    = 1'b0;
+            last_bus_err   = 1'b0;
             force_hit = 1'b1;
             $display("SCPU%0d > [HWForce] READ 0x%08h => 0x%08h (hier=0x%08h)",
                      CPU_ID, addr, data, hierarchy_id);
@@ -673,16 +829,25 @@ module verif_cpu_core #(
           end
         end
         if (!force_hit) begin
+          last_bus_err = 1'b0;
           bus_read_impl(addr, size, data, resp);
-          data = sanitize_xz_fn(data, "bus_read data");
+          if (resp != `VERIF_BUS_RESP_OK) begin
+            last_bus_err = 1'b1;
+            data = 32'hDEADDEAD;
+            // SOFT = free/busy — no sticky problem_addrs. SLV/DEC only.
+            if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC) begin
+              $display("SCPU%0d > bus read error resp=%0d @0x%08h — poison DEADDEAD + fault",
+                       CPU_ID, resp, addr);
+              note_bus_fault(addr);
+            end
+          end else
+            data = sanitize_xz_fn(data, "bus_read data");
           last_bus_valid = 1'b1;
           last_bus_addr  = addr;
           last_bus_data  = data;
           last_bus_wr    = 1'b0;
           if (recorder_attached)
             u_rec.recorder_record(1'b0, addr, data, size);
-          if (resp != 0)
-            $display("SCPU%0d > bus read error resp=%0d @0x%08h", CPU_ID, resp, addr);
         end
       end
     end
@@ -698,15 +863,26 @@ module verif_cpu_core #(
       last_bus_addr  = addr;
       last_bus_data  = data;
       last_bus_wr    = 1'b1;
+      last_bus_err   = 1'b0;
       if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+        last_bus_err = 1'b1;
+        last_bus_data = 32'hDEADDEAD;
         if (recorder_attached)
-          u_rec.recorder_record(1'b1, addr, data, size);
+          u_rec.recorder_record(1'b1, addr, 32'hDEADDEAD, size);
       end else begin
         bus_write_impl(addr, data, size, resp);
+        if (resp != `VERIF_BUS_RESP_OK) begin
+          last_bus_err = 1'b1;
+          last_bus_data = 32'hDEADDEAD;
+          if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC) begin
+            $display("SCPU%0d > bus write error resp=%0d @0x%08h — poison DEADDEAD + fault",
+                     CPU_ID, resp, addr);
+            note_bus_fault(addr);
+          end
+        end
         if (recorder_attached)
-          u_rec.recorder_record(1'b1, addr, data, size);
-        if (resp != 0)
-          $display("SCPU%0d > bus write error resp=%0d @0x%08h", CPU_ID, resp, addr);
+          u_rec.recorder_record(1'b1, addr,
+            (resp != `VERIF_BUS_RESP_OK) ? 32'hDEADDEAD : data, size);
       end
     end
   endtask
@@ -808,6 +984,7 @@ module verif_cpu_core #(
       request_sim_stop = 0; sim_stop = 0;
       total_steps = 0; recovery_count = 0;
       force_active = 1; fmem_count = 0; problem_count = 0;
+      last_bus_err = 1'b0; bus_fault_count = 0;
       fw_region_base = 0; fw_region_size = 0; fw_word_count = 0;
       wdt_timeout = WDT_DEFAULT; wdt_count = 0;
       wdt_enabled = 1; wdt_fired = 0;
@@ -826,15 +1003,32 @@ module verif_cpu_core #(
       os_rd_issued = 0; os_rd_completed = 0;
       os_wr_issued = 0; os_wr_completed = 0;
       os_rd_inflight_peak = 0; os_wr_inflight_peak = 0;
+      for (i = 0; i < `VERIF_CPU_OS_HANDLE_MAX; i = i + 1) begin
+        os_rd_open[i] = 1'b0;
+        os_wr_open[i] = 1'b0;
+      end
       os_rd_inflight_now = 0; os_wr_inflight_now = 0;
       for (i = 0; i < 32; i = i + 1) begin
         regs[i] = 0; forced_valid[i] = 0; forced_val[i] = 0;
       end
-      if (!USE_SHARED_BUS && !USE_MANIFEST_SOC_BUS && !USE_SOC_BUS)
-        g_local_bus.u_bus.bus_reset();
+      bus_reset_impl();
       u_rec.recorder_reset();
       cov_reset();
       fn_tracer_reset();
+    end
+  endtask
+
+  // Reset OS stubs where available (local / shared / soc hub). Manifest bridges: no bus_reset.
+  task bus_reset_impl;
+    begin
+      if (USE_SOC_BUS) begin
+`ifdef VERIF_SOC_BUS_HUB
+        `VERIF_SOC_BUS_HUB.bus_reset();
+`endif
+      end else if (USE_SHARED_BUS)
+        tb_verification_harness.u_shared_bus.bus_reset();
+      else if (!USE_MANIFEST_SOC_BUS)
+        g_local_bus.u_bus.bus_reset();
     end
   endtask
 
@@ -1049,9 +1243,9 @@ module verif_cpu_core #(
       recovery_count = recovery_count + 1;
       if (bus_txn_count > 0) begin
         last_idx = bus_txn_count - 1;
-        if (problem_count < 7) begin
-          problem_addrs[problem_count] = u_rec.txn_addr[last_idx];
-          problem_count = problem_count + 1;
+        if (problem_count < 4'd8) begin
+          problem_addrs[problem_count[2:0]] = u_rec.txn_addr[last_idx];
+          problem_count = problem_count + 4'd1;
         end
       end
       cpu_reset(1'b1);
@@ -1308,17 +1502,19 @@ module verif_cpu_core #(
         if (err) state = `CPU_STATE_STALLED;
       end else if (fw_word_count == 0) begin
         $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
-      end else if (pc + 4 > fw_region_size) begin
+      end else if (!`VERIF_BUS_SPAN_OK(pc, 32'd4, fw_region_size)) begin
+        // Non-wrapping 4-byte instruction fetch (no pc+4 wrap false-accept)
         $display("SCPU%0d > Firmware read error at pc=0x%08h", CPU_ID, pc);
+        state = `CPU_STATE_STALLED; err = 1'b1;
+      end else if (!`VERIF_BUS_SPAN_OK(fw_region_base, pc + 32'd4,
+                                      FW_WORDS[31:0] << 2)) begin
+        // Absolute byte window in fw_words[] (no base+pc wrap → false word_idx)
+        $display("SCPU%0d > Firmware abs index OOB base=0x%08h pc=0x%08h",
+                 CPU_ID, fw_region_base, pc);
         state = `CPU_STATE_STALLED; err = 1'b1;
       end else begin
         word_idx = (fw_region_base + pc) >> 2;
-        if (word_idx >= FW_WORDS) begin
-          $display("SCPU%0d > Firmware index overflow word_idx=0x%08h (FW_WORDS=%0d)",
-                   CPU_ID, word_idx, FW_WORDS);
-          state = `CPU_STATE_STALLED; err = 1'b1;
-        end else
-          instr = fw_words[word_idx];
+        instr = fw_words[word_idx];
       end
     end
   endtask

@@ -292,33 +292,43 @@ def build_icode_firmware(spec: IcodeSpec) -> tuple[bytes, int]:
     return blob, 0x1000
 
 
-class VerifProbeSim(tinyrv.sim):  # type: ignore[misc, valid-type]
-    def __init__(self):
-        super().__init__(xlen=32, trap_misaligned=False)
-        self.first_bus: Optional[tuple[str, int]] = None
-        self.stop = False
+def _make_verif_probe_sim_class():
+    """Build VerifProbeSim only when tinyrv is installed (avoid import-time crash)."""
+    if not HAS_TINYRV:
+        return None
 
-    def notify_loading(self, addr):
-        self._capture("R", addr)
+    class _VerifProbeSim(tinyrv.sim):  # type: ignore[misc, valid-type]
+        def __init__(self):
+            super().__init__(xlen=32, trap_misaligned=False)
+            self.first_bus: Optional[tuple[str, int]] = None
+            self.stop = False
 
-    def notify_stored(self, addr):
-        self._capture("W", addr)
+        def notify_loading(self, addr):
+            self._capture("R", addr)
 
-    def _capture(self, kind: str, addr: int):
-        if self.first_bus is None and _is_soc_addr(addr):
-            self.first_bus = (kind, addr)
+        def notify_stored(self, addr):
+            self._capture("W", addr)
 
-    def _custom0(self, **_):
-        sel = (self.op.data >> 25) & 0x7F
-        rd = (self.op.data >> 7) & 0x1F
-        rs1 = (self.op.data >> 15) & 0x1F
-        if sel == 0x00:
-            self.stop = True
-        elif sel == 0x14:
-            cond = self.x[rs1] if rs1 else rd
-            if not cond:
+        def _capture(self, kind: str, addr: int):
+            if self.first_bus is None and _is_soc_addr(addr):
+                self.first_bus = (kind, addr)
+
+        def _custom0(self, **_):
+            sel = (self.op.data >> 25) & 0x7F
+            rd = (self.op.data >> 7) & 0x1F
+            rs1 = (self.op.data >> 15) & 0x1F
+            if sel == 0x00:
                 self.stop = True
-        self.pc += 4
+            elif sel == 0x14:
+                cond = self.x[rs1] if rs1 else rd
+                if not cond:
+                    self.stop = True
+            self.pc = (self.pc + 4) & 0xFFFFFFFF
+
+    return _VerifProbeSim
+
+
+VerifProbeSim = _make_verif_probe_sim_class()
 
 
 def _probe_window(blob: bytes, exec_pc: int = 0) -> bytes:
@@ -331,7 +341,7 @@ def _probe_window(blob: bytes, exec_pc: int = 0) -> bytes:
 
 
 def _run_tinyrv_on_blob(name: str, blob: bytes, exec_pc: int) -> ProbeResult:
-    if tinyrv is None:
+    if tinyrv is None or VerifProbeSim is None:
         return ProbeResult(name, None, None, 0, "tinyrv not installed")
 
     window = _probe_window(blob, exec_pc)

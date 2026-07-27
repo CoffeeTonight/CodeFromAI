@@ -23,7 +23,12 @@ from amba_bus_registry import (  # noqa: E402
     strb_width,
 )
 
-LEGACY_ALIASES = {"apb": "apb3", "ahb": "ahb_lite", "axi": "axi4lite"}
+LEGACY_ALIASES = {
+    "apb": "apb3",
+    "ahb-lite": "ahb_lite",
+    "ahblite": "ahb_lite",
+    "axi": "axi4lite",
+}
 
 
 @dataclass(frozen=True)

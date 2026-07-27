@@ -1,0 +1,13 @@
+project_id: TOY-IBEX
+source: toy_scaffold_from_OSS-IBEX
+title: lowRISC Ibex
+git_url: https://github.com/oss/oss-ibex.git
+local_clone_path: /home/user/tools/oss-soc-samples/ibex
+rtl_subdir: ''
+root_marker: Makefile
+doc_rev: r1.0
+doc_path: oss/OSS-IBEX
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-18'
+  source: toy_scaffold_from_OSS-IBEX

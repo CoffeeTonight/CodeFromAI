@@ -129,9 +129,12 @@ CAMPAIGN_SYNC_BARRIER_ID = 10
 
 
 def sync_participant_mask(cpus: list[dict]) -> int:
+    """Bitmask of slave VCPUs (cpu_id>=1). Master (id=0) is not a barrier participant bit."""
     mask = 0
     for c in cpus:
-        mask |= 1 << (c["id"] - 1)
+        cid = int(c["id"])
+        if cid >= 1:
+            mask |= 1 << (cid - 1)
     return mask
 
 
@@ -430,12 +433,19 @@ def generate_bus_bind_vh(
             f"          7'd{cid}: {path}.bus_write(addr, data, size, resp);"
         )
     read_lines.extend([
-        "          default: begin data = 32'h0; resp = 2'd2; end",
+        "          default: begin",
+        "            data = 32'hDEADDEAD;",
+        "            resp = 2'd2;",
+        '            $fatal(1, "[BUS] bus_read_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);',
+        "          end",
         "        endcase",
         "",
     ])
     write_lines.extend([
-        "          default: resp = 2'd2;",
+        "          default: begin",
+        "            resp = 2'd2;",
+        '            $fatal(1, "[BUS] bus_write_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);',
+        "          end",
         "        endcase",
         "",
     ])
@@ -887,7 +897,7 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
                     f"    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
-                    f"    .RLAST({pref}_rvalid), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
+                    f"    .RLAST(), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
                     f"    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
@@ -1032,6 +1042,7 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
                 f"  wire {ADDR_V_RANGE} {pref}_araddr, {pref}_awaddr;",
                 f"  wire {DATA_V_RANGE} {pref}_wdata, {pref}_rdata;",
                 f"  wire [2:0]  {pref}_arsize, {pref}_awsize;",
+                f"  wire [2:0]  {pref}_arprot, {pref}_awprot;",
                 f"  wire {STRB_V_RANGE} {pref}_wstrb;",
                 f"  wire [1:0]  {pref}_rresp, {pref}_bresp;",
             ])
@@ -1358,8 +1369,8 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
             f"`SOC_MANIFEST_POOL_{s['name']}, FW_SIZE); \\"
         )
     lines.extend([
-        "  u_pool.pool_assign_region(4'd4, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \\",
-        "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, soc_manifest_pool_word, soc_manifest_pool_err); \\",
+        "  u_pool.pool_assign_region(4'd15, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \\",
+        "  u_pool.pool_read_word(4'd15, `ICODE_POOL_BASE, soc_manifest_pool_word, soc_manifest_pool_err); \\",
         "",
         "`define SOC_MANIFEST_SETUP_CPUS \\",
     ])
@@ -1530,25 +1541,55 @@ def generate_bus_os_bind_vh(
             elif api_key.endswith("_count"):
                 lines.append(f"          7'd{cid}: n = 0;")
         if api_key.endswith("_issue"):
-            lines.append("          default: begin handle = -1; ok = 1'b0; end")
+            lines.append(
+                "          default: begin"
+            )
+            lines.append(
+                "            handle = -1; ok = 1'b0;"
+            )
+            lines.append(
+                '            $fatal(1, "[BUS] bus_*_issue: unbound CPU_ID=%0d", CPU_ID);'
+            )
+            lines.append("          end")
         elif api_key.endswith("_wait"):
             if api_key.startswith("read"):
+                lines.append("          default: begin")
+                lines.append("            data = 32'hDEADDEAD; resp = 2'd2;")
                 lines.append(
-                    "          default: begin data = 32'h0; resp = 2'd2; end"
+                    '            $fatal(1, "[BUS] bus_read_wait: unbound CPU_ID=%0d", CPU_ID);'
                 )
+                lines.append("          end")
             else:
-                lines.append("          default: resp = 2'd2;")
+                lines.append("          default: begin")
+                lines.append("            resp = 2'd2;")
+                lines.append(
+                    '            $fatal(1, "[BUS] bus_write_wait: unbound CPU_ID=%0d", CPU_ID);'
+                )
+                lines.append("          end")
         elif api_key.endswith("_poll"):
             if api_key.startswith("read"):
+                lines.append("          default: begin")
                 lines.append(
-                    "          default: begin data = 32'h0; resp = 2'd2; done = 1'b0; end"
+                    "            data = 32'hDEADDEAD; resp = 2'd2; done = 1'b0;"
                 )
+                lines.append(
+                    '            $fatal(1, "[BUS] bus_read_poll: unbound CPU_ID=%0d", CPU_ID);'
+                )
+                lines.append("          end")
             else:
+                lines.append("          default: begin")
+                lines.append("            resp = 2'd2; done = 1'b0;")
                 lines.append(
-                    "          default: begin resp = 2'd2; done = 1'b0; end"
+                    '            $fatal(1, "[BUS] bus_write_poll: unbound CPU_ID=%0d", CPU_ID);'
                 )
+                lines.append("          end")
         else:
-            lines.append("          default: n = 0;")
+            lines.append("          default: begin")
+            lines.append("            n = 0;")
+            lines.append(
+                '            $fatal(1, "[BUS] bus_*_count: unbound CPU_ID=%0d", CPU_ID);'
+            )
+            lines.append("          end")
         lines.extend(["        endcase", ""])
         out[api_key] = "\n".join(lines)
     return out
@@ -1589,12 +1630,19 @@ def generate_manifest_bus_bind_vh(
             f"          7'd{cid}: {module_name}.g_slv{gi}.u_bus.u_bridge.bus_write(addr, data, size, resp);"
         )
     read_lines.extend([
-        "          default: begin data = 32'h0; resp = 2'd2; end",
+        "          default: begin",
+        "            data = 32'hDEADDEAD;",
+        "            resp = 2'd2;",
+        '            $fatal(1, "[BUS] bus_read_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);',
+        "          end",
         "        endcase",
         "",
     ])
     write_lines.extend([
-        "          default: resp = 2'd2;",
+        "          default: begin",
+        "            resp = 2'd2;",
+        '            $fatal(1, "[BUS] bus_write_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);',
+        "          end",
         "        endcase",
         "",
     ])
@@ -2206,9 +2254,9 @@ def emit_pool_policy_macros(pool_bytes: int, use_lazy: bool) -> list[str]:
             f'  u_pool.pool_load_hex("{vcpu_hex}", campaign_pool_load_ok); \\',
             '  if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \\',
             "  `CAMPAIGN_POOL_ASSIGN_VCPUS \\",
-            "  u_pool.pool_bind_file(4'd4, icode_pool_path); \\",
-            "  u_pool.pool_assign_region(4'd4, 32'h0, ICODE_POOL_SZ); \\",
-            "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \\",
+            "  u_pool.pool_bind_file(4'd15, icode_pool_path); \\",
+            "  u_pool.pool_assign_region(4'd15, 32'h0, ICODE_POOL_SZ); \\",
+            "  u_pool.pool_read_word(4'd15, `ICODE_POOL_BASE, pool_word, pool_err); \\",
             '  check_eq("Icode pool file-backed (lazy)", !pool_err && pool_word != 32\'h00000013); \\',
             "",
         ])
@@ -2218,8 +2266,8 @@ def emit_pool_policy_macros(pool_bytes: int, use_lazy: bool) -> list[str]:
             f'  u_pool.pool_load_hex("{unified_hex}", campaign_pool_load_ok); \\',
             '  if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \\',
             "  `CAMPAIGN_POOL_ASSIGN_VCPUS \\",
-            "  u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \\",
-            "  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \\",
+            "  u_pool.pool_assign_region(4'd15, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \\",
+            "  u_pool.pool_read_word(4'd15, `ICODE_POOL_BASE, pool_word, pool_err); \\",
             '  check_eq("Icode pool embedded (readmemh)", !pool_err && pool_word != 32\'h00000013); \\',
             "",
         ])
@@ -2239,26 +2287,29 @@ def emit_macros(
     use_lazy: bool,
 ) -> list[str]:
     active = _active_slaves(slaves, master)
+    slave_cpus = [c for c in cpus if int(c["id"]) > 0]
+    slave_agents = [s for s in active if int(s["cpu_id"]) > 0]
     max_icode_slots = max((len(s["targets"]) for s in active), default=0)
     total_pass = sum(len(s["targets"]) for s in active)
-    uart = next((c for c in cpus if c["role"] == "uart"), None)
+    uart = next((c for c in slave_cpus if c["role"] == "uart"), None)
     lines = emit_pool_policy_macros(pool_bytes, use_lazy)
     lines.extend([
-        f"`define CAMPAIGN_NUM_VCPUS {len(cpus)}",
+        f"`define CAMPAIGN_NUM_VCPUS {len(slave_cpus)}",
         f"`define CAMPAIGN_NUM_AGENTS `CAMPAIGN_MAX_SLOTS",
         f"`define CAMPAIGN_MAX_ICODE_SLOTS {max_icode_slots}",
         f"`define CAMPAIGN_TOTAL_ICODE_PASS {total_pass}",
         f"`define CAMPAIGN_MANIFEST_ACTIVE_AGENTS {len(active)}",
+        f"`define CAMPAIGN_MANIFEST_SLAVE_AGENTS {len(slave_agents)}",
         f"`define CAMPAIGN_UART_CPU_ID {uart['id'] if uart else 0}",
         "",
         "`define CAMPAIGN_POOL_ASSIGN_VCPUS \\",
     ])
-    for c in cpus:
+    for c in slave_cpus:
         lines.append(f"  u_pool.pool_assign_region({c['id']}, 32'h{c['pool_word']:x}, FW_SIZE); \\")
     lines.append("")
 
     lines.append("`define CAMPAIGN_SETUP_VCPUS \\")
-    for c in cpus:
+    for c in slave_cpus:
         lines.append(
             f'  setup_cpu({c["id"]}, "{_padded_name(c["name"])}", 32\'h{c["pool_word"]:x}, 100); \\'
         )
@@ -2270,7 +2321,7 @@ def emit_macros(
     lines.append("")
 
     lines.append("`define CAMPAIGN_RUN_PHASE_A_VCORES \\")
-    for c in cpus:
+    for c in slave_cpus:
         lines.append(f"  run_cpu_core({c['id']}, OFF_A, 64, hang_rec); \\")
     lines.append("")
 
@@ -2280,7 +2331,7 @@ def emit_macros(
     lines.append("")
 
     lines.append("`define CAMPAIGN_RUN_PHASE_B_VCORES \\")
-    for c in cpus:
+    for c in slave_cpus:
         lines.append(f"  run_cpu_core({c['id']}, OFF_B, 48, hang_rec); \\")
     lines.append("")
 
@@ -2358,15 +2409,15 @@ def emit_macros(
 
     lines.extend([
         "initial begin",
-        "  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS)",
-        "    $fatal(1, \"manifest active agents %0d > CAMPAIGN_MAX_SLOTS %0d\",",
-        "           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS);",
-        "  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS != `CAMPAIGN_NUM_VCPUS)",
-        "    $fatal(1, \"manifest active agents %0d != wired VCPUs %0d\",",
-        "           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_NUM_VCPUS);",
-        "  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_ACTIVE_AGENTS)",
-        "    $fatal(1, \"CAMPAIGN_ACTIVE_SLOTS %0d != manifest active %0d\",",
-        "           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_ACTIVE_AGENTS);",
+        "  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS + 1)",
+        "    $fatal(1, \"manifest active agents %0d > MAX_SLOTS+1 %0d\",",
+        "           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS + 1);",
+        "  if (`CAMPAIGN_MANIFEST_SLAVE_AGENTS != `CAMPAIGN_NUM_VCPUS)",
+        "    $fatal(1, \"slave agents %0d != wired VCPUs %0d\",",
+        "           `CAMPAIGN_MANIFEST_SLAVE_AGENTS, `CAMPAIGN_NUM_VCPUS);",
+        "  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_SLAVE_AGENTS)",
+        "    $fatal(1, \"CAMPAIGN_ACTIVE_SLOTS %0d != slave agents %0d\",",
+        "           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_SLAVE_AGENTS);",
         "end",
         "",
     ])
@@ -2667,16 +2718,17 @@ def emit_campaign_cpu_wiring_guard(cpus: list[dict], slaves: list[dict]) -> list
     Generator iterates manifest cpus/slaves (N-agnostic). VH uses constant indices
     because iverilog cannot hierarchical-ref g_cpu[gi] with a runtime loop variable.
     """
-    active = [s for s in slaves if s.get("enabled")]
-    n = len(cpus)
+    active = [s for s in slaves if s.get("enabled") and int(s.get("cpu_id", 0)) > 0]
+    slave_cpus = [c for c in cpus if int(c["id"]) > 0]
+    n = len(slave_cpus)
     lines = [
-        "// CPU/agent wiring guard — Python loop over manifest; VH constant gi (iverilog)",
+        "// CPU/agent wiring guard — slave VCPUs only (master id=0 is u_mstr_cpu)",
         "initial begin : _campaign_cpu_wiring_guard",
         f"  if (`CAMPAIGN_NUM_VCPUS != {n})",
         f"    $fatal(1, \"CAMPAIGN_NUM_VCPUS=%0d expected {n} — rerun make icodes\", "
         "`CAMPAIGN_NUM_VCPUS);",
     ]
-    for c in cpus:
+    for c in slave_cpus:
         gi = c["id"] - 1
         lines.append(f"  if (g_cpu[{gi}].u_cpu.CPU_ID != 4'd{c['id']})")
         lines.append(

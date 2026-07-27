@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from soc_verify.constants import EXIT_INFO_GAP, EXIT_TOOL_ERROR
+from soc_verify.constants import EXIT_BLOCKED, EXIT_INFO_GAP, EXIT_TOOL_ERROR
 from soc_verify.error_classify import classify_stop_report
 from soc_verify.models import Verdict, load_yaml, save_yaml
 
@@ -52,8 +52,10 @@ def save_environment_profile(project_dir: Path, profile: dict[str, Any]) -> Path
 def apply_profile_to_environ(project_dir: Path, base: dict[str, str] | None = None) -> dict[str, str]:
     env = dict(base or os.environ)
     profile = load_environment_profile(project_dir)
-    for key, val in (profile.get("env") or {}).items():
-        env[str(key)] = str(val)
+    env_block = profile.get("env") or {}
+    if isinstance(env_block, dict):
+        for key, val in env_block.items():
+            env[str(key)] = str(val)
     bridge_root = project_dir / "bridge"
     if bridge_root.is_dir():
         parts = [str(bridge_root)]
@@ -77,13 +79,17 @@ def classify_gate_failure(
             return kind  # type: ignore[return-value]
 
     if verdict:
+        if verdict.status == "PASS":
+            return "none"
         if verdict.status == "INFO_GAP" or verdict.exit_code == EXIT_INFO_GAP:
             return "info"
+        if verdict.status == "BLOCKED" or verdict.exit_code == EXIT_BLOCKED:
+            return "env"
         if verdict.exit_code == EXIT_TOOL_ERROR:
             return "tool"
         metrics = verdict.metrics or {}
         fk = str(metrics.get("failure_kind", "")).lower()
-        if fk in ("env", "tool", "verification"):
+        if fk in ("env", "tool", "info", "verification", "llm"):
             return fk  # type: ignore[return-value]
         if verdict.status == "FAIL":
             return "verification"
@@ -111,14 +117,41 @@ def load_bridge_patch_proposal(run_dir: Path) -> str:
     return ""
 
 
+def _extract_json_blocks(text: str) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for raw in re.findall(r"```json\s*\n(.*?)```", text, re.DOTALL | re.IGNORECASE):
+        try:
+            data = json.loads(raw.strip())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            blocks.append(data)
+    return blocks
+
+
+def _profile_patch_from_diagnosis(content: str) -> dict[str, Any] | None:
+    for block in reversed(_extract_json_blocks(content)):
+        if any(key in block for key in ("env", "toolchain", "notes")):
+            return block
+    return None
+
+
 def load_env_diagnosis(run_dir: Path) -> dict[str, Any]:
     for name in ENV_DIAGNOSIS_NAMES:
         path = run_dir / name
         if not path.is_file():
             continue
         if name.endswith(".json"):
-            return json.loads(path.read_text(encoding="utf-8"))
-        return {"format": "markdown", "content": path.read_text(encoding="utf-8")}
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return {"format": "json", "parse_error": True, "content": path.read_text(encoding="utf-8")}
+        content = path.read_text(encoding="utf-8")
+        result: dict[str, Any] = {"format": "markdown", "content": content}
+        patch = _profile_patch_from_diagnosis(content)
+        if patch is not None:
+            result["environment_profile_patch"] = patch
+        return result
     return {}
 
 
@@ -157,6 +190,24 @@ def build_diagnose_payload(
     }
 
 
+def _apply_environment_profile_patch(project_dir: Path, run_dir: Path) -> bool:
+    diagnosis = load_env_diagnosis(run_dir)
+    if not isinstance(diagnosis, dict) or not diagnosis.get("environment_profile_patch"):
+        return False
+    profile = load_environment_profile(project_dir)
+    patch = diagnosis["environment_profile_patch"]
+    if not isinstance(patch, dict):
+        return False
+    env_patch = patch.get("env")
+    if isinstance(env_patch, dict):
+        profile.setdefault("env", {}).update(env_patch)
+    for key in ("toolchain", "notes"):
+        if key in patch:
+            profile[key] = patch[key]
+    save_environment_profile(project_dir, profile)
+    return True
+
+
 def apply_bridge_patch(
     project_dir: Path,
     stage: str,
@@ -167,7 +218,20 @@ def apply_bridge_patch(
 ) -> dict[str, Any]:
     proposal = load_bridge_patch_proposal(run_dir)
     code = extract_python_from_proposal(proposal)
+    profile_applied = _apply_environment_profile_patch(project_dir, run_dir)
     if not code:
+        if profile_applied:
+            target = bridge_script_path(project_dir, stage, group)
+            if not target.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    "#!/usr/bin/env python3\n"
+                    f'"""Profile-only bridge placeholder from run {run_dir.name}."""\n\n'
+                    "def setup_env():\n"
+                    "    pass\n",
+                    encoding="utf-8",
+                )
+            return {"applied": True, "reason": "profile_only", "profile_applied": True}
         return {"applied": False, "reason": "no_python_block_in_bridge_patch_proposal"}
 
     target = bridge_script_path(project_dir, stage, group)
@@ -184,17 +248,6 @@ def apply_bridge_patch(
         f'#!/usr/bin/env python3\n"""Bridge patch from run {run_dir.name} on {date.today().isoformat()}."""\n\n'
     )
     target.write_text(header + code + "\n", encoding="utf-8")
-
-    diagnosis = load_env_diagnosis(run_dir)
-    if isinstance(diagnosis, dict) and diagnosis.get("environment_profile_patch"):
-        profile = load_environment_profile(project_dir)
-        patch = diagnosis["environment_profile_patch"]
-        if isinstance(patch, dict):
-            profile.setdefault("env", {}).update(patch.get("env") or {})
-            for key in ("toolchain", "notes"):
-                if key in patch:
-                    profile[key] = patch[key]
-            save_environment_profile(project_dir, profile)
 
     record = project_dir / "patterns" / f"bridge_{group}_{run_dir.name}.md"
     record.parent.mkdir(parents=True, exist_ok=True)

@@ -120,6 +120,68 @@ def merge_meta_collect_payloads(
     return merged
 
 
+def _project_has_weakness_ops(project_dir: Path) -> bool:
+    return (project_dir / "ops" / "self_harness.py").is_file()
+
+
+def _project_has_full_self_harness_ops(project_dir: Path) -> bool:
+    """Full pipeline needs project erl_reflect + meta_collect alongside self_harness."""
+    ops = project_dir / "ops"
+    return (
+        (ops / "self_harness.py").is_file()
+        and (ops / "erl_reflect.py").is_file()
+        and (ops / "meta_collect.py").is_file()
+    )
+
+
+def _resolve_weakness_miners(project_dir: Path):
+    if _project_has_weakness_ops(project_dir):
+        _ensure_project_ops(project_dir)
+        from ops.self_harness import mine_weaknesses, write_weakness_report
+
+        return mine_weaknesses, write_weakness_report
+    from soc_verify.platform_self_harness import mine_weaknesses, write_weakness_report
+
+    return mine_weaknesses, write_weakness_report
+
+
+def integrate_training_finalize_weakness(
+    root: Path,
+    project_dir: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    """Write weakness_report on training finalize (meta_collect skipped)."""
+    from soc_verify.improvement_eval import (
+        build_snapshot,
+        collect_run_signals,
+        write_improvement_signal,
+        write_improvement_snapshot,
+    )
+
+    state_dict = dict(state)
+    signals = collect_run_signals(run_dir, state_dict)
+    write_improvement_signal(run_dir, signals)
+    snapshot = build_snapshot(project_dir, run_dir, signals, as_of=state_dict.get("as_of"))
+    write_improvement_snapshot(run_dir, snapshot)
+
+    mine_weaknesses, write_weakness_report = _resolve_weakness_miners(project_dir)
+    report = mine_weaknesses(
+        root,
+        project_dir,
+        run_dir,
+        signals=signals,
+        snapshot=snapshot.to_dict(),
+    )
+    path = write_weakness_report(run_dir, report)
+    return {
+        "ok": True,
+        "weakness_count": len(report.get("weaknesses") or []),
+        "weakness_report": str(path),
+        "source": report.get("source", "project"),
+    }
+
+
 def integrate_meta_collect(
     root: Path,
     project_dir: Path,
@@ -131,6 +193,19 @@ def integrate_meta_collect(
     state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run self-harness artifacts and merge into meta_graph meta_collect payload."""
+    if not _project_has_full_self_harness_ops(project_dir):
+        return {
+            "ok": True,
+            "run_id": run_dir.name,
+            "weakness_count": 0,
+            "proposal_count": 0,
+            "llm_patch_count": 0,
+            "erl_heuristic": None,
+            "llm_brief_written": False,
+            "harness_llm_prompt_written": False,
+            "erl_context_count": 0,
+            "payload": meta_payload,
+        }
     harness = run_self_harness_artifacts(
         root,
         project_dir,

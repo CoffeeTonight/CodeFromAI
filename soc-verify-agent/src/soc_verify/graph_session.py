@@ -161,6 +161,7 @@ def start_session(
     group: str = "",
     user_skillset: str = "",
     orchestrator_context: dict[str, Any] | None = None,
+    run_profile: str = "",
 ) -> dict[str, Any]:
     root = root.resolve()
     ensure_platform_baseline(root, trigger="graph_start")
@@ -188,6 +189,8 @@ def start_session(
             "stage": stage,
             "group": group,
         }
+        if run_profile:
+            initial["run_profile"] = run_profile
         if orchestrator_context:
             initial["orchestrator_run_id"] = orchestrator_context.get("orchestrator_run_id", "")
             if orchestrator_context.get("group_context"):
@@ -583,6 +586,16 @@ def session_tick(root: Path, session_id: str, *, auto_invoke_llm: bool = True) -
             meta,
             reason="trace_audit",
             contract=trace_audit.to_dict(),
+            pending=pending,
+        )
+
+    if state_after.get("child_evidence_blocked"):
+        _rollback_invoke()
+        return _blocked_response(
+            root,
+            meta,
+            reason="child_evidence",
+            contract=state_after.get("child_evidence_blocked"),
             pending=pending,
         )
 

@@ -63,9 +63,11 @@ src/soc_verify/registry_writer.py
 src/soc_verify/repro_bundle.py
 src/soc_verify/repro_env.py
 src/soc_verify/reproduction_scripts.py
+src/soc_verify/run_profile.py
 src/soc_verify/run_spec.py
 src/soc_verify/runner.py
 src/soc_verify/schedule_triggers.py
+src/soc_verify/self_harness.py
 src/soc_verify/setup_adaptive.py
 src/soc_verify/setup_llm.py
 src/soc_verify/setup_wizard.py
@@ -101,12 +103,14 @@ tests/test_branch_scorecard.py
 tests/test_bridge_env.py
 tests/test_child_graph_runtime.py
 tests/test_child_subgraphs.py
+tests/test_claude_fixes.py
 tests/test_coi_conn_pipeline.py
 tests/test_core.py
 tests/test_feedback_rubric.py
 tests/test_golden_library.py
 tests/test_graph_llm_bridge.py
 tests/test_graph_routing.py
+tests/test_harness_evidence.py
 tests/test_improvement_ablation.py
 tests/test_improvement_eval.py
 tests/test_intake_resolve.py
@@ -134,7 +138,11 @@ tests/test_paper_readiness.py
 tests/test_parity_eval.py
 tests/test_platform_telemetry.py
 tests/test_repro_bundle.py
+tests/test_run_profile.py
 tests/test_run_spec_drift.py
+tests/test_self_harness.py
+tests/test_self_harness_phase_b.py
+tests/test_self_harness_phase_c.py
 tests/test_setup_group.py
 tests/test_setup_llm.py
 tests/test_setup_read_catalog.py
@@ -144,6 +152,7 @@ tests/test_skill_registry.py
 tests/test_skill_verify_lap_e2e.py
 tests/test_tag_touch.py
 tests/test_tag_watch.py
+tests/test_training_profile_e2e.py
 tests/test_validation_autonomy.py
 tests/test_validation_consensus.py
 tests/test_verifcpu_log.py

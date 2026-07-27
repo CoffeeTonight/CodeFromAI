@@ -15,8 +15,8 @@ reg campaign_pool_load_ok;
   u_pool.pool_load_hex("firmware/full_campaign_unified.hex", campaign_pool_load_ok); \
   if (!campaign_pool_load_ok) $fatal(1, "CAMPAIGN_LOAD_FIRMWARE: pool_load_hex failed"); \
   `CAMPAIGN_POOL_ASSIGN_VCPUS \
-  u_pool.pool_assign_region(4'd4, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \
-  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, pool_word, pool_err); \
+  u_pool.pool_assign_region(4'd15, `CAMPAIGN_POOL_WORD_ICODE, ICODE_POOL_SZ); \
+  u_pool.pool_read_word(4'd15, `ICODE_POOL_BASE, pool_word, pool_err); \
   check_eq("Icode pool embedded (readmemh)", !pool_err && pool_word != 32'h00000013); \
 
 `define CAMPAIGN_NUM_VCPUS 3
@@ -24,6 +24,7 @@ reg campaign_pool_load_ok;
 `define CAMPAIGN_MAX_ICODE_SLOTS 2
 `define CAMPAIGN_TOTAL_ICODE_PASS 6
 `define CAMPAIGN_MANIFEST_ACTIVE_AGENTS 3
+`define CAMPAIGN_MANIFEST_SLAVE_AGENTS 3
 `define CAMPAIGN_UART_CPU_ID 3
 
 `define CAMPAIGN_POOL_ASSIGN_VCPUS \
@@ -110,15 +111,15 @@ reg campaign_pool_load_ok;
   check_eq("Orchestrator reset count", orch_reset_count >= 4); \
 
 initial begin
-  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS)
-    $fatal(1, "manifest active agents %0d > CAMPAIGN_MAX_SLOTS %0d",
-           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS);
-  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS != `CAMPAIGN_NUM_VCPUS)
-    $fatal(1, "manifest active agents %0d != wired VCPUs %0d",
-           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_NUM_VCPUS);
-  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_ACTIVE_AGENTS)
-    $fatal(1, "CAMPAIGN_ACTIVE_SLOTS %0d != manifest active %0d",
-           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_ACTIVE_AGENTS);
+  if (`CAMPAIGN_MANIFEST_ACTIVE_AGENTS > `CAMPAIGN_MAX_SLOTS + 1)
+    $fatal(1, "manifest active agents %0d > MAX_SLOTS+1 %0d",
+           `CAMPAIGN_MANIFEST_ACTIVE_AGENTS, `CAMPAIGN_MAX_SLOTS + 1);
+  if (`CAMPAIGN_MANIFEST_SLAVE_AGENTS != `CAMPAIGN_NUM_VCPUS)
+    $fatal(1, "slave agents %0d != wired VCPUs %0d",
+           `CAMPAIGN_MANIFEST_SLAVE_AGENTS, `CAMPAIGN_NUM_VCPUS);
+  if (`CAMPAIGN_ACTIVE_SLOTS != `CAMPAIGN_MANIFEST_SLAVE_AGENTS)
+    $fatal(1, "CAMPAIGN_ACTIVE_SLOTS %0d != slave agents %0d",
+           `CAMPAIGN_ACTIVE_SLOTS, `CAMPAIGN_MANIFEST_SLAVE_AGENTS);
 end
 
 // --- example.sh gen default campaign scenario (feature matrix) ---
@@ -286,7 +287,7 @@ end
     end
   endgenerate
 
-// CPU/agent wiring guard — Python loop over manifest; VH constant gi (iverilog)
+// CPU/agent wiring guard — slave VCPUs only (master id=0 is u_mstr_cpu)
 initial begin : _campaign_cpu_wiring_guard
   if (`CAMPAIGN_NUM_VCPUS != 3)
     $fatal(1, "CAMPAIGN_NUM_VCPUS=%0d expected 3 — rerun make icodes", `CAMPAIGN_NUM_VCPUS);

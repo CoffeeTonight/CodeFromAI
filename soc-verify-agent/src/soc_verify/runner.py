@@ -55,8 +55,11 @@ def run_python_script(
 
     verdict_path = run_dir / f"verdict_{gate}.json"
     if verdict_path.is_file():
-        data = json.loads(verdict_path.read_text(encoding="utf-8"))
-        return Verdict.from_dict(data)
+        try:
+            data = json.loads(verdict_path.read_text(encoding="utf-8"))
+            return Verdict.from_dict(data)
+        except json.JSONDecodeError:
+            pass
 
     status = "PASS" if proc.returncode == EXIT_PASS else "FAIL"
     if proc.returncode == EXIT_INFO_GAP:

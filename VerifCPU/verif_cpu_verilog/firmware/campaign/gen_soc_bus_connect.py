@@ -90,7 +90,15 @@ def emit_connect_vh(slaves: list[dict], source: str) -> str:
             lines.append(f"// SKIP {s['name']}: bus_type {bt} has no connect macro")
             continue
         cid = s["cpu_id"]
-        mst = "g_mstr.u_bus" if cid == 0 else f"g_slv{cid - 1}.u_bus"
+        if cid == 0:
+            # Current hierarchy: master is u_mstr_cpu / u_mstr agent — no g_mstr.u_bus cell.
+            lines.append(
+                f"// SKIP master {s['name']}: bus_port={port} — no g_mstr.u_bus; "
+                "wire master AMBA in SoC top manually"
+            )
+            lines.append("")
+            continue
+        mst = f"g_slv{cid - 1}.u_bus"
         macro = f"CONNECT_SLV{cid:02d}_{tag}"
         conn = f"`{macro_fn}({port}, {mst})"
         lines.append(f"`define {macro} {conn}")

@@ -1,0 +1,9 @@
+stage: simulation
+group: mini_gate
+milestone: M1
+schedule: ''
+depends_on: []
+gates:
+- stub
+owner: platform
+source: mini_soc_template

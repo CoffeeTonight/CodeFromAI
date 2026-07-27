@@ -50,6 +50,8 @@ class VerifyGroupState(TypedDict, total=False):
     jira_allowed: bool
     continue_improvement: bool
 
+    run_profile: str  # training | production
+
     # Paper factory experiment tags
     experiment_campaign: str
     experiment_condition: str

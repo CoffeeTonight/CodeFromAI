@@ -1,0 +1,12 @@
+project_id: VERIF-TOY-SOC
+source: verifcpu_oss_toy
+title: "VerifCPU OSS toy — fast training lap on upstream RTL drop"
+git_url: git@github.com:CoffeeTonight/CodeFromAI.git
+local_clone_path: ~/tools/__CFI
+rtl_subdir: VerifCPU/verif_cpu_verilog
+doc_rev: r1.0
+doc_path: confluence/SOC/VERIF-TOY/training-lap
+current_milestone: M1
+intake:
+  fetched_at: 2026-07-16
+  source: verifcpu_oss_toy

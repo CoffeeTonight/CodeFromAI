@@ -71,7 +71,10 @@ See `docs/ARCHITECTURE.md` for platform vs user vs verification split.
 
 ### 사람이 처음 할 명령
 
+Workspace SSOT: `~/tools/__CFI/soc-verify-agent`
+
 ```bash
+cd ~/tools/__CFI/soc-verify-agent
 pip install -e ".[dev]"
 cp config.example.json config.json
 soc-verify setup                    # llm · milestone · project
@@ -80,6 +83,31 @@ soc-verify skill add MY-SOC --file path/to/SKILL.md
 soc-verify --root . graph start --graph setup_group --project MY-SOC
 soc-verify --root . graph tick --session <SESSION_ID>
 ```
+
+### Training loop (fast verify — skip meta tail)
+
+```bash
+cd ~/tools/__CFI/soc-verify-agent
+soc-verify --root . graph drive --project EXAMPLE-SOC --stage simulation --group gpio_ext --profile training
+```
+
+`--profile training` skips `meta_collect`→`meta_queue` after `finalize`; `weakness_report.json` is still written at finalize.
+
+### MINI-SOC training lap (scenario fixture)
+
+```bash
+soc-verify --root . lap --project MINI-SOC --stage simulation --group mini_gate --profile training --scenario pass
+```
+
+Writes `runs/{run_id}/loop_metrics.json`. Scenarios: `pass`, `env_fail`, `verif_fail` (see `projects/MINI-SOC/meta/training_scenario.yaml`).
+
+### SKILL → first gate (one command)
+
+```bash
+soc-verify --root . skill-lap --project EXAMPLE-SOC --skill gpio-ext-verify --profile training
+```
+
+Registers/materializes SKILL.md, bootstraps ops, then runs training `lap`. VERIF-CPU production path: [docs/VERIF_CPU_FAST_TRACK.md](docs/VERIF_CPU_FAST_TRACK.md).
 
 ---
 

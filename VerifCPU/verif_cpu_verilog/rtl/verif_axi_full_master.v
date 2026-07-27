@@ -71,6 +71,7 @@ module verif_axi_full_master #(
   reg [2:0]  r_slot_size   [0:MAX_OUTSTANDING-1];
   reg [31:0] r_slot_data   [0:MAX_OUTSTANDING-1];
   reg [1:0]  r_slot_resp   [0:MAX_OUTSTANDING-1];
+  reg [1:0]  r_slot_resp_sticky [0:MAX_OUTSTANDING-1];
 
   reg        w_slot_busy   [0:MAX_OUTSTANDING-1];
   reg        w_slot_done   [0:MAX_OUTSTANDING-1];
@@ -78,7 +79,60 @@ module verif_axi_full_master #(
   reg [31:0] w_slot_data   [0:MAX_OUTSTANDING-1];
   reg [1:0]  w_slot_resp   [0:MAX_OUTSTANDING-1];
 
+  // Snoop queue — avoid R/B same-cycle drop; overflow is $error
+  localparam int SNQ_DEPTH = 8;
+  reg        snq_v [0:SNQ_DEPTH-1];
+  reg        snq_wr [0:SNQ_DEPTH-1];
+  reg [31:0] snq_a [0:SNQ_DEPTH-1];
+  reg [31:0] snq_d [0:SNQ_DEPTH-1];
+  integer    snq_n;
+
   integer gi;
+
+  function [1:0] resp_or_worse;
+    input [1:0] a;
+    input [1:0] b;
+    begin
+      // Prefer DECERR(3) > SLVERR(2) > OK(0); EXOKAY maps to 0 already
+      if (a == 2'd3 || b == 2'd3)
+        resp_or_worse = 2'd3;
+      else if (a == 2'd2 || b == 2'd2)
+        resp_or_worse = 2'd2;
+      else
+        resp_or_worse = 2'd0;
+    end
+  endfunction
+
+  // Ring snoop: never silent-drop; if full, overwrite oldest (still one event lost → count)
+  integer snq_drop_count;
+  task snq_push;
+    input        wr;
+    input [31:0] a;
+    input [31:0] d;
+    integer i;
+    begin
+      if (snq_n < SNQ_DEPTH) begin
+        snq_wr[snq_n] = wr;
+        snq_a[snq_n]  = a;
+        snq_d[snq_n]  = d;
+        snq_v[snq_n]  = 1'b1;
+        snq_n = snq_n + 1;
+      end else begin
+        // shift drop head, append tail — always keep latest SNQ_DEPTH events
+        snq_drop_count = snq_drop_count + 1;
+        for (i = 0; i < SNQ_DEPTH - 1; i = i + 1) begin
+          snq_wr[i] = snq_wr[i + 1];
+          snq_a[i]  = snq_a[i + 1];
+          snq_d[i]  = snq_d[i + 1];
+          snq_v[i]  = snq_v[i + 1];
+        end
+        snq_wr[SNQ_DEPTH - 1] = wr;
+        snq_a[SNQ_DEPTH - 1]  = a;
+        snq_d[SNQ_DEPTH - 1]  = d;
+        snq_v[SNQ_DEPTH - 1]  = 1'b1;
+      end
+    end
+  endtask
 
   function [2:0] axsize_for_bytes;
     input [2:0] sz;
@@ -91,18 +145,20 @@ module verif_axi_full_master #(
     end
   endfunction
 
+  // Occupied slots (issued not yet reaped) — matches blocking OS live||done
   function integer os_r_inflight;
     integer n;
     integer i;
     begin
       n = 0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-        if (r_slot_busy[i] && !r_slot_done[i])
+        if (r_slot_busy[i])
           n = n + 1;
       os_r_inflight = n;
     end
   endfunction
 
+  // On-wire only (still need R channel)
   function integer os_r_need_rready;
     integer n;
     integer i;
@@ -121,19 +177,20 @@ module verif_axi_full_master #(
     begin
       n = 0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-        if (w_slot_busy[i] && !w_slot_done[i])
+        if (w_slot_busy[i])
           n = n + 1;
       os_w_inflight = n;
     end
   endfunction
 
+  // On-wire only (still need B channel)
   function integer os_w_need_bready;
     integer n;
     integer i;
     begin
       n = 0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-        if (w_slot_busy[i])
+        if (w_slot_busy[i] && !w_slot_done[i])
           n = n + 1;
       os_w_need_bready = n;
     end
@@ -194,6 +251,7 @@ module verif_axi_full_master #(
     begin
       case (axi_resp)
         2'b00: axi_resp_code = 2'd0;
+        2'b01: axi_resp_code = 2'd0;  // EXOKAY
         2'b10: axi_resp_code = 2'd2;
         2'b11: axi_resp_code = 2'd3;
         default: axi_resp_code = 2'd2;
@@ -204,20 +262,23 @@ module verif_axi_full_master #(
   task os_reset_slots;
     integer i;
     begin
+      snq_n = 0;
+      for (i = 0; i < SNQ_DEPTH; i = i + 1)
+        snq_v[i] = 1'b0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
         r_slot_busy[i] = 1'b0;
         r_slot_ar_done[i] = 1'b0;
         r_slot_done[i] = 1'b0;
+        r_slot_resp_sticky[i] = 2'd0;
         w_slot_busy[i] = 1'b0;
         w_slot_done[i] = 1'b0;
       end
     end
   endtask
 
-  reg        snoop_pending;
-  reg        snoop_pending_wr;
-  reg [31:0] snoop_pending_addr;
-  reg [31:0] snoop_pending_data;
+  // Smoke/burst tasks (incr/locked) hold ready without OS slots — tracked so orphan checks stay clean
+  reg        smoke_r_active;
+  reg        smoke_b_active;
 
   initial begin
     ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 3'b010; ARBURST = BURST_INCR;
@@ -226,73 +287,78 @@ module verif_axi_full_master #(
     AWPROT = 3'b010; AWLOCK = 1'b0; AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
     WID = 0; WDATA = 0; WSTRB = 0; WLAST = 0; WVALID = 0; BREADY = 0;
     snoop_valid = 0; snoop_wr = 0; snoop_addr = 0; snoop_data = 0;
-    snoop_pending = 0;
+    smoke_r_active = 1'b0;
+    smoke_b_active = 1'b0;
+    snq_drop_count = 0;
     os_reset_slots();
   end
 
-  // One-cycle snoop pulse (no #delay tasks inside clocked always)
+  // R + B + snoop drain in one always (no push/pop race)
   always @(posedge ACLK or negedge ARESETn) begin
+    integer slot;
+    integer si;
+    reg [1:0] beat_resp;
     if (!ARESETn) begin
+      RREADY <= 1'b0;
+      BREADY <= 1'b0;
+      ARVALID <= 1'b0;
+      AWVALID <= 1'b0;
+      WVALID  <= 1'b0;
+      WLAST   <= 1'b0;
       snoop_valid <= 1'b0;
       snoop_wr    <= 1'b0;
       snoop_addr  <= 32'h0;
       snoop_data  <= 32'h0;
-      snoop_pending <= 1'b0;
-    end else if (snoop_pending) begin
-      snoop_wr    <= snoop_pending_wr;
-      snoop_addr  <= snoop_pending_addr;
-      snoop_data  <= snoop_pending_data;
-      snoop_valid <= 1'b1;
-      snoop_pending <= 1'b0;
+      smoke_r_active = 1'b0;
+      smoke_b_active = 1'b0;
+      os_reset_slots();
+      snq_n = 0;
+      for (si = 0; si < SNQ_DEPTH; si = si + 1)
+        snq_v[si] = 1'b0;
     end else begin
-      snoop_valid <= 1'b0;
-    end
-  end
-
-  // R channel — accept beats while reads are outstanding
-  always @(posedge ACLK or negedge ARESETn) begin
-    integer slot;
-    if (!ARESETn) begin
-      RREADY <= 1'b0;
-    end else begin
-      // Hold RREADY through RVALID until handshake completes (drains orphan/skid beats)
-      RREADY <= (os_r_need_rready() > 0) || RVALID;
-      if (RVALID && RREADY && RLAST) begin
+      // No || RVALID/BVALID drain of unmatched beats
+      RREADY <= smoke_r_active || (os_r_need_rready() > 0);
+      BREADY <= smoke_b_active || (os_w_need_bready() > 0);
+      if (RVALID && RREADY) begin
         slot = rid_to_slot(RID);
         if (slot >= 0) begin
-          r_slot_data[slot] = lane_prdata(RDATA, r_slot_addr[slot], r_slot_size[slot]);
-          r_slot_resp[slot] = axi_resp_code(RRESP);
-          r_slot_done[slot] = 1'b1;
-          r_slot_ar_done[slot] = 1'b0;
-          r_slot_busy[slot] = 1'b0;
-          snoop_pending_wr   <= 1'b0;
-          snoop_pending_addr <= r_slot_addr[slot];
-          snoop_pending_data <= r_slot_data[slot];
-          snoop_pending    <= 1'b1;
-        end
+          beat_resp = axi_resp_code(RRESP);
+          r_slot_resp_sticky[slot] = resp_or_worse(r_slot_resp_sticky[slot], beat_resp);
+          if (RLAST) begin
+            r_slot_data[slot] = lane_prdata(RDATA, r_slot_addr[slot], r_slot_size[slot]);
+            r_slot_resp[slot] = r_slot_resp_sticky[slot];
+            r_slot_done[slot] = 1'b1;
+            r_slot_ar_done[slot] = 1'b0;
+            snq_push(1'b0, r_slot_addr[slot], r_slot_data[slot]);
+          end
+        end else if (RLAST && !smoke_r_active && os_r_need_rready() > 0)
+          $error("axi_full_master: orphan R channel RID=0x%0h (no matching slot)", RID);
       end
-    end
-  end
-
-  // B channel — accept write responses while outstanding
-  always @(posedge ACLK or negedge ARESETn) begin
-    integer slot;
-    if (!ARESETn) begin
-      BREADY <= 1'b0;
-    end else begin
-      BREADY <= (os_w_need_bready() > 0) || BVALID;
       if (BVALID && BREADY) begin
         slot = bid_to_slot(BID);
         if (slot >= 0) begin
           w_slot_resp[slot] = axi_resp_code(BRESP);
           w_slot_done[slot] = 1'b1;
-          w_slot_busy[slot] = 1'b0;
-          snoop_pending_wr   <= 1'b1;
-          snoop_pending_addr <= w_slot_addr[slot];
-          snoop_pending_data <= w_slot_data[slot];
-          snoop_pending    <= 1'b1;
-        end
+          snq_push(1'b1, w_slot_addr[slot], w_slot_data[slot]);
+        end else if (!smoke_b_active && os_w_need_bready() > 0)
+          $error("axi_full_master: orphan B channel BID=0x%0h (no matching slot)", BID);
       end
+      // Drain after pushes
+      if (snq_n > 0 && snq_v[0]) begin
+        snoop_wr    <= snq_wr[0];
+        snoop_addr  <= snq_a[0];
+        snoop_data  <= snq_d[0];
+        snoop_valid <= 1'b1;
+        for (si = 0; si < SNQ_DEPTH - 1; si = si + 1) begin
+          snq_v[si]  = snq_v[si + 1];
+          snq_wr[si] = snq_wr[si + 1];
+          snq_a[si]  = snq_a[si + 1];
+          snq_d[si]  = snq_d[si + 1];
+        end
+        snq_v[SNQ_DEPTH - 1] = 1'b0;
+        snq_n = snq_n - 1;
+      end else
+        snoop_valid <= 1'b0;
     end
   end
 
@@ -314,6 +380,13 @@ module verif_axi_full_master #(
     output        ok;
     integer guard;
     begin
+      // Unaligned multi-byte needs blocking bus_read (split); OS is single-beat aligned
+      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
+          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+        handle = -1;
+        ok = 1'b0;
+        $display("[axi_os] bus_read_issue: unaligned size=%0d @0x%08h — use bus_read", size, addr);
+      end else begin
       handle = alloc_r_slot();
       ok = (handle >= 0);
       if (!ok) begin
@@ -322,6 +395,7 @@ module verif_axi_full_master #(
         r_slot_busy[handle] = 1'b1;
         r_slot_ar_done[handle] = 1'b0;
         r_slot_done[handle] = 1'b0;
+        r_slot_resp_sticky[handle] = 2'd0;
         r_slot_addr[handle] = addr;
         r_slot_size[handle] = size;
         axi_idle();
@@ -345,6 +419,7 @@ module verif_axi_full_master #(
         ARVALID = 1'b0;
         @(posedge ACLK);
       end
+      end
     end
   endtask
 
@@ -354,9 +429,15 @@ module verif_axi_full_master #(
     output [1:0]  resp;
     output        done;
     begin
-      done = r_slot_done[handle];
-      data = r_slot_data[handle];
-      resp = r_slot_resp[handle];
+      if (handle < 0 || handle >= MAX_OUTSTANDING || !r_slot_busy[handle]) begin
+        done = 1'b0;
+        data = 32'h0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = r_slot_done[handle];
+        data = r_slot_data[handle];
+        resp = r_slot_resp[handle];
+      end
     end
   endtask
 
@@ -366,16 +447,21 @@ module verif_axi_full_master #(
     output [1:0]  resp;
     integer guard;
     begin
-      guard = 0;
-      while (!r_slot_done[handle]) begin
-        @(posedge ACLK);
-        `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_wait")
+      if (handle < 0 || handle >= MAX_OUTSTANDING || !r_slot_busy[handle]) begin
+        data = 32'hDEADDEAD;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!r_slot_done[handle]) begin
+          @(posedge ACLK);
+          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_wait")
+        end
+        data = r_slot_data[handle];
+        resp = r_slot_resp[handle];
+        r_slot_busy[handle] = 1'b0;
+        r_slot_ar_done[handle] = 1'b0;
+        r_slot_done[handle] = 1'b0;
       end
-      data = r_slot_data[handle];
-      resp = r_slot_resp[handle];
-      r_slot_busy[handle] = 1'b0;
-      r_slot_ar_done[handle] = 1'b0;
-      r_slot_done[handle] = 1'b0;
     end
   endtask
 
@@ -393,6 +479,12 @@ module verif_axi_full_master #(
     output        ok;
     integer guard;
     begin
+      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
+          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+        handle = -1;
+        ok = 1'b0;
+        $display("[axi_os] bus_write_issue: unaligned size=%0d @0x%08h — use bus_write", size, addr);
+      end else begin
       handle = alloc_w_slot();
       ok = (handle >= 0);
       if (!ok) begin
@@ -421,20 +513,28 @@ module verif_axi_full_master #(
         WVALID = 1'b1;
         if (AXI_PROT == 3)
           WID = ID_BASE + handle;
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_issue AWREADY")
-        end while (!AWREADY);
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_issue WREADY")
-        end while (!WREADY);
-        AWVALID = 1'b0;
-        WVALID = 1'b0;
-        WLAST = 1'b0;
+        // Joint AW/W completion (same-edge AW+W legal; do not re-arm W)
+        begin : _aw_w_hs
+          reg aw_done, w_done;
+          aw_done = 1'b0;
+          w_done = 1'b0;
+          guard = 0;
+          while (!aw_done || !w_done) begin
+            @(posedge ACLK);
+            `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_issue AW/W")
+            if (!aw_done && AWVALID && AWREADY) begin
+              AWVALID = 1'b0;
+              aw_done = 1'b1;
+            end
+            if (!w_done && WVALID && WREADY) begin
+              WVALID = 1'b0;
+              WLAST = 1'b0;
+              w_done = 1'b1;
+            end
+          end
+        end
         @(posedge ACLK);
+      end
       end
     end
   endtask
@@ -444,8 +544,13 @@ module verif_axi_full_master #(
     output [1:0] resp;
     output       done;
     begin
-      done = w_slot_done[handle];
-      resp = w_slot_resp[handle];
+      if (handle < 0 || handle >= MAX_OUTSTANDING || !w_slot_busy[handle]) begin
+        done = 1'b0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = w_slot_done[handle];
+        resp = w_slot_resp[handle];
+      end
     end
   endtask
 
@@ -454,14 +559,18 @@ module verif_axi_full_master #(
     output [1:0] resp;
     integer guard;
     begin
-      guard = 0;
-      while (!w_slot_done[handle]) begin
-        @(posedge ACLK);
-        `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_wait")
+      if (handle < 0 || handle >= MAX_OUTSTANDING || !w_slot_busy[handle]) begin
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!w_slot_done[handle]) begin
+          @(posedge ACLK);
+          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_wait")
+        end
+        resp = w_slot_resp[handle];
+        w_slot_busy[handle] = 1'b0;
+        w_slot_done[handle] = 1'b0;
       end
-      resp = w_slot_resp[handle];
-      w_slot_busy[handle] = 1'b0;
-      w_slot_done[handle] = 1'b0;
     end
   endtask
 
@@ -515,12 +624,14 @@ module verif_axi_full_master #(
       ARVALID = 1'b0;
       got_last = 1'b0;
       while (!got_last) begin
+        // Raise RREADY only while waiting/sampling this beat (no gap steal)
+        smoke_r_active = 1'b1;
         guard = 0;
         do begin
           @(posedge ACLK);
           `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_incr RVALID")
-        end while (!RVALID);
-        resp = RRESP;
+        end while (!(RVALID && RREADY));
+        resp = axi_resp_code(RRESP);
         if (RRESP == 2'b10)
           had_slverr = 1'b1;
         if (RRESP == 2'b11)
@@ -531,8 +642,10 @@ module verif_axi_full_master #(
         else if (beat_count == 3) data3 = RDATA;
         beat_count = beat_count + 1;
         got_last = RLAST;
+        smoke_r_active = 1'b0;
         @(posedge ACLK);
       end
+      smoke_r_active = 1'b0;
       axi_idle();
     end
   endtask
@@ -553,8 +666,8 @@ module verif_axi_full_master #(
     begin
       data0 = 32'h0;
       data1 = 32'h0;
-      resp0 = 2'd2;
-      resp1 = 2'd2;
+      resp0 = `VERIF_BUS_RESP_SOFT;
+      resp1 = `VERIF_BUS_RESP_SOFT;
       ok = 1'b0;
       bus_read_issue(addr0, size, h0, ok0);
       bus_read_issue(addr1, size, h1, ok1);
@@ -562,12 +675,18 @@ module verif_axi_full_master #(
       if (ok) begin
         bus_read_wait(h0, data0, resp0);
         bus_read_wait(h1, data1, resp1);
+      end else begin
+        // Reap any successful issue so slots are not orphaned
+        if (ok0)
+          bus_read_wait(h0, data0, resp0);
+        if (ok1)
+          bus_read_wait(h1, data1, resp1);
       end
     end
   endtask
 
-  // Blocking API — issue + wait (backward compatible)
-  task bus_read;
+  // Blocking single-beat + split half across word (addr[1:0]==3)
+  task bus_read_1beat;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
@@ -578,13 +697,13 @@ module verif_axi_full_master #(
       bus_read_issue(addr, size, h, ok);
       if (!ok) begin
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
       end else
         bus_read_wait(h, data, resp);
     end
   endtask
 
-  task bus_write;
+  task bus_write_1beat;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
@@ -594,11 +713,14 @@ module verif_axi_full_master #(
     begin
       bus_write_issue(addr, data, size, h, ok);
       if (!ok)
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
       else
         bus_write_wait(h, resp);
     end
   endtask
+
+  `include "verif_bus_split_rw.vh"
+  `VERIF_BUS_DEFINE_SPLIT_RW(bus_read_1beat, bus_write_1beat)
 
   // AXI4 atomic / exclusive store smoke (AWATOP[5:0], e.g. 6'h02 = exclusive store)
   task bus_write_atop;
@@ -613,7 +735,7 @@ module verif_axi_full_master #(
     begin
       h = alloc_w_slot();
       ok = (h >= 0);
-      resp = 2'd2;
+      resp = `VERIF_BUS_RESP_SOFT;
       if (!ok) begin
         $display("[axi_os] bus_write_atop: outstanding full (MAX=%0d)", MAX_OUTSTANDING);
       end else begin
@@ -640,19 +762,25 @@ module verif_axi_full_master #(
         WVALID = 1'b1;
         if (AXI_PROT == 3)
           WID = ID_BASE + h;
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_atop AWREADY")
-        end while (!AWREADY);
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_atop WREADY")
-        end while (!WREADY);
-        AWVALID = 1'b0;
-        WVALID = 1'b0;
-        WLAST = 1'b0;
+        begin : _atop_aw_w
+          reg aw_done, w_done;
+          aw_done = 1'b0;
+          w_done = 1'b0;
+          guard = 0;
+          while (!aw_done || !w_done) begin
+            @(posedge ACLK);
+            `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_atop AW/W")
+            if (!aw_done && AWVALID && AWREADY) begin
+              AWVALID = 1'b0;
+              aw_done = 1'b1;
+            end
+            if (!w_done && WVALID && WREADY) begin
+              WVALID = 1'b0;
+              WLAST = 1'b0;
+              w_done = 1'b1;
+            end
+          end
+        end
         AWATOP = 6'd0;
         @(posedge ACLK);
         bus_write_wait(h, resp);
@@ -685,7 +813,7 @@ module verif_axi_full_master #(
     integer       nbeats;
     reg [31:0]    wdata;
     begin
-      resp = 2'd2;
+      resp = `VERIF_BUS_RESP_SOFT;
       had_slverr = 1'b0;
       had_decerr = 1'b0;
       nbeats = awlen + 1;
@@ -712,8 +840,8 @@ module verif_axi_full_master #(
       beat = 0;
       while (beat < nbeats) begin
         wdata = pattern_base + beat;
-        WDATA = lane_pwdata(wdata, addr + (beat * 4), size);
-        WSTRB = lane_wstrb(addr + (beat * 4), size);
+        WDATA = lane_pwdata(wdata, addr + (beat << axsize_for_bytes(size)), size);
+        WSTRB = lane_wstrb(addr + (beat << axsize_for_bytes(size)), size);
         WLAST = (beat == nbeats - 1);
         WVALID = 1'b1;
         if (AXI_PROT == 3)
@@ -728,19 +856,19 @@ module verif_axi_full_master #(
         @(posedge ACLK);
         beat = beat + 1;
       end
-      BREADY = 1'b1;
+      smoke_b_active = 1'b1;
       guard = 0;
       do begin
         @(posedge ACLK);
         `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_incr BVALID")
       end while (!BVALID);
-      resp = BRESP;
+      resp = axi_resp_code(BRESP);
       if (BRESP == 2'b10)
         had_slverr = 1'b1;
       if (BRESP == 2'b11)
         had_decerr = 1'b1;
       @(posedge ACLK);
-      BREADY = 1'b0;
+      smoke_b_active = 1'b0;
       axi_idle();
     end
   endtask
@@ -755,7 +883,7 @@ module verif_axi_full_master #(
     integer       guard;
     begin
       data = 32'h0;
-      resp = 2'd2;
+      resp = `VERIF_BUS_RESP_SOFT;
       axi_idle();
       @(posedge ACLK);
       ARID = {ID_WIDTH{1'b0}};
@@ -775,16 +903,16 @@ module verif_axi_full_master #(
       end while (!ARREADY);
       ARVALID = 1'b0;
       ARLOCK = 1'b0;
-      RREADY = 1'b1;
+      smoke_r_active = 1'b1;
       guard = 0;
       do begin
         @(posedge ACLK);
         `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_locked RVALID")
-      end while (!RVALID);
+      end while (!(RVALID && RREADY));
       data = RDATA;
-      resp = RRESP;
+      resp = axi_resp_code(RRESP);
       @(posedge ACLK);
-      RREADY = 1'b0;
+      smoke_r_active = 1'b0;
       axi_idle();
     end
   endtask

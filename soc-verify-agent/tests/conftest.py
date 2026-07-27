@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.e2e_fixture import reset_example_soc_e2e_trust
+from tests.e2e_fixture import reset_example_soc_e2e_trust, reset_mini_soc_e2e_trust
 
 
 @pytest.fixture(autouse=True)
@@ -14,4 +14,5 @@ def _example_soc_e2e_trust_baseline(request: pytest.FixtureRequest):
         yield
         return
     reset_example_soc_e2e_trust()
+    reset_mini_soc_e2e_trust()
     yield

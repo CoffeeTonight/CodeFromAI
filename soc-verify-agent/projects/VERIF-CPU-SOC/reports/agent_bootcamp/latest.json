@@ -1,0 +1,444 @@
+{
+  "contract": "agent_bootcamp_v1",
+  "completed_at": "2026-07-17T08:00:43.282177+00:00",
+  "root": "/home/user/tools/__CFI/soc-verify-agent",
+  "source_project": "VERIF-CPU-SOC",
+  "toy_project": "TOY-BOOTCAMP-TEST",
+  "ok": true,
+  "elapsed_s": 0.745,
+  "analysis": {
+    "contract": "env_analyze_v1",
+    "analyzed_at": "2026-07-17T08:00:43.060745+00:00",
+    "root": "/home/user/tools/__CFI/soc-verify-agent",
+    "project_id": "VERIF-CPU-SOC",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/VERIF-CPU-SOC",
+    "discovered": {
+      "local_clone_path": "~/tools/__CFI",
+      "rtl_subdir": "VerifCPU/verif_cpu_verilog",
+      "git_url": "git@github.com:CoffeeTonight/CodeFromAI.git",
+      "root_marker": "example.sh"
+    },
+    "cache_clone": "/home/user/tools/__CFI",
+    "environment_profile": "team-a-eda-2024",
+    "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+    "rtl_marker_ok": true,
+    "artifacts": {
+      "example.sh": true,
+      "Makefile": true,
+      "rtl": true,
+      "firmware": true,
+      "filelists": true,
+      "README.md": true
+    },
+    "tools": {
+      "which": {
+        "make": "/usr/bin/make",
+        "iverilog": "/usr/bin/iverilog",
+        "python3": "/home/user/.pyenv/versions/3.12.7/bin/python3",
+        "gcc": "/usr/bin/gcc"
+      },
+      "missing": []
+    },
+    "ops_scripts": [
+      {
+        "path": "ops/erl_reflect.py",
+        "stage": "",
+        "group": "erl_reflect",
+        "bytes": 6256,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)"
+        ]
+      },
+      {
+        "path": "ops/harness_evidence.py",
+        "stage": "",
+        "group": "harness_evidence",
+        "bytes": 39059,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)",
+          "no verdict_* write detected"
+        ]
+      },
+      {
+        "path": "ops/intake_resolve.py",
+        "stage": "",
+        "group": "intake_resolve",
+        "bytes": 31539,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)",
+          "no verdict_* write detected"
+        ]
+      },
+      {
+        "path": "ops/llm_brief.py",
+        "stage": "",
+        "group": "llm_brief",
+        "bytes": 4384,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)"
+        ]
+      },
+      {
+        "path": "ops/meta_collect.py",
+        "stage": "",
+        "group": "meta_collect",
+        "bytes": 6678,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)",
+          "no verdict_* write detected"
+        ]
+      },
+      {
+        "path": "ops/report/generate_reports.py",
+        "stage": "report",
+        "group": "generate_reports",
+        "bytes": 14652,
+        "issues": [
+          "missing --run-dir arg (platform runner contract)"
+        ]
+      },
+      {
+        "path": "ops/sanity/c-compile.py",
+        "stage": "sanity",
+        "group": "c-compile",
+        "bytes": 3290,
+        "issues": []
+      },
+      {
+        "path": "ops/sanity/oss_preflight.py",
+        "stage": "sanity",
+        "group": "oss_preflight",
+        "bytes": 3733,
+        "issues": []
+      },
+      {
+        "path": "ops/sanity/rtl_sim.py",
+        "stage": "sanity",
+        "group": "rtl_sim",
+        "bytes": 4206,
+        "issues": []
+      },
+      {
+        "path": "ops/self_harness.py",
+        "stage": "",
+        "group": "self_harness",
+        "bytes": 23701,
+        "issues": [
+          "missing --project arg (platform runner contract)",
+          "missing --run-dir arg (platform runner contract)"
+        ]
+      },
+      {
+        "path": "ops/simulation/slave_rw.py",
+        "stage": "simulation",
+        "group": "slave_rw",
+        "bytes": 5678,
+        "issues": []
+      },
+      {
+        "path": "ops/static/coi_conn.py",
+        "stage": "static",
+        "group": "coi_conn",
+        "bytes": 8868,
+        "issues": []
+      },
+      {
+        "path": "ops/static/coi_hierarchy.py",
+        "stage": "static",
+        "group": "coi_hierarchy",
+        "bytes": 5241,
+        "issues": []
+      }
+    ],
+    "verification_groups": [
+      {
+        "stage": "sanity",
+        "group": "c-compile",
+        "has_check": true,
+        "has_respond": true,
+        "has_manifest": true,
+        "ops_script": true,
+        "milestone": "M2"
+      },
+      {
+        "stage": "sanity",
+        "group": "oss_preflight",
+        "has_check": true,
+        "has_respond": true,
+        "has_manifest": true,
+        "ops_script": true,
+        "milestone": "M2"
+      },
+      {
+        "stage": "sanity",
+        "group": "rtl_sim",
+        "has_check": true,
+        "has_respond": true,
+        "has_manifest": true,
+        "ops_script": true,
+        "milestone": "M2"
+      },
+      {
+        "stage": "simulation",
+        "group": "slave_rw",
+        "has_check": true,
+        "has_respond": true,
+        "has_manifest": true,
+        "ops_script": true,
+        "milestone": "M2"
+      },
+      {
+        "stage": "static",
+        "group": "coi_conn",
+        "has_check": true,
+        "has_respond": true,
+        "has_manifest": true,
+        "ops_script": true,
+        "milestone": "M2"
+      }
+    ],
+    "preferred_production_gate": {
+      "stage": "sanity",
+      "group": "c-compile",
+      "has_check": true,
+      "has_respond": true,
+      "has_manifest": true,
+      "ops_script": true,
+      "milestone": "M2"
+    },
+    "findings": [
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/erl_reflect.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/erl_reflect.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/erl_reflect.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/erl_reflect.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/harness_evidence.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/harness_evidence.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/harness_evidence.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/harness_evidence.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/harness_evidence.py: no verdict_* write detected",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/harness_evidence.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/intake_resolve.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/intake_resolve.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/intake_resolve.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/intake_resolve.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/intake_resolve.py: no verdict_* write detected",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/intake_resolve.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/llm_brief.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/llm_brief.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/llm_brief.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/llm_brief.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/meta_collect.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/meta_collect.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/meta_collect.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/meta_collect.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/meta_collect.py: no verdict_* write detected",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/meta_collect.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/report/generate_reports.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/report/generate_reports.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/self_harness.py: missing --project arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/self_harness.py"
+      },
+      {
+        "kind": "script",
+        "severity": "medium",
+        "summary": "ops/self_harness.py: missing --run-dir arg (platform runner contract)",
+        "fix": "fix ops script contract (argparse + verdict write)",
+        "path": "ops/self_harness.py"
+      }
+    ],
+    "finding_counts": {
+      "total": 16,
+      "env": 0,
+      "script": 16,
+      "high": 0
+    },
+    "toy_ready": true
+  },
+  "toy": {
+    "ok": true,
+    "project_id": "TOY-BOOTCAMP-TEST",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "laps": [],
+    "scaffold": {
+      "ok": true,
+      "project_id": "TOY-BOOTCAMP-TEST",
+      "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-BOOTCAMP-TEST",
+      "source_id": "VERIF-CPU-SOC",
+      "stage": "sanity",
+      "group": "oss_smoke",
+      "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+      "artifacts": [
+        "example.sh",
+        "Makefile",
+        "rtl",
+        "firmware",
+        "filelists",
+        "README.md"
+      ],
+      "spec": {
+        "contract": "toy_intake_spec_v1",
+        "source_id": "VERIF-CPU-SOC",
+        "title": "VerifCPU SoC — RISC-V Verification CPU (Verilog)",
+        "git_url": "git@github.com:CoffeeTonight/CodeFromAI.git",
+        "local_clone_path": "/home/user/tools/__CFI",
+        "rtl_subdir": "VerifCPU/verif_cpu_verilog",
+        "root_marker": "example.sh",
+        "required_artifacts": [
+          "example.sh",
+          "Makefile",
+          "rtl",
+          "firmware",
+          "filelists",
+          "README.md"
+        ],
+        "clone_path": "/home/user/tools/__CFI",
+        "tag": "main",
+        "gate": "oss_smoke",
+        "stage": "sanity"
+      }
+    }
+  },
+  "transfer_plan": {
+    "contract": "agent_transfer_plan_v1",
+    "created_at": "2026-07-17T08:00:43.255555+00:00",
+    "source_toy": "TOY-BOOTCAMP-TEST",
+    "target_project": "VERIF-CPU-SOC",
+    "toy_ok": true,
+    "toy_laps": [],
+    "analysis_finding_counts": {
+      "total": 16,
+      "env": 0,
+      "script": 16,
+      "high": 0
+    },
+    "actions": [
+      {
+        "id": "install_oss_preflight",
+        "kind": "script",
+        "risk": "low",
+        "auto_apply": true,
+        "summary": "Install sanity/oss_preflight gate (toy-equivalent smoke before heavy gates)",
+        "stage": "sanity",
+        "group": "oss_preflight"
+      },
+      {
+        "id": "production_ready_gate",
+        "kind": "procedure",
+        "risk": "low",
+        "auto_apply": false,
+        "summary": "Run production smoke then heavy gate after preflight PASS",
+        "commands": [
+          "soc-verify --root . lap --project VERIF-CPU-SOC --stage sanity --group oss_preflight --profile training --scenario pass",
+          "soc-verify --root . verify VERIF-CPU-SOC sanity c-compile"
+        ]
+      }
+    ],
+    "apply_safe_count": 1
+  },
+  "transfer": {
+    "ok": true,
+    "apply": false,
+    "results": [
+      {
+        "id": "install_oss_preflight",
+        "status": "dry_run",
+        "summary": "Install sanity/oss_preflight gate (toy-equivalent smoke before heavy gates)"
+      },
+      {
+        "id": "production_ready_gate",
+        "status": "skipped_manual",
+        "summary": "Run production smoke then heavy gate after preflight PASS"
+      }
+    ],
+    "readiness_path": "/home/user/tools/__CFI/soc-verify-agent/projects/VERIF-CPU-SOC/meta/agent_readiness.yaml",
+    "report_path": "/home/user/tools/__CFI/soc-verify-agent/projects/VERIF-CPU-SOC/reports/agent_bootcamp_transfer.json"
+  },
+  "production_preflight": null,
+  "mission": {
+    "goal": "fastest TAT toy → catch env/script errors → apply to large env",
+    "production_next": [
+      "soc-verify --root . lap --project VERIF-CPU-SOC --stage sanity --group oss_preflight --profile training --scenario pass",
+      "soc-verify --root . verify VERIF-CPU-SOC sanity c-compile"
+    ]
+  }
+}

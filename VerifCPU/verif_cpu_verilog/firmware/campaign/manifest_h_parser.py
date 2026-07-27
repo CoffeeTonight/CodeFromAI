@@ -48,7 +48,9 @@ def parse_master_row(body: str) -> dict[str, Any] | None:
         return None
     mm = MASTER_ROW_RE.search(body)
     if not mm:
-        return None
+        raise ValueError(
+            "CAMPAIGN_MASTER_PRESENT=1 but MANIFEST_MASTER row missing/malformed"
+        )
     return {
         "name": mm.group(1),
         "cpu_id": 0,

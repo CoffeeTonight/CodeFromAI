@@ -2803,4 +2803,208 @@ groups:
       success_rate: 0.0
       trust_score: 0.6000000000000001
       retry_count: 0
-last_updated: '2026-06-23'
+  - run_id: da63aaa780ae
+    as_of: '2026-07-15'
+    branch_count: 15
+    mean_success_rate: 0.0
+    mean_trust: 0.7
+    branches:
+    - branch_id: verify_group:load_context->select_runner
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:run_gate->parse_validation_items
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:parse_validation_items->validation_judge
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:validation_judge->apply_validation_plan
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:apply_validation_plan->run_pending_repro
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:run_pending_repro->select_runner
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:run_gate->parse_validation_items
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:parse_validation_items->validation_judge
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:validation_judge->apply_validation_plan
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:apply_validation_plan->run_pending_repro
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:run_pending_repro->select_runner
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+    - branch_id: verify_group:run_gate->finalize
+      success_rate: 0.0
+      trust_score: 0.7000000000000001
+      retry_count: 3
+  - run_id: 7365f0b8eda0
+    as_of: '2026-07-15'
+    branch_count: 10
+    mean_success_rate: 0.6
+    mean_trust: 0.6
+    branches:
+    - branch_id: verify_group:load_context->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->parity_check
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:parity_check->promote
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:promote->finalize_reproduction
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:finalize_reproduction->finalize
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+  - run_id: 9d7f0bc0bbd0
+    as_of: '2026-07-15'
+    branch_count: 10
+    mean_success_rate: 0.6
+    mean_trust: 0.6
+    branches:
+    - branch_id: verify_group:load_context->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->parity_check
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:parity_check->promote
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:promote->finalize_reproduction
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:finalize_reproduction->finalize
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+  - run_id: 9386578a0b93
+    as_of: '2026-07-15'
+    branch_count: 10
+    mean_success_rate: 0.6
+    mean_trust: 0.6
+    branches:
+    - branch_id: verify_group:load_context->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->select_runner
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:select_runner->run_gate
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:run_gate->parity_check
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:parity_check->promote
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:promote->finalize_reproduction
+      success_rate: 1.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+    - branch_id: verify_group:finalize_reproduction->finalize
+      success_rate: 0.0
+      trust_score: 0.6000000000000001
+      retry_count: 0
+last_updated: '2026-07-15'

@@ -31,4 +31,20 @@ weeks:
       orchestrator:plan_work->prepare_verify: 0
       orchestrator:prepare_verify->dispatch_verify: 0
       orchestrator:dispatch_verify->finalize: 0
-last_updated: '2026-06-23'
+  2026-W29:
+    total_retries: 40
+    branches:
+      verify_group:load_context->select_runner: 4
+      verify_group:select_runner->run_gate: 12
+      verify_group:run_gate->parse_validation_items: 0
+      verify_group:parse_validation_items->validation_judge: 0
+      verify_group:validation_judge->apply_validation_plan: 0
+      verify_group:apply_validation_plan->run_pending_repro: 0
+      verify_group:run_pending_repro->select_runner: 0
+      verify_group:run_gate->finalize: 0
+      verify_group:run_gate->select_runner: 8
+      verify_group:run_gate->parity_check: 4
+      verify_group:parity_check->promote: 4
+      verify_group:promote->finalize_reproduction: 4
+      verify_group:finalize_reproduction->finalize: 4
+last_updated: '2026-07-15'

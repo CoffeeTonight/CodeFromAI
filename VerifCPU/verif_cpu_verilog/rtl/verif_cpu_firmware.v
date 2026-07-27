@@ -1,4 +1,5 @@
 // Unified firmware pool (file-backed, mirrors unified_pool.py)
+`include "verif_bus_defs.vh"
 
 module verif_cpu_firmware #(
   parameter MEM_BYTES = 32'h10000
@@ -41,9 +42,15 @@ module verif_cpu_firmware #(
     begin
       rd_error = 1'b0;
       rd_data  = 32'h0;
-      if (rd_offset + rd_size > region_size) begin
+      // Region-relative + absolute pool window (no wrap false-accept / pool OOB)
+      if (!`VERIF_BUS_SPAN_OK(rd_offset, {29'b0, rd_size}, region_size)) begin
         rd_error = 1'b1;
         $display("[UnifiedPool] CPU%0d read beyond region offset=0x%08h", cpu_id, rd_offset);
+      end else if (!`VERIF_BUS_SPAN_OK(region_base, rd_offset + {29'b0, rd_size},
+                                      MEM_BYTES[31:0])) begin
+        rd_error = 1'b1;
+        $display("[UnifiedPool] CPU%0d pool abs OOB base=0x%08h off=0x%08h",
+                 cpu_id, region_base, rd_offset);
       end else begin
         abs_addr = region_base + rd_offset;
         tmp = 32'h0;

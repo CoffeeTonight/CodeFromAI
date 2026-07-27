@@ -6,7 +6,7 @@
 
 module tb_axi_id_ooo;
 
-  localparam integer TB_EXPECTED_PASS = 8;
+  localparam integer TB_EXPECTED_PASS = 9;
 
   `VERIF_SIM_WATCHDOG_NS
 

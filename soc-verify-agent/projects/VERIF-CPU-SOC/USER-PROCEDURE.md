@@ -9,7 +9,7 @@
 ```bash
 export PROJECT_DIR=/path/to/soc-verify-agent/projects/VERIF-CPU-SOC
 cd "$PROJECT_DIR"
-./scripts/bootstrap_verifcpu_workspace.sh   # 기본: ~/tools/__CFA/VerifCPU/verif_cpu_verilog
+./scripts/bootstrap_verifcpu_workspace.sh   # 기본: ~/tools/__CFI/VerifCPU/verif_cpu_verilog
 cd inputs/tags && ./copy_new_tag.sh my_chip
 ```
 
@@ -50,7 +50,7 @@ flowchart LR
 | `python3` | ops·crystallize | `python3 --version` |
 | `iverilog`, `vvp` | VerifCPU 참조 sim (또는 사이트 EDA) | `iverilog -V` |
 | RISC-V gcc | 펌웨어 빌드 | `riscv64-unknown-elf-gcc --version` |
-| `hier-walk` (gate Step 2) | COI instance 스캔 | `HIERWALK_PATH=~/tools/__CFA/hierwalk pip install -e "$HIERWALK_PATH"` |
+| `hier-walk` (gate Step 2) | COI instance 스캔 | `HIERWALK_PATH=~/tools/__CFI/hierwalk pip install -e "$HIERWALK_PATH"` |
 
 사이트에서 Questa/VCS 등을 쓰면 intake `simulation` 블록에 그에 맞게 적어 둡니다.
 
@@ -58,22 +58,22 @@ flowchart LR
 
 ## 3. 최초 1회 설정 (S0)
 
-**목표:** VerifCPU RTL 경로(`RTL_ROOT`)를 확정합니다. 로컬 SSOT는 **`~/tools/__CFA/VerifCPU/verif_cpu_verilog`** 입니다.
+**목표:** VerifCPU RTL 경로(`RTL_ROOT`)를 확정합니다. 로컬 SSOT는 **`~/tools/__CFI/VerifCPU/verif_cpu_verilog`** 입니다.
 
 ```bash
 cd projects/VERIF-CPU-SOC   # soc-verify-agent 저장소 기준
 ./scripts/bootstrap_verifcpu_workspace.sh
 ```
 
-`discovered.yaml`의 `local_clone_path: ~/tools/__CFA`가 있으면 **clone 없이** 위 경로를 `cache.yaml`에 등록합니다.  
+`discovered.yaml`의 `local_clone_path: ~/tools/__CFI`가 있으면 **clone 없이** 위 경로를 `cache.yaml`에 등록합니다.  
 다른 위치·원격 clone이 필요할 때만:
 
 ```bash
 ./scripts/bootstrap_verifcpu_workspace.sh --tag v1.2.0
-./scripts/bootstrap_verifcpu_workspace.sh --dest ~/tools/__CFA/VerifCPU/verif_cpu_verilog
+./scripts/bootstrap_verifcpu_workspace.sh --dest ~/tools/__CFI/VerifCPU/verif_cpu_verilog
 ```
 
-**RTL_ROOT 확인** (`clone.path` = `~/tools/__CFA` + `rtl_subdir` = `VerifCPU/verif_cpu_verilog`):
+**RTL_ROOT 확인** (`clone.path` = `~/tools/__CFI` + `rtl_subdir` = `VerifCPU/verif_cpu_verilog`):
 
 ```bash
 export RTL_ROOT="$(python3 -c "import sys; sys.path.insert(0,'.'); from ops.intake_resolve import resolve_rtl_root; print(resolve_rtl_root(__import__('pathlib').Path('.')))")"
@@ -81,7 +81,7 @@ echo "$RTL_ROOT"
 test -f "$RTL_ROOT/example.sh" && echo "RTL_ROOT OK"
 ```
 
-`example.sh`가 없으면 경로 오류입니다. `~/tools/__CFA/VerifCPU/verif_cpu_verilog` 존재 여부 또는 `--dest`를 확인하세요.
+`example.sh`가 없으면 경로 오류입니다. `~/tools/__CFI/VerifCPU/verif_cpu_verilog` 존재 여부 또는 `--dest`를 확인하세요.
 
 ### 3.1 copy-paste 통합 스모크 (권장 첫 단계)
 
@@ -383,7 +383,7 @@ python3 scripts/expand_agent_runbook.py --intake "inputs/tags/$TAG/deployment/cu
 
 | 증상 | 흔한 원인 | 조치 |
 |------|-----------|------|
-| `RTL_ROOT` / `example.sh` 없음 | `__CFA` 경로 없음 | `~/tools/__CFA/VerifCPU/verif_cpu_verilog` 확인 또는 `bootstrap --dest` |
+| `RTL_ROOT` / `example.sh` 없음 | `__CFI` 경로 없음 | `~/tools/__CFI/VerifCPU/verif_cpu_verilog` 확인 또는 `bootstrap --dest` |
 | compile OK, sim X | `S37_AXI` vs `S37_AXI0` 오타 | intake·hierarchy `bus_port` ↔ RTL 포트 재대조 |
 | icode probe FAIL | `soc_regs.h` 주소 불일치 | SFR 맵 갱신 후 `make icodes` |
 | coi_conn endpoint not found | wrong top / VH 미반영 | tier 3: S5/S6 선행 · tier 1–2: paste/yaml VH 반영 확인 · `hier-walk` instances.tsv |

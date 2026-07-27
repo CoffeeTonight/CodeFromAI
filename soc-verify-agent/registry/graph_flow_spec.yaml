@@ -281,7 +281,7 @@ graphs:
       run_codegen: [parity_check]
       promote: [finalize_reproduction]
       finalize_reproduction: [finalize]
-      finalize: [meta_collect]
+      finalize: [meta_collect, END]
       meta_collect: [meta_score]
       meta_score: [meta_propose]
       meta_propose: [meta_queue]

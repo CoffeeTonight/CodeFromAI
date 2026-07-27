@@ -1,0 +1,14 @@
+{
+  "contract": "golden_case_v1",
+  "stage": "sanity",
+  "group": "verifcpu_smoke",
+  "tag": "main",
+  "status": "PASS",
+  "log_markers": [
+    "VerifCPU OSS smoke OK rtl_root=/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+    "artifacts_present=6"
+  ],
+  "exit_code": 0,
+  "fingerprint": "0e8a127c4a9aef5a",
+  "source_run_id": "a4753bd5adc9"
+}

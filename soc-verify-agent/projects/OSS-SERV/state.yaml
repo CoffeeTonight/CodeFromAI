@@ -1,0 +1,8 @@
+as_of: '2026-07-18'
+active: true
+schedule_plan: oss-sample-v1
+current_milestone: M1
+sync:
+  fetched_at: '2026-07-18'
+  source: intake
+environment_profile: oss-sample

@@ -1,0 +1,13 @@
+project_id: TOY-FAKEOSS
+source: toy_scaffold_from_FAKE-OSS
+title: Fake OSS
+git_url: git@example.com:fake.git
+local_clone_path: /tmp/pytest-of-user/pytest-171/test_scaffold_writes_required_0/oss
+rtl_subdir: rtl_drop
+root_marker: example.sh
+doc_rev: r1.0
+doc_path: confluence/SOC/TOY-FAKEOSS/toy-lap
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-16'
+  source: toy_scaffold_from_FAKE-OSS

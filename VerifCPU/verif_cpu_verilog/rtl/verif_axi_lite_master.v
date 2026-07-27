@@ -110,31 +110,43 @@ module verif_axi_lite_master #(
   always @(posedge ACLK or negedge ARESETn) begin
     if (!ARESETn) begin
       os_reset_slots();
-      r_flush <= 1'b0;
-      r_hold_ready <= 1'b0;
+      r_flush = 1'b0;
+      r_hold_ready = 1'b0;
+      ARVALID = 1'b0;
+      AWVALID = 1'b0;
+      WVALID  = 1'b0;
+      BREADY  = 1'b0;
     end else begin
       if (r_hold_ready && !RVALID)
-        r_hold_ready <= 1'b0;
+        r_hold_ready = 1'b0;
       else if (RVALID && RREADY) begin
         if (r_slot_busy && r_slot_ar_done && !r_slot_done) begin
-          r_slot_data <= lane_prdata(RDATA, r_slot_addr, r_slot_size);
-          r_slot_resp <= (RRESP != 2'b00) ? 2'd2 : 2'd0;
-          r_slot_done <= 1'b1;
-          r_slot_ar_done <= 1'b0;
-          r_hold_ready <= 1'b1;
+          r_slot_data = lane_prdata(RDATA, r_slot_addr, r_slot_size);
+          case (RRESP)
+            2'b00, 2'b01: r_slot_resp = 2'd0;
+            2'b10:        r_slot_resp = 2'd2;
+            default:      r_slot_resp = 2'd3;  // DECERR
+          endcase
+          r_slot_done = 1'b1;
+          r_slot_ar_done = 1'b0;
+          r_hold_ready = 1'b1;
         end
       end
     end
   end
 
-  // B channel — accept write response while outstanding
+  // B channel — only complete when a write slot is waiting
   always @(posedge ACLK or negedge ARESETn) begin
     if (!ARESETn) begin
       BREADY <= 1'b0;
     end else begin
       BREADY <= (w_slot_busy && !w_slot_done);
-      if (BVALID && BREADY) begin
-        w_slot_resp <= (BRESP != 2'b00) ? 2'd2 : 2'd0;
+      if (BVALID && BREADY && w_slot_busy && !w_slot_done) begin
+        case (BRESP)
+          2'b00, 2'b01: w_slot_resp <= 2'd0;
+          2'b10:        w_slot_resp <= 2'd2;
+          default:      w_slot_resp <= 2'd3;
+        endcase
         w_slot_done <= 1'b1;
       end
     end
@@ -159,6 +171,7 @@ module verif_axi_lite_master #(
         guard = guard + 1;
       end
       r_flush = 1'b0;
+      r_hold_ready = 1'b0;
     end
   endtask
 
@@ -170,11 +183,20 @@ module verif_axi_lite_master #(
     output        ok;
     integer guard;
     begin
-      handle = 0;
-      ok = !r_slot_busy;
-      if (!ok) begin
+      // Unaligned multi-byte needs blocking bus_read (split)
+      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
+          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+        handle = -1;
+        ok = 1'b0;
+        $display("[axi_lite_os] bus_read_issue: unaligned size=%0d @0x%08h — use bus_read", size, addr);
+      end else begin
+      if (r_slot_busy) begin
+        handle = -1;
+        ok = 1'b0;
         $display("[axi_lite_os] bus_read_issue: outstanding read slot busy (MAX=%0d)", MAX_OUTSTANDING);
       end else begin
+        handle = 0;
+        ok = 1'b1;
         r_slot_busy = 1'b1;
         r_slot_ar_done = 1'b0;
         r_slot_done = 1'b0;
@@ -195,6 +217,7 @@ module verif_axi_lite_master #(
         ARVALID = 1'b0;
         @(posedge ACLK);
       end
+      end
     end
   endtask
 
@@ -204,9 +227,15 @@ module verif_axi_lite_master #(
     output [1:0]  resp;
     output        done;
     begin
-      done = r_slot_done;
-      data = r_slot_data;
-      resp = r_slot_resp;
+      if (handle != 0 || !r_slot_busy) begin
+        done = 1'b0;
+        data = 32'h0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = r_slot_done;
+        data = r_slot_data;
+        resp = r_slot_resp;
+      end
     end
   endtask
 
@@ -216,30 +245,36 @@ module verif_axi_lite_master #(
     output [1:0]  resp;
     integer guard;
     begin
-      guard = 0;
-      while (!r_slot_done) begin
+      if (handle != 0 || !r_slot_busy) begin
+        data = 32'hDEADDEAD;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!r_slot_done) begin
+          @(posedge ACLK);
+          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_read_wait")
+        end
+        data = r_slot_data;
+        resp = r_slot_resp;
+        r_slot_ar_done = 1'b0;
+        r_slot_done = 1'b0;
+        r_slot_busy = 1'b0;
+        axi_drain_r_channel();
+        r_hold_ready = 1'b0;
+        snoop_valid = 1'b1;
+        snoop_wr = 1'b0;
+        snoop_addr = r_slot_addr;
+        snoop_data = data;
         @(posedge ACLK);
-        `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_read_wait")
+        snoop_valid = 1'b0;
       end
-      data = r_slot_data;
-      resp = r_slot_resp;
-      r_slot_ar_done = 1'b0;
-      r_slot_done = 1'b0;
-      r_slot_busy = 1'b0;
-      axi_drain_r_channel();
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b0;
-      snoop_addr = r_slot_addr;
-      snoop_data = data;
-      @(posedge ACLK);
-      snoop_valid = 1'b0;
     end
   endtask
 
   task bus_read_outstanding_count;
     output integer n;
     begin
-      n = (r_slot_busy && !r_slot_done) ? 1 : 0;
+      n = r_slot_busy ? 1 : 0;
     end
   endtask
 
@@ -252,11 +287,19 @@ module verif_axi_lite_master #(
     output        ok;
     integer guard;
     begin
-      handle = 0;
-      ok = !w_slot_busy;
-      if (!ok) begin
+      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
+          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+        handle = -1;
+        ok = 1'b0;
+        $display("[axi_lite_os] bus_write_issue: unaligned size=%0d @0x%08h — use bus_write", size, addr);
+      end else begin
+      if (w_slot_busy) begin
+        handle = -1;
+        ok = 1'b0;
         $display("[axi_lite_os] bus_write_issue: outstanding write slot busy (MAX=%0d)", MAX_OUTSTANDING);
       end else begin
+        handle = 0;
+        ok = 1'b1;
         w_slot_busy = 1'b1;
         w_slot_done = 1'b0;
         w_slot_addr = addr;
@@ -271,19 +314,26 @@ module verif_axi_lite_master #(
         WDATA = lane_pwdata(data, addr, size);
         WSTRB = lane_wstrb(addr, size);
         WVALID = 1'b1;
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_issue AWREADY")
-        end while (!AWREADY);
-        guard = 0;
-        do begin
-          @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_issue WREADY")
-        end while (!WREADY);
-        AWVALID = 1'b0;
-        WVALID = 1'b0;
+        begin : _aw_w_hs
+          reg aw_done, w_done;
+          aw_done = 1'b0;
+          w_done = 1'b0;
+          guard = 0;
+          while (!aw_done || !w_done) begin
+            @(posedge ACLK);
+            `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_issue AW/W")
+            if (!aw_done && AWVALID && AWREADY) begin
+              AWVALID = 1'b0;
+              aw_done = 1'b1;
+            end
+            if (!w_done && WVALID && WREADY) begin
+              WVALID = 1'b0;
+              w_done = 1'b1;
+            end
+          end
+        end
         @(posedge ACLK);
+      end
       end
     end
   endtask
@@ -293,8 +343,13 @@ module verif_axi_lite_master #(
     output [1:0] resp;
     output       done;
     begin
-      done = w_slot_done;
-      resp = w_slot_resp;
+      if (handle != 0 || !w_slot_busy) begin
+        done = 1'b0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = w_slot_done;
+        resp = w_slot_resp;
+      end
     end
   endtask
 
@@ -303,97 +358,82 @@ module verif_axi_lite_master #(
     output [1:0] resp;
     integer guard;
     begin
-      guard = 0;
-      while (!w_slot_done) begin
+      if (handle != 0 || !w_slot_busy) begin
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!w_slot_done) begin
+          @(posedge ACLK);
+          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_wait")
+        end
+        resp = w_slot_resp;
+        w_slot_busy = 1'b0;
+        w_slot_done = 1'b0;
+        snoop_valid = 1'b1;
+        snoop_wr = 1'b1;
+        snoop_addr = w_slot_addr;
+        snoop_data = w_slot_data;
         @(posedge ACLK);
-        `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_wait")
+        snoop_valid = 1'b0;
       end
-      resp = w_slot_resp;
-      w_slot_busy = 1'b0;
-      w_slot_done = 1'b0;
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b1;
-      snoop_addr = w_slot_addr;
-      snoop_data = w_slot_data;
-      @(posedge ACLK);
-      snoop_valid = 1'b0;
     end
   endtask
 
   task bus_write_outstanding_count;
     output integer n;
     begin
-      n = (w_slot_busy && !w_slot_done) ? 1 : 0;
+      n = w_slot_busy ? 1 : 0;
     end
   endtask
 
-  // Blocking API — issue + wait (backward compatible)
-  task bus_read;
+  // Blocking single-beat + split half across word
+  // Blocking 1beat: never steal/reap an outstanding OS slot (CPU owns open handles)
+  task bus_read_1beat;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
     output [1:0]  resp;
     integer h;
     reg ok;
-    reg [31:0] drain_data;
-    reg [1:0]  drain_resp;
-    integer guard;
     begin
-      guard = 0;
-      while (r_slot_busy && guard < 256) begin
-        if (r_slot_done)
-          bus_read_wait(h, drain_data, drain_resp);
-        else begin
-          @(posedge ACLK);
-          guard = guard + 1;
-        end
-      end
       if (r_slot_busy) begin
-        if (r_slot_done)
-          bus_read_wait(h, drain_data, drain_resp);
-        else
-          os_reset_slots();
-      end
-      axi_idle();
-      axi_drain_r_channel();
-      @(posedge ACLK);
-      bus_read_issue(addr, size, h, ok);
-      if (!ok) begin
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
       end else begin
-        bus_read_wait(h, data, resp);
+        axi_idle();
+        axi_drain_r_channel();
+        @(posedge ACLK);
+        bus_read_issue(addr, size, h, ok);
+        if (!ok) begin
+          data = 32'h0;
+          resp = `VERIF_BUS_RESP_SOFT;
+        end else
+          bus_read_wait(h, data, resp);
       end
     end
   endtask
 
-  task bus_write;
+  task bus_write_1beat;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
     output [1:0]  resp;
     integer h;
     reg ok;
-    integer guard;
     begin
-      guard = 0;
-      while (w_slot_busy && guard < 256) begin
-        if (w_slot_done) begin
-          w_slot_busy = 1'b0;
-          w_slot_done = 1'b0;
-        end else begin
-          @(posedge ACLK);
-          guard = guard + 1;
-        end
+      if (w_slot_busy) begin
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        bus_write_issue(addr, data, size, h, ok);
+        if (!ok)
+          resp = `VERIF_BUS_RESP_SOFT;
+        else
+          bus_write_wait(h, resp);
       end
-      if (w_slot_busy)
-        os_reset_slots();
-      bus_write_issue(addr, data, size, h, ok);
-      if (!ok)
-        resp = 2'd2;
-      else
-        bus_write_wait(h, resp);
     end
   endtask
+
+  `include "verif_bus_split_rw.vh"
+  `VERIF_BUS_DEFINE_SPLIT_RW(bus_read_1beat, bus_write_1beat)
 
 endmodule

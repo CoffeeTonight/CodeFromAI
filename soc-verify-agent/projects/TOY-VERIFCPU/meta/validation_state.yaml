@@ -1,0 +1,5 @@
+contract: validation_state_v1
+excluded_items: []
+pending_repro: []
+last_sequence_action: retry_gate
+updated_at: '2026-07-17T07:55:32.424177+00:00'

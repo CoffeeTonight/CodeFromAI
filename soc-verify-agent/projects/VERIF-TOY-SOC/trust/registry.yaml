@@ -1,0 +1,12 @@
+scripts:
+  verifcpu_smoke.py:
+    last_result: FAIL
+    last_tag: main
+    one_shot_success_rate: 0.06666666666666667
+    runs: 18
+    script: verifcpu_smoke.py
+    status: draft
+    successes: 15
+    tied_to_tag: true
+    trust_score: 0.7
+    version: 0.1.0

@@ -74,7 +74,6 @@ module verif_apb4_master #(
       PENABLE = 1'b0;
       @(posedge PCLK);
       PENABLE = 1'b1;
-      @(posedge PCLK);
       guard = 0;
       do begin
         @(posedge PCLK);
@@ -84,17 +83,17 @@ module verif_apb4_master #(
       if (!is_wr)
         rdata = lane_prdata(PRDATA, addr, size);
       resp = PSLVERR ? 2'd2 : 2'd0;
+      apb_idle();
       snoop_valid = 1'b1;
       snoop_wr = is_wr;
       snoop_addr = addr;
       snoop_data = is_wr ? wdata : rdata;
       @(posedge PCLK);
       snoop_valid = 1'b0;
-      apb_idle();
     end
   endtask
 
-  task bus_read;
+  task apb4_read;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
@@ -102,7 +101,7 @@ module verif_apb4_master #(
     begin apb_xfer(1'b0, addr, 32'h0, size, data, resp); end
   endtask
 
-  task bus_write;
+  task apb4_write;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
@@ -110,5 +109,16 @@ module verif_apb4_master #(
     reg [31:0] dummy;
     begin apb_xfer(1'b1, addr, data, size, dummy, resp); end
   endtask
+
+  `include "verif_bus_split_rw.vh"
+  `VERIF_BUS_DEFINE_SPLIT_RW(apb4_read, apb4_write)
+
+  `include "verif_bus_os_blocking_tasks.vh"
+  `VERIF_BUS_OS_BLOCKING_IMPL
+
+  always @(negedge PRESETn) begin
+    bus_reset();
+    apb_idle();
+  end
 
 endmodule

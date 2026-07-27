@@ -289,6 +289,12 @@ def validate_node_gate(
     min_summary = int(rules.get("min_summary_chars", 8))
 
     existing = load_gate_pass(run_dir, node_id)
+    if existing and existing.get("node") == node_id and existing.get("checks_ok") and run_dir:
+        step_path = run_dir / "graph_step.json"
+        pass_path = pass_artifact_path(run_dir, node_id)
+        if step_path.is_file() and pass_path.is_file():
+            if step_path.stat().st_mtime > pass_path.stat().st_mtime:
+                existing = None
     if existing and existing.get("node") == node_id and existing.get("checks_ok"):
         summary = str(existing.get("summary_ko") or "")
         if len(summary.strip()) >= min_summary:

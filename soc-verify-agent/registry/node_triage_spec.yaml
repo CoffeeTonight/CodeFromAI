@@ -51,11 +51,15 @@ graphs:
           open_issues: select_runner
           continue_improvement: select_runner
           info: finalize
+          stalemate: finalize
+          no_drift: finalize
+          oscillation: select_runner
           default: finalize
         pass_route: parity_check
       parity_check:
         triage_enabled: true
         fail_routes:
+          info: finalize
           parity_fail: run_codegen
           codegen_cap: finalize
           default: run_codegen

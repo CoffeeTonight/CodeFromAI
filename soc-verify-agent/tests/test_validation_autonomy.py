@@ -173,6 +173,118 @@ def test_load_validation_judgment_resolves_repo_root_for_mechanical_fallback(tmp
     assert j["source"] == "mechanical"
 
 
+def test_collect_validation_items_skips_excluded_tiers(tmp_path: Path) -> None:
+    project = tmp_path / "projects" / "TEST-SOC"
+    stage, group = "simulation", "gpio_ext"
+    (project / "verification" / stage / group).mkdir(parents=True)
+    (project / "verification" / stage / group / "CHECK.md").write_text(
+        """
+| tier | 마커 |
+|------|------|
+| `sim_burst` | burst OK |
+""",
+        encoding="utf-8",
+    )
+    run_dir = project / "runs" / "run_excl"
+    run_dir.mkdir(parents=True)
+    (run_dir / "gpio_ext.log").write_text(
+        "sim_burst running\nChecklist: 10 passed / 2 failed\n",
+        encoding="utf-8",
+    )
+    (run_dir / "verdict_gpio_ext.json").write_text(
+        json.dumps({"status": "FAIL"}),
+        encoding="utf-8",
+    )
+    save_validation_state(
+        project,
+        {
+            "excluded_items": [
+                {
+                    "item_id": "sim_burst",
+                    "stage": stage,
+                    "group": group,
+                    "reason": "waived",
+                }
+            ],
+        },
+    )
+    payload = collect_validation_items(project, stage=stage, group=group, run_dir=run_dir)
+    burst = next(i for i in payload["items"] if i["item_id"] == "sim_burst")
+    assert burst["status"] == "excluded"
+    assert payload["failing_count"] == 0
+
+
+def test_run_pending_repro_clears_executed_entries(tmp_path: Path) -> None:
+    project = tmp_path / "projects" / "P1"
+    scripts = project / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "repro_sim_burst.sh").write_text(
+        "#!/usr/bin/env bash\nexit 0\n",
+        encoding="utf-8",
+    )
+    run_dir = project / "runs" / "run_repro2"
+    run_dir.mkdir(parents=True)
+    entry = {
+        "item_id": "sim_burst",
+        "stage": "simulation",
+        "group": "slave_rw",
+        "script": "scripts/repro_sim_burst.sh",
+        "run_id": "run_repro2",
+    }
+    save_validation_state(project, {"pending_repro": [entry]})
+    run_pending_repro(
+        project,
+        run_dir,
+        stage="simulation",
+        group="slave_rw",
+        run_id="run_repro2",
+    )
+    state = load_validation_state(project)
+    assert state["pending_repro"] == []
+
+
+def test_apply_validation_exclude_removes_pending_repro(tmp_path: Path) -> None:
+    project = tmp_path / "projects" / "TEST-SOC"
+    run_dir = project / "runs" / "run003"
+    run_dir.mkdir(parents=True)
+    save_validation_state(
+        project,
+        {
+            "pending_repro": [
+                {
+                    "item_id": "sim_cpu_sync",
+                    "stage": "simulation",
+                    "group": "slave_rw",
+                    "script": "scripts/repro_sim_cpu_sync.sh",
+                    "run_id": "run003",
+                }
+            ],
+        },
+    )
+    judgment = {
+        "contract": "validation_judgment_v1",
+        "verdict_summary_ko": "exclude sync",
+        "sequence_action": "halt",
+        "items": [
+            {
+                "item_id": "sim_cpu_sync",
+                "status": "fail",
+                "action": "exclude",
+                "exclude_reason": "TRACK-1",
+            }
+        ],
+    }
+    apply_validation_judgment(
+        project,
+        run_dir,
+        judgment,
+        stage="simulation",
+        group="slave_rw",
+    )
+    state = load_validation_state(project)
+    assert state["pending_repro"] == []
+
+
 def test_filter_work_queue_skips_excluded_gate(tmp_path: Path):
     root = tmp_path
     project = root / "projects" / "P1"

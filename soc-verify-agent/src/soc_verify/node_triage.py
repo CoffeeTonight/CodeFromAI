@@ -137,6 +137,8 @@ def _outcome_block(gate_spec: dict[str, Any], graph_id: str, node_id: str) -> di
 
 
 def _resolve_fail_class(state: dict[str, Any], outcome_block: dict[str, Any]) -> str:
+    if state.get("info_gap") or state.get("verdict") == "INFO_GAP":
+        return "info"
     field = str(outcome_block.get("fail_class_field") or "")
     if field:
         raw = state.get(field)
@@ -190,18 +192,28 @@ def evaluate_node_outcome(
     if not outcome_block:
         return OutcomeResult(outcome="pass", rationale_ko="no outcome spec — assume pass")
 
+    if node_id == "diagnose_env":
+        if state.get("error") == "bridge_round_cap":
+            return OutcomeResult(outcome="fail", fail_class="bridge_cap", rationale_ko="bridge_round_cap")
+        if state.get("stalemate") and state.get("error"):
+            return OutcomeResult(outcome="fail", fail_class="stalemate", rationale_ko="stalemate")
+        return OutcomeResult(outcome="pass", rationale_ko="diagnose_env completed")
+
     if run_dir is None or not run_dir.is_dir():
         return OutcomeResult(outcome="unknown", rationale_ko="no run_dir")
 
     pass_when = list(outcome_block.get("pass_when") or [])
     fail_when = list(outcome_block.get("fail_when") or [])
 
-    if node_id == "diagnose_env":
-        if state.get("error") == "bridge_round_cap":
-            return OutcomeResult(outcome="fail", fail_class="bridge_cap", rationale_ko="bridge_round_cap")
-        if state.get("stalemate"):
-            return OutcomeResult(outcome="fail", fail_class="stalemate", rationale_ko="stalemate")
-        return OutcomeResult(outcome="pass", rationale_ko="diagnose_env completed")
+    if node_id == "parity_check":
+        if state.get("error") == "codegen_round_cap":
+            return OutcomeResult(
+                outcome="fail",
+                fail_class="codegen_cap",
+                rationale_ko="codegen_round_cap",
+            )
+        if state.get("info_gap"):
+            return OutcomeResult(outcome="fail", fail_class="info", rationale_ko="info_gap")
 
     if node_id == "evaluate":
         if state.get("info_gap"):
@@ -218,6 +230,21 @@ def evaluate_node_outcome(
                 fail_class="continue_improvement",
                 rationale_ko="continue_improvement after PASS",
             )
+        if state.get("stalemate"):
+            pattern = str(state.get("stalemate_pattern") or "SPINNING").upper()
+            if pattern == "OSCILLATION":
+                return OutcomeResult(
+                    outcome="fail",
+                    fail_class="oscillation",
+                    rationale_ko="stalemate_pattern=OSCILLATION",
+                )
+            if pattern == "NO_DRIFT":
+                return OutcomeResult(
+                    outcome="fail",
+                    fail_class="no_drift",
+                    rationale_ko="stalemate_pattern=NO_DRIFT",
+                )
+            return OutcomeResult(outcome="fail", fail_class="stalemate", rationale_ko="stalemate")
         if state.get("verdict") == "PASS":
             return OutcomeResult(outcome="pass", rationale_ko="evaluate PASS")
 
@@ -226,21 +253,17 @@ def evaluate_node_outcome(
     ):
         return OutcomeResult(outcome="pass", rationale_ko="pass_when satisfied")
 
-    if fail_when and _checks_satisfied(
-        fail_when, root=root, graph_id=graph_id, state=state, run_dir=run_dir
-    ):
-        fail_class = _resolve_fail_class(state, outcome_block)
-        return OutcomeResult(
-            outcome="fail",
-            fail_class=fail_class,
-            rationale_ko=f"fail_when — class={fail_class}",
-        )
+    if node_id == "run_gate":
+        if state.get("info_gap"):
+            return OutcomeResult(outcome="fail", fail_class="info", rationale_ko="info_gap")
+        kind = str(state.get("error_kind", ""))
+        if kind in ("env", "tool"):
+            return OutcomeResult(
+                outcome="fail",
+                fail_class=kind,
+                rationale_ko=f"error_kind={kind}",
+            )
 
-    if state.get("info_gap"):
-        return OutcomeResult(outcome="fail", fail_class="info", rationale_ko="info_gap")
-    if state.get("verdict") in ("FAIL", "BLOCKED", "INFO_GAP"):
-        fc = _resolve_fail_class(state, outcome_block)
-        return OutcomeResult(outcome="fail", fail_class=fc or str(state.get("verdict", "")).lower())
     if state.get("stalemate"):
         pattern = str(state.get("stalemate_pattern") or "SPINNING").upper()
         if pattern == "OSCILLATION":
@@ -257,7 +280,40 @@ def evaluate_node_outcome(
             )
         return OutcomeResult(outcome="fail", fail_class="stalemate", rationale_ko="stalemate")
 
+    if fail_when and _checks_satisfied(
+        fail_when, root=root, graph_id=graph_id, state=state, run_dir=run_dir
+    ):
+        fail_class = _resolve_fail_class(state, outcome_block)
+        return OutcomeResult(
+            outcome="fail",
+            fail_class=fail_class,
+            rationale_ko=f"fail_when — class={fail_class}",
+        )
+
+    if state.get("info_gap"):
+        return OutcomeResult(outcome="fail", fail_class="info", rationale_ko="info_gap")
+    if state.get("verdict") in ("FAIL", "BLOCKED", "INFO_GAP"):
+        fc = _resolve_fail_class(state, outcome_block)
+        fail_class = fc or str(state.get("verdict", "")).lower()
+        if fail_class == "info_gap":
+            fail_class = "info"
+        return OutcomeResult(outcome="fail", fail_class=fail_class)
+    if node_id == "run_gate" and str(state.get("verdict", "FAIL")).upper() != "PASS":
+        fc = _resolve_fail_class(state, outcome_block)
+        verdict = str(state.get("verdict") or "FAIL")
+        return OutcomeResult(
+            outcome="fail",
+            fail_class=fc or verdict.lower(),
+            rationale_ko=f"run_gate verdict={verdict}",
+        )
+
     return OutcomeResult(outcome="pass", rationale_ko="default pass")
+
+
+def _user_triage_lookup_ids(graph_id: str, node_id: str) -> list[str]:
+    if graph_id == "verify_group" and node_id == "run_pending_repro":
+        return ["apply_validation_plan", "run_pending_repro"]
+    return [node_id]
 
 
 def _user_triage_block(
@@ -267,14 +323,15 @@ def _user_triage_block(
     config: UserConfig | None,
 ) -> dict[str, Any]:
     block: dict[str, Any] = {}
-    if project_dir:
-        path = user_triage_path(project_dir)
-        if path and path.is_file():
-            data = load_yaml(path) or {}
-            block.update(((data.get(graph_id) or {}).get(node_id)) or {})
-    if config:
-        overrides = (config.raw.get("node_triage") or {}).get(graph_id) or {}
-        block.update(overrides.get(node_id) or {})
+    for lookup_id in _user_triage_lookup_ids(graph_id, node_id):
+        if project_dir:
+            path = user_triage_path(project_dir)
+            if path and path.is_file():
+                data = load_yaml(path) or {}
+                block.update(((data.get(graph_id) or {}).get(lookup_id)) or {})
+        if config:
+            overrides = (config.raw.get("node_triage") or {}).get(graph_id) or {}
+            block.update(overrides.get(lookup_id) or {})
     return block
 
 
@@ -298,9 +355,31 @@ def resolve_strategy(
 
     strategy: dict[str, Any] = {"source": "platform", "route": "", "sequence_action": "", "rationale_ko": ""}
 
+    llm_only_actions = set(triage_spec.get("llm_only_sequence_actions") or [])
+
     strategy_field = triage_block.get("strategy_field")
     if strategy_field:
+        if run_dir:
+            from soc_verify.validation_autonomy import resolve_validation_judgment
+
+            items_payload = state.get("validation_items") or {}
+            judgment = resolve_validation_judgment(state, run_dir, items_payload=items_payload)
+        else:
+            judgment = state.get("validation_judgment")
         action = str(state.get(strategy_field) or user_block.get("default_sequence_action") or "")
+        if not action and isinstance(judgment, dict):
+            action = str(judgment.get("sequence_action") or "")
+        if (
+            not action
+            and run_dir
+            and (run_dir / "validation_judgment.json").is_file()
+            and isinstance(judgment, dict)
+        ):
+            action = str(judgment.get("sequence_action") or "")
+        if action in llm_only_actions and (
+            not isinstance(judgment, dict) or str(judgment.get("source") or "") != "llm"
+        ):
+            action = "halt"
         action_routes = triage_block.get("action_routes") or {}
         if action in action_routes:
             strategy["route"] = str(action_routes[action])
@@ -310,20 +389,13 @@ def resolve_strategy(
         if action:
             strategy["sequence_action"] = action
 
-    if outcome.outcome == "pass":
+    if outcome.outcome == "pass" and not strategy.get("route"):
         route = str(user_block.get("pass_route") or triage_block.get("pass_route") or "")
         strategy["route"] = route
         strategy["rationale_ko"] = outcome.rationale_ko or "outcome pass"
         return strategy
 
     fail_class = outcome.fail_class or "default"
-
-    if plan and plan.get("route"):
-        strategy["source"] = "llm"
-        strategy["route"] = str(plan["route"])
-        strategy["sequence_action"] = str(plan.get("sequence_action") or "")
-        strategy["rationale_ko"] = str(plan.get("rationale_ko") or "")
-        return strategy
 
     user_routes = user_block.get("fail_routes") or {}
     platform_routes = triage_block.get("fail_routes") or {}
@@ -336,9 +408,20 @@ def resolve_strategy(
     )
     if route:
         strategy["route"] = route
-        if user_routes.get(fail_class) or user_block.get("default_sequence_action"):
+        if user_routes.get(fail_class) or user_routes.get("default"):
             strategy["source"] = "user"
         strategy["rationale_ko"] = outcome.rationale_ko
+
+    if (
+        plan
+        and str(plan.get("source") or "") == "llm"
+        and plan.get("route")
+        and _plan_matches_outcome(plan, outcome)
+    ):
+        strategy["source"] = "llm"
+        strategy["route"] = str(plan["route"])
+        strategy["sequence_action"] = str(plan.get("sequence_action") or "")
+        strategy["rationale_ko"] = str(plan.get("rationale_ko") or "")
 
     return strategy
 
@@ -367,18 +450,31 @@ def record_outcome_and_strategy(
     )
     outcome.strategy = strategy
 
-    if triage_block.get("triage_enabled") and outcome.outcome == "fail" and strategy.get("route"):
-        source = str(strategy.get("source", "platform"))
-        if source == "platform" and not load_llm_triage_plan(run_dir, node_id):
-            write_triage_plan(
-                run_dir,
-                node_id=node_id,
-                fail_class=outcome.fail_class,
-                route=strategy["route"],
-                rationale_ko=strategy.get("rationale_ko") or outcome.rationale_ko,
-                source=source,
-                sequence_action=str(strategy.get("sequence_action") or ""),
-            )
+    if triage_block.get("triage_enabled"):
+        if outcome.outcome == "pass":
+            plan_path = triage_plan_path(run_dir, node_id)
+            if plan_path.is_file():
+                plan_path.unlink()
+        elif outcome.outcome == "fail" and strategy.get("route"):
+            source = str(strategy.get("source", "platform"))
+            existing = load_llm_triage_plan(run_dir, node_id)
+            if source == "platform" and (
+                not existing
+                or str(existing.get("source") or "") != "llm"
+            ) and (
+                not existing
+                or existing.get("fail_class") != outcome.fail_class
+                or existing.get("route") != strategy["route"]
+            ):
+                write_triage_plan(
+                    run_dir,
+                    node_id=node_id,
+                    fail_class=outcome.fail_class,
+                    route=strategy["route"],
+                    rationale_ko=strategy.get("rationale_ko") or outcome.rationale_ko,
+                    source=source,
+                    sequence_action=str(strategy.get("sequence_action") or ""),
+                )
     return outcome
 
 
@@ -388,6 +484,14 @@ def _route_allowed(graph_id: str, from_node: str, to_node: str, *, root: Path) -
     spec = load_flow_spec(root)
     allowed = next_nodes_from_spec(spec, graph_id, from_node)
     return to_node in allowed or to_node == "END"
+
+
+def _plan_matches_outcome(plan: dict[str, Any], outcome: OutcomeResult) -> bool:
+    if outcome.outcome != "fail":
+        return False
+    planned_fc = str(plan.get("fail_class") or "").strip()
+    actual_fc = str(outcome.fail_class or "default").strip()
+    return bool(planned_fc) and planned_fc == actual_fc
 
 
 def resolve_route(
@@ -405,29 +509,32 @@ def resolve_route(
     project_dir = Path(state["project_dir"]) if state.get("project_dir") else None
     user_block = _user_triage_block(project_dir, graph_id, from_node, config)
 
-    plan = load_llm_triage_plan(run_dir, from_node) if run_dir else None
-    if plan and plan.get("route"):
-        route = str(plan["route"])
-        if _route_allowed(graph_id, from_node, route, root=root):
-            return _normalize_special_route(route, state)
+    outcome = evaluate_node_outcome(root, graph_id, from_node, state=state, run_dir=run_dir)
+    if outcome.outcome == "unknown":
+        return ""
 
-    outcome = evaluate_node_outcome(root, graph_id, from_node, state=state, run_dir=run_dir or Path("."))
     strategy = resolve_strategy(
         root, graph_id, from_node, outcome=outcome, state=state, run_dir=run_dir, config=config
     )
     route = str(strategy.get("route") or "")
-    if route:
+    if route and _route_allowed(graph_id, from_node, route, root=root):
         return _normalize_special_route(route, state)
 
     if not triage_block:
         return ""
 
     if outcome.outcome == "pass":
-        return str(triage_block.get("pass_route") or "")
+        pr = str(user_block.get("pass_route") or triage_block.get("pass_route") or "")
+        if pr and _route_allowed(graph_id, from_node, pr, root=root):
+            return _normalize_special_route(pr, state)
+        return ""
 
     fail_class = outcome.fail_class or "default"
     routes = {**(triage_block.get("fail_routes") or {}), **(user_block.get("fail_routes") or {})}
-    return str(routes.get(fail_class) or routes.get("default") or "")
+    fr = str(routes.get(fail_class) or routes.get("default") or "")
+    if fr and _route_allowed(graph_id, from_node, fr, root=root):
+        return _normalize_special_route(fr, state)
+    return ""
 
 
 def _normalize_special_route(route: str, state: dict[str, Any]) -> str:
@@ -448,7 +555,7 @@ def triage_payload(
     config: UserConfig | None = None,
 ) -> dict[str, Any]:
     triage_spec = load_triage_spec(root)
-    outcome = evaluate_node_outcome(root, graph_id, node_id, state=state, run_dir=run_dir or Path("."))
+    outcome = evaluate_node_outcome(root, graph_id, node_id, state=state, run_dir=run_dir)
     strategy = resolve_strategy(
         root, graph_id, node_id, outcome=outcome, state=state, run_dir=run_dir, config=config
     )

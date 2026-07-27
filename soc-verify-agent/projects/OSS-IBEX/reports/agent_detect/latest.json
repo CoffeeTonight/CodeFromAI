@@ -1,0 +1,123 @@
+{
+  "contract": "agent_detect_v1",
+  "status": "CLEAN_L1",
+  "scope": "L1",
+  "scope_note": "L1: L0 + tool PATH + cpu_fw deliverable gap (no gen executed)",
+  "source_project": "OSS-IBEX",
+  "toy_project": "TOY-IBEX",
+  "elapsed_s": 1.834,
+  "error_count": 0,
+  "errors": [],
+  "warning_count": 3,
+  "warnings": [
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: example.sh",
+      "fix": "restore example.sh under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: firmware",
+      "fix": "restore firmware under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: filelists",
+      "fix": "restore filelists under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    }
+  ],
+  "completed_at": "2026-07-18T12:54:59.637166+00:00",
+  "level": 1,
+  "paradigm": "rtl_sim",
+  "flow_summary": "paradigm=rtl_sim steps=0 tools=['verilator', 'make', 'python'] structure_ok=3 deliverables_present=0; top: RTL sim/elab flow",
+  "rtl_root": "/home/user/tools/oss-soc-samples/ibex",
+  "scaffold": {
+    "ok": true,
+    "project_id": "TOY-IBEX",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-IBEX",
+    "source_id": "OSS-IBEX",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "rtl_root": "/home/user/tools/oss-soc-samples/ibex",
+    "artifacts": [
+      "Makefile",
+      "rtl",
+      "README.md"
+    ],
+    "spec": {
+      "contract": "toy_intake_spec_v1",
+      "source_id": "OSS-IBEX",
+      "title": "lowRISC Ibex",
+      "git_url": "https://github.com/oss/oss-ibex.git",
+      "local_clone_path": "/home/user/tools/oss-soc-samples/ibex",
+      "rtl_subdir": "",
+      "root_marker": "Makefile",
+      "required_artifacts": [
+        "Makefile",
+        "rtl",
+        "README.md"
+      ],
+      "clone_path": "/home/user/tools/oss-soc-samples/ibex",
+      "tag": "main",
+      "gate": "oss_smoke",
+      "stage": "sanity",
+      "paradigm": "rtl_sim",
+      "top_commands": [],
+      "optional_deliverables": [],
+      "tools": [
+        "verilator",
+        "make",
+        "python"
+      ],
+      "flow_summary": "paradigm=rtl_sim steps=0 tools=['verilator', 'make', 'python'] structure_ok=3 deliverables_present=0; top: RTL sim/elab flow",
+      "prebuilt_fw_ok": false,
+      "gen_entry": ""
+    }
+  },
+  "gate": {
+    "ok": true,
+    "exit_code": 0,
+    "verdict": {
+      "gate": "oss_smoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "evidence": [
+        "OSS smoke OK rtl_root=/home/user/tools/oss-soc-samples/ibex",
+        "paradigm=rtl_sim",
+        "structure_present=3",
+        "flow_deliverables_present=0/0",
+        "source=OSS-IBEX"
+      ],
+      "artifacts": {
+        "rtl_root": "/home/user/tools/oss-soc-samples/ibex",
+        "root_marker": "/home/user/tools/oss-soc-samples/ibex/Makefile",
+        "paradigm": "rtl_sim",
+        "structure": [
+          "Makefile",
+          "rtl",
+          "README.md"
+        ],
+        "flow_deliverables": [],
+        "top_commands": []
+      },
+      "trust": {
+        "script": "oss_smoke.py",
+        "version": "0.2.1"
+      },
+      "scenario": "pass"
+    },
+    "run_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-IBEX/runs/detect-20260718T125458"
+  },
+  "analysis_finding_counts": {
+    "total": 3,
+    "env": 3,
+    "script": 0,
+    "high": 0
+  }
+}

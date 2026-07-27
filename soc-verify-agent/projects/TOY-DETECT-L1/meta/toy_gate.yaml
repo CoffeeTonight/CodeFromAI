@@ -1,0 +1,52 @@
+contract: toy_gate_v1
+source_id: VERIF-CPU-SOC
+gate: oss_smoke
+stage: sanity
+root_marker: example.sh
+required_artifacts:
+- example.sh
+- Makefile
+- firmware
+- firmware/campaign
+- include
+- rtl
+- filelists
+optional_deliverables:
+- firmware/full_campaign_unified.hex
+- firmware/full_campaign_vcpu.hex
+- firmware/campaign/build/full_campaign_vcpu.bin
+- firmware/campaign/build/icode_pool.bin
+- include/tb_full_campaign_gen.vh
+- sim_build/tb_full_campaign.vvp
+rtl_root: /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog
+paradigm: cpu_fw
+top_commands:
+- - scripts/run_VERIF-CPU-SOC_verification_sequence.sh
+- - python3
+  - '"${PROJECT_DIR}/ops/sanity/c-compile.py'
+- - ./example.sh
+  - gen
+- - make
+  - $VVP_ARTIFACT
+- - ./example.sh
+  - all
+- - ./example.sh
+  - gen
+- - ./example.sh
+  - sim
+tools:
+- python
+- iverilog
+- vvp
+- make
+- example.sh
+- verilator
+- xcelium
+- vcs
+gen_entry: ./example.sh gen
+prebuilt_fw_ok: true
+flow_summary: 'paradigm=cpu_fw steps=3 tools=[''python'', ''iverilog'', ''vvp'', ''make'',
+  ''example.sh'', ''verilator'', ''xcelium'', ''vcs''] structure_ok=7 deliverables_present=6;
+  top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path'
+env_fail_evidence: EDA tool not in PATH (scenario=env_fail)
+verif_fail_evidence: tb build artifact missing (scenario=verif_fail)

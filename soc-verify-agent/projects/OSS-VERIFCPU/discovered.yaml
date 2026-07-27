@@ -1,0 +1,20 @@
+project_id: OSS-VERIFCPU
+source: multi_env_detect
+title: VerifCPU (local monorepo)
+git_url: https://github.com/oss/oss-verifcpu.git
+local_clone_path: /home/user/tools/__CFI
+rtl_subdir: VerifCPU/verif_cpu_verilog
+root_marker: example.sh
+required_artifacts:
+- example.sh
+- Makefile
+- rtl
+- firmware
+- filelists
+- README.md
+doc_rev: r1.0
+doc_path: oss/OSS-VERIFCPU
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-18'
+  source: multi_env_detect

@@ -165,6 +165,28 @@ def _apply_stalemate(state: LoopGuardState, pattern: str) -> None:
         state.force_mode = "llm_full"
 
 
+def clear_stalemate_on_pass(run_dir: Path, cfg: LoopGuardConfig | None = None) -> LoopGuardState:
+    """Reset stalemate flags after a successful gate pass."""
+    cfg = cfg or loop_guard_config_from_policies(_policies_for_run_dir(run_dir))
+    state = load_loop_guard(run_dir)
+    changed = bool(
+        state.stalemate
+        or state.force_mode
+        or state.stalemate_pattern
+        or state.signatures
+        or state.drift_history
+    )
+    if changed:
+        state.stalemate = False
+        state.force_mode = ""
+        state.stalemate_pattern = ""
+        state.signatures.clear()
+        state.transitions.clear()
+        state.drift_history.clear()
+        save_loop_guard(run_dir, state, cfg)
+    return state
+
+
 def record_failure(
     run_dir: Path,
     signature: str,
@@ -178,6 +200,10 @@ def record_failure(
         recent = state.signatures[-cfg.same_failure_threshold :]
         if len(set(recent)) == 1:
             _apply_stalemate(state, "SPINNING")
+        elif state.stalemate_pattern == "SPINNING":
+            state.stalemate = False
+            state.force_mode = ""
+            state.stalemate_pattern = ""
 
     save_loop_guard(run_dir, state, cfg)
     return state

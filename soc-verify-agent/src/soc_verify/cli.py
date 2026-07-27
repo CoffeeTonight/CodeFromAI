@@ -21,6 +21,13 @@ from soc_verify.graph_session import (
 from soc_verify.graph_spec import load_flow_spec
 from soc_verify.feedback_rubric import write_user_feedback
 from soc_verify.graphs.orchestrator import run_orchestrator
+from soc_verify.loop_lap import run_training_lap, set_training_scenario
+from soc_verify.skill_lap import run_skill_lap
+from soc_verify.toy_lap import run_toy_from_intake, run_toy_scaffold_only
+from soc_verify.agent_bootcamp import run_agent_analyze, run_agent_bootcamp
+from soc_verify.agent_detect import run_agent_detect
+from soc_verify.agent_settle import run_agent_settle
+from soc_verify.agent_transfer import apply_transfer_plan, build_transfer_plan
 from soc_verify.platform_telemetry import ensure_platform_baseline, load_cumulative_stats
 from soc_verify.models import save_yaml
 from soc_verify.runner import load_active_projects
@@ -143,6 +150,7 @@ def cmd_graph_start(args: argparse.Namespace) -> int:
             stage=args.stage or "",
             group=args.group or "",
             user_skillset=getattr(args, "skillset", "") or "",
+            run_profile=getattr(args, "profile", "") or "",
         )
     except ValueError as exc:
         print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
@@ -355,6 +363,7 @@ def cmd_graph_drive(args: argparse.Namespace) -> int:
             project_id=args.project,
             stage=args.stage,
             group=args.group,
+            run_profile=getattr(args, "profile", "") or "",
         )
         session_id = started["session_id"]
     else:
@@ -363,6 +372,253 @@ def cmd_graph_drive(args: argparse.Namespace) -> int:
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     verdict = (result.get("state") or {}).get("verdict", "FAIL")
     return 0 if verdict == "PASS" else 1
+
+
+def cmd_skill_lap(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    skill_file = Path(args.skill_file).resolve() if getattr(args, "skill_file", None) else None
+    try:
+        out = run_skill_lap(
+            root,
+            project_id=args.project,
+            skill_id=args.skill or "",
+            skill_file=skill_file,
+            profile=args.profile,
+            max_ticks=args.max_ticks,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
+    verdict = ((out.get("lap") or {}).get("loop_metrics") or {}).get("verdict")
+    return 0 if out.get("ok") and verdict == "PASS" else 1
+
+
+def cmd_agent_analyze(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    try:
+        out = run_agent_analyze(root, args.from_source or args.project)
+    except (ValueError, FileNotFoundError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
+    return 0 if out.get("toy_ready") else 1
+
+
+def cmd_agent_detect(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    discovered = Path(args.discovered) if getattr(args, "discovered", None) else None
+    try:
+        out = run_agent_detect(
+            root,
+            source_project=args.from_source or args.project or "",
+            toy_project_id=args.toy or "",
+            overwrite=True,
+            level=int(getattr(args, "level", 0) or 0),
+            discovered_file=discovered if discovered and str(discovered) else None,
+            clone_path=str(getattr(args, "clone", "") or ""),
+            rtl_subdir=str(getattr(args, "rtl_subdir", "") or ""),
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    summary = {
+        "status": out.get("status"),
+        "scope": out.get("scope"),
+        "level": out.get("level"),
+        "source_project": out.get("source_project"),
+        "toy_project": out.get("toy_project"),
+        "elapsed_s": out.get("elapsed_s"),
+        "paradigm": out.get("paradigm"),
+        "error_count": out.get("error_count"),
+        "errors": out.get("errors"),
+        "warning_count": out.get("warning_count"),
+        "disclaimer": out.get("disclaimer"),
+        "report_md": out.get("report_md"),
+        "scope_note": out.get("scope_note"),
+    }
+    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    return 0 if str(out.get("status") or "").startswith("CLEAN_") else 1
+
+
+def cmd_agent_bootcamp(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    try:
+        out = run_agent_bootcamp(
+            root,
+            source_project=args.from_source or args.project,
+            toy_project_id=args.toy or "",
+            overwrite=True,
+            apply=args.apply,
+            skip_toy_laps=args.skip_laps,
+            max_ticks=args.max_ticks,
+            profile=args.profile,
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    # Compact stdout for long reports
+    summary = {
+        "ok": out.get("ok"),
+        "source_project": out.get("source_project"),
+        "toy_project": out.get("toy_project"),
+        "elapsed_s": out.get("elapsed_s"),
+        "finding_counts": (out.get("analysis") or {}).get("finding_counts"),
+        "toy_laps": (out.get("toy") or {}).get("laps"),
+        "production_preflight": out.get("production_preflight"),
+        "transfer_apply": (out.get("transfer") or {}).get("apply"),
+        "transfer_results": (out.get("transfer") or {}).get("results"),
+        "next": (out.get("mission") or {}).get("production_next"),
+        "report": str(
+            Path(args.root).resolve()
+            / "projects"
+            / (out.get("source_project") or "")
+            / "reports"
+            / "agent_bootcamp"
+            / "BOOTCAMP.md"
+        ),
+    }
+    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    return 0 if out.get("ok") else 1
+
+
+def cmd_agent_transfer(args: argparse.Namespace) -> int:
+    """Rebuild transfer plan from latest analysis + toy, optionally apply."""
+    root = Path(args.root).resolve()
+    source = args.target or args.from_source
+    toy_id = args.toy
+    try:
+        analysis = run_agent_analyze(root, source)
+        toy_result = {
+            "ok": True,
+            "project_id": toy_id,
+            "laps": [],
+        }
+        plan = build_transfer_plan(
+            analysis=analysis,
+            toy_result=toy_result,
+            target_project_id=source,
+            toy_project_id=toy_id,
+        )
+        result = apply_transfer_plan(root, plan, apply=args.apply, analysis=analysis)
+    except (ValueError, FileNotFoundError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps({"plan": plan, "transfer": result}, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+def cmd_agent_settle(args: argparse.Namespace) -> int:
+    """Closed loop: toy complete → apply → production probe → residual → re-toy."""
+    root = Path(args.root).resolve()
+    try:
+        out = run_agent_settle(
+            root,
+            source_project=args.from_source or args.project,
+            toy_project_id=args.toy or "",
+            max_rounds=args.rounds,
+            apply=args.apply,
+            skip_initial_bootcamp_laps=args.skip_laps,
+            max_ticks=args.max_ticks,
+            profile=args.profile,
+            probe_stage=args.probe_stage,
+            probe_group=args.probe_group,
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    summary = {
+        "settled": out.get("settled"),
+        "source_project": out.get("source_project"),
+        "toy_project": out.get("toy_project"),
+        "rounds_run": out.get("rounds_run"),
+        "elapsed_s": out.get("elapsed_s"),
+        "mission": (out.get("mission") or "")[:240],
+        "report_md": out.get("report_md"),
+        "rounds": [
+            {
+                "round": r.get("round"),
+                "settled": r.get("settled"),
+                "probe": (r.get("phases") or {}).get("probe_production"),
+                "retoy": (r.get("phases") or {}).get("retoy"),
+                "residuals": len(r.get("residuals") or []),
+            }
+            for r in (out.get("rounds") or [])
+        ],
+    }
+    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    return 0 if out.get("settled") else 1
+
+
+def cmd_toy_scaffold(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    discovered = Path(args.discovered).resolve() if getattr(args, "discovered", None) else None
+    try:
+        out = run_toy_scaffold_only(
+            root,
+            source_id=args.from_source or "",
+            discovered_file=discovered,
+            project_id=args.project or "",
+            overwrite=args.force,
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+def cmd_toy_lap(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    discovered = Path(args.discovered).resolve() if getattr(args, "discovered", None) else None
+    try:
+        out = run_toy_from_intake(
+            root,
+            source_id=args.from_source or "",
+            discovered_file=discovered,
+            project_id=args.project or "",
+            overwrite=args.force,
+            profile=args.profile,
+            scenario=args.scenario,
+            zigzag=args.zigzag,
+            max_ticks=args.max_ticks,
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
+    if out.get("zigzag"):
+        return 0 if out.get("ok") else 1
+    return 0 if out.get("ok") else 1
+
+
+def cmd_lap(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    try:
+        if getattr(args, "scenario_only", False):
+            project_dir = root / "projects" / args.project
+            path = set_training_scenario(project_dir, args.scenario)
+            print(json.dumps({"ok": True, "scenario": args.scenario, "path": str(path)}, indent=2))
+            return 0
+        out = run_training_lap(
+            root,
+            project_id=args.project,
+            stage=args.stage,
+            group=args.group,
+            profile=args.profile,
+            scenario=args.scenario,
+            max_ticks=args.max_ticks,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(out, indent=2, ensure_ascii=False, default=str))
+    verdict = (out.get("loop_metrics") or {}).get("verdict")
+    if out.get("ok") and verdict == "PASS":
+        return 0
+    if args.scenario != "pass":
+        return 0 if out.get("ok") or verdict in ("FAIL", "BLOCKED", "INFO_GAP") else 1
+    return 1
 
 
 def cmd_feedback(args: argparse.Namespace) -> int:
@@ -920,6 +1176,176 @@ def main() -> int:
     knn.add_argument("--force", action="store_true", help="Re-collect before normalize")
     knn.set_defaults(func=cmd_knowledge_normalize)
 
+    sl = sub.add_parser("skill-lap", help="SKILL → materialize → bootstrap → training lap")
+    sl.add_argument("--project", required=True)
+    sl.add_argument("--skill", default="", help="Registered skill id (e.g. gpio-ext-verify)")
+    sl.add_argument("--skill-file", default="", help="Path to SKILL.md (register + materialize)")
+    sl.add_argument(
+        "--profile",
+        default="training",
+        choices=["training", "production", "held_out"],
+    )
+    sl.add_argument("--max-ticks", type=int, default=30)
+    sl.set_defaults(func=cmd_skill_lap)
+
+    agent = sub.add_parser(
+        "agent",
+        help="detect(L0 오류 조기 탐지) | analyze | bootcamp | settle",
+    )
+    agentsub = agent.add_subparsers(dest="agent_cmd", required=True)
+
+    ad = agentsub.add_parser(
+        "detect",
+        help="PRIMARY: flow→toy scaffold→gate direct L0 error detect (fast TAT)",
+    )
+    ad.add_argument("--from", dest="from_source", default="", help="Source project id")
+    ad.add_argument("--project", default="", help="Alias for --from / onboard id")
+    ad.add_argument("--toy", default="", help="Toy project id (default TOY-<source>)")
+    ad.add_argument(
+        "--discovered",
+        default="",
+        help="Onboard from discovered.yaml then detect",
+    )
+    ad.add_argument(
+        "--clone",
+        default="",
+        help="Onboard from bare OSS clone path then detect",
+    )
+    ad.add_argument(
+        "--rtl-subdir",
+        default="",
+        dest="rtl_subdir",
+        help="With --clone: relative RTL subdir",
+    )
+    ad.add_argument(
+        "--level",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="0=L0 smoke; 1=L0+PATH+bash -n/make -n+fw gap",
+    )
+    ad.set_defaults(func=cmd_agent_detect)
+
+    aa = agentsub.add_parser("analyze", help="Analyze production verification environment")
+    aa.add_argument("--from", dest="from_source", default="", help="Source project id")
+    aa.add_argument("--project", default="", help="Alias for --from")
+    aa.set_defaults(func=cmd_agent_analyze)
+
+    ab = agentsub.add_parser(
+        "bootcamp",
+        help="Secondary: scenarios + transfer plan [--apply]",
+    )
+    ab.add_argument("--from", dest="from_source", default="", help="Large verification project id")
+    ab.add_argument("--project", default="", help="Alias for --from")
+    ab.add_argument("--toy", default="", help="Toy project id (default TOY-<source>)")
+    ab.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply low-risk transfer (oss_preflight gate, env notes, clone align) + run production preflight",
+    )
+    ab.add_argument("--skip-laps", action="store_true", help="Scaffold+transfer only (no toy graph)")
+    ab.add_argument(
+        "--profile",
+        default="training",
+        choices=["training", "production", "held_out"],
+    )
+    ab.add_argument("--max-ticks", type=int, default=25)
+    ab.set_defaults(func=cmd_agent_bootcamp)
+
+    at = agentsub.add_parser("transfer", help="Build/apply transfer plan toy → production")
+    at.add_argument("--from", dest="from_source", default="", help="Source / target project")
+    at.add_argument("--target", default="", help="Production project id")
+    at.add_argument("--toy", required=True, help="Toy project id used for bootcamp")
+    at.add_argument("--apply", action="store_true")
+    at.set_defaults(func=cmd_agent_transfer)
+
+    aset = agentsub.add_parser(
+        "settle",
+        help="Closed loop: toy complete → apply → production probe → residual → re-toy (TAT)",
+    )
+    aset.add_argument("--from", dest="from_source", default="", help="Production project id")
+    aset.add_argument("--project", default="", help="Alias for --from")
+    aset.add_argument("--toy", default="", help="Toy project id")
+    aset.add_argument("--rounds", type=int, default=2, help="Max settle rounds (default 2)")
+    aset.add_argument(
+        "--apply",
+        action="store_true",
+        default=True,
+        help="Apply low-risk transfer each round (default on)",
+    )
+    aset.add_argument("--no-apply", action="store_false", dest="apply")
+    aset.add_argument("--skip-laps", action="store_true", help="Skip toy scenario zig on first bootcamp")
+    aset.add_argument(
+        "--profile",
+        default="training",
+        choices=["training", "production", "held_out"],
+    )
+    aset.add_argument("--max-ticks", type=int, default=25)
+    aset.add_argument("--probe-stage", default="sanity")
+    aset.add_argument("--probe-group", default="oss_preflight")
+    aset.set_defaults(func=cmd_agent_settle)
+
+    toy = sub.add_parser(
+        "toy",
+        help="Intake → toy project scaffold → training lap (OSS smoke)",
+    )
+    toysub = toy.add_subparsers(dest="toy_cmd", required=True)
+
+    ts = toysub.add_parser("scaffold", help="Scaffold projects/TOY-* from intake (--from or --discovered)")
+    ts.add_argument("--from", dest="from_source", default="", help="Source project id (snapshot or projects/*/discovered)")
+    ts.add_argument("--discovered", default="", help="Path to discovered.yaml intake file")
+    ts.add_argument("--project", default="", help="Toy project id (default TOY-<source>)")
+    ts.add_argument("--force", action="store_true", help="Overwrite scaffold files on existing project")
+    ts.set_defaults(func=cmd_toy_scaffold)
+
+    tl = toysub.add_parser("lap", help="Scaffold + training lap (optional --zigzag)")
+    tl.add_argument("--from", dest="from_source", default="", help="Source project id")
+    tl.add_argument("--discovered", default="", help="Path to discovered.yaml")
+    tl.add_argument("--project", default="", help="Toy project id")
+    tl.add_argument("--force", action="store_true")
+    tl.add_argument(
+        "--profile",
+        default="training",
+        choices=["training", "production", "held_out"],
+    )
+    tl.add_argument(
+        "--scenario",
+        default="pass",
+        choices=["pass", "env_fail", "verif_fail"],
+    )
+    tl.add_argument(
+        "--zigzag",
+        action="store_true",
+        help="Run pass→env_fail→pass→verif_fail→pass without trust reset",
+    )
+    tl.add_argument("--max-ticks", type=int, default=35)
+    tl.set_defaults(func=cmd_toy_lap)
+
+    lp = sub.add_parser("lap", help="One-shot training verify lap (profile + scenario + loop_metrics)")
+    lp.add_argument("--project", required=True)
+    lp.add_argument("--stage", required=True)
+    lp.add_argument("--group", required=True)
+    lp.add_argument(
+        "--profile",
+        default="training",
+        choices=["training", "production", "held_out"],
+        help="verify_group run profile (default: training)",
+    )
+    lp.add_argument(
+        "--scenario",
+        default="pass",
+        choices=["pass", "env_fail", "verif_fail"],
+        help="MINI-SOC gate scenario (meta/training_scenario.yaml)",
+    )
+    lp.add_argument("--max-ticks", type=int, default=30)
+    lp.add_argument(
+        "--set-scenario-only",
+        action="store_true",
+        dest="scenario_only",
+        help="Only write meta/training_scenario.yaml; do not run graph",
+    )
+    lp.set_defaults(func=cmd_lap)
+
     fb = sub.add_parser("feedback", help="User score 1–5 for a run (human rubric, optional)")
     fb.add_argument("project")
     fb.add_argument("run_id")
@@ -1006,6 +1432,12 @@ def main() -> int:
     gst.add_argument("--stage", default=None)
     gst.add_argument("--group", default=None)
     gst.add_argument("--skillset", default="", help="User verification skillset text (setup_group)")
+    gst.add_argument(
+        "--profile",
+        default="",
+        choices=["", "training", "production", "held_out"],
+        help="verify_group run profile (training skips meta tail after finalize)",
+    )
     gst.set_defaults(func=cmd_graph_start)
 
     ng = sub.add_parser("node-guide", help="User-defined node TUI — location + content, auto-write files")
@@ -1101,6 +1533,12 @@ def main() -> int:
     gd.add_argument("--stage", default=None)
     gd.add_argument("--group", default=None)
     gd.add_argument("--max-ticks", type=int, default=50)
+    gd.add_argument(
+        "--profile",
+        default="",
+        choices=["", "training", "production", "held_out"],
+        help="verify_group run profile (training skips meta tail after finalize)",
+    )
     gd.set_defaults(func=cmd_graph_drive)
 
     gsv = gsub.add_parser("serve", help="HTTP Graph API for company LLM")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -65,6 +66,9 @@ def run_tree(tmp_path: Path):
         json.dumps({"verdict": "FAIL", "summary": "tier markers missing"}),
         encoding="utf-8",
     )
+    ops_src = PROJECT_DIR / "ops"
+    if ops_src.is_dir():
+        shutil.copytree(ops_src, project_dir / "ops", dirs_exist_ok=True)
     return tmp_path, project_dir, run_dir
 
 

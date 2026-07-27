@@ -3,5 +3,9 @@
           7'd1: tb_soc_manifest.g_slv0.u_bus.u_bridge.bus_read(addr, size, data, resp);
           7'd2: tb_soc_manifest.g_slv1.u_bus.u_bridge.bus_read(addr, size, data, resp);
           7'd3: tb_soc_manifest.g_slv2.u_bus.u_bridge.bus_read(addr, size, data, resp);
-          default: begin data = 32'h0; resp = 2'd2; end
+          default: begin
+            data = 32'hDEADDEAD;
+            resp = 2'd2;
+            $fatal(1, "[BUS] bus_read_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);
+          end
         endcase

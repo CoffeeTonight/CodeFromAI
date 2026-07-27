@@ -1,0 +1,192 @@
+{
+  "contract": "agent_detect_v1",
+  "status": "CLEAN_L0",
+  "scope": "L0",
+  "scope_note": "L0: path/structure/gate-ops smoke only — NOT full verification",
+  "disclaimer": "CLEAN_L0 means structure/path/ops-contract smoke only — not proven gen/sim/UVM. Use --level 1 for dry readiness.",
+  "source_project": "VERIF-CPU-SOC",
+  "toy_project": "TOY-VERIFCPU",
+  "elapsed_s": 3.328,
+  "error_count": 0,
+  "errors": [],
+  "warning_count": 0,
+  "warnings": [],
+  "completed_at": "2026-07-19T17:50:57.610377+00:00",
+  "level": 0,
+  "paradigm": "cpu_fw",
+  "flow_summary": "paradigm=cpu_fw steps=3 tools=['python', 'iverilog', 'vvp', 'make', 'example.sh', 'verilator', 'xcelium', 'vcs'] structure_ok=7 deliverables_present=6; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+  "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+  "scaffold": {
+    "ok": true,
+    "project_id": "TOY-VERIFCPU",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-VERIFCPU",
+    "source_id": "VERIF-CPU-SOC",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+    "artifacts": [
+      "example.sh",
+      "Makefile",
+      "firmware",
+      "firmware/campaign",
+      "include",
+      "rtl",
+      "filelists"
+    ],
+    "spec": {
+      "contract": "toy_intake_spec_v1",
+      "source_id": "VERIF-CPU-SOC",
+      "title": "VerifCPU SoC — RISC-V Verification CPU (Verilog)",
+      "git_url": "git@github.com:CoffeeTonight/CodeFromAI.git",
+      "local_clone_path": "/home/user/tools/__CFI",
+      "rtl_subdir": "VerifCPU/verif_cpu_verilog",
+      "root_marker": "example.sh",
+      "required_artifacts": [
+        "example.sh",
+        "Makefile",
+        "firmware",
+        "firmware/campaign",
+        "include",
+        "rtl",
+        "filelists"
+      ],
+      "clone_path": "/home/user/tools/__CFI",
+      "tag": "main",
+      "gate": "oss_smoke",
+      "stage": "sanity",
+      "paradigm": "cpu_fw",
+      "top_commands": [
+        [
+          "scripts/run_VERIF-CPU-SOC_verification_sequence.sh"
+        ],
+        [
+          "python3",
+          "\"${PROJECT_DIR}/ops/sanity/c-compile.py"
+        ],
+        [
+          "./example.sh",
+          "gen"
+        ],
+        [
+          "make",
+          "$VVP_ARTIFACT"
+        ],
+        [
+          "./example.sh",
+          "all"
+        ],
+        [
+          "./example.sh",
+          "gen"
+        ],
+        [
+          "./example.sh",
+          "sim"
+        ]
+      ],
+      "optional_deliverables": [
+        "firmware/full_campaign_unified.hex",
+        "firmware/full_campaign_vcpu.hex",
+        "firmware/campaign/build/full_campaign_vcpu.bin",
+        "firmware/campaign/build/icode_pool.bin",
+        "include/tb_full_campaign_gen.vh",
+        "sim_build/tb_full_campaign.vvp"
+      ],
+      "tools": [
+        "python",
+        "iverilog",
+        "vvp",
+        "make",
+        "example.sh",
+        "verilator",
+        "xcelium",
+        "vcs"
+      ],
+      "flow_summary": "paradigm=cpu_fw steps=3 tools=['python', 'iverilog', 'vvp', 'make', 'example.sh', 'verilator', 'xcelium', 'vcs'] structure_ok=7 deliverables_present=6; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+      "prebuilt_fw_ok": true,
+      "gen_entry": "./example.sh gen"
+    }
+  },
+  "gate": {
+    "ok": true,
+    "exit_code": 0,
+    "verdict": {
+      "gate": "oss_smoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "evidence": [
+        "OSS smoke OK rtl_root=/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+        "paradigm=cpu_fw",
+        "structure_present=7",
+        "flow_deliverables_present=6/6",
+        "source=VERIF-CPU-SOC",
+        "gen_entry=./example.sh gen",
+        "top_commands=[['scripts/run_VERIF-CPU-SOC_verification_sequence.sh'], ['python3', '\"${PROJECT_DIR}/ops/sanity/c-compile.py'], ['./example.sh', 'gen']]"
+      ],
+      "artifacts": {
+        "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+        "root_marker": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/example.sh",
+        "paradigm": "cpu_fw",
+        "structure": [
+          "example.sh",
+          "Makefile",
+          "firmware",
+          "firmware/campaign",
+          "include",
+          "rtl",
+          "filelists"
+        ],
+        "flow_deliverables": [
+          "firmware/full_campaign_unified.hex",
+          "firmware/full_campaign_vcpu.hex",
+          "firmware/campaign/build/full_campaign_vcpu.bin",
+          "firmware/campaign/build/icode_pool.bin",
+          "include/tb_full_campaign_gen.vh",
+          "sim_build/tb_full_campaign.vvp"
+        ],
+        "top_commands": [
+          [
+            "scripts/run_VERIF-CPU-SOC_verification_sequence.sh"
+          ],
+          [
+            "python3",
+            "\"${PROJECT_DIR}/ops/sanity/c-compile.py"
+          ],
+          [
+            "./example.sh",
+            "gen"
+          ],
+          [
+            "make",
+            "$VVP_ARTIFACT"
+          ],
+          [
+            "./example.sh",
+            "all"
+          ],
+          [
+            "./example.sh",
+            "gen"
+          ],
+          [
+            "./example.sh",
+            "sim"
+          ]
+        ]
+      },
+      "trust": {
+        "script": "oss_smoke.py",
+        "version": "0.2.1"
+      },
+      "scenario": "pass"
+    },
+    "run_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-VERIFCPU/runs/detect-20260719T175055"
+  },
+  "l1_dry_runs": [],
+  "analysis_finding_counts": {
+    "total": 0,
+    "env": 0,
+    "script": 0,
+    "high": 0
+  }
+}

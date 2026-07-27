@@ -313,11 +313,14 @@ def dispatch_verify(state: OrchestratorState) -> dict[str, Any]:
         experiment_hypothesis=state.get("experiment_hypothesis", ""),
     )
 
+    verdict = result.get("verdict", "FAIL")
+    if result.get("error") == "child_evidence" or result.get("child_evidence_blocked"):
+        verdict = "FAIL"
     entry = {
         "project_id": pid,
         "stage": state["stage"],
         "group": state["group"],
-        "verdict": result.get("verdict"),
+        "verdict": verdict,
         "completeness": result.get("completeness"),
         "run_id": result.get("run_id"),
     }
@@ -327,7 +330,7 @@ def dispatch_verify(state: OrchestratorState) -> dict[str, Any]:
     )
     return {
         "verify_results": [entry],
-        "verdict": result.get("verdict", "FAIL"),
+        "verdict": verdict,
     }
 
 

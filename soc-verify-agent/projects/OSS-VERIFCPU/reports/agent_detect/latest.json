@@ -1,0 +1,160 @@
+{
+  "contract": "agent_detect_v1",
+  "status": "CLEAN_L1",
+  "scope": "L1",
+  "scope_note": "L1: L0 + tool PATH + cpu_fw deliverable gap (no gen executed)",
+  "source_project": "OSS-VERIFCPU",
+  "toy_project": "TOY-VERIFCPU",
+  "elapsed_s": 2.269,
+  "error_count": 0,
+  "errors": [],
+  "warning_count": 0,
+  "warnings": [],
+  "completed_at": "2026-07-18T12:54:51.320696+00:00",
+  "level": 1,
+  "paradigm": "cpu_fw",
+  "flow_summary": "paradigm=cpu_fw steps=0 tools=['iverilog', 'vvp', 'verilator', 'xcelium', 'vcs', 'make', 'python', 'example.sh'] structure_ok=7 deliverables_present=6; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+  "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+  "scaffold": {
+    "ok": true,
+    "project_id": "TOY-VERIFCPU",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-VERIFCPU",
+    "source_id": "OSS-VERIFCPU",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+    "artifacts": [
+      "example.sh",
+      "Makefile",
+      "firmware",
+      "firmware/campaign",
+      "include",
+      "rtl",
+      "filelists"
+    ],
+    "spec": {
+      "contract": "toy_intake_spec_v1",
+      "source_id": "OSS-VERIFCPU",
+      "title": "VerifCPU (local monorepo)",
+      "git_url": "https://github.com/oss/oss-verifcpu.git",
+      "local_clone_path": "/home/user/tools/__CFI",
+      "rtl_subdir": "VerifCPU/verif_cpu_verilog",
+      "root_marker": "example.sh",
+      "required_artifacts": [
+        "example.sh",
+        "Makefile",
+        "firmware",
+        "firmware/campaign",
+        "include",
+        "rtl",
+        "filelists"
+      ],
+      "clone_path": "/home/user/tools/__CFI",
+      "tag": "main",
+      "gate": "oss_smoke",
+      "stage": "sanity",
+      "paradigm": "cpu_fw",
+      "top_commands": [
+        [
+          "./example.sh",
+          "all"
+        ],
+        [
+          "./example.sh",
+          "gen"
+        ],
+        [
+          "./example.sh",
+          "sim"
+        ]
+      ],
+      "optional_deliverables": [
+        "firmware/full_campaign_unified.hex",
+        "firmware/full_campaign_vcpu.hex",
+        "firmware/campaign/build/full_campaign_vcpu.bin",
+        "firmware/campaign/build/icode_pool.bin",
+        "include/tb_full_campaign_gen.vh",
+        "sim_build/tb_full_campaign.vvp"
+      ],
+      "tools": [
+        "iverilog",
+        "vvp",
+        "verilator",
+        "xcelium",
+        "vcs",
+        "make",
+        "python",
+        "example.sh"
+      ],
+      "flow_summary": "paradigm=cpu_fw steps=0 tools=['iverilog', 'vvp', 'verilator', 'xcelium', 'vcs', 'make', 'python', 'example.sh'] structure_ok=7 deliverables_present=6; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+      "prebuilt_fw_ok": true,
+      "gen_entry": "./example.sh gen"
+    }
+  },
+  "gate": {
+    "ok": true,
+    "exit_code": 0,
+    "verdict": {
+      "gate": "oss_smoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "evidence": [
+        "OSS smoke OK rtl_root=/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+        "paradigm=cpu_fw",
+        "structure_present=7",
+        "flow_deliverables_present=6/6",
+        "source=OSS-VERIFCPU",
+        "gen_entry=./example.sh gen",
+        "top_commands=[['./example.sh', 'all'], ['./example.sh', 'gen'], ['./example.sh', 'sim']]"
+      ],
+      "artifacts": {
+        "rtl_root": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog",
+        "root_marker": "/home/user/tools/__CFI/VerifCPU/verif_cpu_verilog/example.sh",
+        "paradigm": "cpu_fw",
+        "structure": [
+          "example.sh",
+          "Makefile",
+          "firmware",
+          "firmware/campaign",
+          "include",
+          "rtl",
+          "filelists"
+        ],
+        "flow_deliverables": [
+          "firmware/full_campaign_unified.hex",
+          "firmware/full_campaign_vcpu.hex",
+          "firmware/campaign/build/full_campaign_vcpu.bin",
+          "firmware/campaign/build/icode_pool.bin",
+          "include/tb_full_campaign_gen.vh",
+          "sim_build/tb_full_campaign.vvp"
+        ],
+        "top_commands": [
+          [
+            "./example.sh",
+            "all"
+          ],
+          [
+            "./example.sh",
+            "gen"
+          ],
+          [
+            "./example.sh",
+            "sim"
+          ]
+        ]
+      },
+      "trust": {
+        "script": "oss_smoke.py",
+        "version": "0.2.1"
+      },
+      "scenario": "pass"
+    },
+    "run_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-VERIFCPU/runs/detect-20260718T125449"
+  },
+  "analysis_finding_counts": {
+    "total": 0,
+    "env": 0,
+    "script": 0,
+    "high": 0
+  }
+}

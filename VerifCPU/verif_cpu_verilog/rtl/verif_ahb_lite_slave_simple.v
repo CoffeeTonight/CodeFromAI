@@ -1,5 +1,6 @@
-// Simple AHB-Lite slave (behavioral) for bridge smoke tests
+// Simple AHB-Lite slave (behavioral) — address/data pipeline + 2-cycle ERROR
 `timescale 1ns/1ps
+`include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
 module verif_ahb_lite_slave_simple #(
@@ -26,12 +27,25 @@ module verif_ahb_lite_slave_simple #(
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
 
+  localparam HTRANS_IDLE   = 2'b00;
+  localparam HTRANS_BUSY   = 2'b01;
+  localparam HTRANS_NONSEQ = 2'b10;
+  localparam HTRANS_SEQ    = 2'b11;
+  localparam HRESP_OKAY    = 2'b00;
+  localparam HRESP_ERROR   = 2'b01;
+
   reg [7:0] mem [0:SIZE-1];
   integer i;
-  reg [STRB_WIDTH-1:0] wstrb;
   integer bi;
-  reg [2:0] acc_sz;
-  reg [31:0] acc_addr;
+  reg [STRB_WIDTH-1:0] wstrb;
+
+  // Pipelined address phase → data phase
+  reg        dphase_active;
+  reg        dphase_write;
+  reg        dphase_error;
+  reg [31:0] dphase_addr;
+  reg [2:0]  dphase_size;
+  reg        err_hold;  // second cycle of 2-cycle ERROR
 
   function [2:0] hsize_to_acc;
     input [2:0] hsize;
@@ -44,25 +58,46 @@ module verif_ahb_lite_slave_simple #(
     end
   endfunction
 
-  function [31:0] access_span_end;
-    input [31:0] addr;
-    input [2:0]  size;
-    reg [31:0] span;
+  function [31:0] access_byte_count;
+    input [2:0] size;
     begin
       case (size)
-        3'd1: span = 32'd1;
-        3'd2: span = 32'd2;
-        default: span = 32'd4;
+        3'd1: access_byte_count = 32'd1;
+        3'd2: access_byte_count = 32'd2;
+        3'd4: access_byte_count = 32'd4;
+        default: access_byte_count = 32'd0;  // illegal
       endcase
-      access_span_end = addr + span;
+    end
+  endfunction
+
+  // Non-wrapping: access bytes + word-aligned mem window both fit (slave r/w is word)
+  function integer addr_ok;
+    input [31:0] addr;
+    input [2:0]  size;
+    reg [31:0] nbytes;
+    reg [31:0] a_rel;
+    begin
+      nbytes = access_byte_count(size);
+      if (!`VERIF_BUS_REL_SPAN_OK(addr, nbytes, BASE, SIZE))
+        addr_ok = 0;
+      else begin
+        a_rel = (addr - BASE) & 32'hFFFFFFFC;
+        addr_ok = `VERIF_BUS_SPAN_OK(a_rel, 32'd4, SIZE) ? 1 : 0;
+      end
     end
   endfunction
 
   initial begin
     HRDATA = 32'h0;
     HREADYOUT = 1'b1;
-    HRESP = 2'b00;
-    for (i = 0; i < 4096; i = i + 1)
+    HRESP = HRESP_OKAY;
+    dphase_active = 1'b0;
+    dphase_write = 1'b0;
+    dphase_error = 1'b0;
+    dphase_addr = 32'h0;
+    dphase_size = 3'd4;
+    err_hold = 1'b0;
+    for (i = 0; i < SIZE; i = i + 1)
       mem[i] = 8'h0;
     mem[0] = INIT_WORD0[7:0];
     mem[1] = INIT_WORD0[15:8];
@@ -74,26 +109,71 @@ module verif_ahb_lite_slave_simple #(
     mem[7] = INIT_WORD1[31:24];
   end
 
-  // AHB-Lite: HRESP 2'b01 = ERROR (not RETRY 2'b10 — full AHB only)
-  always @(posedge HCLK) begin
-    HREADYOUT <= 1'b1;
-    HRESP <= 2'b00;
-    if (HTRANS == 2'b10) begin
-      acc_sz = hsize_to_acc(HSIZE);
-      acc_addr = HADDR;
-      if (HADDR < BASE || access_span_end(HADDR, acc_sz) > BASE + SIZE)
-        HRESP <= 2'b01;  // ERROR per AHB-Lite spec
-      else if (HWRITE) begin
-        acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
-        wstrb = lane_wstrb(HADDR, acc_sz);
-        for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
-          if (wstrb[bi])
-            mem[acc_addr + bi] <= HWDATA[bi*8 +: 8];
+  always @(posedge HCLK or negedge HRESETn) begin
+    reg [2:0]  sz;
+    reg [31:0] a_rel;
+    if (!HRESETn) begin
+      HRDATA <= 32'h0;
+      HREADYOUT <= 1'b1;
+      HRESP <= HRESP_OKAY;
+      dphase_active <= 1'b0;
+      dphase_write <= 1'b0;
+      dphase_error <= 1'b0;
+      err_hold <= 1'b0;
+    end else begin
+      // AMBA 2-cycle ERROR: cycle1 HREADYOUT=0+HRESP=ERROR, cycle2 HREADYOUT=1+HRESP=ERROR
+      if (err_hold) begin
+        HRESP <= HRESP_ERROR;
+        HREADYOUT <= 1'b1;
+        err_hold <= 1'b0;
+        dphase_active <= 1'b0;
+        dphase_error <= 1'b0;
+      end else if (dphase_active) begin
+        if (dphase_error) begin
+          // Should not normally hit: error accept already set err_hold
+          HRESP <= HRESP_ERROR;
+          HREADYOUT <= 1'b0;
+          err_hold <= 1'b1;
+        end else begin
+          HRESP <= HRESP_OKAY;
+          HREADYOUT <= 1'b1;
+          a_rel = (dphase_addr - BASE) & 32'hFFFFFFFC;
+          if (dphase_write) begin
+            wstrb = lane_wstrb(dphase_addr, dphase_size);
+            for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
+              if (wstrb[bi])
+                mem[a_rel + bi] <= HWDATA[bi*8 +: 8];
+          end
+          dphase_active <= 1'b0;
+        end
+      end else begin
+        HRESP <= HRESP_OKAY;
+        HREADYOUT <= 1'b1;
       end
-      else begin
-        acc_addr = (HADDR - BASE) & 32'hFFFFFFFC;
-        HRDATA <= {mem[acc_addr + 3], mem[acc_addr + 2],
-                   mem[acc_addr + 1], mem[acc_addr + 0]};
+
+      // Accept when HREADY. Block while ERROR cycle-1 (err_hold pending after accept).
+      if (!err_hold && !(dphase_active && dphase_error) && HREADY &&
+          (HTRANS == HTRANS_NONSEQ || HTRANS == HTRANS_SEQ)) begin
+        sz = hsize_to_acc(HSIZE);
+        dphase_addr <= HADDR;
+        dphase_size <= sz;
+        dphase_write <= HWRITE;
+        if (!addr_ok(HADDR, sz)) begin
+          // ERROR c1 this edge: not-ready + ERROR; next edge err_hold = ERROR c2 ready
+          dphase_error <= 1'b1;
+          dphase_active <= 1'b1;
+          HRESP <= HRESP_ERROR;
+          HREADYOUT <= 1'b0;
+          err_hold <= 1'b1;
+        end else begin
+          dphase_error <= 1'b0;
+          dphase_active <= 1'b1;
+          if (!HWRITE) begin
+            a_rel = (HADDR - BASE) & 32'hFFFFFFFC;
+            HRDATA <= {mem[a_rel + 3], mem[a_rel + 2],
+                       mem[a_rel + 1], mem[a_rel + 0]};
+          end
+        end
       end
     end
   end

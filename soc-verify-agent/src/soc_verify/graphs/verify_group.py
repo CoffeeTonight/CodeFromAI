@@ -26,14 +26,16 @@ from soc_verify.bridge_env import classify_gate_failure as classify_gate_failure
 from soc_verify.error_classify import bump_events, classify_stop_report, resolve_bump_kind
 from soc_verify.golden_library import capture_from_verdict, run_golden_suite, write_golden_report
 from soc_verify.loop_guard import (
+    LoopGuardState,
     build_signature,
     load_loop_guard,
     record_drift_score,
+    clear_stalemate_on_pass,
     record_failure,
     record_transition,
 )
 from soc_verify.run_spec import compute_drift, freeze_run_spec
-from soc_verify.models import InfoGapError, Verdict
+from soc_verify.models import InfoGapError, SubStopReport, Verdict
 from soc_verify.preflight import assert_preflight, preflight_project
 from soc_verify.registry_writer import apply_promotion
 from soc_verify.runner import (
@@ -68,10 +70,12 @@ from soc_verify.graphs.verify_routing import (
     route_after_apply_validation,
     route_after_diagnose,
     route_after_eval,
+    route_after_finalize,
     route_after_load,
     route_after_parity,
     route_after_run,
 )
+from soc_verify.run_profile import resolve_run_profile_name, should_skip_meta_after_finalize
 from soc_verify.llm_runner import (
     invoke_promote_decision,
     invoke_reproduction_finalize,
@@ -120,7 +124,8 @@ from soc_verify.meta_graph import (
     write_mechanical_meta_proposal,
     write_meta_collect_prompt,
 )
-from soc_verify.self_harness import integrate_meta_collect
+from soc_verify.self_harness import integrate_meta_collect, integrate_training_finalize_weakness
+from soc_verify.training_hooks import apply_training_node_guides
 from soc_verify.reproduction_scripts import (
     build_gate_reproduction_prompt,
     validate_gate_step,
@@ -138,6 +143,79 @@ def _project_dir(state: VerifyGroupState) -> Path:
 
 def _run_dir(state: VerifyGroupState) -> Path:
     return _run_dir_from_state(state)
+
+
+def _loop_guard_fields(loop: LoopGuardState) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "stalemate": loop.stalemate,
+        "force_mode": loop.force_mode if loop.stalemate else "",
+    }
+    if loop.stalemate_pattern:
+        out["stalemate_pattern"] = loop.stalemate_pattern
+    return out
+
+
+def _artifact_written_this_attempt(path: Path, *, since_mtime: float) -> bool:
+    return path.is_file() and path.stat().st_mtime >= since_mtime
+
+
+def _trust_score_after_gate(
+    state: VerifyGroupState,
+    project_dir: Path,
+    group: str,
+    *,
+    passed: bool,
+) -> float:
+    from soc_verify.training_trust import skip_trust_update_for_training_scenario
+    from soc_verify.trust_eval import get_trust_score
+
+    script_name = str(state.get("script_name") or f"{group}.py")
+    if skip_trust_update_for_training_scenario(
+        project_dir, run_profile=str(state.get("run_profile") or "")
+    ):
+        return get_trust_score(project_dir, script_name)
+
+    tag = ""
+    cache_path = project_dir / "cache.yaml"
+    if cache_path.is_file():
+        import yaml
+
+        cache = yaml.safe_load(cache_path.read_text(encoding="utf-8")) or {}
+        tag = (cache.get("tag") or {}).get("value", "")
+    one_shot = int(state.get("fix_round", 0)) == 0 and passed
+    return update_trust_after_run(
+        project_dir,
+        script_name,
+        passed=passed,
+        one_shot=one_shot,
+        tag=tag,
+    )
+
+
+def _run_gate_llm_error_out(
+    state: VerifyGroupState,
+    run_dir: Path,
+    group: str,
+    events: dict[str, Any],
+    *,
+    error: str,
+    gate_status: str = "FAIL",
+) -> dict[str, Any]:
+    events = bump_events(events, "llm")
+    gate_results = dict(state.get("gate_results", {}))
+    gate_results[group] = gate_status
+    sig = build_signature(gate=group, error_code=error)
+    loop = record_failure(run_dir, sig)
+    loop = record_transition(run_dir, "run_gate", error_kind="llm")
+    return {
+        "events": events,
+        "gate_results": gate_results,
+        "verdict": gate_status,
+        "error": error,
+        "error_kind": "llm",
+        "fix_round": state.get("fix_round", 0) + 1,
+        **_loop_guard_fields(loop),
+    }
 
 
 def setup(state: VerifyGroupState) -> dict[str, Any]:
@@ -164,9 +242,11 @@ def setup(state: VerifyGroupState) -> dict[str, Any]:
             group=group,
             as_of=as_of,
         )
+    run_profile = resolve_run_profile_name(root, state.get("run_profile"))
     return {
         "run_id": run_id,
         "as_of": as_of,
+        "run_profile": run_profile,
         "round": 0,
         "fix_round": 0,
         "events": {
@@ -184,7 +264,45 @@ def setup(state: VerifyGroupState) -> dict[str, Any]:
         },
         "gate_results": {},
         "questions": [],
+        "validation_judgment": {},
+        "validation_sequence_action": "",
+        "validation_items": {},
+        "validation_needs_judgment": False,
+        "validation_continue": False,
     }
+
+
+def _run_gate_info_gap_fields(
+    *,
+    verdict_status: str,
+    error_kind: str,
+    sub_stop: dict[str, Any] | None = None,
+    verdict: Verdict | None = None,
+) -> dict[str, Any]:
+    is_info = (
+        verdict_status == "INFO_GAP"
+        or error_kind == "info"
+        or (
+            sub_stop is not None
+            and str(sub_stop.get("partial_verdict", "")).upper() == "INFO_GAP"
+        )
+    )
+    if not is_info:
+        return {}
+    msg = ""
+    if sub_stop:
+        msg = str(
+            sub_stop.get("stop_reason")
+            or sub_stop.get("message")
+            or sub_stop.get("info_gap_message")
+            or ""
+        )
+    if verdict is not None and not msg:
+        evidence = verdict.evidence or []
+        msg = str(evidence[0]) if evidence else ""
+    if not msg:
+        msg = "Additional information required to continue verification"
+    return {"info_gap": True, "info_gap_message": msg}
 
 
 def _load_context_info_gap(state: VerifyGroupState, message: str) -> dict[str, Any]:
@@ -256,11 +374,20 @@ def select_runner_node(state: VerifyGroupState) -> dict[str, Any]:
     force = state.get("force_mode") or (loop.force_mode if loop.stalemate else "")
     if loop.stalemate or force:
         mode = force or "llm_full"
-        out = {"runner": "llm", "script_name": script_name, "force_mode": mode}
+        out = {
+            "runner": "llm",
+            "script_name": script_name,
+            "force_mode": mode,
+            "round": state.get("round", 0) + 1,
+        }
         if loop.stalemate_pattern:
             out["stalemate_pattern"] = loop.stalemate_pattern
         append_graph_trace(run_dir, {"node": "select_runner", **out})
-        record_transition(run_dir, "select_runner", error_kind=loop.stalemate_pattern or mode)
+        record_transition(
+            run_dir,
+            "select_runner",
+            error_kind=str(state.get("error_kind") or "verification"),
+        )
         return out
 
     meta = {}
@@ -373,7 +500,12 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
         )
 
         verdict_path = run_dir / f"verdict_{group}.json"
-        if llm_result.verdict is not None:
+        stop_path = run_dir / "sub_stop.json"
+        brief_mtime = (run_dir / "llm_brief.json").stat().st_mtime
+        if llm_result.verdict is not None and not (
+            llm_result.message == "verdict_exists"
+            and not _artifact_written_this_attempt(verdict_path, since_mtime=brief_mtime)
+        ):
             v = llm_result.verdict
             gate_results = dict(state.get("gate_results", {}))
             gate_results[group] = v.status
@@ -381,20 +513,90 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
             kind = classify_gate_failure_kind(verdict=v, sub_stop=None)
             if passed:
                 events["one_shot"] = state.get("fix_round", 0) == 0
+                clear_stalemate_on_pass(run_dir)
             else:
                 events = bump_events(events, resolve_bump_kind(kind))
             out: dict[str, Any] = {
                 "gate_results": gate_results,
                 "verdict": v.status,
                 "events": events,
-                "error_kind": kind,
+                "error_kind": "none" if passed else kind,
             }
+            if passed:
+                out["trust_score"] = _trust_score_after_gate(
+                    state, project_dir, group, passed=True
+                )
+                out.update({"stalemate": False, "force_mode": "", "stalemate_pattern": ""})
+                out["sub_stop"] = {}
             if not passed:
+                out["trust_score"] = _trust_score_after_gate(
+                    state, project_dir, group, passed=False
+                )
+                out["sub_stop"] = {}
+                sig = build_signature(verdict=v)
+                loop = record_failure(run_dir, sig)
+                loop = record_transition(run_dir, "run_gate", error_kind=kind)
                 out["fix_round"] = state.get("fix_round", 0) + 1
+                out["stalemate"] = loop.stalemate
+                out["force_mode"] = loop.force_mode if loop.stalemate else ""
+                if loop.stalemate_pattern:
+                    out["stalemate_pattern"] = loop.stalemate_pattern
+                out.update(
+                    _run_gate_info_gap_fields(
+                        verdict_status=v.status, error_kind=kind, verdict=v
+                    )
+                )
             return out
 
-        if verdict_path.is_file():
-            data = json.loads(verdict_path.read_text(encoding="utf-8"))
+        if _artifact_written_this_attempt(stop_path, since_mtime=brief_mtime):
+            try:
+                sub_stop = json.loads(stop_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return _run_gate_llm_error_out(
+                    state, run_dir, group, events, error="sub_stop_json_invalid"
+                )
+            events["fail_fast_stops"] = int(events.get("fail_fast_stops", 0)) + 1
+            kind = classify_stop_report(sub_stop)
+            error_code = sub_stop.get("error_code")
+            exit_code = int(error_code) if str(error_code).isdigit() else None
+            events = bump_events(events, resolve_bump_kind(kind, exit_code=exit_code))
+            sig = build_signature(stop=SubStopReport.from_dict(sub_stop))
+            loop = record_failure(run_dir, sig)
+            loop = record_transition(run_dir, "run_gate", error_kind=kind)
+            partial = str(sub_stop.get("partial_verdict", "FAIL"))
+            gate_results = dict(state.get("gate_results", {}))
+            gate_results[group] = partial
+            out_stop: dict[str, Any] = {
+                "sub_stop": sub_stop,
+                "events": events,
+                "gate_results": gate_results,
+                "verdict": partial,
+                "error_kind": kind,
+                "trust_score": _trust_score_after_gate(
+                    state, project_dir, group, passed=False
+                ),
+                "stalemate": loop.stalemate,
+                "force_mode": loop.force_mode if loop.stalemate else "",
+                "fix_round": state.get("fix_round", 0) + 1,
+            }
+            if loop.stalemate_pattern:
+                out_stop["stalemate_pattern"] = loop.stalemate_pattern
+            out_stop.update(
+                _run_gate_info_gap_fields(
+                    verdict_status=partial,
+                    error_kind=kind,
+                    sub_stop=sub_stop,
+                )
+            )
+            return out_stop
+
+        if _artifact_written_this_attempt(verdict_path, since_mtime=brief_mtime):
+            try:
+                data = json.loads(verdict_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return _run_gate_llm_error_out(
+                    state, run_dir, group, events, error="verdict_json_invalid"
+                )
             v = Verdict.from_dict(data)
             gate_results = dict(state.get("gate_results", {}))
             gate_results[group] = v.status
@@ -403,54 +605,57 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
                 "gate_results": gate_results,
                 "verdict": v.status,
                 "events": events,
-                "error_kind": kind,
+                "error_kind": "none" if v.status == "PASS" else kind,
             }
-            if v.status != "PASS":
+            if v.status == "PASS":
+                events["one_shot"] = state.get("fix_round", 0) == 0
+                clear_stalemate_on_pass(run_dir)
+                out["events"] = events
+                out["trust_score"] = _trust_score_after_gate(
+                    state, project_dir, group, passed=True
+                )
+                out.update({"stalemate": False, "force_mode": "", "stalemate_pattern": ""})
+                out["sub_stop"] = {}
+            else:
                 events = bump_events(events, resolve_bump_kind(kind))
                 out["events"] = events
+                out["trust_score"] = _trust_score_after_gate(
+                    state, project_dir, group, passed=False
+                )
+                out["sub_stop"] = {}
+                sig = build_signature(verdict=v)
+                loop = record_failure(run_dir, sig)
+                loop = record_transition(run_dir, "run_gate", error_kind=kind)
                 out["fix_round"] = state.get("fix_round", 0) + 1
+                out["stalemate"] = loop.stalemate
+                out["force_mode"] = loop.force_mode if loop.stalemate else ""
+                if loop.stalemate_pattern:
+                    out["stalemate_pattern"] = loop.stalemate_pattern
+                out.update(
+                    _run_gate_info_gap_fields(
+                        verdict_status=v.status, error_kind=kind, verdict=v
+                    )
+                )
             return out
 
-        # Sub-agent slot: expect sub_stop.json or verdict written externally
-        stop_path = run_dir / "sub_stop.json"
-        if stop_path.is_file():
-            sub_stop = json.loads(stop_path.read_text(encoding="utf-8"))
-            events["fail_fast_stops"] = int(events.get("fail_fast_stops", 0)) + 1
-            kind = classify_stop_report(sub_stop)
-            events = bump_events(events, kind)
-            sig = build_signature(stop=sub_stop)
-            loop = record_failure(run_dir, sig)
-            loop = record_transition(run_dir, "run_gate", error_kind=kind)
-            partial = str(sub_stop.get("partial_verdict", "FAIL"))
-            out_stop: dict[str, Any] = {
-                "sub_stop": sub_stop,
-                "events": events,
-                "verdict": partial,
-                "error_kind": kind,
-                "stalemate": loop.stalemate,
-                "force_mode": loop.force_mode if loop.stalemate else "",
-                "fix_round": state.get("fix_round", 0) + 1,
-            }
-            if loop.stalemate_pattern:
-                out_stop["stalemate_pattern"] = loop.stalemate_pattern
-            return out_stop
-        # LLM mode without artifact → FAIL (sub must write sub_stop or verdict)
-        events = bump_events(events, "llm")
-        return {
-            "events": events,
-            "verdict": "FAIL",
-            "error": "llm_runner_awaiting_sub_agent",
-            "error_kind": "llm",
-            "fix_round": state.get("fix_round", 0) + 1,
-        }
+        # LLM mode without fresh artifact → FAIL (sub must write sub_stop or verdict)
+        return _run_gate_llm_error_out(
+            state, run_dir, group, events, error="llm_runner_awaiting_sub_agent"
+        )
 
     stage = state["stage"]
     script_path = resolve_group_script(project_dir, stage, group)
     if script_path is None:
+        events = bump_events(events, "info")
+        gate_results = dict(state.get("gate_results", {}))
+        gate_results[group] = "INFO_GAP"
         return {
             "info_gap": True,
             "info_gap_message": f"No script for {stage}/{group}",
             "verdict": "INFO_GAP",
+            "error_kind": "info",
+            "events": events,
+            "gate_results": gate_results,
         }
 
     root = project_dir.parent.parent
@@ -475,11 +680,15 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
         )
     except InfoGapError as e:
         events = bump_events(events, "info")
+        gate_results = dict(state.get("gate_results", {}))
+        gate_results[group] = "INFO_GAP"
         return {
             "info_gap": True,
             "info_gap_message": str(e),
             "verdict": "INFO_GAP",
+            "error_kind": "info",
             "events": events,
+            "gate_results": gate_results,
         }
 
     tag = ""
@@ -495,13 +704,22 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
     if one_shot:
         events["one_shot"] = True
 
-    score = update_trust_after_run(
-        project_dir,
-        state.get("script_name", script_path.name),
-        passed=passed,
-        one_shot=one_shot,
-        tag=tag,
-    )
+    from soc_verify.training_trust import skip_trust_update_for_training_scenario
+    from soc_verify.trust_eval import get_trust_score
+
+    script_name = state.get("script_name", script_path.name)
+    if skip_trust_update_for_training_scenario(
+        project_dir, run_profile=str(state.get("run_profile") or "")
+    ):
+        score = get_trust_score(project_dir, script_name)
+    else:
+        score = update_trust_after_run(
+            project_dir,
+            script_name,
+            passed=passed,
+            one_shot=one_shot,
+            tag=tag,
+        )
 
     gate_results = dict(state.get("gate_results", {}))
     gate_results[group] = verdict.status
@@ -528,14 +746,23 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
             "verdict": verdict.status,
             "events": events,
             "error_kind": fail_kind,
+            "sub_stop": {},
             "stalemate": loop.stalemate,
             "force_mode": loop.force_mode if loop.stalemate else "",
             "fix_round": state.get("fix_round", 0) + 1,
         }
         if loop.stalemate_pattern:
             out_fail["stalemate_pattern"] = loop.stalemate_pattern
+        out_fail.update(
+            _run_gate_info_gap_fields(
+                verdict_status=verdict.status,
+                error_kind=fail_kind,
+                verdict=verdict,
+            )
+        )
         return out_fail
 
+    clear_stalemate_on_pass(run_dir)
     append_graph_trace(
         run_dir,
         {"node": "run_gate", "runner": "python", "verdict": "PASS", "error_kind": "none"},
@@ -546,6 +773,10 @@ def run_gate(state: VerifyGroupState) -> dict[str, Any]:
         "verdict": "PASS",
         "events": events,
         "error_kind": "none",
+        "sub_stop": {},
+        "stalemate": False,
+        "force_mode": "",
+        "stalemate_pattern": "",
     }
 
 
@@ -561,7 +792,12 @@ def evaluate_node(state: VerifyGroupState) -> dict[str, Any]:
 
     validation_items = state.get("validation_items")
     if not validation_items and (run_dir / "validation_items.json").is_file():
-        validation_items = json.loads((run_dir / "validation_items.json").read_text(encoding="utf-8"))
+        try:
+            validation_items = json.loads(
+                (run_dir / "validation_items.json").read_text(encoding="utf-8")
+            )
+        except json.JSONDecodeError:
+            validation_items = {}
 
     root = project_dir.parent.parent
     try:
@@ -578,7 +814,7 @@ def evaluate_node(state: VerifyGroupState) -> dict[str, Any]:
         validation_items=validation_items,
         drift_max=drift_max,
     )
-    record_drift_score(run_dir, float(drift_report.get("drift_score", 0.0)))
+    loop = record_drift_score(run_dir, float(drift_report.get("drift_score", 0.0)))
 
     block_pass = bool((policies.get("drift") or {}).get("block_pass_when_exceeded", True))
     if verdict == "PASS" and block_pass and not drift_report.get("ok", True):
@@ -612,17 +848,21 @@ def evaluate_node(state: VerifyGroupState) -> dict[str, Any]:
     if verdict == "PASS":
         verdict_path = run_dir / f"verdict_{group}.json"
         if verdict_path.is_file():
-            vdata = json.loads(verdict_path.read_text(encoding="utf-8"))
-            cache = load_yaml(project_dir / "cache.yaml")
-            tag = str((cache.get("tag") or {}).get("value") or "")
-            capture_from_verdict(
-                project_dir,
-                stage=stage,
-                group=group,
-                tag=tag,
-                verdict=vdata,
-                run_id=str(state.get("run_id", run_dir.name)),
-            )
+            try:
+                vdata = json.loads(verdict_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                vdata = None
+            if isinstance(vdata, dict):
+                cache = load_yaml(project_dir / "cache.yaml")
+                tag = str((cache.get("tag") or {}).get("value") or "")
+                capture_from_verdict(
+                    project_dir,
+                    stage=stage,
+                    group=group,
+                    tag=tag,
+                    verdict=vdata,
+                    run_id=str(state.get("run_id", run_dir.name)),
+                )
 
     out: dict[str, Any] = {
         "open_issues": open_issues,
@@ -632,6 +872,7 @@ def evaluate_node(state: VerifyGroupState) -> dict[str, Any]:
         "continue_improvement": decision.continue_improvement,
         "drift_score": drift_report.get("drift_score", 0.0),
         "drift_ok": drift_report.get("ok", True),
+        **_loop_guard_fields(loop),
     }
     return out
 
@@ -653,8 +894,8 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
     except Exception:
         policies = {}
     max_rounds = int((policies.get("bridge_loop") or {}).get("max_bridge_rounds", 8))
-    round_n = int(state.get("bridge_round", 0))
-    if round_n >= max_rounds:
+    attempt_n = int(state.get("bridge_attempt", state.get("bridge_round", 0)))
+    if attempt_n >= max_rounds:
         return {
             "verdict": "FAIL",
             "error": "bridge_round_cap",
@@ -672,7 +913,10 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
     verdict_data = None
     verdict_path = run_dir / f"verdict_{group}.json"
     if verdict_path.is_file():
-        verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
+        try:
+            verdict_data = json.loads(verdict_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            verdict_data = None
 
     payload = build_diagnose_payload(
         project_dir=project_dir,
@@ -681,7 +925,7 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
         run_dir=run_dir,
         error_kind=str(state.get("error_kind", "env")),
         verdict=verdict_data,
-        sub_stop=state.get("sub_stop"),
+        sub_stop=state.get("sub_stop") if state.get("error_kind") in ("env", "tool") else None,
     )
     write_env_diagnosis_prompt(run_dir, payload)
 
@@ -717,10 +961,7 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
     )
 
     templates_root = root / "templates"
-    for name, tpl in (
-        ("env_diagnosis.md", "env_diagnosis.md"),
-        ("bridge_patch_proposal.md", "bridge_patch_proposal.md"),
-    ):
+    for name, tpl in (("env_diagnosis.md", "env_diagnosis.md"),):
         dst = run_dir / name
         src = templates_root / tpl
         if not dst.is_file() and src.is_file():
@@ -729,8 +970,13 @@ def diagnose_env_node(state: VerifyGroupState) -> dict[str, Any]:
             dst.write_text(text, encoding="utf-8")
 
     append_graph_trace(run_dir, {"node": "diagnose_env", "error_kind": state.get("error_kind")})
-    record_transition(run_dir, "diagnose_env", error_kind=str(state.get("error_kind", "env")))
-    return {"runner": "llm", "runner_mode": "llm_diagnose_env", "error": ""}
+    loop = record_transition(run_dir, "diagnose_env", error_kind=str(state.get("error_kind", "env")))
+    return {
+        "runner": "llm",
+        "runner_mode": "llm_diagnose_env",
+        "error": "",
+        **_loop_guard_fields(loop),
+    }
 
 
 def patch_bridge_node(state: VerifyGroupState) -> dict[str, Any]:
@@ -745,17 +991,22 @@ def patch_bridge_node(state: VerifyGroupState) -> dict[str, Any]:
         run_dir,
         {"node": "patch_bridge", "applied": outcome.get("applied"), "reason": outcome.get("reason", "")},
     )
-    record_transition(
+    loop = record_transition(
         run_dir,
         "patch_bridge",
-        error_kind="applied" if outcome.get("applied") else "not_applied",
+        error_kind=str(state.get("error_kind") or "env"),
         next_node="select_runner",
     )
 
+    attempt_n = int(state.get("bridge_attempt", state.get("bridge_round", 0))) + 1
     out: dict[str, Any] = {
-        "bridge_round": int(state.get("bridge_round", 0)) + 1,
+        "bridge_attempt": attempt_n,
+        "bridge_round": attempt_n,
         "bridge_outcome": outcome,
+        **_loop_guard_fields(loop),
     }
+    if outcome.get("applied"):
+        out["error"] = ""
     if not outcome.get("applied"):
         out["error"] = "bridge_patch_not_applied"
         out["questions"] = [
@@ -767,8 +1018,6 @@ def patch_bridge_node(state: VerifyGroupState) -> dict[str, Any]:
                 "blocking": "no",
             }
         ]
-    else:
-        out["error"] = ""
     return out
 
 
@@ -788,7 +1037,10 @@ def promote_node(state: VerifyGroupState) -> dict[str, Any]:
             comp_path = run_dir / "completeness_decision.json"
             comp_dec = None
             if comp_path.is_file():
-                comp_dec = json.loads(comp_path.read_text(encoding="utf-8"))
+                try:
+                    comp_dec = json.loads(comp_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    comp_dec = None
 
             try:
                 config = load_user_config(root)
@@ -811,6 +1063,22 @@ def promote_node(state: VerifyGroupState) -> dict[str, Any]:
                 completeness_decision=comp_dec,
             )
 
+            child_ev = validate_child_after_complete(
+                root,
+                "verify_group",
+                "promote",
+                state={**dict(state), "promote_outcome": outcome},
+                run_dir=run_dir,
+            )
+            if not child_ev.ok:
+                return {
+                    "trust_score": result.trust_score,
+                    "promote_outcome": outcome,
+                    "child_evidence_blocked": child_ev.to_dict(),
+                    "error": "child_evidence",
+                    "verdict": "FAIL",
+                }
+
             crystallize_out: dict[str, Any] = {"applied": False}
             if outcome.get("promoted"):
                 crystallize_out = apply_crystallize_proposal(
@@ -829,22 +1097,31 @@ def promote_node(state: VerifyGroupState) -> dict[str, Any]:
                     "crystallize": crystallize_out,
                 },
             )
-            child_ev = validate_child_after_complete(
-                root,
-                "verify_group",
-                "promote",
-                state=dict(state),
-                run_dir=run_dir,
-            )
-            if not child_ev.ok:
-                return {
-                    "promote_outcome": outcome,
-                    "trust_score": result.trust_score,
-                    "child_evidence_blocked": child_ev.to_dict(),
-                }
             return {"promote_outcome": outcome, "trust_score": result.trust_score}
 
     return {}
+
+
+def _parity_codegen_fail_out(state: VerifyGroupState, project_dir: Path) -> dict[str, Any]:
+    root = project_dir.parent.parent
+    try:
+        policies = load_policies(root)
+    except Exception:
+        policies = {}
+    max_rounds = int((policies.get("runner_contract") or {}).get("max_codegen_rounds", 10))
+    round_n = int(state.get("codegen_round", 0))
+    if round_n >= max_rounds:
+        return {
+            "parity_ok": False,
+            "error": "codegen_round_cap",
+            "codegen_round": round_n,
+        }
+    return {
+        "parity_ok": False,
+        "runner": "llm",
+        "runner_mode": "llm_codegen",
+        "codegen_round": round_n + 1,
+    }
 
 
 def parity_check_node(state: VerifyGroupState) -> dict[str, Any]:
@@ -877,7 +1154,7 @@ def parity_check_node(state: VerifyGroupState) -> dict[str, Any]:
     script_path = resolve_group_script(project_dir, stage, group)
     if script_path is None or not script_path.is_file():
         append_graph_trace(run_dir, {"node": "parity_check", "ok": False, "reason": "no_ops"})
-        return {"parity_ok": False, "runner": "llm", "runner_mode": "llm_codegen"}
+        return _parity_codegen_fail_out(state, project_dir)
 
     try:
         py_verdict = run_python_script(
@@ -887,11 +1164,14 @@ def parity_check_node(state: VerifyGroupState) -> dict[str, Any]:
             gate=group,
         )
     except InfoGapError as e:
+        events = bump_events(dict(state.get("events") or {}), "info")
         return {
             "parity_ok": False,
-            "runner": "llm",
-            "runner_mode": "llm_codegen",
+            "info_gap": True,
             "info_gap_message": str(e),
+            "verdict": "INFO_GAP",
+            "error_kind": "info",
+            "events": events,
         }
 
     report = run_parity_check(run_dir, group, python_verdict=py_verdict.to_dict())
@@ -900,12 +1180,7 @@ def parity_check_node(state: VerifyGroupState) -> dict[str, Any]:
 
     if ok:
         return {"parity_ok": True}
-    return {
-        "parity_ok": False,
-        "runner": "llm",
-        "runner_mode": "llm_codegen",
-        "codegen_round": int(state.get("codegen_round", 0)) + 1,
-    }
+    return _parity_codegen_fail_out(state, project_dir)
 
 
 def run_codegen_node(state: VerifyGroupState) -> dict[str, Any]:
@@ -923,7 +1198,7 @@ def run_codegen_node(state: VerifyGroupState) -> dict[str, Any]:
         policies = {}
     max_rounds = int((policies.get("runner_contract") or {}).get("max_codegen_rounds", 10))
     round_n = int(state.get("codegen_round", 0))
-    if round_n >= max_rounds:
+    if round_n > max_rounds:
         return {
             "verdict": "FAIL",
             "error": "codegen_round_cap",
@@ -990,12 +1265,15 @@ def run_codegen_node(state: VerifyGroupState) -> dict[str, Any]:
         config=config,
     )
     append_graph_trace(run_dir, {"node": "run_codegen", "round": round_n})
-    return {"runner": "llm", "runner_mode": "llm_codegen", "codegen_round": round_n}
+    return {"runner": "llm", "runner_mode": "llm_codegen", "codegen_round": round_n, "error": ""}
 
 
 def finalize_reproduction_node(state: VerifyGroupState) -> dict[str, Any]:
     """After PASS+promote: ensure step script + verification_sequence entry exist."""
-    if state.get("verdict") != "PASS":
+    if state.get("child_evidence_blocked") or state.get("verdict") != "PASS":
+        return {}
+    promote_outcome = state.get("promote_outcome")
+    if isinstance(promote_outcome, dict) and promote_outcome.get("llm_decision") == "reject":
         return {}
 
     project_dir = _project_dir(state)
@@ -1075,7 +1353,7 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
     if not (run_dir / "metrics.json").is_file():
         write_run_metrics(run_dir, metrics.to_dict())
 
-    questions: list[dict[str, Any]] = list(state.get("questions", []))
+    new_questions: list[dict[str, Any]] = []
 
     if state.get("info_gap"):
         q = {
@@ -1086,7 +1364,7 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
             "blocking": "yes",
         }
         append_question(project_dir, q)
-        questions.append(q)
+        new_questions.append(q)
 
     loop = load_loop_guard(run_dir)
     if loop.stalemate:
@@ -1098,9 +1376,19 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
             "blocking": "no",
         }
         append_question(project_dir, q)
-        questions.append(q)
+        new_questions.append(q)
 
     reflect_from_run_dir(project_dir, run_dir, state.get("group", ""))
+
+    root = project_dir.parent.parent
+    training_weakness: dict[str, Any] = {}
+    if should_skip_meta_after_finalize(root, state.get("run_profile")):
+        training_weakness = integrate_training_finalize_weakness(
+            root, project_dir, run_dir, dict(state)
+        )
+        apply_training_node_guides(
+            root, project_dir, run_profile=str(state.get("run_profile") or "")
+        )
 
     append_graph_trace(
         run_dir,
@@ -1112,12 +1400,15 @@ def finalize_node(state: VerifyGroupState) -> dict[str, Any]:
         },
     )
 
-    return {
+    out: dict[str, Any] = {
         "completeness": metrics.score,
-        "questions": questions,
+        "questions": new_questions,
         "jira_allowed": state.get("jira_allowed", False),
         "continue_improvement": state.get("continue_improvement", False),
     }
+    if training_weakness:
+        out["training_weakness_count"] = training_weakness.get("weakness_count", 0)
+    return out
 
 
 def meta_collect_node(state: VerifyGroupState) -> dict[str, Any]:
@@ -1174,7 +1465,10 @@ def meta_score_node(state: VerifyGroupState) -> dict[str, Any]:
     sig_path = run_dir / "improvement_signal.json"
     snap_dict: dict[str, Any] = {}
     if sig_path.is_file():
-        signals = json.loads(sig_path.read_text(encoding="utf-8"))
+        try:
+            signals = json.loads(sig_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            signals = {}
         snap = build_snapshot(project_dir, run_dir, signals, as_of=state.get("as_of"))
         append_history(project_dir, snap)
         snap_dict = snap.to_dict()
@@ -1182,7 +1476,10 @@ def meta_score_node(state: VerifyGroupState) -> dict[str, Any]:
     sc_path = run_dir / "branch_scorecard.json"
     scorecard: dict[str, Any] = {}
     if sc_path.is_file():
-        scorecard = json.loads(sc_path.read_text(encoding="utf-8"))
+        try:
+            scorecard = json.loads(sc_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            scorecard = {}
         append_branch_history(
             project_dir,
             run_id=str(state.get("run_id", run_dir.name)),
@@ -1450,7 +1747,11 @@ def _build_verify_group_state_graph() -> StateGraph:
     g.add_edge("run_codegen", "parity_check")
     g.add_edge("promote", "finalize_reproduction")
     g.add_edge("finalize_reproduction", "finalize")
-    g.add_edge("finalize", "meta_collect")
+    g.add_conditional_edges(
+        "finalize",
+        route_after_finalize,
+        {"meta_collect": "meta_collect", "end": END},
+    )
     g.add_edge("meta_collect", "meta_score")
     g.add_edge("meta_score", "meta_propose")
     g.add_edge("meta_propose", "meta_queue")
@@ -1483,6 +1784,7 @@ def run_verify_group(
     experiment_campaign: str = "",
     experiment_condition: str = "",
     experiment_hypothesis: str = "",
+    run_profile: str = "",
     max_steps: int = 80,
 ) -> dict[str, Any]:
     """Run verify_group with node gate enforcement between every step."""
@@ -1504,6 +1806,8 @@ def run_verify_group(
         initial["experiment_condition"] = experiment_condition
     if experiment_hypothesis:
         initial["experiment_hypothesis"] = experiment_hypothesis
+    if run_profile:
+        initial["run_profile"] = run_profile
     config = {"configurable": {"thread_id": thread_id}}
 
     graph.invoke(initial, config)
@@ -1533,6 +1837,11 @@ def run_verify_group(
         state_after = dict(snap_after.values) if snap_after.values else {}
         run_dir_after = _run_dir_from_state(state_after) if state_after.get("run_id") else None
 
+        if state_after.get("child_evidence_blocked"):
+            result = dict(state_after)
+            result["error"] = "child_evidence"
+            return result
+
         gate = finalize_node_gate(
             root,
             "verify_group",
@@ -1545,4 +1854,8 @@ def run_verify_group(
         last_completed = pending
 
     final = graph.get_state(config)
-    return dict(final.values) if final.values else {}
+    result = dict(final.values) if final.values else {}
+    if list(final.next or []):
+        result["error"] = "max_steps_exhausted"
+        result["max_steps"] = max_steps
+    return result

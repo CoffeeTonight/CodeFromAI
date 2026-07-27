@@ -1,0 +1,12 @@
+scripts:
+  mini_gate.py:
+    script: mini_gate.py
+    status: draft
+    trust_score: 1.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 15
+    successes: 15
+    one_shot_success_rate: 0.06666666666666667
+    last_tag: mini-v1
+    last_result: PASS

@@ -1,0 +1,123 @@
+{
+  "contract": "agent_detect_v1",
+  "status": "CLEAN_L1",
+  "scope": "L1",
+  "scope_note": "L1: L0 + tool PATH + cpu_fw deliverable gap (no gen executed)",
+  "source_project": "OSS-SERV",
+  "toy_project": "TOY-SERV",
+  "elapsed_s": 1.943,
+  "error_count": 0,
+  "errors": [],
+  "warning_count": 4,
+  "warnings": [
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: example.sh",
+      "fix": "restore example.sh under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: Makefile",
+      "fix": "restore Makefile under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: firmware",
+      "fix": "restore firmware under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: filelists",
+      "fix": "restore filelists under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    }
+  ],
+  "completed_at": "2026-07-18T12:55:03.040133+00:00",
+  "level": 1,
+  "paradigm": "rtl_sim",
+  "flow_summary": "paradigm=rtl_sim steps=0 tools=[] structure_ok=2 deliverables_present=0; top: RTL sim/elab flow",
+  "rtl_root": "/home/user/tools/oss-soc-samples/serv",
+  "scaffold": {
+    "ok": true,
+    "project_id": "TOY-SERV",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-SERV",
+    "source_id": "OSS-SERV",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "rtl_root": "/home/user/tools/oss-soc-samples/serv",
+    "artifacts": [
+      "rtl",
+      "README.md"
+    ],
+    "spec": {
+      "contract": "toy_intake_spec_v1",
+      "source_id": "OSS-SERV",
+      "title": "SERV bit-serial RISC-V",
+      "git_url": "https://github.com/oss/oss-serv.git",
+      "local_clone_path": "/home/user/tools/oss-soc-samples/serv",
+      "rtl_subdir": "",
+      "root_marker": "README.md",
+      "required_artifacts": [
+        "rtl",
+        "README.md"
+      ],
+      "clone_path": "/home/user/tools/oss-soc-samples/serv",
+      "tag": "main",
+      "gate": "oss_smoke",
+      "stage": "sanity",
+      "paradigm": "rtl_sim",
+      "top_commands": [],
+      "optional_deliverables": [],
+      "tools": [],
+      "flow_summary": "paradigm=rtl_sim steps=0 tools=[] structure_ok=2 deliverables_present=0; top: RTL sim/elab flow",
+      "prebuilt_fw_ok": false,
+      "gen_entry": ""
+    }
+  },
+  "gate": {
+    "ok": true,
+    "exit_code": 0,
+    "verdict": {
+      "gate": "oss_smoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "evidence": [
+        "OSS smoke OK rtl_root=/home/user/tools/oss-soc-samples/serv",
+        "paradigm=rtl_sim",
+        "structure_present=2",
+        "flow_deliverables_present=0/0",
+        "source=OSS-SERV"
+      ],
+      "artifacts": {
+        "rtl_root": "/home/user/tools/oss-soc-samples/serv",
+        "root_marker": "/home/user/tools/oss-soc-samples/serv/README.md",
+        "paradigm": "rtl_sim",
+        "structure": [
+          "rtl",
+          "README.md"
+        ],
+        "flow_deliverables": [],
+        "top_commands": []
+      },
+      "trust": {
+        "script": "oss_smoke.py",
+        "version": "0.2.1"
+      },
+      "scenario": "pass"
+    },
+    "run_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-SERV/runs/detect-20260718T125501"
+  },
+  "analysis_finding_counts": {
+    "total": 4,
+    "env": 4,
+    "script": 0,
+    "high": 0
+  }
+}

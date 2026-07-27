@@ -1,0 +1,134 @@
+{
+  "contract": "agent_detect_v1",
+  "status": "ERRORS_L1",
+  "scope": "L1",
+  "scope_note": "L1: L0 + tool PATH + cpu_fw deliverable gap (no gen executed)",
+  "source_project": "OSS-PICORV32",
+  "toy_project": "TOY-PICORV32",
+  "elapsed_s": 2.241,
+  "error_count": 1,
+  "errors": [
+    {
+      "kind": "deliverable",
+      "severity": "high",
+      "summary": "L1: cpu_fw has no prebuilt hex/bin under firmware/",
+      "fix": "build firmware once or restore hex/bin artifacts",
+      "source": "l1",
+      "evidence": [
+        "firmware/**/*.hex"
+      ]
+    }
+  ],
+  "warning_count": 3,
+  "warnings": [
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: example.sh",
+      "fix": "restore example.sh under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: rtl",
+      "fix": "restore rtl under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    },
+    {
+      "kind": "env",
+      "severity": "medium",
+      "summary": "missing OSS artifact: filelists",
+      "fix": "restore filelists under rtl_root or update required_artifacts",
+      "source": "env_analyze"
+    }
+  ],
+  "completed_at": "2026-07-18T12:54:55.672490+00:00",
+  "level": 1,
+  "paradigm": "cpu_fw",
+  "flow_summary": "paradigm=cpu_fw steps=0 tools=['iverilog', 'vvp', 'verilator', 'make', 'c_compiler', 'python'] structure_ok=2 deliverables_present=0; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+  "rtl_root": "/home/user/tools/oss-soc-samples/picorv32",
+  "scaffold": {
+    "ok": true,
+    "project_id": "TOY-PICORV32",
+    "project_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-PICORV32",
+    "source_id": "OSS-PICORV32",
+    "stage": "sanity",
+    "group": "oss_smoke",
+    "rtl_root": "/home/user/tools/oss-soc-samples/picorv32",
+    "artifacts": [
+      "Makefile",
+      "firmware"
+    ],
+    "spec": {
+      "contract": "toy_intake_spec_v1",
+      "source_id": "OSS-PICORV32",
+      "title": "YosysHQ picorv32",
+      "git_url": "https://github.com/oss/oss-picorv32.git",
+      "local_clone_path": "/home/user/tools/oss-soc-samples/picorv32",
+      "rtl_subdir": "",
+      "root_marker": "Makefile",
+      "required_artifacts": [
+        "Makefile",
+        "firmware"
+      ],
+      "clone_path": "/home/user/tools/oss-soc-samples/picorv32",
+      "tag": "main",
+      "gate": "oss_smoke",
+      "stage": "sanity",
+      "paradigm": "cpu_fw",
+      "top_commands": [],
+      "optional_deliverables": [],
+      "tools": [
+        "iverilog",
+        "vvp",
+        "verilator",
+        "make",
+        "c_compiler",
+        "python"
+      ],
+      "flow_summary": "paradigm=cpu_fw steps=0 tools=['iverilog', 'vvp', 'verilator', 'make', 'c_compiler', 'python'] structure_ok=2 deliverables_present=0; top: ./example.sh gen → make elab/sim; need fw hex/bin or gen path",
+      "prebuilt_fw_ok": false,
+      "gen_entry": ""
+    }
+  },
+  "gate": {
+    "ok": true,
+    "exit_code": 0,
+    "verdict": {
+      "gate": "oss_smoke",
+      "status": "PASS",
+      "exit_code": 0,
+      "evidence": [
+        "OSS smoke OK rtl_root=/home/user/tools/oss-soc-samples/picorv32",
+        "paradigm=cpu_fw",
+        "structure_present=2",
+        "flow_deliverables_present=0/0",
+        "source=OSS-PICORV32"
+      ],
+      "artifacts": {
+        "rtl_root": "/home/user/tools/oss-soc-samples/picorv32",
+        "root_marker": "/home/user/tools/oss-soc-samples/picorv32/Makefile",
+        "paradigm": "cpu_fw",
+        "structure": [
+          "Makefile",
+          "firmware"
+        ],
+        "flow_deliverables": [],
+        "top_commands": []
+      },
+      "trust": {
+        "script": "oss_smoke.py",
+        "version": "0.2.1"
+      },
+      "scenario": "pass"
+    },
+    "run_dir": "/home/user/tools/__CFI/soc-verify-agent/projects/TOY-PICORV32/runs/detect-20260718T125453"
+  },
+  "analysis_finding_counts": {
+    "total": 3,
+    "env": 3,
+    "script": 0,
+    "high": 0
+  }
+}

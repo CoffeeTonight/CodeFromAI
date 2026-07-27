@@ -154,6 +154,11 @@ def test_graph_flow_spec_allows_finalize_to_meta_collect():
     assert result.ok is True
 
 
+def test_graph_flow_spec_allows_finalize_to_end_for_training():
+    result = validate_transition(ROOT, "verify_group", "finalize", "END")
+    assert result.ok is True
+
+
 def test_graph_flow_spec_meta_chain_edges():
     from soc_verify.graph_spec import load_flow_spec
 
@@ -163,5 +168,6 @@ def test_graph_flow_spec_meta_chain_edges():
     edges = vg.get("edges") or {}
     for node in ("meta_collect", "meta_score", "meta_propose", "meta_queue"):
         assert node in nodes
-    assert edges.get("finalize") == ["meta_collect"]
+    finalize_edges = edges.get("finalize") or []
+    assert "meta_collect" in finalize_edges
     assert edges.get("meta_propose") == ["meta_queue"]

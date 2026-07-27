@@ -82,6 +82,7 @@ def test_resolve_route_evaluate_if_pass_else_finalize(tmp_path: Path):
         "run_id": "run",
         "validation_sequence_action": "continue_remaining",
         "verdict": "PASS",
+        "validation_judgment": {"source": "llm", "sequence_action": "continue_remaining"},
     }
     route = resolve_route(ROOT, "verify_group", "run_pending_repro", state, run_dir=run_dir)
     assert route == "evaluate"
@@ -118,6 +119,25 @@ def test_llm_triage_plan_overrides_platform(tmp_path: Path):
     assert strategy["route"] == "finalize"
 
 
+def test_user_triage_apply_validation_plan_alias(tmp_path: Path) -> None:
+    project = tmp_path / "projects" / "P1"
+    run_dir = project / "runs" / "r1"
+    run_dir.mkdir(parents=True)
+    save_user_triage_override(
+        project,
+        "verify_group",
+        "apply_validation_plan",
+        sequence_action="retry_gate",
+    )
+    state = {
+        "project_dir": str(project),
+        "run_id": "r1",
+        "verdict": "FAIL",
+    }
+    route = resolve_route(ROOT, "verify_group", "run_pending_repro", state, run_dir=run_dir)
+    assert route == "select_runner"
+
+
 def test_user_triage_override(tmp_path: Path):
     project = tmp_path / "projects" / "P1"
     run_dir = project / "runs" / "r1"
@@ -136,6 +156,46 @@ def test_user_triage_override(tmp_path: Path):
     }
     route = resolve_route(ROOT, "verify_group", "run_gate", state, run_dir=run_dir)
     assert route == "finalize"
+
+
+def test_user_triage_override_wins_over_platform_plan(tmp_path: Path) -> None:
+    project = tmp_path / "projects" / "P1"
+    run_dir = project / "runs" / "r1"
+    run_dir.mkdir(parents=True)
+    write_triage_plan(
+        run_dir,
+        node_id="run_gate",
+        fail_class="env",
+        route="diagnose_env",
+        rationale_ko="platform default",
+        source="platform",
+    )
+    save_user_triage_override(
+        project,
+        "verify_group",
+        "run_gate",
+        fail_routes={"env": "finalize"},
+    )
+    state = {
+        "project_dir": str(project),
+        "run_id": "r1",
+        "verdict": "FAIL",
+        "error_kind": "env",
+    }
+    route = resolve_route(ROOT, "verify_group", "run_gate", state, run_dir=run_dir)
+    assert route == "finalize"
+    strategy = resolve_strategy(
+        ROOT,
+        "verify_group",
+        "run_gate",
+        outcome=evaluate_node_outcome(
+            ROOT, "verify_group", "run_gate", state=state, run_dir=run_dir
+        ),
+        state=state,
+        run_dir=run_dir,
+    )
+    assert strategy["source"] == "user"
+    assert strategy["route"] == "finalize"
 
 
 def test_finalize_node_gate_records_outcome(tmp_path: Path):

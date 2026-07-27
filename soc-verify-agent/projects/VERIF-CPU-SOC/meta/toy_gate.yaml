@@ -1,0 +1,16 @@
+contract: toy_gate_v1
+source_id: VERIF-CPU-SOC
+gate: oss_preflight
+stage: sanity
+root_marker: example.sh
+required_artifacts:
+- example.sh
+- Makefile
+- rtl
+- firmware
+- filelists
+- README.md
+rtl_root: /home/user/tools/__CFI/VerifCPU/verif_cpu_verilog
+env_fail_evidence: EDA tool not in PATH (scenario=env_fail)
+verif_fail_evidence: tb build artifact missing (scenario=verif_fail)
+installed_by: agent_bootcamp

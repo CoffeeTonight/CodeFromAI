@@ -1,0 +1,19 @@
+contract: toy_gate_v1
+source_id: OSS-SERV
+gate: oss_smoke
+stage: sanity
+root_marker: README.md
+required_artifacts:
+- rtl
+- README.md
+optional_deliverables: []
+rtl_root: /home/user/tools/oss-soc-samples/serv
+paradigm: rtl_sim
+top_commands: []
+tools: []
+gen_entry: ''
+prebuilt_fw_ok: false
+flow_summary: 'paradigm=rtl_sim steps=0 tools=[] structure_ok=2 deliverables_present=0;
+  top: RTL sim/elab flow'
+env_fail_evidence: EDA tool not in PATH (scenario=env_fail)
+verif_fail_evidence: tb build artifact missing (scenario=verif_fail)

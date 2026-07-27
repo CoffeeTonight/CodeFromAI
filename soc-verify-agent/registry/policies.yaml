@@ -1,5 +1,23 @@
 # Platform policies — code reads these; LLM and users cannot override via MD.
 
+profiles:
+  default: production
+  production:
+    skip_meta_after_finalize: false
+    require_held_out: true
+    auto_apply_node_guides: false
+    description: Full verify loop including meta_collect tail
+  training:
+    skip_meta_after_finalize: true
+    require_held_out: false
+    auto_apply_node_guides: true
+    description: Fast loop — finalize then END, skip meta tail
+  held_out:
+    skip_meta_after_finalize: false
+    require_held_out: true
+    auto_apply_node_guides: false
+    description: Production path with mandatory held-out self-harness reverify
+
 tag:
   on_new_tag: always_replace
 

@@ -1,4 +1,5 @@
 // Unified Firmware Pool — array (small TB) or file-backed lazy read with 4KiB page cache
+`include "verif_bus_defs.vh"
 
 module verif_cpu_unified_pool #(
   parameter MEM_WORDS = 32'h800
@@ -150,33 +151,48 @@ module verif_cpu_unified_pool #(
       if (!region_valid[cpu_id]) begin
         error = 1'b1;
         $display("[UnifiedPool] CPU%0d has no assigned firmware region", cpu_id);
-      end else if (offset + 4 > region_size[cpu_id]) begin
+      end else if (!`VERIF_BUS_SPAN_OK(offset, 32'd4, region_size[cpu_id])) begin
         error = 1'b1;
         $display("[UnifiedPool] CPU%0d read beyond region offset=0x%08h", cpu_id, offset);
       end else if (region_file_backed[cpu_id]) begin
-        byte_off   = (region_base[cpu_id] << 2) + offset;
-        page_start = byte_off & PAGE_MASK;
-        if (!page_valid[cpu_id] || page_tag[cpu_id] != page_start)
-          pool_page_load(cpu_id, byte_off);
-        if (!page_valid[cpu_id]) begin
+        // base_word<<2 must not lose bits; abs byte window non-wrapping
+        if (region_base[cpu_id] > (32'hFFFF_FFFF >> 2) ||
+            !`VERIF_BUS_SPAN_OK(region_base[cpu_id] << 2, offset + 32'd4,
+                               32'hFFFF_FFFF)) begin
           error = 1'b1;
+          $display("[UnifiedPool] CPU%0d file abs OOB base_word=0x%08h off=0x%08h",
+                   cpu_id, region_base[cpu_id], offset);
         end else begin
-          page_idx = byte_off[11:0];
-          if (page_idx + 4 > PAGE_BYTES) begin
+          byte_off   = (region_base[cpu_id] << 2) + offset;
+          page_start = byte_off & PAGE_MASK;
+          if (!page_valid[cpu_id] || page_tag[cpu_id] != page_start)
+            pool_page_load(cpu_id, byte_off);
+          if (!page_valid[cpu_id]) begin
             error = 1'b1;
-            $display("[UnifiedPool] CPU%0d word spans page boundary off=0x%08h", cpu_id, byte_off);
           end else begin
-            for (j = 0; j < 4; j = j + 1)
-              word[j*8 +: 8] = page_buf[cpu_id][page_idx + j];
+            page_idx = byte_off[11:0];
+            // Non-wrapping 4-byte window in page (page_idx near 0xFFC..FFF)
+            if (!`VERIF_BUS_SPAN_OK({20'b0, page_idx}, 32'd4, PAGE_BYTES[31:0])) begin
+              error = 1'b1;
+              $display("[UnifiedPool] CPU%0d word spans page boundary off=0x%08h",
+                       cpu_id, byte_off);
+            end else begin
+              for (j = 0; j < 4; j = j + 1)
+                word[j*8 +: 8] = page_buf[cpu_id][page_idx + j];
+            end
           end
         end
       end else begin
-        word_idx = region_base[cpu_id] + (offset >> 2);
-        if (word_idx >= MEM_WORDS) begin
+        // Non-wrapping absolute word index into data[]
+        if (!`VERIF_BUS_SPAN_OK(region_base[cpu_id], (offset >> 2) + 32'd1,
+                               MEM_WORDS[31:0])) begin
           error = 1'b1;
-          $display("[UnifiedPool] CPU%0d array index OOB idx=0x%08h", cpu_id, word_idx);
-        end else
+          $display("[UnifiedPool] CPU%0d array index OOB base=0x%08h off=0x%08h",
+                   cpu_id, region_base[cpu_id], offset);
+        end else begin
+          word_idx = region_base[cpu_id] + (offset >> 2);
           word = data[word_idx];
+        end
       end
     end
   endtask

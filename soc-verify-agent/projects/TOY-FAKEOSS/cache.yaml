@@ -1,0 +1,10 @@
+tag:
+  value: main
+  fetched_at: '2026-07-16'
+  refresh_policy:
+    interval_days: 30
+    next_refresh: '2026-07-16'
+clone:
+  path: /tmp/pytest-of-user/pytest-171/test_scaffold_writes_required_0/oss
+  valid_for_tag: main
+  fetched_at: '2026-07-16'

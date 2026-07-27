@@ -49,3 +49,14 @@ scripts:
     successes: 0
     one_shot_success_rate: 0.0
     last_tag: ''
+  oss_preflight.py:
+    script: oss_preflight.py
+    status: draft
+    trust_score: 1.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 4
+    successes: 4
+    last_result: PASS
+    one_shot_success_rate: 0.25
+    last_tag: main

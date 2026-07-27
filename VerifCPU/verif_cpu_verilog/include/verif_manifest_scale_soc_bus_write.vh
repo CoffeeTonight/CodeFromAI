@@ -3,5 +3,8 @@
           7'd1: tb_soc_manifest_scale.g_slv0.u_bus.u_bridge.bus_write(addr, data, size, resp);
           7'd2: tb_soc_manifest_scale.g_slv1.u_bus.u_bridge.bus_write(addr, data, size, resp);
           7'd3: tb_soc_manifest_scale.g_slv2.u_bus.u_bridge.bus_write(addr, data, size, resp);
-          default: resp = 2'd2;
+          default: begin
+            resp = 2'd2;
+            $fatal(1, "[BUS] bus_write_impl: unbound CPU_ID=%0d (missing bind case)", CPU_ID);
+          end
         endcase

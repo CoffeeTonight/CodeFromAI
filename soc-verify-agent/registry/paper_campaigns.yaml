@@ -1398,4 +1398,48 @@ campaigns:
       run_id: 53690a9a31ba
       graph_id: orchestrator
       verdict: PASS
-last_updated: '2026-06-23'
+    - registered_at: '2026-07-15'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: da63aaa780ae
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: FAIL
+      improvement_index: 0.6369
+    - registered_at: '2026-07-15'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 7365f0b8eda0
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.9225
+    - registered_at: '2026-07-15'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 9d7f0bc0bbd0
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.87
+    - registered_at: '2026-07-15'
+      campaign: paper_eval_2026
+      condition: treatment_full
+      hypothesis: ''
+      run_id: 9386578a0b93
+      graph_id: verify_group
+      project_id: EXAMPLE-SOC
+      stage: simulation
+      group: gpio_ext
+      verdict: PASS
+      improvement_index: 0.87
+last_updated: '2026-07-15'

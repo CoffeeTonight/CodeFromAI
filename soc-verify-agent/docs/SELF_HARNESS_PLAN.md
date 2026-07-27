@@ -44,11 +44,11 @@ Verification 실행과 함께 harness(skills, node guides, ERL heuristics)를 **
 
 ```bash
 # Project scripts
-cd ~/tools/__CFA/soc-verify-agent/projects/VERIF-CPU-SOC
+cd ~/tools/__CFI/soc-verify-agent/projects/VERIF-CPU-SOC
 bash scripts/self_harness.sh meta-collect VERIF-CPU-SOC <RUN_ID>
 
 # soc-verify CLI
-cd ~/tools/__CFA/soc-verify-agent
+cd ~/tools/__CFI/soc-verify-agent
 python -m soc_verify.cli self-harness meta-collect VERIF-CPU-SOC <RUN_ID> --root .
 python -m soc_verify.cli self-harness held-out VERIF-CPU-SOC <RUN_ID> --root .
 ```

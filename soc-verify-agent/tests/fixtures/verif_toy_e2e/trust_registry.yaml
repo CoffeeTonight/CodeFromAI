@@ -1,0 +1,13 @@
+# E2E baseline — restore before VERIF-TOY-SOC training pass laps after scenario runs.
+scripts:
+  verifcpu_smoke.py:
+    script: verifcpu_smoke.py
+    status: draft
+    trust_score: 1.0
+    version: 0.1.0
+    tied_to_tag: true
+    runs: 12
+    successes: 12
+    one_shot_success_rate: 1.0
+    last_tag: main
+    last_result: PASS

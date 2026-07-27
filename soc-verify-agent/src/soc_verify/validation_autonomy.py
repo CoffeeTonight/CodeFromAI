@@ -52,6 +52,27 @@ def load_validation_state(project_dir: Path) -> dict[str, Any]:
     return data
 
 
+def _pending_repro_key(entry: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(entry.get("item_id", "")),
+        str(entry.get("stage", "")),
+        str(entry.get("group", "")),
+        str(entry.get("run_id", "")),
+    )
+
+
+def _excluded_item_ids(project_dir: Path, *, stage: str, group: str) -> set[str]:
+    state = load_validation_state(project_dir)
+    return {
+        str(ex.get("item_id", ""))
+        for ex in (state.get("excluded_items") or [])
+        if isinstance(ex, dict)
+        and str(ex.get("stage")) == stage
+        and str(ex.get("group")) == group
+        and ex.get("item_id")
+    }
+
+
 def save_validation_state(project_dir: Path, state: dict[str, Any]) -> Path:
     path = validation_state_path(project_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -192,6 +213,11 @@ def collect_validation_items(
     log_text = _scan_run_logs(run_dir, group)
     items = _apply_log_signals(items, log_text)
 
+    excluded_ids = _excluded_item_ids(project_dir, stage=stage, group=group)
+    for item in items:
+        if str(item.get("item_id", "")) in excluded_ids:
+            item["status"] = "excluded"
+
     failing = [i for i in items if i.get("status") == "fail"]
     payload = {
         "contract": "validation_items_v1",
@@ -274,11 +300,16 @@ def _mechanical_judgment(items_payload: dict[str, Any]) -> dict[str, Any]:
             }
         )
     if not items_out:
+        verdict_status = str(items_payload.get("verdict", ""))
+        needs_retry = bool(items_payload.get("needs_judgment")) or verdict_status not in (
+            "",
+            "PASS",
+        )
         return {
             "contract": "validation_judgment_v1",
             "source": "mechanical",
             "verdict_summary_ko": "failing item 없음",
-            "sequence_action": "halt",
+            "sequence_action": "retry_gate" if needs_retry else "halt",
             "items": [],
         }
     return {
@@ -306,9 +337,27 @@ def load_validation_judgment(run_dir: Path, items_payload: dict[str, Any]) -> di
         root = Path.cwd()
     spec = load_spec(root)
     fb = (spec.get("mechanical_fallback") or {}).get("sequence_action")
-    if fb and mechanical.get("source") == "mechanical" and mechanical.get("items"):
+    if fb and mechanical.get("source") == "mechanical" and (
+        mechanical.get("items") or items_payload.get("needs_judgment")
+    ):
         mechanical["sequence_action"] = str(fb)
     return mechanical
+
+
+def resolve_validation_judgment(
+    state: dict[str, Any],
+    run_dir: Path,
+    *,
+    items_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Prefer on-disk validation_judgment.json over stale in-memory state."""
+    items = items_payload if items_payload is not None else (state.get("validation_items") or {})
+    if (run_dir / "validation_judgment.json").is_file():
+        return load_validation_judgment(run_dir, items)
+    in_mem = state.get("validation_judgment")
+    if isinstance(in_mem, dict) and in_mem:
+        return in_mem
+    return load_validation_judgment(run_dir, items)
 
 
 def apply_validation_judgment(
@@ -356,19 +405,32 @@ def apply_validation_judgment(
                     "reason": entry.get("exclude_reason", "llm_exclude"),
                 }
             )
+            pending_repro = [
+                p
+                for p in pending_repro
+                if not (
+                    isinstance(p, dict)
+                    and str(p.get("item_id")) == iid
+                    and str(p.get("stage")) == stage
+                    and str(p.get("group")) == group
+                )
+            ]
         elif action in ("reproduce", "repro_script"):
             script = str(entry.get("repro_script") or f"scripts/repro_{iid}.sh")
             repro_prompts.append(script)
-            pending_repro.append(
-                {
-                    "item_id": iid,
-                    "stage": stage,
-                    "group": group,
-                    "script": script,
-                    "run_id": run_dir.name,
-                    "prompt": f"runs/{run_dir.name}/validation_item_repro_{iid}.json",
-                }
-            )
+            repro_entry = {
+                "item_id": iid,
+                "stage": stage,
+                "group": group,
+                "script": script,
+                "run_id": run_dir.name,
+                "prompt": f"runs/{run_dir.name}/validation_item_repro_{iid}.json",
+            }
+            repro_key = _pending_repro_key(repro_entry)
+            if not any(
+                isinstance(p, dict) and _pending_repro_key(p) == repro_key for p in pending_repro
+            ):
+                pending_repro.append(repro_entry)
             prompt_path = run_dir / f"validation_item_repro_{iid}.json"
             prompt_path.write_text(
                 json.dumps(
@@ -431,6 +493,7 @@ def run_pending_repro(
         and str(p.get("group")) == group
     ]
     results: list[dict[str, Any]] = []
+    executed_keys: set[tuple[str, str, str, str]] = set()
     for entry in pending:
         item_id = str(entry.get("item_id", ""))
         script_rel = str(entry.get("script") or f"scripts/repro_{item_id}.sh")
@@ -444,6 +507,7 @@ def run_pending_repro(
                     "exit_code": None,
                 }
             )
+            executed_keys.add(_pending_repro_key(entry))
             continue
         argv = [
             "bash",
@@ -483,6 +547,16 @@ def run_pending_repro(
                 "log": f"runs/{run_id}/repro_{item_id}.log",
             }
         )
+        executed_keys.add(_pending_repro_key(entry))
+
+    if executed_keys:
+        remaining = [
+            p
+            for p in (state.get("pending_repro") or [])
+            if not (isinstance(p, dict) and _pending_repro_key(p) in executed_keys)
+        ]
+        state["pending_repro"] = remaining
+        save_validation_state(project_dir, state)
 
     payload: dict[str, Any] = {
         "contract": "validation_repro_results_v1",

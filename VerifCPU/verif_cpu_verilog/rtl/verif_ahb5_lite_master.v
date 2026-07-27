@@ -80,6 +80,11 @@ module verif_ahb5_lite_master #(
       ahb_idle();
       HNONSEC = 1'b1;
       HEXCL = 1'b0;
+      guard = 0;
+      while (!HREADY) begin
+        @(posedge HCLK);
+        `VERIF_BUS_WAIT_TICK(guard, "ahb5_lite bus_xfer pre HREADY")
+      end
       @(posedge HCLK);
       HADDR = addr;
       HSIZE = hsize_for_bytes(size);
@@ -87,14 +92,27 @@ module verif_ahb5_lite_master #(
       HWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
       HTRANS = HTRANS_NONSEQ;
       @(posedge HCLK);
+      // Data phase: sample HREADY/HRESP after NBA (#1) so 2-cycle ERROR is visible
+      // (matches verif_ahb_lite_master — bare while(!HREADY) then #1 can false-OK)
+      HTRANS = HTRANS_IDLE;
       guard = 0;
-      do begin
-        @(posedge HCLK);
-        `VERIF_BUS_WAIT_TICK(guard, "ahb5_lite bus_xfer HREADY")
-      end while (!HREADY);
-      #1;
-      if (!is_wr) rdata = lane_prdata(HRDATA, addr, size);
-      resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
+      rdata = 32'h0;
+      resp = 2'd0;
+      begin : xfer_data
+        reg saw_ready;
+        saw_ready = 1'b0;
+        while (!saw_ready) begin
+          @(posedge HCLK);
+          `VERIF_BUS_WAIT_TICK(guard, "ahb5_lite bus_xfer HREADY")
+          #1;
+          if (HREADY) begin
+            if (!is_wr)
+              rdata = lane_prdata(HRDATA, addr, size);
+            resp = (HRESP != 2'b00) ? 2'd2 : 2'd0;
+            saw_ready = 1'b1;
+          end
+        end
+      end
       snoop_valid = 1'b1;
       snoop_wr = is_wr;
       snoop_addr = addr;
@@ -105,7 +123,7 @@ module verif_ahb5_lite_master #(
     end
   endtask
 
-  task bus_read;
+  task ahb5_read;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
@@ -113,7 +131,7 @@ module verif_ahb5_lite_master #(
     begin ahb_xfer(1'b0, addr, 32'h0, size, data, resp); end
   endtask
 
-  task bus_write;
+  task ahb5_write;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
@@ -121,5 +139,16 @@ module verif_ahb5_lite_master #(
     reg [31:0] dummy;
     begin ahb_xfer(1'b1, addr, data, size, dummy, resp); end
   endtask
+
+  `include "verif_bus_split_rw.vh"
+  `VERIF_BUS_DEFINE_SPLIT_RW(ahb5_read, ahb5_write)
+
+  `include "verif_bus_os_blocking_tasks.vh"
+  `VERIF_BUS_OS_BLOCKING_IMPL
+
+  always @(negedge HRESETn) begin
+    bus_reset();
+    ahb_idle();
+  end
 
 endmodule

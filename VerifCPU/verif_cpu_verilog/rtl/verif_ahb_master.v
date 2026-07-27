@@ -1,4 +1,4 @@
-// Behavioral AHB full master — single-beat INCR + optional multiple outstanding (FIFO order)
+// Behavioral AHB full master — single-beat INCR with true address/data pipeline OS
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
@@ -30,16 +30,16 @@ module verif_ahb_master #(
   output reg [31:0] snoop_data
 );
 
-
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
   localparam HTRANS_IDLE   = 2'b00;
   localparam HTRANS_NONSEQ = 2'b10;
   localparam HBURST_INCR   = 3'b001;
 
-  // Unified outstanding slots — AHB has no IDs; responses in strict FIFO issue order
+  // Slots: issued → addr accepted (in_dphase) → done (data HREADY)
   reg        slot_busy    [0:MAX_OUTSTANDING-1];
-  reg        slot_pending [0:MAX_OUTSTANDING-1];
+  reg        slot_pending [0:MAX_OUTSTANDING-1];  // wait address accept
+  reg        slot_dphase  [0:MAX_OUTSTANDING-1];  // in data phase
   reg        slot_done    [0:MAX_OUTSTANDING-1];
   reg        slot_is_wr   [0:MAX_OUTSTANDING-1];
   reg [31:0] slot_addr    [0:MAX_OUTSTANDING-1];
@@ -50,8 +50,16 @@ module verif_ahb_master #(
   reg [31:0] slot_order   [0:MAX_OUTSTANDING-1];
   reg [31:0] complete_order;
   reg [31:0] issue_next;
-  reg [31:0] cap_slot_reg;
-  reg        cap_valid;
+  reg        dphase_active;
+  reg [31:0] dphase_slot;
+
+  // Snoop queue (sim agent taps; depth 8 — overflow drops oldest, snq_drop_count++)
+  localparam int SNQ_DEPTH = 8;
+  reg        snq_v [0:SNQ_DEPTH-1];
+  reg        snq_wr [0:SNQ_DEPTH-1];
+  reg [31:0] snq_a [0:SNQ_DEPTH-1];
+  reg [31:0] snq_d [0:SNQ_DEPTH-1];
+  integer    snq_n;
 
   function [2:0] hsize_for_bytes;
     input [2:0] sz;
@@ -64,25 +72,24 @@ module verif_ahb_master #(
     end
   endfunction
 
+  // Occupied (issued not reaped) — include done-but-unreaped
   function integer os_r_inflight;
-    integer n;
-    integer i;
+    integer n, i;
     begin
       n = 0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-        if (slot_busy[i] && !slot_done[i] && !slot_is_wr[i])
+        if (slot_busy[i] && !slot_is_wr[i])
           n = n + 1;
       os_r_inflight = n;
     end
   endfunction
 
   function integer os_w_inflight;
-    integer n;
-    integer i;
+    integer n, i;
     begin
       n = 0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-        if (slot_busy[i] && !slot_done[i] && slot_is_wr[i])
+        if (slot_busy[i] && slot_is_wr[i])
           n = n + 1;
       os_w_inflight = n;
     end
@@ -100,13 +107,13 @@ module verif_ahb_master #(
     end
   endfunction
 
-  function integer fifo_head;
+  function integer fifo_head_pending;
     integer i;
     begin
-      fifo_head = -1;
+      fifo_head_pending = -1;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
         if (slot_pending[i] && slot_order[i] == complete_order) begin
-          fifo_head = i;
+          fifo_head_pending = i;
           i = MAX_OUTSTANDING;
         end
     end
@@ -117,25 +124,60 @@ module verif_ahb_master #(
     begin
       complete_order = 0;
       issue_next = 0;
-      cap_valid = 1'b0;
-      cap_slot_reg = 0;
+      dphase_active = 1'b0;
+      dphase_slot = 0;
+      snq_n = 0;
+      for (i = 0; i < SNQ_DEPTH; i = i + 1)
+        snq_v[i] = 1'b0;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
         slot_busy[i] = 1'b0;
         slot_pending[i] = 1'b0;
+        slot_dphase[i] = 1'b0;
         slot_done[i] = 1'b0;
         slot_is_wr[i] = 1'b0;
       end
     end
   endtask
 
-  task hready_finish_slot;
+  integer snq_drop_count;
+  task snq_push;
+    input        wr;
+    input [31:0] a;
+    input [31:0] d;
+    integer i;
+    begin
+      if (snq_n < SNQ_DEPTH) begin
+        snq_wr[snq_n] = wr;
+        snq_a[snq_n]  = a;
+        snq_d[snq_n]  = d;
+        snq_v[snq_n]  = 1'b1;
+        snq_n = snq_n + 1;
+      end else begin
+        snq_drop_count = snq_drop_count + 1;
+        for (i = 0; i < SNQ_DEPTH - 1; i = i + 1) begin
+          snq_wr[i] = snq_wr[i + 1];
+          snq_a[i]  = snq_a[i + 1];
+          snq_d[i]  = snq_d[i + 1];
+          snq_v[i]  = snq_v[i + 1];
+        end
+        snq_wr[SNQ_DEPTH - 1] = wr;
+        snq_a[SNQ_DEPTH - 1]  = a;
+        snq_d[SNQ_DEPTH - 1]  = d;
+        snq_v[SNQ_DEPTH - 1]  = 1'b1;
+      end
+    end
+  endtask
+
+  task finish_dphase_slot;
     input integer cap;
     begin
       if (!slot_is_wr[cap])
         slot_rdata[cap] = lane_prdata(HRDATA, slot_addr[cap], slot_size[cap]);
       slot_resp[cap] = (HRESP != 2'b00) ? 2'd2 : 2'd0;
       slot_done[cap] = 1'b1;
-      slot_busy[cap] = 1'b0;
+      slot_dphase[cap] = 1'b0;
+      snq_push(slot_is_wr[cap], slot_addr[cap],
+               slot_is_wr[cap] ? slot_wdata[cap] : slot_rdata[cap]);
     end
   endtask
 
@@ -154,31 +196,71 @@ module verif_ahb_master #(
     snoop_wr = 1'b0;
     snoop_addr = 32'h0;
     snoop_data = 32'h0;
+    snq_drop_count = 0;
     os_reset_slots();
   end
 
-  // HREADY capture — FIFO bookkeeping on posedge; data sampled after NBA (#1 in issue)
+  // Data-phase complete first, then accept new address (AHB pipeline)
   always @(posedge HCLK or negedge HRESETn) begin
     integer slot;
+    integer si;
     if (!HRESETn) begin
-      cap_valid <= 1'b0;
       os_reset_slots();
-    end else if (HREADY && HTRANS == HTRANS_NONSEQ) begin
-      slot = fifo_head();
-      if (slot >= 0) begin
-        cap_slot_reg <= slot;
-        cap_valid <= 1'b1;
-        slot_pending[slot] <= 1'b0;
-        complete_order <= complete_order + 1;
+      snoop_valid <= 1'b0;
+      HTRANS <= HTRANS_IDLE;
+      HWRITE <= 1'b0;
+      HWDATA <= {DATA_WIDTH{1'b0}};
+    end else begin
+      if (HREADY) begin
+        // 1) Complete active data phase on this ready edge
+        if (dphase_active) begin
+          finish_dphase_slot(dphase_slot);
+          dphase_active = 1'b0;
+        end
+        // 2) Accept address of NONSEQ → enters data phase next ready
+        if (HTRANS == HTRANS_NONSEQ) begin
+          slot = fifo_head_pending();
+          if (slot >= 0) begin
+            slot_pending[slot] = 1'b0;
+            slot_dphase[slot] = 1'b1;
+            dphase_slot = slot;
+            dphase_active = 1'b1;
+            complete_order = complete_order + 1;
+            // NBA: prior write may complete this same HREADY edge; slaves sample
+            // HWDATA before NBA, so next-beat data must not appear mid-edge (blocking =).
+            if (slot_is_wr[slot])
+              HWDATA <= lane_pwdata(slot_wdata[slot], slot_addr[slot],
+                                    slot_size[slot]);
+          end
+        end
       end
+      // Drain one snoop pulse per cycle (shift queue)
+      if (snq_n > 0 && snq_v[0]) begin
+        snoop_valid <= 1'b1;
+        snoop_wr    <= snq_wr[0];
+        snoop_addr  <= snq_a[0];
+        snoop_data  <= snq_d[0];
+        for (si = 0; si < SNQ_DEPTH - 1; si = si + 1) begin
+          snq_v[si]  = snq_v[si + 1];
+          snq_wr[si] = snq_wr[si + 1];
+          snq_a[si]  = snq_a[si + 1];
+          snq_d[si]  = snq_d[si + 1];
+        end
+        snq_v[SNQ_DEPTH - 1] = 1'b0;
+        snq_n = snq_n - 1;
+      end else
+        snoop_valid <= 1'b0;
     end
   end
 
   task ahb_idle;
     begin
       HTRANS = HTRANS_IDLE;
-      HWRITE = 1'b0;
-      HWDATA = 32'h0;
+      // Keep HWDATA if a write is still in data phase
+      if (!(dphase_active && slot_is_wr[dphase_slot])) begin
+        HWRITE = 1'b0;
+        HWDATA = 32'h0;
+      end
       HEXCL = 1'b0;
     end
   endtask
@@ -197,6 +279,7 @@ module verif_ahb_master #(
     end
   endtask
 
+  // Issue: drive address phase only; data completes in always @ HREADY
   task ahb_xfer_issue;
     input        is_wr;
     input [31:0] addr;
@@ -206,6 +289,13 @@ module verif_ahb_master #(
     output        ok;
     integer guard;
     begin
+      // Unaligned multi-byte needs blocking bus_read/write (split)
+      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
+          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+        handle = -1;
+        ok = 1'b0;
+        $display("[ahb_os] xfer_issue: unaligned size=%0d @0x%08h — use bus_read/write", size, addr);
+      end else begin
       handle = alloc_slot();
       ok = (handle >= 0);
       if (!ok) begin
@@ -213,6 +303,7 @@ module verif_ahb_master #(
       end else begin
         slot_busy[handle] = 1'b1;
         slot_pending[handle] = 1'b0;
+        slot_dphase[handle] = 1'b0;
         slot_done[handle] = 1'b0;
         slot_is_wr[handle] = is_wr;
         slot_addr[handle] = addr;
@@ -220,28 +311,38 @@ module verif_ahb_master #(
         slot_size[handle] = size;
         slot_order[handle] = issue_next;
         issue_next = issue_next + 1;
-        ahb_idle();
+
+        // Wait until bus can accept a new address (no wait on prior data-only)
+        guard = 0;
+        while (!HREADY) begin
+          @(posedge HCLK);
+          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_xfer_issue pre HREADY")
+        end
         @(posedge HCLK);
         ahb_drive_common(addr, size);
         HWRITE = is_wr;
-        HWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
+        // Hold prior write HWDATA through this edge if a write data phase is
+        // still active (same edge may complete that write; slave samples HWDATA).
+        // Always-block installs next write data on NONSEQ accept after complete.
+        // Clearing/replacing here races dual-outstanding write→write / write→read.
+        if (!(dphase_active && slot_is_wr[dphase_slot]))
+          HWDATA = is_wr ? lane_pwdata(wdata, addr, size) : 32'h0;
         HTRANS = HTRANS_NONSEQ;
         slot_pending[handle] = 1'b1;
-        @(posedge HCLK);
+        // Wait for address accept (pending cleared by always on HREADY+NONSEQ)
         guard = 0;
-        do begin
+        while (slot_pending[handle]) begin
           @(posedge HCLK);
-          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_xfer_issue HREADY")
-        end while (!HREADY);
-        #1;
-        hready_finish_slot(handle);
-        cap_valid = 1'b0;
-        ahb_idle();
+          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_xfer_issue addr accept")
+        end
+        // Idle address bus; write data held by always-block install / hold rule
+        HTRANS = HTRANS_IDLE;
+        // Do NOT wait for slot_done — true outstanding
+      end
       end
     end
   endtask
 
-  // --- Outstanding read API ---
   task bus_read_issue;
     input  [31:0] addr;
     input  [2:0]  size;
@@ -249,8 +350,6 @@ module verif_ahb_master #(
     output        ok;
     begin
       ahb_xfer_issue(1'b0, addr, 32'h0, size, handle, ok);
-      if (!ok)
-        $display("[ahb_os] bus_read_issue: outstanding full (MAX=%0d)", MAX_OUTSTANDING);
     end
   endtask
 
@@ -260,9 +359,16 @@ module verif_ahb_master #(
     output [1:0]  resp;
     output        done;
     begin
-      done = slot_done[handle];
-      data = slot_rdata[handle];
-      resp = slot_resp[handle];
+      if (handle < 0 || handle >= MAX_OUTSTANDING ||
+          !slot_busy[handle] || slot_is_wr[handle]) begin
+        done = 1'b0;
+        data = 32'h0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = slot_done[handle];
+        data = slot_rdata[handle];
+        resp = slot_resp[handle];
+      end
     end
   endtask
 
@@ -272,22 +378,23 @@ module verif_ahb_master #(
     output [1:0]  resp;
     integer guard;
     begin
-      guard = 0;
-      while (!slot_done[handle]) begin
-        @(posedge HCLK);
-        `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_read_wait")
+      if (handle < 0 || handle >= MAX_OUTSTANDING ||
+          !slot_busy[handle] || slot_is_wr[handle]) begin
+        data = 32'hDEADDEAD;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!slot_done[handle]) begin
+          @(posedge HCLK);
+          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_read_wait")
+        end
+        data = slot_rdata[handle];
+        resp = slot_resp[handle];
+        slot_busy[handle] = 1'b0;
+        slot_pending[handle] = 1'b0;
+        slot_dphase[handle] = 1'b0;
+        slot_done[handle] = 1'b0;
       end
-      data = slot_rdata[handle];
-      resp = slot_resp[handle];
-      slot_busy[handle] = 1'b0;
-      slot_pending[handle] = 1'b0;
-      slot_done[handle] = 1'b0;
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b0;
-      snoop_addr = slot_addr[handle];
-      snoop_data = data;
-      @(posedge HCLK);
-      snoop_valid = 1'b0;
     end
   endtask
 
@@ -296,7 +403,6 @@ module verif_ahb_master #(
     begin n = os_r_inflight(); end
   endtask
 
-  // --- Outstanding write API ---
   task bus_write_issue;
     input  [31:0] addr;
     input  [31:0] data;
@@ -305,8 +411,6 @@ module verif_ahb_master #(
     output        ok;
     begin
       ahb_xfer_issue(1'b1, addr, data, size, handle, ok);
-      if (!ok)
-        $display("[ahb_os] bus_write_issue: outstanding full (MAX=%0d)", MAX_OUTSTANDING);
     end
   endtask
 
@@ -315,8 +419,14 @@ module verif_ahb_master #(
     output [1:0] resp;
     output       done;
     begin
-      done = slot_done[handle];
-      resp = slot_resp[handle];
+      if (handle < 0 || handle >= MAX_OUTSTANDING ||
+          !slot_busy[handle] || !slot_is_wr[handle]) begin
+        done = 1'b0;
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        done = slot_done[handle];
+        resp = slot_resp[handle];
+      end
     end
   endtask
 
@@ -325,21 +435,21 @@ module verif_ahb_master #(
     output [1:0] resp;
     integer guard;
     begin
-      guard = 0;
-      while (!slot_done[handle]) begin
-        @(posedge HCLK);
-        `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_write_wait")
+      if (handle < 0 || handle >= MAX_OUTSTANDING ||
+          !slot_busy[handle] || !slot_is_wr[handle]) begin
+        resp = `VERIF_BUS_RESP_SOFT;
+      end else begin
+        guard = 0;
+        while (!slot_done[handle]) begin
+          @(posedge HCLK);
+          `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_write_wait")
+        end
+        resp = slot_resp[handle];
+        slot_busy[handle] = 1'b0;
+        slot_pending[handle] = 1'b0;
+        slot_dphase[handle] = 1'b0;
+        slot_done[handle] = 1'b0;
       end
-      resp = slot_resp[handle];
-      slot_busy[handle] = 1'b0;
-      slot_pending[handle] = 1'b0;
-      slot_done[handle] = 1'b0;
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b1;
-      snoop_addr = slot_addr[handle];
-      snoop_data = slot_wdata[handle];
-      @(posedge HCLK);
-      snoop_valid = 1'b0;
     end
   endtask
 
@@ -348,8 +458,7 @@ module verif_ahb_master #(
     begin n = os_w_inflight(); end
   endtask
 
-  // Blocking API — issue + wait (backward compatible)
-  task bus_read;
+  task bus_read_1beat;
     input  [31:0] addr;
     input  [2:0]  size;
     output [31:0] data;
@@ -360,13 +469,13 @@ module verif_ahb_master #(
       bus_read_issue(addr, size, h, ok);
       if (!ok) begin
         data = 32'h0;
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
       end else
         bus_read_wait(h, data, resp);
     end
   endtask
 
-  task bus_write;
+  task bus_write_1beat;
     input  [31:0] addr;
     input  [31:0] data;
     input  [2:0]  size;
@@ -376,10 +485,13 @@ module verif_ahb_master #(
     begin
       bus_write_issue(addr, data, size, h, ok);
       if (!ok)
-        resp = 2'd2;
+        resp = `VERIF_BUS_RESP_SOFT;
       else
         bus_write_wait(h, resp);
     end
   endtask
+
+  `include "verif_bus_split_rw.vh"
+  `VERIF_BUS_DEFINE_SPLIT_RW(bus_read_1beat, bus_write_1beat)
 
 endmodule

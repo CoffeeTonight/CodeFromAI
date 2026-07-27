@@ -25,8 +25,8 @@ reg        soc_manifest_pool_err;
   u_pool.pool_assign_region(4'd1, `SOC_MANIFEST_POOL_SFR, FW_SIZE); \
   u_pool.pool_assign_region(4'd2, `SOC_MANIFEST_POOL_SRAM, FW_SIZE); \
   u_pool.pool_assign_region(4'd3, `SOC_MANIFEST_POOL_UART, FW_SIZE); \
-  u_pool.pool_assign_region(4'd4, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \
-  u_pool.pool_read_word(4'd4, `ICODE_POOL_BASE, soc_manifest_pool_word, soc_manifest_pool_err); \
+  u_pool.pool_assign_region(4'd15, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ); \
+  u_pool.pool_read_word(4'd15, `ICODE_POOL_BASE, soc_manifest_pool_word, soc_manifest_pool_err); \
 
 `define SOC_MANIFEST_SETUP_CPUS \
   soc_manifest_setup_cpu(4'd1, "SFR     ", `SOC_MANIFEST_POOL_SFR); \

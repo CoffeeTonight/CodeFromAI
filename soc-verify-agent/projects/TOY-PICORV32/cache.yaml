@@ -1,0 +1,10 @@
+tag:
+  value: main
+  fetched_at: '2026-07-18'
+  refresh_policy:
+    interval_days: 30
+    next_refresh: '2026-07-18'
+clone:
+  path: /home/user/tools/oss-soc-samples/picorv32
+  valid_for_tag: main
+  fetched_at: '2026-07-18'

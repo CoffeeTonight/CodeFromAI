@@ -1,0 +1,6 @@
+project_id: OSS-SERV-CLONE
+title: OSS-SERV-CLONE
+local_clone_path: /home/user/tools/oss-soc-samples/serv
+rtl_subdir: ''
+root_marker: README.md
+source: onboard_clone

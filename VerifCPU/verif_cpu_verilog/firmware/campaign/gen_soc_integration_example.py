@@ -59,7 +59,6 @@ def emit_direct_cell_instance(s: dict) -> list[str]:
             f"{indent}.PRDATA({pref}_PRDATA), .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR),"
         )
     elif bt.startswith("ahb"):
-        hexok = f"\n{indent}.HEXOK(1'b1)," if bt in ("ahb5_lite", "ahb") else ""
         if bt == "ahb_lite":
             bus_ports = (
                 f"{indent}.HADDR({pref}_HADDR), .HSIZE({pref}_HSIZE), .HTRANS({pref}_HTRANS),"
@@ -83,7 +82,7 @@ def emit_direct_cell_instance(s: dict) -> list[str]:
                 f"\n{indent}.HRDATA({pref}_HRDATA), .HREADY({pref}_HREADYOUT),"
                 f" .HRESP({pref}_HRESP), .HEXOK({pref}_HEXOK),"
             )
-        lines.append(f"{indent}.HCLK(soc_clk), .HRESETn(soc_rstn),{hexok}")
+        lines.append(f"{indent}.HCLK(soc_clk), .HRESETn(soc_rstn),")
         lines.append(bus_ports)
     elif bt == "axi4lite":
         lines.extend([

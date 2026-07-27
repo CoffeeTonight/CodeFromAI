@@ -1,0 +1,15 @@
+contract: toy_gate_v1
+source_id: FAKE-OSS
+gate: oss_smoke
+stage: sanity
+root_marker: example.sh
+required_artifacts:
+- example.sh
+- Makefile
+- rtl
+- firmware
+- filelists
+- README.md
+rtl_root: /tmp/pytest-of-user/pytest-171/test_scaffold_writes_required_0/oss/rtl_drop
+env_fail_evidence: EDA tool not in PATH (scenario=env_fail)
+verif_fail_evidence: tb build artifact missing (scenario=verif_fail)

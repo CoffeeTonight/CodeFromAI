@@ -41,6 +41,7 @@
   wire [VERIF_ADDR_WIDTH-1:0] S03_AXI_araddr, S03_AXI_awaddr;
   wire [VERIF_DATA_WIDTH-1:0] S03_AXI_wdata, S03_AXI_rdata;
   wire [2:0]  S03_AXI_arsize, S03_AXI_awsize;
+  wire [2:0]  S03_AXI_arprot, S03_AXI_awprot;
   wire [VERIF_STRB_WIDTH-1:0] S03_AXI_wstrb;
   wire [1:0]  S03_AXI_rresp, S03_AXI_bresp;
 
@@ -66,7 +67,7 @@
     .ARID({VERIF_AXI_ID_WIDTH{1'b0}}), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
     .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
     .RID(u_stub_uart_rid), .RDATA(S03_AXI_rdata), .RRESP(S03_AXI_rresp),
-    .RLAST(S03_AXI_rvalid), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
+    .RLAST(), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
     .AWID({VERIF_AXI_ID_WIDTH{1'b0}}), .AWADDR(S03_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S03_AXI_awsize),
     .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
     .WID({VERIF_AXI_ID_WIDTH{1'b0}}), .WDATA(S03_AXI_wdata), .WSTRB(S03_AXI_wstrb), .WLAST(1'b1),

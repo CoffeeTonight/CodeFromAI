@@ -1,0 +1,10 @@
+tag:
+  value: main
+  fetched_at: '2026-07-16'
+  refresh_policy:
+    interval_days: 30
+    next_refresh: '2026-08-16'
+clone:
+  path: /home/user/tools/__CFI
+  valid_for_tag: main
+  fetched_at: '2026-07-16'

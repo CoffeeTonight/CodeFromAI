@@ -1,0 +1,6 @@
+project_id: OSS-PICO-ONBOARD
+title: OSS-PICO-ONBOARD
+local_clone_path: /home/user/tools/oss-soc-samples/picorv32
+rtl_subdir: ''
+root_marker: Makefile
+source: onboard_clone

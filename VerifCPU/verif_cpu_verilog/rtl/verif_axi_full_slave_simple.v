@@ -1,5 +1,6 @@
 // AXI3/4/5 full slave — single-beat + optional latency / reorder for perf verification
 `timescale 1ns/1ps
+`include "verif_bus_defs.vh"
 
 module verif_axi_full_slave_simple #(
   parameter int ADDR_WIDTH = 32,
@@ -50,6 +51,9 @@ module verif_axi_full_slave_simple #(
   input         BREADY
 );
 
+  localparam int STRB_WIDTH = DATA_WIDTH / 8;
+  localparam [31:0] BEAT_ALIGN_MASK = ~(STRB_WIDTH - 1);
+
   reg [7:0] mem [0:SIZE-1];
 
   // Read request queue
@@ -87,10 +91,18 @@ module verif_axi_full_slave_simple #(
   integer i;
   reg [31:0] wacc_addr;
 
+  // Start address in window and full beat (STRB_WIDTH bytes at aligned off) fits mem[]
+  // Non-wrapping: acc+STRB_WIDTH must not wrap past SIZE (false-accept → mem OOB)
   function integer addr_in_range;
     input [ADDR_WIDTH-1:0] addr;
+    reg [31:0] acc;
     begin
-      addr_in_range = ((addr >= BASE) && (addr < BASE + SIZE)) ? 1 : 0;
+      if (!`VERIF_BUS_REL_SPAN_OK(addr, 32'd1, BASE, SIZE))
+        addr_in_range = 0;
+      else begin
+        acc = (addr - BASE) & BEAT_ALIGN_MASK;
+        addr_in_range = `VERIF_BUS_SPAN_OK(acc, STRB_WIDTH[31:0], SIZE) ? 1 : 0;
+      end
     end
   endfunction
 
@@ -102,12 +114,17 @@ module verif_axi_full_slave_simple #(
     end
   endfunction
 
-  function [DATA_WIDTH-1:0] mem_read_word;
+  function [DATA_WIDTH-1:0] mem_read_beat;
     input [ADDR_WIDTH-1:0] addr;
     reg [31:0] acc;
+    integer bi;
+    reg [DATA_WIDTH-1:0] tmp;
     begin
-      acc = (addr - BASE) & 32'hFFFFFFFC;
-      mem_read_word = {mem[acc + 3], mem[acc + 2], mem[acc + 1], mem[acc + 0]};
+      acc = (addr - BASE) & BEAT_ALIGN_MASK;
+      tmp = {DATA_WIDTH{1'b0}};
+      for (bi = 0; bi < STRB_WIDTH; bi = bi + 1)
+        tmp[bi*8 +: 8] = mem[acc + bi];
+      mem_read_beat = tmp;
     end
   endfunction
 
@@ -123,7 +140,9 @@ module verif_axi_full_slave_simple #(
     reg [31:0]             align_base;
     reg [31:0]             offset;
     begin
-      if (burst == 2'b10) begin
+      if (burst == 2'b00)
+        axi_burst_addr = base_addr;  // FIXED
+      else if (burst == 2'b10) begin
         wrap_bytes = (blen + 1) << axsize;
         wrap_mask = wrap_bytes - 1;
         align_base = base_addr & ~wrap_mask;
@@ -148,14 +167,18 @@ module verif_axi_full_slave_simple #(
     reg [31:0]             wrap_end;
     reg [31:0]             next;
     begin
-      next = cur + (1 << axsize);
-      if (burst == 2'b10) begin
-        wrap_bytes = (blen + 1) << axsize;
-        wrap_mask = wrap_bytes - 1;
-        align_base = start & ~wrap_mask;
-        wrap_end = align_base + wrap_bytes;
-        if (next >= wrap_end)
-          next = align_base + (next - wrap_end);
+      if (burst == 2'b00)
+        next = cur;
+      else begin
+        next = cur + (1 << axsize);
+        if (burst == 2'b10) begin
+          wrap_bytes = (blen + 1) << axsize;
+          wrap_mask = wrap_bytes - 1;
+          align_base = start & ~wrap_mask;
+          wrap_end = align_base + wrap_bytes;
+          if (next >= wrap_end)
+            next = align_base + (next - wrap_end);
+        end
       end
       axi_next_burst_addr = next;
     end
@@ -234,6 +257,17 @@ module verif_axi_full_slave_simple #(
 
   always @(*) begin
     ar_ready_w = (rq_count < MAX_OUTSTANDING) && (rq_find_free() >= 0);
+    // Combo WREADY: never accept last W unless B queue has space (no 1-cycle lag)
+    WREADY = 1'b0;
+    if (ARESETn && aw_latched) begin
+      // Last beat requires WLAST (or single-beat AWLEN=0)
+      if (WVALID && (WLAST || (lat_awlen == 8'd0)))
+        WREADY = (bq_find_free() >= 0) && (bq_count < MAX_OUTSTANDING);
+      else if (WVALID)
+        WREADY = 1'b1;
+      else
+        WREADY = 1'b1;
+    end
   end
 
   initial begin
@@ -241,7 +275,6 @@ module verif_axi_full_slave_simple #(
     RID = {ID_WIDTH{1'b0}};
     RVALID = 1'b0;
     RLAST = 1'b0;
-    WREADY = 1'b0;
     BID = {ID_WIDTH{1'b0}};
     BVALID = 1'b0;
     rq_count = 0;
@@ -250,7 +283,7 @@ module verif_axi_full_slave_simple #(
       rq_valid[i] = 1'b0;
       bq_valid[i] = 1'b0;
     end
-    for (i = 0; i < 4096; i = i + 1)
+    for (i = 0; i < SIZE; i = i + 1)
       mem[i] = 8'h0;
     mem[0] = INIT_WORD0[7:0];
     mem[1] = INIT_WORD0[15:8];
@@ -264,12 +297,13 @@ module verif_axi_full_slave_simple #(
 
   always @(posedge ACLK or negedge ARESETn) begin
     integer slot;
+    integer rq_delta;
+    integer bq_delta;
     if (!ARESETn) begin
       aw_latched <= 1'b0;
       RID <= {ID_WIDTH{1'b0}};
       RVALID <= 1'b0;
       RLAST <= 1'b0;
-      WREADY <= 1'b0;
       BID <= {ID_WIDTH{1'b0}};
       BVALID <= 1'b0;
       rq_count <= 0;
@@ -279,9 +313,9 @@ module verif_axi_full_slave_simple #(
         bq_valid[i] <= 1'b0;
       end
     end else begin
-      WREADY <= 1'b0;
+      rq_delta = 0;
+      bq_delta = 0;
 
-      // Level-sensitive AR handshake at posedge (same-cycle VALID+READY safe)
       if (ar_hs) begin
         slot = rq_find_free();
         if (slot >= 0 && rq_count < MAX_OUTSTANDING) begin
@@ -294,51 +328,56 @@ module verif_axi_full_slave_simple #(
           rq_arsize[slot] <= ARSIZE;
           rq_beat[slot] <= 8'd0;
           rq_timer[slot] <= R_LATENCY[7:0];
-          rq_count <= rq_count + 1;
+          rq_delta = rq_delta + 1;
         end else begin
           $error("axi_full_slave: AR handshake without free read slot");
         end
       end
 
-      // Tick read queue timers
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
         if (rq_valid[i] && rq_timer[i] != 0)
           rq_timer[i] <= rq_timer[i] - 1;
 
-      // Serve read response (INCR / WRAP multi-beat)
+      // Present beat without freeing; advance/free only on R handshake
       if (!RVALID) begin
         slot = rq_pick_ready();
         if (slot >= 0) begin
           RID <= rq_id[slot];
           beat_addr = rq_cur_addr[slot];
           if (addr_is_decerr(beat_addr) != 0) begin
-            RDATA <= 32'h0;
+            RDATA <= {DATA_WIDTH{1'b0}};
             RRESP <= 2'b11;
           end else if (addr_in_range(beat_addr) != 0) begin
-            RDATA <= mem_read_word(beat_addr);
+            RDATA <= mem_read_beat(beat_addr);
             RRESP <= 2'b00;
           end else begin
-            RDATA <= 32'h0;
+            RDATA <= {DATA_WIDTH{1'b0}};
             RRESP <= 2'b10;
           end
+          RLAST <= (rq_beat[slot] >= rq_arlen[slot]);
+          RVALID <= 1'b1;
+        end
+      end else if (RVALID && RREADY) begin
+        slot = -1;
+        for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
+          if (rq_valid[i] && rq_id[i] == RID && rq_timer[i] == 0) begin
+            slot = i;
+            i = MAX_OUTSTANDING;
+          end
+        if (slot >= 0) begin
           if (rq_beat[slot] >= rq_arlen[slot]) begin
-            RLAST <= 1'b1;
             rq_valid[slot] <= 1'b0;
-            rq_count <= rq_count - 1;
+            rq_delta = rq_delta - 1;
           end else begin
-            RLAST <= 1'b0;
             rq_beat[slot] <= rq_beat[slot] + 1'b1;
             rq_cur_addr[slot] <= axi_next_burst_addr(rq_cur_addr[slot], rq_addr[slot],
                                                      rq_arlen[slot], rq_burst[slot], rq_arsize[slot]);
           end
-          RVALID <= 1'b1;
         end
-      end else if (RVALID && RREADY) begin
         RVALID <= 1'b0;
         RLAST <= 1'b0;
       end
 
-      // Level-sensitive AW handshake at posedge
       if (aw_hs) begin
         lat_awaddr <= AWADDR;
         lat_awid <= AWID;
@@ -351,7 +390,6 @@ module verif_axi_full_slave_simple #(
         aw_latched <= 1'b1;
       end
 
-      // Multi-beat write — one W beat per handshake (level-sensitive WVALID&&WREADY at posedge)
       if (w_hs) begin
         beat_addr = axi_burst_addr(lat_awaddr, w_beat, lat_awlen, lat_awburst, lat_awsize);
         if (addr_is_decerr(beat_addr) != 0)
@@ -359,30 +397,26 @@ module verif_axi_full_slave_simple #(
         else if (addr_in_range(beat_addr) == 0)
           w_any_slverr <= 1'b1;
         else begin
-          wacc_addr = (beat_addr - BASE) & 32'hFFFFFFFC;
-          if (WSTRB[0]) mem[wacc_addr + 0] <= WDATA[7:0];
-          if (WSTRB[1]) mem[wacc_addr + 1] <= WDATA[15:8];
-          if (WSTRB[2]) mem[wacc_addr + 2] <= WDATA[23:16];
-          if (WSTRB[3]) mem[wacc_addr + 3] <= WDATA[31:24];
+          wacc_addr = (beat_addr - BASE) & BEAT_ALIGN_MASK;
+          for (i = 0; i < STRB_WIDTH; i = i + 1)
+            if (WSTRB[i])
+              mem[wacc_addr + i] <= WDATA[i*8 +: 8];
         end
-        WREADY <= 1'b1;
-        if (WLAST) begin
+        if (WLAST || (lat_awlen == 8'd0)) begin
           slot = bq_find_free();
           if (slot >= 0 && bq_count < MAX_OUTSTANDING) begin
             bq_valid[slot] <= 1'b1;
             bq_id[slot] <= lat_awid;
-            // Combine prior beats + this beat (NBA w_any_* may lag one cycle)
             bq_decerr[slot] <= w_any_decerr | (addr_is_decerr(beat_addr) != 0);
             bq_slverr[slot] <= w_any_slverr |
               ((addr_in_range(beat_addr) == 0) && (addr_is_decerr(beat_addr) == 0));
             bq_timer[slot] <= B_LATENCY[7:0];
-            bq_count <= bq_count + 1;
+            bq_delta = bq_delta + 1;
             aw_latched <= 1'b0;
           end
         end else
           w_beat <= w_beat + 1'b1;
-      end else if (aw_latched)
-        WREADY <= 1'b1;
+      end
 
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
         if (bq_valid[i] && bq_timer[i] != 0)
@@ -395,10 +429,15 @@ module verif_axi_full_slave_simple #(
           BRESP <= bq_decerr[slot] ? 2'b11 : (bq_slverr[slot] ? 2'b10 : 2'b00);
           BVALID <= 1'b1;
           bq_valid[slot] <= 1'b0;
-          bq_count <= bq_count - 1;
+          bq_delta = bq_delta - 1;
         end
       end else if (BVALID && BREADY)
         BVALID <= 1'b0;
+
+      if (rq_delta != 0)
+        rq_count <= rq_count + rq_delta;
+      if (bq_delta != 0)
+        bq_count <= bq_count + bq_delta;
     end
   end
 

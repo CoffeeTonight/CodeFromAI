@@ -1,0 +1,13 @@
+project_id: TOY-OSSSERVONBOARD
+source: toy_scaffold_from_OSS-SERV-ONBOARD
+title: OSS-SERV-ONBOARD
+git_url: git@example.com:rtl/unknown.git
+local_clone_path: /home/user/tools/oss-soc-samples/serv
+rtl_subdir: ''
+root_marker: README.md
+doc_rev: r1.0
+doc_path: oss/OSS-SERV-ONBOARD
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-19'
+  source: toy_scaffold_from_OSS-SERV-ONBOARD

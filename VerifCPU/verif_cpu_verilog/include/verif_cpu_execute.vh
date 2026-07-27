@@ -21,71 +21,64 @@ task execute_instruction;
       exec_custom(funct7, rd, rs1, rs2, imm);
     end
     else if (opcode == `OPCODE_LOAD) begin
+      // size = AMBA byte count (1/2/4) for masters' lane_prdata / AxSIZE
       rs1_val = read_reg_fn(rs1);
       addr = rs1_val + imm;
-      if (funct3 == 3'h2)
-        do_bus_read(addr, 3'd4, bus_data);
-      else
-        do_bus_read({addr[31:2], 2'b00}, 3'd4, bus_data);
       if ((funct3 == 3'h1 || funct3 == 3'h5) && addr[1:0] == 2'd3) begin
-        bus_data_hi = addr + 32'd4;
-        do_bus_read({bus_data_hi[31:2], 2'b00}, 3'd4, bus_data_hi);
-        load_half = {bus_data_hi[7:0], bus_data[31:24]};
-      end
-      case (funct3)
-        3'h0: begin
-          case (addr[1:0])
-            2'd0: load_byte = bus_data[7:0];
-            2'd1: load_byte = bus_data[15:8];
-            2'd2: load_byte = bus_data[23:16];
-            default: load_byte = bus_data[31:24];
-          endcase
-          result = {{24{load_byte[7]}}, load_byte};
-          $sformat(step_disasm, "lb x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-        3'h1: begin
-          if (addr[1:0] != 2'd3) begin
-            case (addr[1:0])
-              2'd0: load_half = bus_data[15:0];
-              2'd1: load_half = bus_data[23:8];
-              2'd2: load_half = bus_data[31:16];
-              default: load_half = 16'h0;
-            endcase
+        // misaligned half: two byte reads; stop after first bus fault
+        do_bus_read(addr, 3'd1, bus_data);
+        if (last_bus_err) begin
+          result = 32'hDEADDEAD;
+        end else begin
+          do_bus_read(addr + 32'd1, 3'd1, bus_data_hi);
+          if (last_bus_err)
+            result = 32'hDEADDEAD;
+          else begin
+            load_half = {bus_data_hi[7:0], bus_data[7:0]};
+            result = (funct3 == 3'h1) ? {{16{load_half[15]}}, load_half}
+                                     : {16'h0, load_half};
           end
-          result = {{16{load_half[15]}}, load_half};
+        end
+        if (funct3 == 3'h1)
           $sformat(step_disasm, "lh x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-        3'h2: begin
-          result = bus_data;
-          $sformat(step_disasm, "lw x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-        3'h4: begin
-          case (addr[1:0])
-            2'd0: load_byte = bus_data[7:0];
-            2'd1: load_byte = bus_data[15:8];
-            2'd2: load_byte = bus_data[23:16];
-            default: load_byte = bus_data[31:24];
-          endcase
-          result = {24'h0, load_byte};
-          $sformat(step_disasm, "lbu x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-        3'h5: begin
-          if (addr[1:0] != 2'd3) begin
-            case (addr[1:0])
-              2'd0: load_half = bus_data[15:0];
-              2'd1: load_half = bus_data[23:8];
-              2'd2: load_half = bus_data[31:16];
-              default: load_half = 16'h0;
-            endcase
-          end
-          result = {16'h0, load_half};
+        else
           $sformat(step_disasm, "lhu x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-        default: begin
-          result = bus_data;
-          $sformat(step_disasm, "load? x%0d,0x%0h(x%0d)", rd, imm, rs1);
-        end
-      endcase
+      end else begin
+        case (funct3)
+          3'h0, 3'h4: do_bus_read(addr, 3'd1, bus_data);  // lb / lbu
+          3'h1, 3'h5: do_bus_read(addr, 3'd2, bus_data);  // lh / lhu
+          default:    do_bus_read(addr, 3'd4, bus_data);  // lw
+        endcase
+        if (last_bus_err) begin
+          result = 32'hDEADDEAD;
+          $sformat(step_disasm, "load.fault x%0d,0x%0h(x%0d)", rd, imm, rs1);
+        end else case (funct3)
+          3'h0: begin
+            result = {{24{bus_data[7]}}, bus_data[7:0]};
+            $sformat(step_disasm, "lb x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+          3'h1: begin
+            result = {{16{bus_data[15]}}, bus_data[15:0]};
+            $sformat(step_disasm, "lh x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+          3'h2: begin
+            result = bus_data;
+            $sformat(step_disasm, "lw x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+          3'h4: begin
+            result = {24'h0, bus_data[7:0]};
+            $sformat(step_disasm, "lbu x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+          3'h5: begin
+            result = {16'h0, bus_data[15:0]};
+            $sformat(step_disasm, "lhu x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+          default: begin
+            result = bus_data;
+            $sformat(step_disasm, "load? x%0d,0x%0h(x%0d)", rd, imm, rs1);
+          end
+        endcase
+      end
       write_reg(rd, result);
       log_inst(insn_pc, step_disasm);
     end
@@ -107,6 +100,8 @@ task execute_instruction;
           $sformat(step_disasm, "sw x%0d,0x%0h(x%0d)", rs2, imm, rs1);
         end
       endcase
+      // Unaligned half/word: masters split (verif_bus_split_rw); CPU may also
+      // issue size=4 at any addr — bridge path handles byte decomposition.
       do_bus_write(addr, rs2_val, store_sz);
       log_inst(insn_pc, step_disasm);
     end

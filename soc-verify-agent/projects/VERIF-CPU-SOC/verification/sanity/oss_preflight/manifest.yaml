@@ -1,0 +1,9 @@
+stage: sanity
+group: oss_preflight
+milestone: M2
+schedule: ''
+depends_on: []
+gates:
+- oss_presence
+owner: agent_bootcamp
+source: agent_bootcamp_transfer

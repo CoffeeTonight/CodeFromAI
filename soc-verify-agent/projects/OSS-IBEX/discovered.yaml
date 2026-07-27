@@ -1,0 +1,15 @@
+project_id: OSS-IBEX
+source: onboard_clone
+title: OSS-IBEX
+git_url: ''
+local_clone_path: /home/user/tools/oss-soc-samples/ibex
+rtl_subdir: ''
+root_marker: Makefile
+required_artifacts: []
+doc_rev: r1.0
+doc_path: oss/OSS-IBEX
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-19'
+  source: onboard_discovered
+  from_file: /home/user/tools/__CFI/soc-verify-agent/projects/_onboard_tmp/OSS-IBEX.discovered.yaml

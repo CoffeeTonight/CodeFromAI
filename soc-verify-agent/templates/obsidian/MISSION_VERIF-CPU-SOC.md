@@ -30,7 +30,7 @@ PASS 판정, ops crystallize, 재현 스크립트 마무리, 보고서까지 한
 - policies.yaml, src/soc_verify/graphs/*.py 는 읽지 말 것
 
 # 작업 루트
-cd /home/user/Desktop/soc-verify-agent
+cd ~/tools/__CFI/soc-verify-agent
 
 # Phase A — Graph 세션으로 gate 3개 순서대로 (고정 순서)
 검증 순서 (바꾸지 말 것):
@@ -125,7 +125,7 @@ setup → load_context → select_runner → run_gate → evaluate
 LangGraph 없이 사용자 재현만 확인:
 
 ```bash
-cd /home/user/Desktop/soc-verify-agent/projects/VERIF-CPU-SOC
+cd ~/tools/__CFI/soc-verify-agent/projects/VERIF-CPU-SOC
 chmod +x scripts/*.sh
 ./scripts/run_VERIF-CPU-SOC_verification_sequence.sh
 ```

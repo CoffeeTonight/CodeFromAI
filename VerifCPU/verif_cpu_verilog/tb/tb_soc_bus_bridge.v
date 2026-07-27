@@ -5,7 +5,8 @@
 
 module tb_soc_bus_bridge;
 
-  localparam integer TB_EXPECTED_PASS = 6;
+  // 14 base + 4 OS poll→wait cache contract (APB/AHB × read/write)
+  localparam integer TB_EXPECTED_PASS = 18;
 
   `VERIF_SIM_WATCHDOG_NS
 
@@ -100,6 +101,79 @@ module tb_soc_bus_bridge;
     check("AHB half write OK", resp == 2'd0);
     u_ahb.bus_read(32'h8000_0006, 3'd2, rd, resp);
     check("AHB half read", resp == 2'd0 && rd[15:0] == 16'hBEEF);
+    // half @ byte offset 3: real two-byte split across word boundary
+    u_ahb.bus_write(32'h8000_0003, 32'h0000_CDEF, 3'd2, resp);
+    check("AHB half@+3 split write OK", resp == 2'd0);
+    u_ahb.bus_read(32'h8000_0003, 3'd2, rd, resp);
+    check("AHB half@+3 split read", resp == 2'd0 && rd[15:0] == 16'hCDEF);
+    // unaligned word → 4× byte
+    u_ahb.bus_write(32'h8000_0001, 32'h1122_3344, 3'd4, resp);
+    check("AHB unaligned word write", resp == 2'd0);
+    u_ahb.bus_read(32'h8000_0001, 3'd4, rd, resp);
+    check("AHB unaligned word read", resp == 2'd0 && rd == 32'h1122_3344);
+
+    // APB narrow + OS stub
+    u_apb.bus_write(32'h4000_0008, 32'h0000_005A, 3'd1, resp);
+    check("APB byte write OK", resp == 2'd0);
+    u_apb.bus_read(32'h4000_0008, 3'd1, rd, resp);
+    check("APB byte read", resp == 2'd0 && rd[7:0] == 8'h5A);
+    begin : apb_os
+      integer h;
+      reg ok;
+      reg [1:0] r2;
+      reg [31:0] d2;
+      u_apb.bus_write_issue(32'h4000_000C, 32'h0000_00C3, 3'd1, h, ok);
+      check("APB OS issue", ok);
+      u_apb.bus_write_wait(h, r2);
+      u_apb.bus_read_issue(32'h4000_000C, 3'd1, h, ok);
+      u_apb.bus_read_wait(h, d2, r2);
+      check("APB OS byte r/w", r2 == 2'd0 && d2[7:0] == 8'hC3);
+    end
+
+    // OS contract: poll completes once; wait reaps cache (no re-xfer / no fake fault)
+    begin : apb_os_poll_wait
+      integer h;
+      reg ok, done;
+      reg [1:0] r_poll, r_wait;
+      reg [31:0] d_poll, d_wait;
+      u_apb.bus_write(32'h4000_0010, 32'h0000_00A1, 3'd1, resp);
+      u_apb.bus_read_issue(32'h4000_0010, 3'd1, h, ok);
+      u_apb.bus_read_poll(h, d_poll, r_poll, done);
+      // Mutate after poll — wait must return cached A1, not new value
+      u_apb.bus_write(32'h4000_0010, 32'h0000_00B2, 3'd1, resp);
+      u_apb.bus_read_wait(h, d_wait, r_wait);
+      check("APB OS poll→wait cache",
+            ok && done && r_poll == 2'd0 && r_wait == 2'd0 &&
+            d_poll[7:0] == 8'hA1 && d_wait[7:0] == 8'hA1);
+      // Write path: poll applies once; second poll peeks; wait reaps
+      u_apb.bus_write_issue(32'h4000_0014, 32'h0000_00C4, 3'd1, h, ok);
+      u_apb.bus_write_poll(h, r_poll, done);
+      u_apb.bus_write_poll(h, r_wait, done);  // peek, no second xfer
+      u_apb.bus_write_wait(h, r_wait);
+      u_apb.bus_read(32'h4000_0014, 3'd1, rd, resp);
+      check("APB OS write poll→wait once",
+            ok && r_wait == 2'd0 && resp == 2'd0 && rd[7:0] == 8'hC4);
+    end
+    begin : ahb_os_poll_wait
+      integer h;
+      reg ok, done;
+      reg [1:0] r_poll, r_wait;
+      reg [31:0] d_poll, d_wait;
+      u_ahb.bus_write(32'h8000_0010, 32'h0000_00D5, 3'd1, resp);
+      u_ahb.bus_read_issue(32'h8000_0010, 3'd1, h, ok);
+      u_ahb.bus_read_poll(h, d_poll, r_poll, done);
+      u_ahb.bus_write(32'h8000_0010, 32'h0000_00E6, 3'd1, resp);
+      u_ahb.bus_read_wait(h, d_wait, r_wait);
+      check("AHB OS poll→wait cache",
+            ok && done && r_poll == 2'd0 && r_wait == 2'd0 &&
+            d_poll[7:0] == 8'hD5 && d_wait[7:0] == 8'hD5);
+      u_ahb.bus_write_issue(32'h8000_0014, 32'h0000_00F7, 3'd1, h, ok);
+      u_ahb.bus_write_poll(h, r_poll, done);
+      u_ahb.bus_write_wait(h, r_wait);
+      u_ahb.bus_read(32'h8000_0014, 3'd1, rd, resp);
+      check("AHB OS write poll→wait once",
+            ok && r_wait == 2'd0 && resp == 2'd0 && rd[7:0] == 8'hF7);
+    end
 
     $display("Checklist: %0d passed / %0d failed", pass, fail);
     if (pass != TB_EXPECTED_PASS)

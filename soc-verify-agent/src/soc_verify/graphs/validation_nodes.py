@@ -94,6 +94,12 @@ def validation_judge_node(state: VerifyGroupState) -> dict[str, Any]:
     except FileNotFoundError:
         config = None
 
+    items_path = rd / "validation_items.json"
+    judgment_path = rd / "validation_judgment.json"
+    if items_path.is_file() and judgment_path.is_file():
+        if items_path.stat().st_mtime > judgment_path.stat().st_mtime:
+            judgment_path.unlink()
+
     invoke_validation_judge(rd, payload=prompt, root=root, config=config)
     judgment = load_validation_judgment(rd, items_payload)
     judgment = apply_consensus(judgment, items_payload, rd, root=root)
@@ -132,7 +138,9 @@ def apply_validation_plan_node(state: VerifyGroupState) -> dict[str, Any]:
     stage = state["stage"]
     group = state["group"]
     items_payload = state.get("validation_items") or {}
-    judgment = state.get("validation_judgment") or load_validation_judgment(rd, items_payload)
+    from soc_verify.validation_autonomy import resolve_validation_judgment
+
+    judgment = resolve_validation_judgment(state, rd, items_payload=items_payload)
 
     result = apply_validation_judgment(
         pd,

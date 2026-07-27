@@ -1,0 +1,8 @@
+project_id: TOY-FAKEOSS
+discovered_from: discovered.yaml
+environment_profile: toy-training
+sync:
+  fetched_at: '2026-07-16'
+  source:
+  - discovered.yaml
+  - state.yaml

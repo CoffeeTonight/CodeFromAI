@@ -1,0 +1,13 @@
+project_id: TOY-SERV
+source: toy_scaffold_from_OSS-SERV
+title: SERV bit-serial RISC-V
+git_url: https://github.com/oss/oss-serv.git
+local_clone_path: /home/user/tools/oss-soc-samples/serv
+rtl_subdir: ''
+root_marker: README.md
+doc_rev: r1.0
+doc_path: oss/OSS-SERV
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-18'
+  source: toy_scaffold_from_OSS-SERV

@@ -1,0 +1,10 @@
+tag:
+  value: mini-v1
+  fetched_at: '2026-07-16'
+  refresh_policy:
+    interval_days: 30
+    next_refresh: '2026-08-16'
+clone:
+  path: /home/user/tools/__CFI/soc-verify-agent/projects/MINI-SOC/workspace/mini-v1
+  valid_for_tag: mini-v1
+  fetched_at: '2026-07-16'

@@ -42,9 +42,12 @@ def campaign_expectations() -> tuple[int, int, int, list[str]]:
     active_agents = _define_int(tb_gen, "CAMPAIGN_MANIFEST_ACTIVE_AGENTS", 0)
     num_vcpus = _define_int(tb_gen, "CAMPAIGN_NUM_VCPUS", 0)
 
-    # TB dumps verify_pass only for manifest-active agents, not every SCPU slot.
-    wired_agents = active_agents or num_vcpus or num_scpu
-    min_agents = wired_agents + (1 if master_vcpu else 0)
+    # CAMPAIGN_MANIFEST_ACTIVE_AGENTS already includes master when it has targets.
+    # CAMPAIGN_NUM_VCPUS is slave-only; do not add master_vcpu again.
+    slave_agents = _define_int(tb_gen, "CAMPAIGN_MANIFEST_SLAVE_AGENTS", 0)
+    if slave_agents <= 0:
+        slave_agents = num_vcpus or num_scpu
+    min_agents = active_agents if active_agents > 0 else slave_agents
     if min_agents == 0:
         min_orch_resets = 2
     else:
@@ -54,7 +57,7 @@ def campaign_expectations() -> tuple[int, int, int, list[str]]:
     cpu_vcds: list[str] = []
     if master_vcpu:
         cpu_vcds.append(os.path.join(LOG_FULL, "SCPU0.vcd"))
-    for cid in range(1, wired_agents + 1):
+    for cid in range(1, slave_agents + 1):
         cpu_vcds.append(os.path.join(LOG_FULL, f"SCPU{cid}.vcd"))
 
     return min_agents, total_pass, min_orch_resets, cpu_vcds

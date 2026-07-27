@@ -1,0 +1,15 @@
+project_id: OSS-PICO-ONBOARD
+source: onboard_clone
+title: OSS-PICO-ONBOARD
+git_url: ''
+local_clone_path: /home/user/tools/oss-soc-samples/picorv32
+rtl_subdir: ''
+root_marker: Makefile
+required_artifacts: []
+doc_rev: r1.0
+doc_path: oss/OSS-PICO-ONBOARD
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-19'
+  source: onboard_discovered
+  from_file: /home/user/tools/__CFI/soc-verify-agent/projects/_onboard_tmp/OSS-PICO-ONBOARD.discovered.yaml

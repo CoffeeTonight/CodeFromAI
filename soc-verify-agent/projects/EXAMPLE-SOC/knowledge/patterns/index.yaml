@@ -1,0 +1,10 @@
+entries:
+- run_id: da63aaa780ae
+  title: simulation / gpio_ext / verification
+  tags:
+  - '#project/EXAMPLE-SOC'
+  - '#stage/simulation'
+  - '#group/gpio_ext'
+  - '#error_kind/verification'
+  path: knowledge/patterns/da63aaa780ae.md
+  updated_at: '2026-07-15T15:40:34.807775+00:00'

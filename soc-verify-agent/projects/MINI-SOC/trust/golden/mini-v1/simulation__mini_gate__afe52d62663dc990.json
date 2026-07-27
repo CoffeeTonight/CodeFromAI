@@ -1,0 +1,13 @@
+{
+  "contract": "golden_case_v1",
+  "stage": "simulation",
+  "group": "mini_gate",
+  "tag": "mini-v1",
+  "status": "PASS",
+  "log_markers": [
+    "mini_gate scenario=pass"
+  ],
+  "exit_code": 0,
+  "fingerprint": "afe52d62663dc990",
+  "source_run_id": "27c8db4bfe50"
+}

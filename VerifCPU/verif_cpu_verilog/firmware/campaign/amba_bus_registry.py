@@ -15,11 +15,14 @@ CHI_MAX_OUTSTANDING_DEFAULT = 4
 AXI_LITE_MAX_OUTSTANDING_DEFAULT = 1
 
 # Bus types exposing non-blocking bus_*_issue/wait/poll on the bridge
+# Masters expose bus_*_issue/wait (native OS or blocking OS stubs)
 BUS_READ_OUTSTANDING_TYPES: frozenset[str] = frozenset({
-    "axi3full", "axi4full", "axi5full", "ace", "ahb", "chi", "axi4lite",
+    "axi3full", "axi4full", "axi5full", "ace", "ace_lite", "ahb", "ahb_lite",
+    "ahb5_lite", "chi", "axi4lite", "apb2", "apb3", "apb4", "apb5",
 })
 BUS_WRITE_OUTSTANDING_TYPES: frozenset[str] = frozenset({
-    "axi3full", "axi4full", "axi5full", "ace", "ahb", "chi", "axi4lite",
+    "axi3full", "axi4full", "axi5full", "ace", "ace_lite", "ahb", "ahb_lite",
+    "ahb5_lite", "chi", "axi4lite", "apb2", "apb3", "apb4", "apb5",
 })
 
 # AXI4-Stream (when integrated)
@@ -174,9 +177,11 @@ BUS_TYPES: dict[str, BusTypeSpec] = {
 # fmt: on
 
 # Backward-compatible manifest names from early integration
+# Bare "ahb" is full AHB (BUS_TYPES["ahb"]); only non-canonical names alias to lite.
 LEGACY_BUS_ALIASES: dict[str, str] = {
     "apb": "apb3",
-    "ahb": "ahb_lite",
+    "ahb-lite": "ahb_lite",
+    "ahblite": "ahb_lite",
     "axi": "axi4lite",
 }
 

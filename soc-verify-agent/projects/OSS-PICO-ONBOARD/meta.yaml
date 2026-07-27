@@ -1,0 +1,7 @@
+project_id: OSS-PICO-ONBOARD
+discovered_from: discovered.yaml
+environment_profile: onboard
+sync:
+  fetched_at: '2026-07-19'
+  source:
+  - discovered.yaml

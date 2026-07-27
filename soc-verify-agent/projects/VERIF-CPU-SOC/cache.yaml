@@ -1,17 +1,24 @@
 tag:
   value: main
-  fetched_at: '2026-06-14'
+  fetched_at: '2026-07-17'
   refresh_policy:
     interval_days: 4
-    next_refresh: '2026-06-18'
-  replace_decision: replace
-  previous_tag: ''
+    next_refresh: '2026-07-21'
+  replace_decision: keep
+  previous_tag: main
 clone:
   path: /home/user/tools/__CFI
   valid_for_tag: main
-  fetched_at: '2026-06-19'
+  fetched_at: '2026-07-17'
 sanity:
   last_verdict: null
   last_run: null
   valid_for_tag: main
 group_results: {}
+on_tag_replace:
+  at: '2026-07-17T07:57:59'
+  old_tag: main
+  new_tag: main
+  invalidated:
+    sanity: true
+    group_results: []

@@ -1,0 +1,7 @@
+project_id: OSS-VERIFCPU
+discovered_from: discovered.yaml
+environment_profile: oss-sample
+sync:
+  fetched_at: '2026-07-18'
+  source:
+  - discovered.yaml

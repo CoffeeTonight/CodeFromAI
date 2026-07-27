@@ -135,6 +135,10 @@ module verif_axi_arbiter_2m1s #(
   reg        m1_ar_locked;
   reg        m0_aw_locked;
   reg        m1_aw_locked;
+  reg [ID_WIDTH-1:0] m0_ar_lock_id;
+  reg [ID_WIDTH-1:0] m1_ar_lock_id;
+  reg [ID_WIDTH-1:0] m0_aw_lock_id;
+  reg [ID_WIDTH-1:0] m1_aw_lock_id;
 
   wire       ar_pick_m0;
   wire       ar_pick_m1;
@@ -147,17 +151,19 @@ module verif_axi_arbiter_2m1s #(
   wire       b_for_m0;
   wire       b_for_m1;
 
-  // Lock-aware: locked master holds AR/AW grant until burst completes (RLAST/WLAST)
-  assign ar_pick_m0 = M0_ARVALID &&
-    (m0_ar_locked || (!m1_ar_locked && (!M1_ARVALID || !ar_grant)));
-  assign ar_pick_m1 = M1_ARVALID &&
-    (m1_ar_locked || (!m0_ar_locked && (!M0_ARVALID || ar_grant)));
+  // Lock-aware + mutually exclusive: at most one AR/AW pick (dual-lock cannot both grant)
+  assign ar_pick_m0 = M0_ARVALID && !m1_ar_locked &&
+    (m0_ar_locked || (!M1_ARVALID || !ar_grant));
+  assign ar_pick_m1 = M1_ARVALID && !m0_ar_locked && !ar_pick_m0 &&
+    (m1_ar_locked || (!M0_ARVALID || ar_grant));
   assign ar_hs = S_ARVALID && S_ARREADY;
 
-  assign aw_pick_m0 = M0_AWVALID &&
-    (m0_aw_locked || (!m1_aw_locked && (!M1_AWVALID || !aw_grant)));
-  assign aw_pick_m1 = M1_AWVALID &&
-    (m1_aw_locked || (!m0_aw_locked && (!M0_AWVALID || aw_grant)));
+  // Block new AW while prior AW still needs W data (single W context)
+  wire aw_w_busy = aw_m0_latched || aw_m1_latched;
+  assign aw_pick_m0 = M0_AWVALID && !aw_w_busy && !m1_aw_locked &&
+    (m0_aw_locked || (!M1_AWVALID || !aw_grant));
+  assign aw_pick_m1 = M1_AWVALID && !aw_w_busy && !m0_aw_locked && !aw_pick_m0 &&
+    (m1_aw_locked || (!M0_AWVALID || aw_grant));
   assign aw_hs = S_AWVALID && S_AWREADY;
 
   assign S_ARVALID = ar_pick_m0 || ar_pick_m1;
@@ -223,46 +229,60 @@ module verif_axi_arbiter_2m1s #(
       m1_ar_locked <= 1'b0;
       m0_aw_locked <= 1'b0;
       m1_aw_locked <= 1'b0;
+      m0_ar_lock_id <= {ID_WIDTH{1'b0}};
+      m1_ar_lock_id <= {ID_WIDTH{1'b0}};
+      m0_aw_lock_id <= {ID_WIDTH{1'b0}};
+      m1_aw_lock_id <= {ID_WIDTH{1'b0}};
     end else begin
       if (ar_hs) begin
         if (ar_pick_m1) begin
           ar_grant <= 1'b0;
-          if (M1_ARLOCK)
+          if (M1_ARLOCK) begin
             m1_ar_locked <= 1'b1;
+            m1_ar_lock_id <= M1_ARID;
+          end
         end else if (ar_pick_m0) begin
           ar_grant <= 1'b1;
-          if (M0_ARLOCK)
+          if (M0_ARLOCK) begin
             m0_ar_locked <= 1'b1;
+            m0_ar_lock_id <= M0_ARID;
+          end
         end
       end
-      if (M0_RVALID && M0_RREADY && M0_RLAST)
+      // Unlock only on final R of the locked ID
+      if (m0_ar_locked && M0_RVALID && M0_RREADY && M0_RLAST && M0_RID == m0_ar_lock_id)
         m0_ar_locked <= 1'b0;
-      if (M1_RVALID && M1_RREADY && M1_RLAST)
+      if (m1_ar_locked && M1_RVALID && M1_RREADY && M1_RLAST && M1_RID == m1_ar_lock_id)
         m1_ar_locked <= 1'b0;
       if (aw_hs) begin
-        aw_m0_latched <= 1'b0;
-        aw_m1_latched <= 1'b0;
         if (aw_pick_m1) begin
           aw_grant <= 1'b0;
           w_master <= 1'b1;
           aw_m1_latched <= 1'b1;
-          if (M1_AWLOCK)
+          if (M1_AWLOCK) begin
             m1_aw_locked <= 1'b1;
+            m1_aw_lock_id <= M1_AWID;
+          end
         end else if (aw_pick_m0) begin
           aw_grant <= 1'b1;
           w_master <= 1'b0;
           aw_m0_latched <= 1'b1;
-          if (M0_AWLOCK)
+          if (M0_AWLOCK) begin
             m0_aw_locked <= 1'b1;
+            m0_aw_lock_id <= M0_AWID;
+          end
         end
       end
       if (S_WVALID && S_WREADY && S_WLAST) begin
         aw_m0_latched <= 1'b0;
         aw_m1_latched <= 1'b0;
-        if (w_master)
-          m1_aw_locked <= 1'b0;
-        else
+      end
+      // Unlock AW only on B for locked ID
+      if (S_BVALID && S_BREADY) begin
+        if (b_for_m0 && m0_aw_locked && S_BID == m0_aw_lock_id)
           m0_aw_locked <= 1'b0;
+        if (b_for_m1 && m1_aw_locked && S_BID == m1_aw_lock_id)
+          m1_aw_locked <= 1'b0;
       end
     end
   end

@@ -1,0 +1,13 @@
+project_id: TOY-VERIFCPU
+source: toy_scaffold_from_VERIF-CPU-SOC
+title: VerifCPU SoC — RISC-V Verification CPU (Verilog)
+git_url: git@github.com:CoffeeTonight/CodeFromAI.git
+local_clone_path: /home/user/tools/__CFI
+rtl_subdir: VerifCPU/verif_cpu_verilog
+root_marker: example.sh
+doc_rev: r1.0
+doc_path: confluence/SOC/VERIF-CPU/verification-spec
+current_milestone: M1
+intake:
+  fetched_at: '2026-07-19'
+  source: toy_scaffold_from_VERIF-CPU-SOC

@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module tb_rv32i_demo;
 
@@ -19,7 +20,7 @@ module tb_rv32i_demo;
   reg [1024*8:1] fw_path;
 
   task check_eq;
-    input [8*96:1] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input cond;
     begin
       if (cond) begin check_pass = check_pass + 1; $display("  [PASS] %0s", name); end

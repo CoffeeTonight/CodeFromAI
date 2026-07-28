@@ -4,6 +4,7 @@
 `include "verif_cpu_defs.vh"
 `include "verif_verdict_policy.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 module tb_verification_harness;
 
   localparam integer TB_EXPECTED_PASS = 5;
@@ -42,7 +43,7 @@ module tb_verification_harness;
   integer cov_fail_sum;
 
   task check_eq;
-    input [8*96:1] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input        ok;
     begin
       if (ok) begin

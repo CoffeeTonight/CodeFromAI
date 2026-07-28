@@ -13,6 +13,7 @@
 `include "tb_soc_manifest_scale_defs.vh"
 `include "tb_soc_manifest_defs.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module tb_soc_manifest_scale;
 
@@ -54,7 +55,7 @@ module tb_soc_manifest_scale;
   integer    poll;
 
   task check;
-    input [8*96:1] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input ok;
     begin
       if (ok) begin pass = pass + 1; $display("  [PASS] %0s", name); end
@@ -66,12 +67,9 @@ module tb_soc_manifest_scale;
     reg [31:0] rd;
     reg [1:0] r, p;
     begin
-      g_slv0.u_bus.u_cpu.sim_stop = 1;
-      g_slv1.u_bus.u_cpu.sim_stop = 1;
-      g_slv2.u_bus.u_cpu.sim_stop = 1;
-      g_slv0.u_bus.u_cpu.request_sim_stop = 0;
-      g_slv1.u_bus.u_cpu.request_sim_stop = 0;
-      g_slv2.u_bus.u_cpu.request_sim_stop = 0;
+      g_slv0.u_bus.u_cpu.cpu_halt();
+      g_slv1.u_bus.u_cpu.cpu_halt();
+      g_slv2.u_bus.u_cpu.cpu_halt();
       repeat (2) @(posedge soc_clk);
       `SOC_MANIFEST_INIT_STEPS
     end

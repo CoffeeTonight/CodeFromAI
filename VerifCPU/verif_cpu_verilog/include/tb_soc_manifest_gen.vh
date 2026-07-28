@@ -189,22 +189,13 @@
     begin
       case (cid)
         4'd1: begin
-          g_slv0.u_bus.u_cpu.pc = 32'h000;
-          g_slv0.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv0.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv0.u_bus.u_cpu.sim_stop = 0;
+          g_slv0.u_bus.u_cpu.cpu_arm_run(32'h000);
         end
         4'd2: begin
-          g_slv1.u_bus.u_cpu.pc = 32'h000;
-          g_slv1.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv1.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv1.u_bus.u_cpu.sim_stop = 0;
+          g_slv1.u_bus.u_cpu.cpu_arm_run(32'h000);
         end
         4'd3: begin
-          g_slv2.u_bus.u_cpu.pc = 32'h000;
-          g_slv2.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv2.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv2.u_bus.u_cpu.sim_stop = 0;
+          g_slv2.u_bus.u_cpu.cpu_arm_run(32'h000);
         end
         default: $fatal(1, "soc_manifest_run_phase_a: cid=%0d not wired (SOC_MANIFEST_NUM_WIRED=%0d)", cid, `SOC_MANIFEST_NUM_WIRED);
       endcase
@@ -219,10 +210,7 @@
     begin
       case (cid)
         4'd1: begin
-          g_slv0.u_bus.u_cpu.pc = offset;
-          g_slv0.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv0.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv0.u_bus.u_cpu.sim_stop = 0;
+          g_slv0.u_bus.u_cpu.cpu_arm_run(offset);
           for (cyc = 0; cyc < max_steps; cyc = cyc + 1) begin
             @(posedge soc_clk);
             if (g_slv0.u_bus.u_cpu.request_sim_stop || g_slv0.u_bus.u_cpu.sim_stop)
@@ -230,10 +218,7 @@
           end
         end
         4'd2: begin
-          g_slv1.u_bus.u_cpu.pc = offset;
-          g_slv1.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv1.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv1.u_bus.u_cpu.sim_stop = 0;
+          g_slv1.u_bus.u_cpu.cpu_arm_run(offset);
           for (cyc = 0; cyc < max_steps; cyc = cyc + 1) begin
             @(posedge soc_clk);
             if (g_slv1.u_bus.u_cpu.request_sim_stop || g_slv1.u_bus.u_cpu.sim_stop)
@@ -241,10 +226,7 @@
           end
         end
         4'd3: begin
-          g_slv2.u_bus.u_cpu.pc = offset;
-          g_slv2.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv2.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv2.u_bus.u_cpu.sim_stop = 0;
+          g_slv2.u_bus.u_cpu.cpu_arm_run(offset);
           for (cyc = 0; cyc < max_steps; cyc = cyc + 1) begin
             @(posedge soc_clk);
             if (g_slv2.u_bus.u_cpu.request_sim_stop || g_slv2.u_bus.u_cpu.sim_stop)
@@ -288,13 +270,10 @@
           txn_before = g_slv0.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
           u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
-          g_slv0.u_bus.u_cpu.pc = icode_ptr;
-          g_slv0.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv0.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv0.u_bus.u_cpu.sim_stop = 0;
+          g_slv0.u_bus.u_cpu.cpu_arm_run(icode_ptr);
           soc_manifest_run_cpu(cid, icode_ptr, 256);
           if (!g_slv0.u_bus.u_cpu.sim_stop && !g_slv0.u_bus.u_cpu.request_sim_stop)
-            g_slv0.u_bus.u_cpu.request_sim_stop = 1;
+            g_slv0.u_bus.u_cpu.cpu_request_stop();
           soc_manifest_wait_stopped(64);
           repeat (4) @(posedge soc_clk);
           ok = (g_slv0.u_bus.u_cpu.request_sim_stop || g_slv0.u_bus.u_cpu.sim_stop)
@@ -306,13 +285,10 @@
           txn_before = g_slv1.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
           u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
-          g_slv1.u_bus.u_cpu.pc = icode_ptr;
-          g_slv1.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv1.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv1.u_bus.u_cpu.sim_stop = 0;
+          g_slv1.u_bus.u_cpu.cpu_arm_run(icode_ptr);
           soc_manifest_run_cpu(cid, icode_ptr, 256);
           if (!g_slv1.u_bus.u_cpu.sim_stop && !g_slv1.u_bus.u_cpu.request_sim_stop)
-            g_slv1.u_bus.u_cpu.request_sim_stop = 1;
+            g_slv1.u_bus.u_cpu.cpu_request_stop();
           soc_manifest_wait_stopped(64);
           repeat (4) @(posedge soc_clk);
           ok = (g_slv1.u_bus.u_cpu.request_sim_stop || g_slv1.u_bus.u_cpu.sim_stop)
@@ -324,13 +300,10 @@
           txn_before = g_slv2.u_bus.u_cpu.bus_txn_count;
           u_pool.pool_use_array(cid);
           u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);
-          g_slv2.u_bus.u_cpu.pc = icode_ptr;
-          g_slv2.u_bus.u_cpu.state = `CPU_STATE_RUNNING;
-          g_slv2.u_bus.u_cpu.request_sim_stop = 0;
-          g_slv2.u_bus.u_cpu.sim_stop = 0;
+          g_slv2.u_bus.u_cpu.cpu_arm_run(icode_ptr);
           soc_manifest_run_cpu(cid, icode_ptr, 256);
           if (!g_slv2.u_bus.u_cpu.sim_stop && !g_slv2.u_bus.u_cpu.request_sim_stop)
-            g_slv2.u_bus.u_cpu.request_sim_stop = 1;
+            g_slv2.u_bus.u_cpu.cpu_request_stop();
           soc_manifest_wait_stopped(64);
           repeat (4) @(posedge soc_clk);
           ok = (g_slv2.u_bus.u_cpu.request_sim_stop || g_slv2.u_bus.u_cpu.sim_stop)

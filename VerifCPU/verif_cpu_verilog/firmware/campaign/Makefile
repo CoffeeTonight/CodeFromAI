@@ -27,7 +27,7 @@ HIER_YAML ?= soc_hierarchy_from_slots.yaml
 export HIER_YAML
 
 # bus_connect is a phony alias; real artifact is verif_soc_bus_connect.vh (file rule below)
-.PHONY: all all-inner clean config discover soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
+.PHONY: all all-inner clean config discover soc_init icodes tb_gen manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
 
 # Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
 all: config
@@ -61,8 +61,13 @@ soc_init: config
 manifest: config
 	python3 gen_campaign_manifest.py
 
+# Pool + map/bind only (no TB gen side-effect)
 icodes: config manifest
-	python3 build_icode_pool.py --yaml $(HIER_YAML)
+	python3 build_icode_pool.py
+
+# TB / chip / manifest gen VH (depends on icode_map from icodes)
+tb_gen: icodes gen_tb_campaign.py
+	python3 gen_tb_campaign.py --yaml $(HIER_YAML)
 
 merge: config $(BUILD_DIR)/icode_pool.bin NOOP $(CPU_ACTIVE)
 	python3 merge_campaign.py

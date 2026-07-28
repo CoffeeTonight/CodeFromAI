@@ -30,6 +30,7 @@ GEN_FW_MK = [
     "firmware/campaign/build/.icodes.stamp",
     "firmware/campaign/build/.fw_default.stamp",
     "firmware/campaign/build/.fw_scale.stamp",
+    "firmware/campaign/build/.tb_gen.stamp",
     "firmware/campaign/.bus_connect.stamp",
 ]
 

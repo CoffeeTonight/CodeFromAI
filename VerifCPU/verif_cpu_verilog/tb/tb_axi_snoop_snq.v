@@ -3,6 +3,7 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_soc_widths.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module tb_axi_snoop_snq;
 
@@ -84,7 +85,7 @@ module tb_axi_snoop_snq;
   integer drops0, drops1;
 
   task check;
-    input [255:0] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input         cond;
     begin
       if (cond) begin pass = pass + 1; $display("  [PASS] %0s", name); end

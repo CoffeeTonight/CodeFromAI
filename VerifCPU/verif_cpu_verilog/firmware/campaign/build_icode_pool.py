@@ -70,13 +70,20 @@ def load_images() -> list[IcodeImage]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build icode pool + probe mapping header")
+    parser = argparse.ArgumentParser(
+        description="Build icode pool + probe mapping header (does not emit TB gen by default)"
+    )
     parser.add_argument("--skip-make", action="store_true", help="Skip compile step (reuse bins)")
+    parser.add_argument(
+        "--emit-tb",
+        action="store_true",
+        help="Also run gen_tb_campaign.py (prefer: make tb_gen / separate target)",
+    )
     parser.add_argument(
         "--yaml",
         default=None,
         metavar="HIER_YAML",
-        help="soc_hierarchy YAML for chip_top gen (default: soc_hierarchy_example.yaml)",
+        help="With --emit-tb: soc_hierarchy YAML for chip_top gen",
     )
     args = parser.parse_args()
 
@@ -84,7 +91,7 @@ def main() -> int:
         run_gen_sources()
         run_make()
     else:
-        print("[1/5] Skipping compile (--skip-make)")
+        print("[1/4] Skipping compile (--skip-make)")
 
     images = load_images()
     print(f"[3/4] Merging {len(images)} icodes → {POOL_BIN.name}")
@@ -100,12 +107,13 @@ def main() -> int:
     emit_icode_map_vh(VH_MAP, entries, len(pool))
     emit_icode_bind_vh(VH_BIND, MANIFEST_HDR, entries)
 
-    print("[5/5] Generating tb_full_campaign_gen.vh + chip_top gen...")
-    gen_tb = CAMPAIGN_ROOT / "gen_tb_campaign.py"
-    gen_cmd = [sys.executable, str(gen_tb)]
-    if args.yaml:
-        gen_cmd.extend(["--yaml", args.yaml])
-    subprocess.run(gen_cmd, check=True)
+    if args.emit_tb:
+        print("[opt] Generating TB/chip gen (gen_tb_campaign.py)...")
+        gen_tb = CAMPAIGN_ROOT / "gen_tb_campaign.py"
+        gen_cmd = [sys.executable, str(gen_tb)]
+        if args.yaml:
+            gen_cmd.extend(["--yaml", args.yaml])
+        subprocess.run(gen_cmd, check=True)
 
     print("")
     print("=== icode pool build complete ===")

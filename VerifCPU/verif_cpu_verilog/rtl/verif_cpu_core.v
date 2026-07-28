@@ -736,6 +736,34 @@ module verif_cpu_core #(
 
   // === Public API ===
 
+  // TB/orchestration: stop stepping without poking hierarchical regs ad-hoc.
+  // sim_stop=1 freezes step loops that gate on !sim_stop.
+  task cpu_halt;
+    begin
+      request_sim_stop = 1'b0;
+      sim_stop = 1'b1;
+    end
+  endtask
+
+  // Prepare to run from start_pc (clear stop, set RUNNING).
+  task cpu_arm_run;
+    input [31:0] start_pc;
+    begin
+      pc = start_pc;
+      state = `CPU_STATE_RUNNING;
+      request_sim_stop = 1'b0;
+      sim_stop = 1'b0;
+    end
+  endtask
+
+  // Request stop (also raises sim_stop so TB loops exit without waiting for step).
+  task cpu_request_stop;
+    begin
+      request_sim_stop = 1'b1;
+      sim_stop = 1'b1;
+    end
+  endtask
+
   task cpu_init;
     integer i;
     begin

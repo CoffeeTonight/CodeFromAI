@@ -117,12 +117,9 @@ reg        soc_manifest_pool_err;
         check("Icode inter-reset pulse", orch_reset_count > orch_rst_before); \
       end \
       if (_slot == 0) begin \
-        g_slv0.u_bus.u_cpu.sim_stop = 1; \
-        g_slv0.u_bus.u_cpu.request_sim_stop = 0; \
-        g_slv1.u_bus.u_cpu.sim_stop = 1; \
-        g_slv1.u_bus.u_cpu.request_sim_stop = 0; \
-        g_slv2.u_bus.u_cpu.sim_stop = 1; \
-        g_slv2.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv0.u_bus.u_cpu.cpu_halt(); \
+        g_slv1.u_bus.u_cpu.cpu_halt(); \
+        g_slv2.u_bus.u_cpu.cpu_halt(); \
         repeat (2) @(posedge soc_clk); \
         manifest_decode_read(32'h40000000, 3'd4, rdata, rresp, rport); \
         u_ag_1.run_phase_c_slot(rdata, rresp, _slot); \
@@ -133,12 +130,9 @@ reg        soc_manifest_pool_err;
         check("Multi-icode round0 PASS=3", sl_pass[0] + sl_pass[1] + sl_pass[2] == 3); \
       end \
       if (_slot == 1) begin \
-        g_slv0.u_bus.u_cpu.sim_stop = 1; \
-        g_slv0.u_bus.u_cpu.request_sim_stop = 0; \
-        g_slv1.u_bus.u_cpu.sim_stop = 1; \
-        g_slv1.u_bus.u_cpu.request_sim_stop = 0; \
-        g_slv2.u_bus.u_cpu.sim_stop = 1; \
-        g_slv2.u_bus.u_cpu.request_sim_stop = 0; \
+        g_slv0.u_bus.u_cpu.cpu_halt(); \
+        g_slv1.u_bus.u_cpu.cpu_halt(); \
+        g_slv2.u_bus.u_cpu.cpu_halt(); \
         repeat (2) @(posedge soc_clk); \
         manifest_decode_read(32'h40000004, 3'd4, rdata, rresp, rport); \
         u_ag_1.run_phase_c_slot(rdata, rresp, _slot); \

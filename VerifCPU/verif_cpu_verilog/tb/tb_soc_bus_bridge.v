@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module tb_soc_bus_bridge;
 
@@ -63,7 +64,7 @@ module tb_soc_bus_bridge;
   integer pass, fail;
 
   task check;
-    input [8*64:1] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input ok;
     begin
       if (ok) begin pass = pass + 1; $display("  [PASS] %0s", name); end

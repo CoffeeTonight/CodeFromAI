@@ -92,14 +92,19 @@ SOC_CELL_GEN = firmware/campaign/gen_soc_cell_rtl.py \
 
 GEN_ICODES_SCRIPTS = firmware/campaign/build_icode_pool.py \
                      tools/probe_icodes.py \
-                     firmware/campaign/gen_tb_campaign.py \
-                     firmware/campaign/gen_campaign_manifest.py \
-                     firmware/campaign/gen_soc_bus_connect.py
+                     firmware/campaign/gen_icodes_c.py \
+                     firmware/campaign/gen_campaign_manifest.py
+
+GEN_TB_SCRIPTS = firmware/campaign/gen_tb_campaign.py \
+                 firmware/campaign/gen_soc_bus_connect.py \
+                 firmware/campaign/gen_soc_cell_rtl.py \
+                 firmware/campaign/amba_bus_registry.py
 
 ICODES_INPUTS = $(GEN_ICODES_SCRIPTS) \
                 firmware/campaign/campaign_slots.yaml \
                 firmware/campaign/include/campaign_manifest.h
 ICODES_STAMP = firmware/campaign/build/.icodes.stamp
+TB_GEN_STAMP = firmware/campaign/build/.tb_gen.stamp
 
 FW_VCPU_BIN = firmware/campaign/build/full_campaign_vcpu.bin
 FW_UNIFIED_BIN = firmware/campaign/build/full_campaign_unified.bin
@@ -284,7 +289,7 @@ GEN_TB_SCRIPT = firmware/campaign/gen_tb_campaign.py
 CHIP_TOP_RTL_MK = include/chip_top_rtl.mk
 CHIP_SOC_CELL = rtl/verif_vcpu_soc_cell_chip.v
 
-sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(GEN_ICODES_SCRIPTS) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) $(FW_DEFAULT_STAMP)
+sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GEN_TB_SCRIPT) $(PARAMS_VH) $(SCALE_VH) $(FW_VCPU_BIN) $(FW_ICODE_BIN) $(FW_VCPU_HEX) $(FW_UNIFIED_HEX) $(FW_DEFAULT_STAMP)
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) \
 	  -DVERIF_SOC_DUT_HUB=tb_full_campaign.u_soc \
@@ -297,14 +302,20 @@ sim_build/tb_full_campaign.vvp: $(FULL_RTL) tb/tb_full_campaign.v $(GEN_TB) $(GE
 $(SOC_CELL_RTL): $(SOC_CELL_GEN)
 	$(MAKE) -C firmware/campaign soc_cell
 
+# Icode pool + map/bind only (build_icode_pool.py does not run gen_tb)
 $(ICODES_STAMP): $(ICODES_INPUTS)
-	$(MAKE) -C firmware/campaign icodes HIER_YAML=$(HIER_YAML)
+	$(MAKE) -C firmware/campaign icodes
 	@touch $@
 
 $(FW_ICODE_BIN): $(ICODES_STAMP)
 	@:
 
-$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(ICODES_STAMP)
+# TB / chip / manifest gen — separate Make step (not side-effect of icodes)
+$(TB_GEN_STAMP): $(ICODES_STAMP) $(GEN_TB_SCRIPTS) firmware/campaign/include/campaign_manifest.h include/icode_map.vh
+	$(MAKE) -C firmware/campaign tb_gen HIER_YAML=$(HIER_YAML)
+	@touch $@
+
+$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(TB_GEN_STAMP)
 	@:
 
 $(SOC_INTEGRATION_GEN): $(SOC_INTEGRATION_SCRIPT) $(SOC_INTEGRATION_YAML)

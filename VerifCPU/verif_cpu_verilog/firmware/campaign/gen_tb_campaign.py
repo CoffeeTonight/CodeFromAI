@@ -1201,10 +1201,7 @@ def emit_soc_manifest_setup(slaves: list[dict]) -> list[str]:
         gi = s["cpu_id"] - 1
         lines.extend([
             f"        4'd{s['cpu_id']}: begin",
-            f"          g_slv{gi}.u_bus.u_cpu.pc = 32'h000;",
-            f"          g_slv{gi}.u_bus.u_cpu.state = `CPU_STATE_RUNNING;",
-            f"          g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0;",
-            f"          g_slv{gi}.u_bus.u_cpu.sim_stop = 0;",
+            f"          g_slv{gi}.u_bus.u_cpu.cpu_arm_run(32'h000);",
             "        end",
         ])
     lines.extend([
@@ -1232,10 +1229,7 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
         gi = s["cpu_id"] - 1
         lines.extend([
             f"        4'd{s['cpu_id']}: begin",
-            f"          g_slv{gi}.u_bus.u_cpu.pc = offset;",
-            f"          g_slv{gi}.u_bus.u_cpu.state = `CPU_STATE_RUNNING;",
-            f"          g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0;",
-            f"          g_slv{gi}.u_bus.u_cpu.sim_stop = 0;",
+            f"          g_slv{gi}.u_bus.u_cpu.cpu_arm_run(offset);",
             f"          for (cyc = 0; cyc < max_steps; cyc = cyc + 1) begin",
             f"            @(posedge soc_clk);",
             f"            if (g_slv{gi}.u_bus.u_cpu.request_sim_stop || g_slv{gi}.u_bus.u_cpu.sim_stop)",
@@ -1289,13 +1283,10 @@ def emit_soc_manifest_run_cpu_task(slaves: list[dict]) -> list[str]:
             f"          txn_before = g_slv{gi}.u_bus.u_cpu.bus_txn_count;",
             f"          u_pool.pool_use_array(cid);",
             "          u_pool.pool_assign_region(cid, `SOC_MANIFEST_POOL_ICODE, ICODE_POOL_SZ);",
-            f"          g_slv{gi}.u_bus.u_cpu.pc = icode_ptr;",
-            f"          g_slv{gi}.u_bus.u_cpu.state = `CPU_STATE_RUNNING;",
-            f"          g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0;",
-            f"          g_slv{gi}.u_bus.u_cpu.sim_stop = 0;",
+            f"          g_slv{gi}.u_bus.u_cpu.cpu_arm_run(icode_ptr);",
             f"          soc_manifest_run_cpu(cid, icode_ptr, 256);",
             f"          if (!g_slv{gi}.u_bus.u_cpu.sim_stop && !g_slv{gi}.u_bus.u_cpu.request_sim_stop)",
-            f"            g_slv{gi}.u_bus.u_cpu.request_sim_stop = 1;",
+            f"            g_slv{gi}.u_bus.u_cpu.cpu_request_stop();",
             f"          soc_manifest_wait_stopped(64);",
             f"          repeat (4) @(posedge soc_clk);",
             f"          ok = (g_slv{gi}.u_bus.u_cpu.request_sim_stop || g_slv{gi}.u_bus.u_cpu.sim_stop)",
@@ -1454,8 +1445,7 @@ def emit_soc_manifest_phase_macros(slaves: list[dict], pool_bytes: int) -> list[
         lines.append(f"      if (_slot == {slot}) begin \\")
         for s in slaves:
             gi = s["cpu_id"] - 1
-            lines.append(f"        g_slv{gi}.u_bus.u_cpu.sim_stop = 1; \\")
-            lines.append(f"        g_slv{gi}.u_bus.u_cpu.request_sim_stop = 0; \\")
+            lines.append(f"        g_slv{gi}.u_bus.u_cpu.cpu_halt(); \\")
         lines.append("        repeat (2) @(posedge soc_clk); \\")
         for s in active:
             if slot < len(s["targets"]):
@@ -1895,10 +1885,7 @@ def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
         if uart and c["id"] == uart["id"]:
             lines.extend([
                 f"          rec_before = {hdl}.recovery_count;",
-                f"          {hdl}.pc = offset;",
-                f"          {hdl}.state = `CPU_STATE_RUNNING;",
-                f"          {hdl}.request_sim_stop = 0;",
-                f"          {hdl}.sim_stop = 0;",
+                f"          {hdl}.cpu_arm_run(offset);",
                 "          if (offset != OFF_UART_HANG) begin",
                 f"            {hdl}.wdt_count = 0;",
                 f"            {hdl}.wdt_fired = 0;",
@@ -1909,10 +1896,7 @@ def emit_run_cpu_task(cpus: list[dict]) -> list[str]:
             ])
         else:
             lines.extend([
-                f"          {hdl}.pc = offset;",
-                f"          {hdl}.state = `CPU_STATE_RUNNING;",
-                f"          {hdl}.request_sim_stop = 0;",
-                f"          {hdl}.sim_stop = 0;",
+                f"          {hdl}.cpu_arm_run(offset);",
                 f"          {hdl}.wdt_count = 0;",
                 f"          {hdl}.wdt_fired = 0;",
                 *_emit_cpu_run_loop(hdl),
@@ -1969,10 +1953,7 @@ def emit_start_cpus_parallel_task(cpus: list[dict]) -> list[str]:
     for c in cpus:
         hdl = cpu_hdl(c["id"])
         lines.extend([
-            f"      {hdl}.pc = offset;",
-            f"      {hdl}.state = `CPU_STATE_RUNNING;",
-            f"      {hdl}.request_sim_stop = 0;",
-            f"      {hdl}.sim_stop = 0;",
+            f"      {hdl}.cpu_arm_run(offset);",
             f"      {hdl}.wdt_count = 0;",
             f"      {hdl}.wdt_fired = 0;",
         ])
@@ -2214,10 +2195,7 @@ def emit_exec_icode_task(cpus: list[dict], use_lazy: bool) -> list[str]:
         lines.extend([
             f"        4'd{c['id']}: begin",
             f"          txn_before = {hdl}.bus_txn_count;",
-            f"          {hdl}.pc = icode_ptr;",
-            f"          {hdl}.state = `CPU_STATE_RUNNING;",
-            f"          {hdl}.request_sim_stop = 0;",
-            f"          {hdl}.sim_stop = 0;",
+            f"          {hdl}.cpu_arm_run(icode_ptr);",
             f"          run_cpu_core(cid, icode_ptr, 48, hang_rec);",
             f"          ok = ({hdl}.request_sim_stop || {hdl}.sim_stop)",
             f"               && ({hdl}.bus_txn_count > txn_before);",

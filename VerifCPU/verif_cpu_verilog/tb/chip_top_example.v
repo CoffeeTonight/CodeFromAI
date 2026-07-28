@@ -8,6 +8,7 @@
 `include "campaign_scale.vh"
 `include "verif_soc_bus_connect.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module chip_top_example;
 
@@ -40,7 +41,7 @@ module chip_top_example;
   reg [1:0]  wresp, rresp, rport;
 
   task check;
-    input [8*96:1] name;
+    input [8*`VERIF_TB_CHECK_NAME_CHARS-1:0] name;
     input ok;
     begin
       if (ok) begin pass = pass + 1; $display("  [PASS] %0s", name); end

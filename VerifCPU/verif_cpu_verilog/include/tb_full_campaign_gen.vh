@@ -374,10 +374,7 @@ end
       recovered = 0;
       case (cid)
         4'd1: begin
-          g_cpu[0].u_cpu.pc = offset;
-          g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[0].u_cpu.request_sim_stop = 0;
-          g_cpu[0].u_cpu.sim_stop = 0;
+          g_cpu[0].u_cpu.cpu_arm_run(offset);
           g_cpu[0].u_cpu.wdt_count = 0;
           g_cpu[0].u_cpu.wdt_fired = 0;
           for (step = 0; step < max_steps; step = step + 1) begin
@@ -391,10 +388,7 @@ end
           end
         end
         4'd2: begin
-          g_cpu[1].u_cpu.pc = offset;
-          g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[1].u_cpu.request_sim_stop = 0;
-          g_cpu[1].u_cpu.sim_stop = 0;
+          g_cpu[1].u_cpu.cpu_arm_run(offset);
           g_cpu[1].u_cpu.wdt_count = 0;
           g_cpu[1].u_cpu.wdt_fired = 0;
           for (step = 0; step < max_steps; step = step + 1) begin
@@ -409,10 +403,7 @@ end
         end
         4'd3: begin
           rec_before = g_cpu[2].u_cpu.recovery_count;
-          g_cpu[2].u_cpu.pc = offset;
-          g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[2].u_cpu.request_sim_stop = 0;
-          g_cpu[2].u_cpu.sim_stop = 0;
+          g_cpu[2].u_cpu.cpu_arm_run(offset);
           if (offset != OFF_UART_HANG) begin
             g_cpu[2].u_cpu.wdt_count = 0;
             g_cpu[2].u_cpu.wdt_fired = 0;
@@ -437,22 +428,13 @@ end
   task start_cpus_parallel;
     input [31:0] offset;
     begin
-      g_cpu[0].u_cpu.pc = offset;
-      g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
-      g_cpu[0].u_cpu.request_sim_stop = 0;
-      g_cpu[0].u_cpu.sim_stop = 0;
+      g_cpu[0].u_cpu.cpu_arm_run(offset);
       g_cpu[0].u_cpu.wdt_count = 0;
       g_cpu[0].u_cpu.wdt_fired = 0;
-      g_cpu[1].u_cpu.pc = offset;
-      g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
-      g_cpu[1].u_cpu.request_sim_stop = 0;
-      g_cpu[1].u_cpu.sim_stop = 0;
+      g_cpu[1].u_cpu.cpu_arm_run(offset);
       g_cpu[1].u_cpu.wdt_count = 0;
       g_cpu[1].u_cpu.wdt_fired = 0;
-      g_cpu[2].u_cpu.pc = offset;
-      g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
-      g_cpu[2].u_cpu.request_sim_stop = 0;
-      g_cpu[2].u_cpu.sim_stop = 0;
+      g_cpu[2].u_cpu.cpu_arm_run(offset);
       g_cpu[2].u_cpu.wdt_count = 0;
       g_cpu[2].u_cpu.wdt_fired = 0;
     end
@@ -626,10 +608,7 @@ end
       case (cid)
         4'd1: begin
           txn_before = g_cpu[0].u_cpu.bus_txn_count;
-          g_cpu[0].u_cpu.pc = icode_ptr;
-          g_cpu[0].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[0].u_cpu.request_sim_stop = 0;
-          g_cpu[0].u_cpu.sim_stop = 0;
+          g_cpu[0].u_cpu.cpu_arm_run(icode_ptr);
           run_cpu_core(cid, icode_ptr, 48, hang_rec);
           ok = (g_cpu[0].u_cpu.request_sim_stop || g_cpu[0].u_cpu.sim_stop)
                && (g_cpu[0].u_cpu.bus_txn_count > txn_before);
@@ -637,10 +616,7 @@ end
         end
         4'd2: begin
           txn_before = g_cpu[1].u_cpu.bus_txn_count;
-          g_cpu[1].u_cpu.pc = icode_ptr;
-          g_cpu[1].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[1].u_cpu.request_sim_stop = 0;
-          g_cpu[1].u_cpu.sim_stop = 0;
+          g_cpu[1].u_cpu.cpu_arm_run(icode_ptr);
           run_cpu_core(cid, icode_ptr, 48, hang_rec);
           ok = (g_cpu[1].u_cpu.request_sim_stop || g_cpu[1].u_cpu.sim_stop)
                && (g_cpu[1].u_cpu.bus_txn_count > txn_before);
@@ -648,10 +624,7 @@ end
         end
         4'd3: begin
           txn_before = g_cpu[2].u_cpu.bus_txn_count;
-          g_cpu[2].u_cpu.pc = icode_ptr;
-          g_cpu[2].u_cpu.state = `CPU_STATE_RUNNING;
-          g_cpu[2].u_cpu.request_sim_stop = 0;
-          g_cpu[2].u_cpu.sim_stop = 0;
+          g_cpu[2].u_cpu.cpu_arm_run(icode_ptr);
           run_cpu_core(cid, icode_ptr, 48, hang_rec);
           ok = (g_cpu[2].u_cpu.request_sim_stop || g_cpu[2].u_cpu.sim_stop)
                && (g_cpu[2].u_cpu.bus_txn_count > txn_before);

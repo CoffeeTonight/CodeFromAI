@@ -314,13 +314,17 @@ config-scale:
 	$(MAKE) -C firmware/campaign config NUM_SCPU=$(NUM_SCPU_SCALE) BUS_LAYOUT="$(BUS_LAYOUT_SCALE)"
 	$(MAKE) -C firmware/campaign bus_connect
 	$(MAKE) -C firmware/campaign soc_cell
+	@# bus_connect is file-dep driven; force after config rewrote manifest.h
 
-soc-manifest: $(FW_DEFAULT_STAMP) $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND)
-	$(MAKE) -C firmware/campaign bus_connect
+# Delegate connect VH rebuild to campaign Makefile (manifest.h + generators)
+$(SOC_CONNECT_VH):
+	$(MAKE) -C firmware/campaign $(abspath $(SOC_CONNECT_VH))
+
+soc-manifest: $(FW_DEFAULT_STAMP) $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(MANIFEST_BUS_BIND) $(SOC_CONNECT_VH)
 	$(MAKE) sim_build/tb_soc_manifest.vvp
 	$(RUN_VVP) sim_build/tb_soc_manifest.vvp
 
-soc-manifest-scale: sim_build/tb_soc_manifest_scale.vvp
+soc-manifest-scale: $(SOC_CONNECT_VH) sim_build/tb_soc_manifest_scale.vvp
 	$(RUN_VVP) sim_build/tb_soc_manifest_scale.vvp
 
 chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK)

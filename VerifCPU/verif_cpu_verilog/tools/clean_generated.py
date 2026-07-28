@@ -2,6 +2,7 @@
 """Remove artifacts produced by ./example.sh gen / sim.
 
 Keeps hand-written sources (campaign_slots.yaml, soc_regs.h, harness *.hex, …).
+Generated VH/RTL lists use globs so OS bind / new gen outputs stay covered.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ GEN_FW_MK = [
     "firmware/campaign/build/.icodes.stamp",
     "firmware/campaign/build/.fw_default.stamp",
     "firmware/campaign/build/.fw_scale.stamp",
+    "firmware/campaign/.bus_connect.stamp",
 ]
 
 GEN_FW_HEX = [
@@ -36,35 +38,30 @@ GEN_FW_HEX = [
     "firmware/full_campaign_vcpu.hex",
 ]
 
-# ../../include — generated Verilog headers
-GEN_VH = [
-    "include/campaign_params.vh",
-    "include/campaign_master.vh",
-    "include/campaign_scale.vh",
-    "include/campaign_manifest.vh",
-    "include/campaign_soc_platform.vh",
+# Explicit paths that globs may miss or that live outside include/
+GEN_VH_EXTRA = [
     "include/soc_init_seq.vh",
+    "include/chip_top_rtl.mk",
+    "include/soc_integration_example_gen.vh",
+]
+
+# Safe globs — do not use bare include/verif_*.vh (would delete hand-written defs)
+GEN_VH_GLOBS = [
+    "include/campaign_*.vh",
+    "include/tb_*_gen.vh",
+    "include/tb_soc_manifest*.vh",
     "include/icode_map.vh",
     "include/icode_bind.vh",
-    "include/tb_full_campaign_gen.vh",
-    "include/tb_soc_manifest_defs.vh",
-    "include/tb_soc_manifest_gen.vh",
-    "include/tb_soc_manifest_decode.vh",
-    "include/tb_soc_manifest_scale_defs.vh",
-    "include/tb_soc_manifest_scale_gen.vh",
-    "include/verif_manifest_soc_bus_read.vh",
-    "include/verif_manifest_soc_bus_write.vh",
-    "include/verif_manifest_scale_soc_bus_read.vh",
-    "include/verif_manifest_scale_soc_bus_write.vh",
-    "include/verif_chip_soc_bus_read.vh",
-    "include/verif_chip_soc_bus_write.vh",
-    "include/chip_top_example_gen.vh",
-    "include/chip_top_decode.vh",
+    "include/verif_manifest*_soc_bus*.vh",
+    "include/verif_chip_soc_bus*.vh",
+    "include/verif_paste_soc_bus*.vh",
     "include/verif_soc_bus_connect.vh",
+    "include/chip_top_*.vh",
 ]
 
 GEN_RTL = [
     "rtl/verif_vcpu_soc_cell.v",
+    "rtl/verif_vcpu_soc_cell_chip.v",
 ]
 
 GEN_DIRS = [
@@ -74,6 +71,17 @@ GEN_DIRS = [
     "filelists",
     "scripts",
 ]
+
+
+def _expand_globs(patterns: list[str]) -> list[Path]:
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for pat in patterns:
+        for p in sorted(ROOT.glob(pat)):
+            if p.is_file() and p not in seen:
+                seen.add(p)
+                out.append(p)
+    return out
 
 
 def _rm_file(path: Path, *, dry_run: bool) -> bool:
@@ -118,7 +126,10 @@ def clean(*, fw_only: bool, dry_run: bool) -> int:
         print(f"[clean_generated] fw scope: {removed} item(s)")
         return 0
 
-    for rel in GEN_VH + GEN_RTL:
+    for path in _expand_globs(GEN_VH_GLOBS):
+        if _rm_file(path, dry_run=dry_run):
+            removed += 1
+    for rel in GEN_VH_EXTRA + GEN_RTL:
         if _rm_file(ROOT / rel, dry_run=dry_run):
             removed += 1
 

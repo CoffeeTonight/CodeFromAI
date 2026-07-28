@@ -27,6 +27,14 @@ reg campaign_pool_load_ok;
 `define CAMPAIGN_MANIFEST_SLAVE_AGENTS 3
 `define CAMPAIGN_UART_CPU_ID 3
 
+`define CAMPAIGN_DUMPVARS \
+  $dumpvars(1, tb_full_campaign); \
+  $dumpvars(0, tb_full_campaign.u_orch); \
+  $dumpvars(0, tb_full_campaign.u_soc); \
+  $dumpvars(0, tb_full_campaign.g_ag[0].u_ag); \
+  $dumpvars(0, tb_full_campaign.g_ag[1].u_ag); \
+  $dumpvars(0, tb_full_campaign.g_ag[2].u_ag); \
+
 `define CAMPAIGN_POOL_ASSIGN_VCPUS \
   u_pool.pool_assign_region(1, 32'h0, FW_SIZE); \
   u_pool.pool_assign_region(2, 32'h800, FW_SIZE); \

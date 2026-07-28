@@ -26,6 +26,7 @@ REPO_INC  := $(abspath ../../include)
 HIER_YAML ?= soc_hierarchy_from_slots.yaml
 export HIER_YAML
 
+# bus_connect is a phony alias; real artifact is verif_soc_bus_connect.vh (file rule below)
 .PHONY: all all-inner clean config discover soc_init icodes manifest merge hex verify dis soc_cell bus_connect bus_connect_yaml chip_top_gen integration_gen
 
 # Re-invoke after config so cpus.mk / CPU_ACTIVE reflect NUM_SCPU overrides (solo, layout, …)
@@ -71,8 +72,16 @@ $(REPO_RTL)/verif_vcpu_soc_cell.v: gen_soc_cell_rtl.py amba_bus_registry.py veri
 
 soc_cell: $(REPO_RTL)/verif_vcpu_soc_cell.v
 
-bus_connect: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py
+# File-rule: regenerates when manifest / generators change
+SOC_CONNECT_VH := $(REPO_INC)/verif_soc_bus_connect.vh
+BUS_CONNECT_DEPS := gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py \
+	manifest_h_parser.py slave_yaml_parser.py
+MANIFEST_H := include/campaign_manifest.h
+
+$(SOC_CONNECT_VH): $(BUS_CONNECT_DEPS) $(MANIFEST_H)
 	python3 gen_soc_bus_connect.py
+
+bus_connect: $(SOC_CONNECT_VH)
 
 chip_top_gen: gen_tb_campaign.py $(HIER_YAML)
 	python3 gen_tb_campaign.py --yaml $(HIER_YAML)
@@ -80,7 +89,8 @@ chip_top_gen: gen_tb_campaign.py $(HIER_YAML)
 integration_gen: discover gen_soc_integration_example.py soc_integration_ports.yaml
 	python3 gen_soc_integration_example.py
 
-bus_connect_yaml: gen_soc_bus_connect.py amba_bus_registry.py verilog_paths.py $(HIER_YAML)
+# YAML hierarchy path — still writes verif_soc_bus_connect.vh
+bus_connect_yaml: $(BUS_CONNECT_DEPS) $(HIER_YAML)
 	python3 gen_soc_bus_connect.py --yaml $(HIER_YAML)
 
 hex: merge

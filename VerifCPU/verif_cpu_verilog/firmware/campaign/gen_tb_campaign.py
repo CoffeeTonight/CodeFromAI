@@ -2302,8 +2302,19 @@ def emit_macros(
         f"`define CAMPAIGN_MANIFEST_SLAVE_AGENTS {len(slave_agents)}",
         f"`define CAMPAIGN_UART_CPU_ID {uart['id'] if uart else 0}",
         "",
-        "`define CAMPAIGN_POOL_ASSIGN_VCPUS \\",
     ])
+    # VCD dump list tracks active agents (not hard-coded [0..2] in TB)
+    dump_lines = [
+        "  $dumpvars(1, tb_full_campaign); \\",
+        "  $dumpvars(0, tb_full_campaign.u_orch); \\",
+        "  $dumpvars(0, tb_full_campaign.u_soc); \\",
+    ]
+    for s in active:
+        dump_lines.append(f"  $dumpvars(0, tb_full_campaign.{agent_hdl(s['cpu_id'])}); \\")
+    lines.append("`define CAMPAIGN_DUMPVARS \\")
+    lines.extend(dump_lines)
+    lines.append("")
+    lines.append("`define CAMPAIGN_POOL_ASSIGN_VCPUS \\")
     for c in slave_cpus:
         lines.append(f"  u_pool.pool_assign_region({c['id']}, 32'h{c['pool_word']:x}, FW_SIZE); \\")
     lines.append("")
@@ -2442,6 +2453,11 @@ def emit_orchestrator_only_vh(pool_bytes: int, use_lazy: bool, max_slot_count: i
         "`define CAMPAIGN_MAX_ICODE_SLOTS 0",
         "`define CAMPAIGN_TOTAL_ICODE_PASS 0",
         "reg campaign_pool_load_ok;",
+        "",
+        "`define CAMPAIGN_DUMPVARS \\",
+        "  $dumpvars(1, tb_full_campaign); \\",
+        "  $dumpvars(0, tb_full_campaign.u_orch); \\",
+        "  $dumpvars(0, tb_full_campaign.u_soc); \\",
         "",
         "`define CAMPAIGN_LOAD_FIRMWARE \\",
         f'  u_pool.pool_load_hex("{hex_path}", campaign_pool_load_ok); \\',

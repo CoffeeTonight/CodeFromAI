@@ -3,10 +3,12 @@
 `timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 `include "verif_verdict_policy.vh"
+`include "verif_sim_watchdog.vh"
 module tb_verification_harness;
 
   localparam integer TB_EXPECTED_PASS = 5;
-  localparam integer HARNESS_WATCHDOG_STEPS = 200000;
+  // Wall-clock hang guard (shared SSOT); step loop bound is max_steps below.
+  `VERIF_SIM_WATCHDOG_NS
 
   verif_cpu_bus u_shared_bus ();
   verif_cpu_unified_pool u_pool ();
@@ -213,8 +215,6 @@ module tb_verification_harness;
     $display("--- Phase 2: Running Multi-CPU Scenario ---");
     max_steps = 50;
     for (step = 0; step < max_steps; step = step + 1) begin
-      if (step > HARNESS_WATCHDOG_STEPS)
-        $fatal(1, "[sim] harness step watchdog at step=%0d", step);
       if (!u_cpu1.sim_stop && (u_cpu1.state == `CPU_STATE_RUNNING || u_cpu1.state == `CPU_STATE_DUMMY))
         u_cpu1.cpu_step();
       if (!u_cpu2.sim_stop && (u_cpu2.state == `CPU_STATE_RUNNING || u_cpu2.state == `CPU_STATE_DUMMY))

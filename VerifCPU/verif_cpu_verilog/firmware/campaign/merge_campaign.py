@@ -20,13 +20,15 @@ ICODE_JSON = os.path.join(ROOT, "include", "icode_map.json")
 from campaign_pool_policy import (  # noqa: E402
     POOL_READMEMH_MAX_BYTES,
     POOL_WORD_ICODE,
+    REGION_BYTES,
     VCPU_IMAGE_BYTES,
     icode_use_lazy,
+    pool_word_stride,
     unified_image_bytes,
 )
 
-
-REGION_SIZE = 0x2000
+# Byte region per VCPU slot — SSOT from campaign_pool_policy / layout
+REGION_SIZE = REGION_BYTES
 
 
 NOOP_BIN = os.path.join(BUILD, "NOOP.bin")
@@ -89,9 +91,21 @@ def main() -> int:
     pool_bytes = pool_bytes_from_json()
     use_lazy = icode_use_lazy(pool_bytes)
     mode = "lazy file-backed" if use_lazy else "readmemh embed"
+    stride_bytes = pool_word_stride() * 4
+    if stride_bytes < REGION_SIZE:
+        print(
+            f"[merge] pool_word_stride*4=0x{stride_bytes:x} < REGION_SIZE=0x{REGION_SIZE:x} "
+            "(adjacent CPU images may overlap)",
+            file=sys.stderr,
+        )
+        return 1
 
     mem = bytearray(VCPU_IMAGE_BYTES)
-    print(f"[merge] VCPU image + icode policy (pool={pool_bytes} B, max embed={POOL_READMEMH_MAX_BYTES} B → {mode})")
+    print(
+        f"[merge] VCPU image + icode policy (pool={pool_bytes} B, "
+        f"region=0x{REGION_SIZE:x}, stride_B=0x{stride_bytes:x}, "
+        f"max embed={POOL_READMEMH_MAX_BYTES} B → {mode})"
+    )
     for cpu in cpus:
         path = cpu["bin"]
         if not os.path.isfile(path):
@@ -100,7 +114,7 @@ def main() -> int:
         with open(path, "rb") as f:
             blob = f.read()
         if len(blob) > REGION_SIZE:
-            print(f"[merge] {cpu['name']} exceeds {REGION_SIZE} bytes", file=sys.stderr)
+            print(f"[merge] {cpu['name']} exceeds REGION_SIZE 0x{REGION_SIZE:x} bytes", file=sys.stderr)
             return 1
         base_byte = cpu["pool_word"] * 4
         if base_byte + len(blob) > len(mem):

@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // VerifCPU Core - full feature parity with python_model (non-synthesizable)
 
 `include "verif_cpu_defs.vh"
@@ -148,12 +149,8 @@ module verif_cpu_core #(
   reg [8*32:1] wave_scope [0:`WAVE_CHG_MAX-1];
   reg [15:0] wave_chg_count;
 
-  // --- Submodules ---
-  generate
-    if (!USE_MANIFEST_SOC_BUS && !USE_SOC_BUS && !USE_SHARED_BUS) begin : g_local_bus
-      verif_cpu_bus #(.BUS_SIZE(BUS_SIZE)) u_bus ();
-    end
-  endgenerate
+  // --- Submodules / bus backend (routing only; policy stays in do_bus_*) ---
+  `include "verif_cpu_bus_backend.vh"
   verif_cpu_txn_recorder #(.CPU_ID(CPU_ID)) u_rec (.txn_count(bus_txn_count));
 
   `include "verif_cpu_log.vh"
@@ -288,265 +285,6 @@ module verif_cpu_core #(
     end
   endtask
 
-  task bus_read_impl;
-    input  [31:0] addr;
-    input  [2:0]  size;
-    output [31:0] data;
-    output [1:0]  resp;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_read(addr, size, data, resp);
-`else
-        data = 32'h0;
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read(addr, size, data, resp);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_read.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_read.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_read.vh"
-`else
-        data = 32'h0;
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_read(addr, size, data, resp);
-    end
-  endtask
-
-  task bus_write_impl;
-    input  [31:0] addr;
-    input  [31:0] data;
-    input  [2:0]  size;
-    output [1:0]  resp;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_write(addr, data, size, resp);
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write(addr, data, size, resp);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_write.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_write.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_write.vh"
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_write(addr, data, size, resp);
-    end
-  endtask
-
-  task bus_read_issue_impl;
-    input  [31:0] addr;
-    input  [2:0]  size;
-    output integer handle;
-    output        ok;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_read_issue(addr, size, handle, ok);
-`else
-        handle = -1;
-        ok = 1'b0;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_issue(addr, size, handle, ok);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_read_issue.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_read_issue.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_read_issue.vh"
-`else
-        handle = -1;
-        ok = 1'b0;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_read_issue(addr, size, handle, ok);
-    end
-  endtask
-
-  task bus_read_wait_impl;
-    input  integer handle;
-    output [31:0] data;
-    output [1:0]  resp;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_read_wait(handle, data, resp);
-`else
-        data = 32'hDEADDEAD;
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_wait(handle, data, resp);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_read_wait.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_read_wait.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_read_wait.vh"
-`else
-        data = 32'h0;
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_read_wait(handle, data, resp);
-    end
-  endtask
-
-  task bus_read_poll_impl;
-    input  integer handle;
-    output [31:0] data;
-    output [1:0]  resp;
-    output        done;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_read_poll(handle, data, resp, done);
-`else
-        data = 32'h0;
-        resp = `VERIF_BUS_RESP_SOFT;
-        done = 1'b0;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_poll(handle, data, resp, done);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_read_poll.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_read_poll.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_read_poll.vh"
-`else
-        data = 32'h0;
-        resp = `VERIF_BUS_RESP_SOFT;
-        done = 1'b0;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_read_poll(handle, data, resp, done);
-    end
-  endtask
-
-  task bus_write_issue_impl;
-    input  [31:0] addr;
-    input  [31:0] data;
-    input  [2:0]  size;
-    output integer handle;
-    output        ok;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_write_issue(addr, data, size, handle, ok);
-`else
-        handle = -1;
-        ok = 1'b0;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_issue(addr, data, size, handle, ok);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_write_issue.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_write_issue.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_write_issue.vh"
-`else
-        handle = -1;
-        ok = 1'b0;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_write_issue(addr, data, size, handle, ok);
-    end
-  endtask
-
-  task bus_write_wait_impl;
-    input  integer handle;
-    output [1:0] resp;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_write_wait(handle, resp);
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_wait(handle, resp);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_write_wait.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_write_wait.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_write_wait.vh"
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_write_wait(handle, resp);
-    end
-  endtask
-
-  task bus_write_poll_impl;
-    input  integer handle;
-    output [1:0] resp;
-    output       done;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_write_poll(handle, resp, done);
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-        done = 1'b0;
-`endif
-      end
-      else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_poll(handle, resp, done);
-      else if (USE_MANIFEST_SOC_BUS) begin
-`ifdef VERIF_MANIFEST_SCALE_TB
-`include "verif_manifest_scale_soc_bus_write_poll.vh"
-`elsif VERIF_MANIFEST_SOC_TB
-`include "verif_manifest_soc_bus_write_poll.vh"
-`elsif VERIF_CHIP_SOC_TB
-`include "verif_chip_soc_bus_write_poll.vh"
-`else
-        resp = `VERIF_BUS_RESP_SOFT;
-        done = 1'b0;
-`endif
-      end
-      else
-        g_local_bus.u_bus.bus_write_poll(handle, resp, done);
-    end
-  endtask
-
   task os_track_read_issue;
     input ok;
     begin
@@ -615,20 +353,29 @@ module verif_cpu_core #(
     input  [2:0]  size;
     output integer handle;
     output        ok;
+    reg [31:0] dummy_data;
+    reg [1:0]  dummy_resp;
     begin
-      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr) ||
+          !`VERIF_BUS_SIZE_OK(size)) begin
         handle = -1;
         ok = 1'b0;
       end else begin
         bus_read_issue_impl(addr, size, handle, ok);
+        if (ok && (handle < 0 || handle >= `VERIF_CPU_OS_HANDLE_MAX)) begin
+          // Master returned untrackable handle — reap so slot is not orphaned
+          $display("SCPU%0d > OS read handle %0d out of table (max %0d) — reap",
+                   CPU_ID, handle, `VERIF_CPU_OS_HANDLE_MAX);
+          bus_read_wait_impl(handle, dummy_data, dummy_resp);
+          handle = -1;
+          ok = 1'b0;
+        end
         os_track_read_issue(ok);
         if (ok) begin
           last_bus_addr = addr;
           last_bus_wr = 1'b0;
-          if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX) begin
-            os_rd_haddr[handle] = addr;
-            os_rd_open[handle] = 1'b1;
-          end
+          os_rd_haddr[handle] = addr;
+          os_rd_open[handle] = 1'b1;
         end
       end
     end
@@ -706,22 +453,29 @@ module verif_cpu_core #(
     input  [2:0]  size;
     output integer handle;
     output        ok;
+    reg [1:0] dummy_resp;
     begin
-      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr) ||
+          !`VERIF_BUS_SIZE_OK(size)) begin
         handle = -1;
         ok = 1'b0;
       end else begin
         bus_write_issue_impl(addr, data, size, handle, ok);
+        if (ok && (handle < 0 || handle >= `VERIF_CPU_OS_HANDLE_MAX)) begin
+          $display("SCPU%0d > OS write handle %0d out of table (max %0d) — reap",
+                   CPU_ID, handle, `VERIF_CPU_OS_HANDLE_MAX);
+          bus_write_wait_impl(handle, dummy_resp);
+          handle = -1;
+          ok = 1'b0;
+        end
         os_track_write_issue(ok);
         if (ok) begin
           last_bus_valid = 1'b1;
           last_bus_addr = addr;
           last_bus_data = data;
           last_bus_wr = 1'b1;
-          if (handle >= 0 && handle < `VERIF_CPU_OS_HANDLE_MAX) begin
-            os_wr_haddr[handle] = addr;
-            os_wr_open[handle] = 1'b1;
-          end
+          os_wr_haddr[handle] = addr;
+          os_wr_open[handle] = 1'b1;
         end
       end
     end
@@ -830,6 +584,11 @@ module verif_cpu_core #(
         end
         if (!force_hit) begin
           last_bus_err = 1'b0;
+          if (!`VERIF_BUS_SIZE_OK(size)) begin
+            last_bus_err = 1'b1;
+            data = 32'hDEADDEAD;
+            resp = `VERIF_BUS_RESP_SOFT;
+          end else begin
           bus_read_impl(addr, size, data, resp);
           if (resp != `VERIF_BUS_RESP_OK) begin
             last_bus_err = 1'b1;
@@ -842,6 +601,7 @@ module verif_cpu_core #(
             end
           end else
             data = sanitize_xz_fn(data, "bus_read data");
+          end
           last_bus_valid = 1'b1;
           last_bus_addr  = addr;
           last_bus_data  = data;
@@ -864,7 +624,8 @@ module verif_cpu_core #(
       last_bus_data  = data;
       last_bus_wr    = 1'b1;
       last_bus_err   = 1'b0;
-      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr) ||
+          !`VERIF_BUS_SIZE_OK(size)) begin
         last_bus_err = 1'b1;
         last_bus_data = 32'hDEADDEAD;
         if (recorder_attached)
@@ -1015,20 +776,6 @@ module verif_cpu_core #(
       u_rec.recorder_reset();
       cov_reset();
       fn_tracer_reset();
-    end
-  endtask
-
-  // Reset OS stubs where available (local / shared / soc hub). Manifest bridges: no bus_reset.
-  task bus_reset_impl;
-    begin
-      if (USE_SOC_BUS) begin
-`ifdef VERIF_SOC_BUS_HUB
-        `VERIF_SOC_BUS_HUB.bus_reset();
-`endif
-      end else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_reset();
-      else if (!USE_MANIFEST_SOC_BUS)
-        g_local_bus.u_bus.bus_reset();
     end
   endtask
 

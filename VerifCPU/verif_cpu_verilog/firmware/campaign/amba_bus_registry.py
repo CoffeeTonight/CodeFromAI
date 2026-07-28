@@ -65,6 +65,17 @@ def axi_id_zero(id_width: int = AXI_ID_WIDTH_DEFAULT) -> str:
     )
 
 
+# Capability tags — SSOT for // tool: cap_* in RTL and tools/verify_bus_caps.py
+# Values match VERIF_BUS_CAP_* string macros in verif_bus_defs.vh
+CAP_BLOCKING_OS = "cap_blocking_os"
+CAP_MULTI_OS = "cap_multi_os"
+CAP_SPLIT_RW = "cap_split_rw"
+CAP_SMOKE_ONLY = "cap_smoke_only"
+CAP_SMOKE_BURST = "cap_smoke_burst"
+CAP_MEM_MODEL = "cap_mem_model"
+CAP_SOC_DECODE = "cap_soc_decode"
+
+
 @dataclass(frozen=True)
 class BusTypeSpec:
     """One connectable or manifest-registered bus profile."""
@@ -78,6 +89,9 @@ class BusTypeSpec:
     rtl_status: str = "planned"
     cli_flags: tuple[str, ...] = ()
     notes: str = ""
+    # Machine-checkable capability names (without =1); max_outstanding when multi-OS
+    caps: frozenset[str] = frozenset()
+    max_outstanding: int | None = None
 
 
     @property
@@ -96,6 +110,8 @@ def _spec(
     status: str = "planned",
     cli: tuple[str, ...] = (),
     notes: str = "",
+    caps: frozenset[str] | set[str] | tuple[str, ...] = (),
+    max_outstanding: int | None = None,
 ) -> BusTypeSpec:
     return BusTypeSpec(
         key=key,
@@ -107,6 +123,8 @@ def _spec(
         rtl_status=status,
         cli_flags=cli or (f"--{key}",),
         notes=notes,
+        caps=frozenset(caps),
+        max_outstanding=max_outstanding,
     )
 
 
@@ -118,61 +136,84 @@ BUS_TYPES: dict[str, BusTypeSpec] = {
 
     "apb2": _spec("apb2", "APB2", "amba", port_fmt="S{:02d}_APB",
                   connect="apb2", rtl="verif_apb2_master", status="smoke",
-                  cli=("--apb2",)),
+                  cli=("--apb2",),
+                  caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
     "apb3": _spec("apb3", "APB3", "amba", port_fmt="S{:02d}_APB",
                   connect="apb3", rtl="verif_apb_master", status="done",
-                  cli=("--apb3", "--apb")),
+                  cli=("--apb3", "--apb"),
+                  caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
     "apb4": _spec("apb4", "APB4", "amba", port_fmt="S{:02d}_APB",
                   connect="apb4", rtl="verif_apb4_master", status="smoke",
-                  cli=("--apb4",)),
+                  cli=("--apb4",),
+                  caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
     "apb5": _spec("apb5", "APB5", "amba", port_fmt="S{:02d}_APB",
                   connect="apb5", rtl="verif_apb5_master", status="smoke",
-                  cli=("--apb5",)),
+                  cli=("--apb5",),
+                  caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
 
     "ahb_lite": _spec("ahb_lite", "AHB-Lite", "amba", port_fmt="M{:02d}_AHB",
                       connect="ahb_lite", rtl="verif_ahb_lite_master", status="done",
-                      cli=("--ahb", "--ahb_lite")),
+                      cli=("--ahb", "--ahb_lite"),
+                      caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
     "ahb5_lite": _spec("ahb5_lite", "AHB5-Lite", "amba", port_fmt="M{:02d}_AHB",
                        connect="ahb5_lite", rtl="verif_ahb5_lite_master", status="smoke",
-                       cli=("--ahb5",)),
+                       cli=("--ahb5",),
+                       caps={CAP_BLOCKING_OS, CAP_SPLIT_RW}, max_outstanding=1),
     "ahb": _spec("ahb", "AHB (multi-master)", "amba", port_fmt="M{:02d}_AHB",
                  connect="ahb", rtl="verif_ahb_master", status="smoke",
-                 cli=("--ahb_full",)),
+                 cli=("--ahb_full",),
+                 caps={CAP_MULTI_OS, CAP_SPLIT_RW},
+                 max_outstanding=AHB_MAX_OUTSTANDING_DEFAULT),
 
     "axi4lite": _spec("axi4lite", "AXI4-Lite", "amba", port_fmt="S{:02d}_AXI",
                       connect="axi4lite", rtl="verif_axi_lite_master", status="done",
-                      cli=("--axi", "--axi4lite")),
+                      cli=("--axi", "--axi4lite"),
+                      caps={CAP_MULTI_OS, CAP_SPLIT_RW},
+                      max_outstanding=AXI_LITE_MAX_OUTSTANDING_DEFAULT),
     "axi3full": _spec("axi3full", "AXI3 full", "amba", port_fmt="S{:02d}_AXI",
                       connect="axi3full", rtl="verif_axi_full_master", status="smoke",
-                      cli=("--axi3",)),
+                      cli=("--axi3",),
+                      caps={CAP_MULTI_OS, CAP_SPLIT_RW, CAP_SMOKE_BURST},
+                      max_outstanding=AXI_MAX_OUTSTANDING_DEFAULT),
     "axi4full": _spec("axi4full", "AXI4 full", "amba", port_fmt="S{:02d}_AXI",
                       connect="axi4full", rtl="verif_axi_full_master", status="smoke",
-                      cli=("--axi4",)),
+                      cli=("--axi4",),
+                      caps={CAP_MULTI_OS, CAP_SPLIT_RW, CAP_SMOKE_BURST},
+                      max_outstanding=AXI_MAX_OUTSTANDING_DEFAULT),
     "axi5full": _spec("axi5full", "AXI5 full", "amba", port_fmt="S{:02d}_AXI",
                       connect="axi5full", rtl="verif_axi_full_master", status="smoke",
-                      cli=("--axi5",)),
+                      cli=("--axi5",),
+                      caps={CAP_MULTI_OS, CAP_SPLIT_RW, CAP_SMOKE_BURST},
+                      max_outstanding=AXI_MAX_OUTSTANDING_DEFAULT),
     "axistream": _spec("axistream", "AXI4-Stream", "amba", port_fmt="S{:02d}_AXIS",
                        connect="axistream", rtl="verif_axistream_master", status="planned",
                        cli=("--axistream", "--axis"),
-                       notes="Stream port — not memory-mapped"),
+                       notes="Stream port — not memory-mapped",
+                       caps={CAP_SMOKE_ONLY}),
 
     "ace": _spec("ace", "ACE (coherent)", "amba", port_fmt="S{:02d}_ACE",
                  connect="ace", rtl="verif_ace_master", status="manifest_only",
-                 cli=("--ace",), notes="Coherency snoop — chip-specific"),
+                 cli=("--ace",), notes="Coherency snoop — chip-specific",
+                 caps={CAP_SMOKE_ONLY}),
     "ace_lite": _spec("ace_lite", "ACE-Lite", "amba", port_fmt="S{:02d}_ACELITE",
                       connect="ace_lite", rtl="verif_ace_lite_master", status="manifest_only",
-                      cli=("--ace_lite",)),
+                      cli=("--ace_lite",),
+                      caps={CAP_SMOKE_ONLY}),
     "chi": _spec("chi", "CHI (AMBA 5 coherent)", "amba", port_fmt="N{:02d}_CHI",
                  connect="chi", rtl="verif_chi_master", status="manifest_only",
-                 cli=("--chi",), notes="Packet protocol — needs NoC/ICN spec"),
+                 cli=("--chi",), notes="Packet protocol — needs NoC/ICN spec",
+                 caps={CAP_MULTI_OS, CAP_SPLIT_RW},
+                 max_outstanding=CHI_MAX_OUTSTANDING_DEFAULT),
     "asb": _spec("asb", "ASB (legacy)", "amba", port_fmt="S{:02d}_ASB",
                  connect="asb", rtl="verif_asb_master", status="manifest_only",
-                 cli=("--asb",), notes="AMBA2 legacy — rarely used"),
+                 cli=("--asb",), notes="AMBA2 legacy — rarely used",
+                 caps={CAP_SMOKE_ONLY}),
 
     "niu": _spec("niu", "NoC NIU (vendor)", "noc",
                  port_fmt="N{:02d}_NIU", connect="niu", rtl="verif_niu_master",
                  status="manifest_only", cli=("--niu",),
-                 notes="Network Interface Unit — not ARM standard; needs vendor RTL/spec"),
+                 notes="Network Interface Unit — not ARM standard; needs vendor RTL/spec",
+                 caps={CAP_SMOKE_ONLY}),
 }
 # fmt: on
 
@@ -279,3 +320,21 @@ def bus_supports_read_outstanding(bus_type: str) -> bool:
 
 def bus_supports_write_outstanding(bus_type: str) -> bool:
     return normalize_bus_type(bus_type) in BUS_WRITE_OUTSTANDING_TYPES
+
+
+def bus_caps(bus_type: str) -> frozenset[str]:
+    return BUS_TYPES[validate_bus_type(bus_type)].caps
+
+
+def bus_max_outstanding(bus_type: str) -> int | None:
+    return BUS_TYPES[validate_bus_type(bus_type)].max_outstanding
+
+
+def expected_tool_caps_by_rtl_module() -> dict[str, frozenset[str]]:
+    """Merge registry caps by rtl_module name (axi3/4/5 share verif_axi_full_master)."""
+    out: dict[str, set[str]] = {}
+    for spec in BUS_TYPES.values():
+        if not spec.rtl_module or not spec.caps:
+            continue
+        out.setdefault(spec.rtl_module, set()).update(spec.caps)
+    return {k: frozenset(v) for k, v in out.items()}

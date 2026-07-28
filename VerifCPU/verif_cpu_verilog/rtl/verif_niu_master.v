@@ -1,6 +1,7 @@
 // NoC NIU master stub — vendor placeholder + bus_* API (smoke / manifest)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+// tool: cap_smoke_only=1
 
 module verif_niu_master #(
   parameter int FLIT_WIDTH = 64

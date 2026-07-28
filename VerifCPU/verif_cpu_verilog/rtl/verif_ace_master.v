@@ -1,6 +1,7 @@
 // ACE master stub — AXI4 full + coherency port placeholders (smoke / manifest)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+// tool: cap_smoke_only=1 (coherency ports placeholder; AXI path via full master)
 
 module verif_ace_master #(
   parameter int ADDR_WIDTH = 32,

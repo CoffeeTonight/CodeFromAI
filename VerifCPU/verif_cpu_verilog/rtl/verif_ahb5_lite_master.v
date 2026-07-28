@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
+`include "verif_bus_size_helpers.vh"
 
 module verif_ahb5_lite_master #(
   parameter int ADDR_WIDTH = 32,
@@ -27,21 +28,12 @@ module verif_ahb5_lite_master #(
 );
 
 
+  // tool: cap_blocking_os=1 cap_split_rw=1 cap_multi_os=0
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+  `VERIF_BUS_SIZE_FUNCS_COMPAT
   localparam HTRANS_IDLE   = 2'b00;
   localparam HTRANS_NONSEQ = 2'b10;
-
-  function [2:0] hsize_for_bytes;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: hsize_for_bytes = 3'b000;
-        3'd2: hsize_for_bytes = 3'b001;
-        default: hsize_for_bytes = 3'b010;
-      endcase
-    end
-  endfunction
 
   initial begin
     HADDR = 32'h0;

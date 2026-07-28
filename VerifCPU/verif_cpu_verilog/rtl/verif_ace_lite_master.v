@@ -1,4 +1,5 @@
 // ACE-Lite master stub — AXI4-Lite + snoop port placeholders (smoke / manifest)
+// tool: cap_smoke_only=1
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 

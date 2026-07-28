@@ -4,10 +4,14 @@
 //   poll   — if live, perform xfer once and cache; if done, return cache (no re-xfer)
 //   wait   — ensure complete, return cache, clear done (reap)
 // Prerequisites: bus_read / bus_write already defined; verif_bus_defs.vh for RESP_SOFT.
+//
+// `VERIF_BUS_OS_BLOCKING_BODY  — regs + tasks + bus_os_reset (no bus_reset)
+// `VERIF_BUS_OS_BLOCKING_IMPL  — BODY + bus_reset → bus_os_reset (AMBA masters)
+// cpu_bus: BODY then custom bus_reset (mem wipe + bus_os_reset)
 `ifndef VERIF_BUS_OS_BLOCKING_TASKS_VH
 `define VERIF_BUS_OS_BLOCKING_TASKS_VH
 
-`define VERIF_BUS_OS_BLOCKING_IMPL \
+`define VERIF_BUS_OS_BLOCKING_BODY \
   reg [31:0] os_blk_rd_addr; \
   reg [2:0]  os_blk_rd_size; \
   reg        os_blk_rd_live; \
@@ -28,7 +32,7 @@
     os_blk_wr_done = 1'b0; \
   end \
   \
-  task bus_reset; \
+  task bus_os_reset; \
     begin \
       os_blk_rd_live = 1'b0; \
       os_blk_rd_done = 1'b0; \
@@ -43,7 +47,7 @@
     output integer handle; \
     output        ok; \
     begin \
-      if (os_blk_rd_live || os_blk_rd_done) begin \
+      if (!`VERIF_BUS_SIZE_OK(size) || os_blk_rd_live || os_blk_rd_done) begin \
         handle = -1; \
         ok = 1'b0; \
       end else begin \
@@ -97,7 +101,6 @@
         data = 32'hDEADDEAD; \
         resp = `VERIF_BUS_RESP_SOFT; \
       end else begin \
-        /* reap so next issue can proceed */ \
         os_blk_rd_done = 1'b0; \
       end \
     end \
@@ -115,7 +118,7 @@
     output integer handle; \
     output        ok; \
     begin \
-      if (os_blk_wr_live || os_blk_wr_done) begin \
+      if (!`VERIF_BUS_SIZE_OK(size) || os_blk_wr_live || os_blk_wr_done) begin \
         handle = -1; \
         ok = 1'b0; \
       end else begin \
@@ -171,6 +174,15 @@
   task bus_write_outstanding_count; \
     output integer n; \
     begin n = (os_blk_wr_live || os_blk_wr_done) ? 1 : 0; end \
+  endtask
+
+// Default: BODY + bus_reset delegates to bus_os_reset
+`define VERIF_BUS_OS_BLOCKING_IMPL \
+  `VERIF_BUS_OS_BLOCKING_BODY \
+  task bus_reset; \
+    begin \
+      bus_os_reset(); \
+    end \
   endtask
 
 `endif

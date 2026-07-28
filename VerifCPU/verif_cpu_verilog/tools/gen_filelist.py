@@ -242,6 +242,26 @@ EDA_TEST_VIEWS: list[dict] = [
 
 EDA_VIEWS = EDA_WORK_VIEWS + EDA_TEST_VIEWS
 
+# XMR hub defines — parity with Makefile -DVERIF_*_HUB=... (commercial filelist path)
+HUB_DEFINES_BY_VIEW: dict[str, list[str]] = {
+    "full_campaign": [
+        "+define+VERIF_SOC_DUT_HUB=tb_full_campaign.u_soc",
+        "+define+VERIF_SOC_BUS_HUB=tb_full_campaign.u_soc_bus",
+        "+define+VERIF_POOL_HUB=tb_full_campaign.u_pool",
+        "+define+VERIF_SYNC_HUB=tb_full_campaign.u_sync",
+        "+define+VERIF_HW_FORCE_HUB=tb_full_campaign.u_hw_force",
+    ],
+    "soc_manifest": [
+        "+define+VERIF_POOL_HUB=tb_soc_manifest.u_pool",
+    ],
+    "soc_manifest_scale": [
+        "+define+VERIF_POOL_HUB=tb_soc_manifest_scale.u_pool",
+    ],
+    "chip_top_example": [
+        "+define+VERIF_POOL_HUB=chip_top_example.u_pool",
+    ],
+}
+
 _VERDI_VCD: dict[str, str | None] = {v["id"]: v.get("vcd") for v in VERDI_VIEWS}
 
 
@@ -458,7 +478,10 @@ def _emit_eda_view(view: dict, *, optional: set[str]) -> list[tuple[str, str]]:
     vcpu = _check_paths(VCPU_RTL, optional)
     rtl = _check_paths(view["rtl"], optional)
     tb = view.get("tb")
-    defines = view.get("defines") or []
+    defines = list(view.get("defines") or [])
+    for hub_def in HUB_DEFINES_BY_VIEW.get(vid, []):
+        if hub_def not in defines:
+            defines.append(hub_def)
     headers = view.get("headers") or []
     top = view["top"]
 
@@ -1005,6 +1028,8 @@ def _emit_vcs_compile_eda() -> str:
         "set -euo pipefail",
         'ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
         'cd "$ROOT"',
+        '# shellcheck source=scripts/lib/eda_lists.sh',
+        'source "$ROOT/scripts/lib/eda_lists.sh"',
         'VCS="${VCS:-vcs}"',
         'MODE="${1:-full_campaign}"',
         'VIEW="${2:-}"',
@@ -1015,23 +1040,19 @@ def _emit_vcs_compile_eda() -> str:
         '  VIEW="$MODE"',
         "fi",
         "",
+        'eda_require_view "$VIEW"',
         'MANIFEST="$(eda_prefix "$VIEW")/manifest.list"',
-        'TOPFILE="filelists/eda/${VIEW}/top.txt"',
+        'TOPFILE="$(eda_prefix "$VIEW")/top.txt"',
         "",
         'if ! command -v "$VCS" >/dev/null 2>&1; then',
         '  echo "[vcs] $VCS not in PATH" >&2; exit 1',
         "fi",
-        '[[ -f "$MANIFEST" ]] || {',
-        '  echo "[vcs] missing $MANIFEST — run: ./example.sh gen" >&2',
-        f'  echo "  views: {" ".join(v["id"] for v in EDA_VIEWS)}" >&2',
-        "  exit 1",
-        "}",
         'TOP="${VERDI_TOP:-$(cat "$TOPFILE")}"',
         'OUTDIR="sim_build/vcs_${VIEW}"',
         'mkdir -p "$OUTDIR"',
         "",
-        'echo "[vcs] view=$VIEW top=$TOP lists=filelists/eda/$VIEW/{vcpu,rtl,tb_top}.list"',
-        '"$VCS" -sverilog -full64 -kdb -debug_access+all \\',
+        'echo "[vcs] view=$VIEW top=$TOP manifest=$MANIFEST"',
+        '"$VCS" -sverilog -full64 -kdb -debug_access+all -timescale=1ns/1ps \\',
         '  -F "$MANIFEST" -top "$TOP" \\',
         '  -o "$OUTDIR/simv" -Mdir="$OUTDIR/csrc"',
         'echo "[vcs] verdi -dbdir $OUTDIR/simv.daidir"',
@@ -1048,25 +1069,23 @@ def _emit_xcelium_xrun() -> str:
         "set -euo pipefail",
         'ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
         'cd "$ROOT"',
+        '# shellcheck source=scripts/lib/eda_lists.sh',
+        'source "$ROOT/scripts/lib/eda_lists.sh"',
         'XRUN="${XRUN:-xrun}"',
         'VIEW="${1:-full_campaign}"',
         "",
+        'eda_require_view "$VIEW"',
         'MANIFEST="$(eda_prefix "$VIEW")/manifest.list"',
-        'TOPFILE="filelists/eda/${VIEW}/top.txt"',
+        'TOPFILE="$(eda_prefix "$VIEW")/top.txt"',
         "",
         'if ! command -v "$XRUN" >/dev/null 2>&1; then',
         '  echo "[xrun] $XRUN not in PATH — load Cadence env" >&2; exit 1',
         "fi",
-        '[[ -f "$MANIFEST" ]] || {',
-        '  echo "[xrun] missing $MANIFEST — run: ./example.sh gen" >&2',
-        f'  echo "  views: {" ".join(v["id"] for v in EDA_VIEWS)}" >&2',
-        "  exit 1",
-        "}",
         'TOP="${XRUN_TOP:-$(cat "$TOPFILE")}"',
         'OUTDIR="sim_build/xcelium_${VIEW}"',
         'mkdir -p "$OUTDIR"',
         "",
-        'echo "[xrun] view=$VIEW top=$TOP lists=filelists/eda/$VIEW/{vcpu,rtl,tb_top}.list"',
+        'echo "[xrun] view=$VIEW top=$TOP manifest=$MANIFEST"',
         '"$XRUN" -64bit -sv -timescale 1ns/1ps \\',
         '  -F "$MANIFEST" -top "$TOP" \\',
         '  -elaborate -clean \\',

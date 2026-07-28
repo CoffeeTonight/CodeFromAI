@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
+`include "verif_bus_size_helpers.vh"
 
 module verif_ahb_lite_slave_simple #(
   parameter int ADDR_WIDTH = 32,
@@ -26,6 +27,7 @@ module verif_ahb_lite_slave_simple #(
 
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+  `VERIF_BUS_SIZE_FUNCS
 
   localparam HTRANS_IDLE   = 2'b00;
   localparam HTRANS_BUSY   = 2'b01;
@@ -50,11 +52,7 @@ module verif_ahb_lite_slave_simple #(
   function [2:0] hsize_to_acc;
     input [2:0] hsize;
     begin
-      case (hsize)
-        3'd0: hsize_to_acc = 3'd1;
-        3'd1: hsize_to_acc = 3'd2;
-        default: hsize_to_acc = 3'd4;
-      endcase
+      hsize_to_acc = bus_hsize_to_bytes(hsize);
     end
   endfunction
 

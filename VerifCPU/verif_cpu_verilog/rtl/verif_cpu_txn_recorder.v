@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 `include "verif_cpu_defs.vh"
 
 module verif_cpu_txn_recorder #(

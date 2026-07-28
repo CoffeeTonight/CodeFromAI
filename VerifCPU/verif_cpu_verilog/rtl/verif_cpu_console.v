@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // Console Debug Interface — mirrors python_model/verif_cpu/debug/console_interface.py
 // Implementation lives in verif_cpu_core (cpu_console_dispatch / cpu_console_custom).
 // TB modules expose console_cmd() for EDA UCLI: call tb_full_campaign.console_cmd(...)

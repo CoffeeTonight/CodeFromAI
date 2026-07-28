@@ -1,6 +1,7 @@
 // AXI4-Stream master stub — stream port + bus_* API (returns SLVERR; not memory-mapped)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+// tool: cap_smoke_only=1
 
 module verif_axistream_master #(
   parameter int DATA_WIDTH = 32

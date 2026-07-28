@@ -500,8 +500,11 @@ make all           # SFR/SRAM/UART .bin + merge → unified.hex
 ```bash
 make full_campaign   # ★ 공식 캠페인 (fw 빌드 + TB + VCD gate)
 make version-check   # iverilog -g2012 + python3 + GNU Make >= 4.3
-make verify          # harness + full_campaign + soc-bus-protocol (공식 regression)
+make verify          # harness + full_campaign + bus-fast (공식 regression)
 make all             # verify 와 동일
+make bus-fast        # soc-bus + all + protocol + neg (캠페인 제외)
+make bus-deep        # bus-fast + caps + mid-reset + OS + ID-OOO + snoop + mon/SVA
+make bus-caps        # // tool: cap_* vs amba_bus_registry SSOT
 
 make fw              # 펌웨어만 재빌드 (iverilog 생략)
 make basic           # 코어 smoke
@@ -509,10 +512,14 @@ make rv32i           # RV32I 데모 TB
 make harness         # verification harness TB
 make soc             # simple_soc DUT TB
 make soc-bus         # APB3 + AHB-Lite bridge smoke
-make soc-bus-all     # APB/AHB/AXI bridge smoke (13 checks) + VCD
-make soc-bus-protocol # AHB/AXI + burst + 2-master arbiter + axlock tie-0 + AWATOP (40 checks)
-make soc-bus-os       # AXI outstanding read/write (7 checks)
-make soc-bus-id-ooo   # AXI ID out-of-order completion (8 checks)
+make soc-bus-all     # APB/AHB/AXI bridge smoke (20 checks) + VCD
+make soc-bus-protocol # AHB/AXI + burst + WRAP half + 2M arb + ARLOCK/AWATOP (42 checks)
+make soc-bus-neg      # OOB/dual-write/split/size/OS SOFT (23 checks)
+make soc-bus-mid-reset # OS wait abort on mid-transfer reset (4 checks)
+make soc-bus-os       # AXI outstanding + dual-write (9 checks)
+make soc-bus-id-ooo   # AXI ID out-of-order completion (9 checks)
+make soc-bus-snoop    # AXI snoop pulse + snq_drop (5 checks) + VCD
+make soc-bus-sva      # AXI mon smoke (3 checks); commercial: ./scripts/vcs/sva_smoke.sh
 make soc-bus-vcd     # 위 + verify_amba_bus_vcd.py
 make soc-paste        # paste-style SoC bus wiring smoke (4 checks)
 make soc-integration  # direct inst integration example (12 checks)
@@ -531,12 +538,14 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 
 | 타깃 | 체크 | 비고 |
 |------|------|------|
-| `make verify` | harness 5 + campaign 43 + protocol 40 | 공식 regression gate |
+| `make verify` | harness + campaign + bus-fast | 공식 regression gate |
+| `make bus-fast` | bridge 18+20 + protocol 42 + neg 23 | 버스 directed 스모크 |
+| `make bus-deep` | bus-fast + caps + mid-reset + OS + ID-OOO + snoop + mon | multi-OS / snoop / mon |
 | `make full_campaign` | 43/43 + VCD | 캠페인 단독 |
 | `make basic` / `rv32i` | 4 / 2 | 코어 smoke + `VERIF_SIM_WATCHDOG_NS` |
-| `make soc-bus-all` | 13/13 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
-| `make soc-bus-protocol` | 40/40 | AHB/AXI errors, INCR/WRAP R/W burst, 4KiB cross, 2M arb/AW, ARLOCK, AWATOP |
-| `make soc-bus-os` / `soc-bus-id-ooo` | 7 / 8 | AXI outstanding + ID OOO |
+| `make soc-bus-all` | 20/20 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
+| `make soc-bus-protocol` | 42/42 | AHB/AXI errors, INCR/WRAP(+half) R/W, 2M arb, ARLOCK, AWATOP |
+| `make soc-bus-os` / `soc-bus-id-ooo` | 9 / 9 | AXI outstanding dual-write + ID OOO |
 | `make soc-integration` | 12/12 | paste-style direct inst wiring |
 | `make soc-manifest` | 24/24 | real bridge, 3 active slaves, `TB_EXPECTED_PASS` gate |
 | `make soc-manifest-scale` | 27/27 | 60 `g_slv*` + active 3 Phase A/B/C |

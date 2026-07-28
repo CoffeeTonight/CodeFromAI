@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // Unified Firmware Pool — array (small TB) or file-backed lazy read with 4KiB page cache
 `include "verif_bus_defs.vh"
 

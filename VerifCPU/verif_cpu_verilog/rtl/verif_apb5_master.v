@@ -26,7 +26,7 @@ module verif_apb5_master #(
   output reg [31:0] snoop_data
 );
 
-
+  // tool: cap_blocking_os=1 cap_split_rw=1 cap_multi_os=0
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
   initial begin

@@ -1,6 +1,7 @@
 // ASB master stub — AMBA2 legacy + bus_* API (smoke / manifest)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
+// tool: cap_smoke_only=1
 
 module verif_asb_master #(
   parameter int ADDR_WIDTH = 32,

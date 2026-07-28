@@ -123,7 +123,7 @@ SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 SOC_INTEGRATION_SCRIPT = firmware/campaign/gen_soc_integration_example.py
 SOC_INTEGRATION_YAML = firmware/campaign/soc_integration_ports.yaml
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-protocol soc-bus-os soc-bus-id-ooo soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-protocol soc-bus-neg soc-bus-mid-reset soc-bus-os soc-bus-id-ooo soc-bus-snoop soc-bus-sva bus-fast bus-deep bus-caps soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
 discover:
 	$(MAKE) -C firmware/campaign discover
@@ -131,8 +131,14 @@ discover:
 config-campaign:
 	$(MAKE) -C firmware/campaign config
 
-# Authoritative gate: iverilog sim + VCD post-check
-verify: version-check harness full_campaign soc-bus-protocol
+# Authoritative gate: core + bus smoke + protocol + neg-path lock-down
+verify: version-check harness full_campaign bus-fast
+
+# Directed bus smoke (no campaign). bus-deep adds multi-OS / OOO / snoop + mon.
+bus-fast: soc-bus soc-bus-all soc-bus-protocol soc-bus-neg
+bus-caps:
+	python3 tools/verify_bus_caps.py
+bus-deep: bus-fast bus-caps soc-bus-mid-reset soc-bus-os soc-bus-id-ooo soc-bus-snoop soc-bus-sva
 
 all: verify
 
@@ -170,11 +176,47 @@ sim_build/tb_soc_bus_all.vvp: $(BUS_RTL) $(STUB_BUS_RTL) tb/tb_soc_bus_all.v inc
 soc-bus-protocol: sim_build/tb_amba_protocol.vvp
 	$(RUN_VVP) sim_build/tb_amba_protocol.vvp
 
+# Lock-down for recent hardening: OOB/ERROR, dual-write, split early-stop, size/align, OS SOFT
+soc-bus-neg: sim_build/tb_amba_neg_paths.vvp
+	$(RUN_VVP) sim_build/tb_amba_neg_paths.vvp
+
+soc-bus-mid-reset: sim_build/tb_amba_mid_reset.vvp
+	$(RUN_VVP) sim_build/tb_amba_mid_reset.vvp
+
+sim_build/tb_amba_neg_paths.vvp: \
+		rtl/verif_ahb_lite_master.v rtl/verif_ahb5_lite_master.v rtl/verif_ahb_master.v \
+		rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v \
+		rtl/verif_apb_master.v rtl/verif_apb_slave_simple.v \
+		tb/tb_amba_neg_paths.v include/verif_bus_defs.vh include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ \
+		rtl/verif_ahb_lite_master.v rtl/verif_ahb5_lite_master.v rtl/verif_ahb_master.v \
+		rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v \
+		rtl/verif_apb_master.v rtl/verif_apb_slave_simple.v \
+		tb/tb_amba_neg_paths.v
+
+sim_build/tb_amba_mid_reset.vvp: \
+		rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v \
+		tb/tb_amba_mid_reset.v include/verif_bus_defs.vh include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ \
+		rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v \
+		tb/tb_amba_mid_reset.v
+
 soc-bus-os: sim_build/tb_axi_outstanding.vvp
 	$(RUN_VVP) sim_build/tb_axi_outstanding.vvp
 
 soc-bus-id-ooo: sim_build/tb_axi_id_ooo.vvp
 	$(RUN_VVP) sim_build/tb_axi_id_ooo.vvp
+
+# Snoop pulse + snq_drop under dual-complete flood (tiny SNQ_DEPTH)
+soc-bus-snoop: sim_build/tb_axi_snoop_snq.vvp
+	$(RUN_VVP) sim_build/tb_axi_snoop_snq.vvp
+	python3 tools/verify_axi_snoop_vcd.py sim_build/tb_axi_snoop_snq.vcd
+
+# Icarus handshake monitors; commercial SVA via sva/verif_axi_hs_sva.sv + VERIF_BUS_SVA
+soc-bus-sva: sim_build/tb_axi_sva_smoke.vvp
+	$(RUN_VVP) sim_build/tb_axi_sva_smoke.vvp
 
 sim_build/tb_amba_protocol.vvp: rtl/verif_ahb_lite_master.v rtl/verif_ahb_lite_slave_simple.v rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v rtl/verif_axi_arbiter_2m1s.v tb/tb_amba_protocol.v include/verif_bus_soc_widths.vh
 	@mkdir -p sim_build
@@ -187,6 +229,14 @@ sim_build/tb_axi_outstanding.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full
 sim_build/tb_axi_id_ooo.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v include/verif_bus_soc_widths.vh
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_id_ooo.v
+
+sim_build/tb_axi_snoop_snq.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_snoop_snq.v include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_snoop_snq.v
+
+sim_build/tb_axi_sva_smoke.vvp: rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_sva_smoke.v include/verif_bus_axi_mon.vh include/verif_bus_soc_widths.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ rtl/verif_axi_full_master.v rtl/verif_axi_full_slave_simple.v tb/tb_axi_sva_smoke.v
 
 $(FW_DEFAULT_STAMP): $(FW_CAMPAIGN_INPUTS) $(ICODES_STAMP)
 	@mkdir -p firmware/campaign/build

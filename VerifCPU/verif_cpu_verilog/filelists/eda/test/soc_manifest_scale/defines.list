@@ -4,6 +4,7 @@
 # Paths relative to verif_cpu_verilog/ (package root)
 
 +define+VERIF_MANIFEST_SCALE_TB
++define+VERIF_POOL_HUB=tb_soc_manifest_scale.u_pool
 
 # TOP=tb_soc_manifest_scale
 # include/campaign_params.vh

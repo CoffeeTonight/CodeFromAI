@@ -100,8 +100,8 @@ task execute_instruction;
           $sformat(step_disasm, "sw x%0d,0x%0h(x%0d)", rs2, imm, rs1);
         end
       endcase
-      // Unaligned half/word: masters split (verif_bus_split_rw); CPU may also
-      // issue size=4 at any addr — bridge path handles byte decomposition.
+      // Unaligned half/word: AMBA masters split via verif_bus_split_rw
+      // (HARD early-stop SSOT — no CPU-local half@+3 special path).
       do_bus_write(addr, rs2_val, store_sz);
       log_inst(insn_pc, step_disasm);
     end

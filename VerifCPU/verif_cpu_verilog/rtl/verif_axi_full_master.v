@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
+`include "verif_bus_size_helpers.vh"
 
 module verif_axi_full_master #(
   parameter int ADDR_WIDTH = 32,
@@ -9,7 +10,9 @@ module verif_axi_full_master #(
   parameter int AXI_PROT = 4,
   parameter int ID_WIDTH = 4,
   parameter int ID_BASE = 0,
-  parameter int MAX_OUTSTANDING = 4
+  parameter int MAX_OUTSTANDING = 4,
+  // Snoop queue depth; overflow drops oldest and bumps snq_drop_count
+  parameter int SNQ_DEPTH = 8
 )(
   input         ACLK,
   input         ARESETn,
@@ -58,8 +61,10 @@ module verif_axi_full_master #(
   output reg [31:0] snoop_data
 );
 
+  // tool: cap_multi_os=1 cap_split_rw=1 cap_smoke_burst=1
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+  `VERIF_BUS_SIZE_FUNCS_COMPAT
   localparam BURST_INCR = 2'b01;
   localparam BURST_WRAP = 2'b10;
 
@@ -79,8 +84,7 @@ module verif_axi_full_master #(
   reg [31:0] w_slot_data   [0:MAX_OUTSTANDING-1];
   reg [1:0]  w_slot_resp   [0:MAX_OUTSTANDING-1];
 
-  // Snoop queue — avoid R/B same-cycle drop; overflow is $error
-  localparam int SNQ_DEPTH = 8;
+  // Snoop queue — overflow drops oldest, snq_drop_count++
   reg        snq_v [0:SNQ_DEPTH-1];
   reg        snq_wr [0:SNQ_DEPTH-1];
   reg [31:0] snq_a [0:SNQ_DEPTH-1];
@@ -133,17 +137,6 @@ module verif_axi_full_master #(
       end
     end
   endtask
-
-  function [2:0] axsize_for_bytes;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: axsize_for_bytes = 3'b000;
-        3'd2: axsize_for_bytes = 3'b001;
-        default: axsize_for_bytes = 3'b010;
-      endcase
-    end
-  endfunction
 
   // Occupied slots (issued not yet reaped) — matches blocking OS live||done
   function integer os_r_inflight;
@@ -380,12 +373,11 @@ module verif_axi_full_master #(
     output        ok;
     integer guard;
     begin
-      // Unaligned multi-byte needs blocking bus_read (split); OS is single-beat aligned
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      // Legal size 1/2/4; unaligned multi-byte needs blocking bus_read (split)
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[axi_os] bus_read_issue: unaligned size=%0d @0x%08h — use bus_read", size, addr);
+        $display("[axi_os] bus_read_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       handle = alloc_r_slot();
       ok = (handle >= 0);
@@ -446,21 +438,32 @@ module verif_axi_full_master #(
     output [31:0] data;
     output [1:0]  resp;
     integer guard;
+    reg abort;
     begin
       if (handle < 0 || handle >= MAX_OUTSTANDING || !r_slot_busy[handle]) begin
         data = 32'hDEADDEAD;
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!r_slot_done[handle]) begin
+        abort = 1'b0;
+        while (!r_slot_done[handle] && !abort) begin
           @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "axi_full bus_read_wait",
+                                   ARESETn, r_slot_busy[handle], abort)
         end
-        data = r_slot_data[handle];
-        resp = r_slot_resp[handle];
-        r_slot_busy[handle] = 1'b0;
-        r_slot_ar_done[handle] = 1'b0;
-        r_slot_done[handle] = 1'b0;
+        if (abort || !r_slot_done[handle]) begin
+          data = 32'hDEADDEAD;
+          resp = `VERIF_BUS_RESP_SOFT;
+          r_slot_busy[handle] = 1'b0;
+          r_slot_ar_done[handle] = 1'b0;
+          r_slot_done[handle] = 1'b0;
+        end else begin
+          data = r_slot_data[handle];
+          resp = r_slot_resp[handle];
+          r_slot_busy[handle] = 1'b0;
+          r_slot_ar_done[handle] = 1'b0;
+          r_slot_done[handle] = 1'b0;
+        end
       end
     end
   endtask
@@ -479,11 +482,10 @@ module verif_axi_full_master #(
     output        ok;
     integer guard;
     begin
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[axi_os] bus_write_issue: unaligned size=%0d @0x%08h — use bus_write", size, addr);
+        $display("[axi_os] bus_write_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       handle = alloc_w_slot();
       ok = (handle >= 0);
@@ -558,18 +560,27 @@ module verif_axi_full_master #(
     input  integer handle;
     output [1:0] resp;
     integer guard;
+    reg abort;
     begin
       if (handle < 0 || handle >= MAX_OUTSTANDING || !w_slot_busy[handle]) begin
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!w_slot_done[handle]) begin
+        abort = 1'b0;
+        while (!w_slot_done[handle] && !abort) begin
           @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_write_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "axi_full bus_write_wait",
+                                   ARESETn, w_slot_busy[handle], abort)
         end
-        resp = w_slot_resp[handle];
-        w_slot_busy[handle] = 1'b0;
-        w_slot_done[handle] = 1'b0;
+        if (abort || !w_slot_done[handle]) begin
+          resp = `VERIF_BUS_RESP_SOFT;
+          w_slot_busy[handle] = 1'b0;
+          w_slot_done[handle] = 1'b0;
+        end else begin
+          resp = w_slot_resp[handle];
+          w_slot_busy[handle] = 1'b0;
+          w_slot_done[handle] = 1'b0;
+        end
       end
     end
   endtask
@@ -733,9 +744,12 @@ module verif_axi_full_master #(
     reg       ok;
     integer   guard;
     begin
+      resp = `VERIF_BUS_RESP_SOFT;
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
+        $display("[axi_os] bus_write_atop: bad size/align size=%0d @0x%08h", size, addr);
+      end else begin
       h = alloc_w_slot();
       ok = (h >= 0);
-      resp = `VERIF_BUS_RESP_SOFT;
       if (!ok) begin
         $display("[axi_os] bus_write_atop: outstanding full (MAX=%0d)", MAX_OUTSTANDING);
       end else begin
@@ -784,6 +798,7 @@ module verif_axi_full_master #(
         AWATOP = 6'd0;
         @(posedge ACLK);
         bus_write_wait(h, resp);
+      end
       end
     end
   endtask

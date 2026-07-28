@@ -4,6 +4,7 @@
 # Paths relative to verif_cpu_verilog/ (package root)
 
 +define+VERIF_CHIP_SOC_TB
++define+VERIF_POOL_HUB=chip_top_example.u_pool
 
 # TOP=chip_top_example
 # include/campaign_params.vh

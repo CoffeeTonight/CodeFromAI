@@ -6,7 +6,7 @@
 
 module tb_axi_outstanding;
 
-  localparam integer TB_EXPECTED_PASS = 7;
+  localparam integer TB_EXPECTED_PASS = 9;
 
   `VERIF_SIM_WATCHDOG_NS
 
@@ -121,6 +121,22 @@ module tb_axi_outstanding;
     u_mst.bus_write_wait(h0, r0);
     u_mst.bus_read(BASE + 32, 3'd4, rd, r0);
     check("outstanding write", rd == 32'hA5A5A5A5);
+
+    // Dual outstanding write (same master) + readback
+    begin : dual_wr
+      reg ok0, ok1;
+      reg [1:0] rw0, rw1;
+      u_mst.bus_write_issue(BASE + 40, 32'hD0A1_0001, 3'd4, h0, ok0);
+      u_mst.bus_write_issue(BASE + 44, 32'hD0A1_0002, 3'd4, h1, ok1);
+      check("dual write issue", ok0 && ok1 && h0 != h1);
+      u_mst.bus_write_wait(h0, rw0);
+      u_mst.bus_write_wait(h1, rw1);
+      u_mst.bus_read(BASE + 40, 3'd4, d0, r0);
+      u_mst.bus_read(BASE + 44, 3'd4, d1, r1);
+      check("dual write data",
+            rw0 == `VERIF_BUS_RESP_OK && rw1 == `VERIF_BUS_RESP_OK &&
+            d0 == 32'hD0A1_0001 && d1 == 32'hD0A1_0002);
+    end
 
     // Slot full
     u_mst.bus_read_issue(BASE + 0, 3'd4, h0, ok);

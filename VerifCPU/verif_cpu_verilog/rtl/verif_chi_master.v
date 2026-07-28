@@ -3,6 +3,7 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
+// tool: cap_multi_os=1 cap_split_rw=1
 module verif_chi_master #(
   parameter int TXREQ_FLIT_WIDTH = 44,
   parameter int TXRSP_FLIT_WIDTH = 13,
@@ -215,12 +216,10 @@ module verif_chi_master #(
     output integer handle;
     output        ok;
     begin
-      // Unaligned multi-byte needs blocking bus_read (split); OS is single-beat aligned
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[chi_os] bus_read_issue: unaligned size=%0d @0x%08h — use bus_read", size, addr);
+        $display("[chi_os] bus_read_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       handle = alloc_r_slot();
       ok = (handle >= 0);
@@ -261,26 +260,36 @@ module verif_chi_master #(
     output [31:0] data;
     output [1:0]  resp;
     integer guard;
+    reg abort;
     begin
       if (handle < 0 || handle >= MAX_OUTSTANDING || !r_slot_busy[handle]) begin
         data = 32'hDEADDEAD;
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!r_slot_done[handle]) begin
+        abort = 1'b0;
+        while (!r_slot_done[handle] && !abort) begin
           @(posedge CLK);
-          `VERIF_BUS_WAIT_TICK(guard, "chi bus_read_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "chi bus_read_wait",
+                                   RESETn, r_slot_busy[handle], abort)
         end
-        data = r_slot_data[handle];
-        resp = r_slot_resp[handle];
-        r_slot_done[handle] = 1'b0;
-        r_slot_busy[handle] = 1'b0;
-        snoop_valid = 1'b1;
-        snoop_wr = 1'b0;
-        snoop_addr = r_slot_addr[handle];
-        snoop_data = data;
-        @(posedge CLK);
-        snoop_valid = 1'b0;
+        if (abort || !r_slot_done[handle]) begin
+          data = 32'hDEADDEAD;
+          resp = `VERIF_BUS_RESP_SOFT;
+          r_slot_done[handle] = 1'b0;
+          r_slot_busy[handle] = 1'b0;
+        end else begin
+          data = r_slot_data[handle];
+          resp = r_slot_resp[handle];
+          r_slot_done[handle] = 1'b0;
+          r_slot_busy[handle] = 1'b0;
+          snoop_valid = 1'b1;
+          snoop_wr = 1'b0;
+          snoop_addr = r_slot_addr[handle];
+          snoop_data = data;
+          @(posedge CLK);
+          snoop_valid = 1'b0;
+        end
       end
     end
   endtask
@@ -298,11 +307,10 @@ module verif_chi_master #(
     output integer handle;
     output        ok;
     begin
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[chi_os] bus_write_issue: unaligned size=%0d @0x%08h — use bus_write", size, addr);
+        $display("[chi_os] bus_write_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       handle = alloc_w_slot();
       ok = (handle >= 0);
@@ -340,24 +348,33 @@ module verif_chi_master #(
     input  integer handle;
     output [1:0] resp;
     integer guard;
+    reg abort;
     begin
       if (handle < 0 || handle >= MAX_OUTSTANDING || !w_slot_busy[handle]) begin
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!w_slot_done[handle]) begin
+        abort = 1'b0;
+        while (!w_slot_done[handle] && !abort) begin
           @(posedge CLK);
-          `VERIF_BUS_WAIT_TICK(guard, "chi bus_write_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "chi bus_write_wait",
+                                   RESETn, w_slot_busy[handle], abort)
         end
-        resp = w_slot_resp[handle];
-        w_slot_done[handle] = 1'b0;
-        w_slot_busy[handle] = 1'b0;
-        snoop_valid = 1'b1;
-        snoop_wr = 1'b1;
-        snoop_addr = w_slot_addr[handle];
-        snoop_data = w_slot_data[handle];
-        @(posedge CLK);
-        snoop_valid = 1'b0;
+        if (abort || !w_slot_done[handle]) begin
+          resp = `VERIF_BUS_RESP_SOFT;
+          w_slot_done[handle] = 1'b0;
+          w_slot_busy[handle] = 1'b0;
+        end else begin
+          resp = w_slot_resp[handle];
+          w_slot_done[handle] = 1'b0;
+          w_slot_busy[handle] = 1'b0;
+          snoop_valid = 1'b1;
+          snoop_wr = 1'b1;
+          snoop_addr = w_slot_addr[handle];
+          snoop_data = w_slot_data[handle];
+          @(posedge CLK);
+          snoop_valid = 1'b0;
+        end
       end
     end
   endtask

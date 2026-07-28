@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // Unified firmware pool (file-backed, mirrors unified_pool.py)
 `include "verif_bus_defs.vh"
 

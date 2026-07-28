@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
+`include "verif_bus_size_helpers.vh"
 
 module verif_axi_lite_master #(
   parameter int ADDR_WIDTH = 32,
@@ -38,8 +39,10 @@ module verif_axi_lite_master #(
 );
 
 
+  // tool: cap_multi_os=1 cap_split_rw=1 (single outstanding R and W)
   localparam int STRB_WIDTH = DATA_WIDTH / 8;
   `VERIF_BUS_LANE_FUNCS(DATA_WIDTH)
+  `VERIF_BUS_SIZE_FUNCS_COMPAT
 
   // Lite has no IDs — one read slot and one write slot (may overlap)
   reg        r_slot_busy;
@@ -58,17 +61,6 @@ module verif_axi_lite_master #(
   reg [31:0] w_slot_data;
   reg [2:0]  w_slot_size;
   reg [1:0]  w_slot_resp;
-
-  function [2:0] axsize_for_bytes;
-    input [2:0] sz;
-    begin
-      case (sz)
-        3'd1: axsize_for_bytes = 3'b000;
-        3'd2: axsize_for_bytes = 3'b001;
-        default: axsize_for_bytes = 3'b010;
-      endcase
-    end
-  endfunction
 
   task os_reset_slots;
     begin
@@ -183,12 +175,10 @@ module verif_axi_lite_master #(
     output        ok;
     integer guard;
     begin
-      // Unaligned multi-byte needs blocking bus_read (split)
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[axi_lite_os] bus_read_issue: unaligned size=%0d @0x%08h — use bus_read", size, addr);
+        $display("[axi_lite_os] bus_read_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       if (r_slot_busy) begin
         handle = -1;
@@ -244,29 +234,41 @@ module verif_axi_lite_master #(
     output [31:0] data;
     output [1:0]  resp;
     integer guard;
+    reg abort;
     begin
       if (handle != 0 || !r_slot_busy) begin
         data = 32'hDEADDEAD;
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!r_slot_done) begin
+        abort = 1'b0;
+        while (!r_slot_done && !abort) begin
           @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_read_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "axi_lite bus_read_wait",
+                                   ARESETn, r_slot_busy, abort)
         end
-        data = r_slot_data;
-        resp = r_slot_resp;
-        r_slot_ar_done = 1'b0;
-        r_slot_done = 1'b0;
-        r_slot_busy = 1'b0;
-        axi_drain_r_channel();
-        r_hold_ready = 1'b0;
-        snoop_valid = 1'b1;
-        snoop_wr = 1'b0;
-        snoop_addr = r_slot_addr;
-        snoop_data = data;
-        @(posedge ACLK);
-        snoop_valid = 1'b0;
+        if (abort || !r_slot_done) begin
+          data = 32'hDEADDEAD;
+          resp = `VERIF_BUS_RESP_SOFT;
+          r_slot_ar_done = 1'b0;
+          r_slot_done = 1'b0;
+          r_slot_busy = 1'b0;
+          r_hold_ready = 1'b0;
+        end else begin
+          data = r_slot_data;
+          resp = r_slot_resp;
+          r_slot_ar_done = 1'b0;
+          r_slot_done = 1'b0;
+          r_slot_busy = 1'b0;
+          axi_drain_r_channel();
+          r_hold_ready = 1'b0;
+          snoop_valid = 1'b1;
+          snoop_wr = 1'b0;
+          snoop_addr = r_slot_addr;
+          snoop_data = data;
+          @(posedge ACLK);
+          snoop_valid = 1'b0;
+        end
       end
     end
   endtask
@@ -287,11 +289,10 @@ module verif_axi_lite_master #(
     output        ok;
     integer guard;
     begin
-      if ((size == 3'd2 && addr[1:0] == 2'd3) ||
-          (size == 3'd4 && addr[1:0] != 2'd0)) begin
+      if (!`VERIF_BUS_SIZE_OK(size) || `VERIF_BUS_OS_UNALIGNED(addr, size)) begin
         handle = -1;
         ok = 1'b0;
-        $display("[axi_lite_os] bus_write_issue: unaligned size=%0d @0x%08h — use bus_write", size, addr);
+        $display("[axi_lite_os] bus_write_issue: bad size/align size=%0d @0x%08h", size, addr);
       end else begin
       if (w_slot_busy) begin
         handle = -1;
@@ -357,24 +358,33 @@ module verif_axi_lite_master #(
     input  integer handle;
     output [1:0] resp;
     integer guard;
+    reg abort;
     begin
       if (handle != 0 || !w_slot_busy) begin
         resp = `VERIF_BUS_RESP_SOFT;
       end else begin
         guard = 0;
-        while (!w_slot_done) begin
+        abort = 1'b0;
+        while (!w_slot_done && !abort) begin
           @(posedge ACLK);
-          `VERIF_BUS_WAIT_TICK(guard, "axi_lite bus_write_wait")
+          `VERIF_BUS_OS_WAIT_OR_RST(guard, "axi_lite bus_write_wait",
+                                   ARESETn, w_slot_busy, abort)
         end
-        resp = w_slot_resp;
-        w_slot_busy = 1'b0;
-        w_slot_done = 1'b0;
-        snoop_valid = 1'b1;
-        snoop_wr = 1'b1;
-        snoop_addr = w_slot_addr;
-        snoop_data = w_slot_data;
-        @(posedge ACLK);
-        snoop_valid = 1'b0;
+        if (abort || !w_slot_done) begin
+          resp = `VERIF_BUS_RESP_SOFT;
+          w_slot_busy = 1'b0;
+          w_slot_done = 1'b0;
+        end else begin
+          resp = w_slot_resp;
+          w_slot_busy = 1'b0;
+          w_slot_done = 1'b0;
+          snoop_valid = 1'b1;
+          snoop_wr = 1'b1;
+          snoop_addr = w_slot_addr;
+          snoop_data = w_slot_data;
+          @(posedge ACLK);
+          snoop_valid = 1'b0;
+        end
       end
     end
   endtask

@@ -6,7 +6,7 @@
 
 module tb_amba_protocol;
 
-  localparam integer TB_EXPECTED_PASS = 40;
+  localparam integer TB_EXPECTED_PASS = 42;
 
   `VERIF_SIM_WATCHDOG_NS
 
@@ -264,6 +264,18 @@ module tb_amba_protocol;
           beat_n == 4 && resp == 2'd0 &&
           d0 == 32'hF020_002C && d1 == 32'hF020_002D &&
           d2 == 32'hF020_002E && d3 == 32'hF020_002F);
+
+    // WRAP4 half-word: axsize=1, wrap window 8B @0x30; smoke RDATA is full word
+    u_axi.bus_write(32'hA000_0030, 32'h0000_B030, 3'd2, resp);
+    u_axi.bus_write(32'hA000_0032, 32'h0000_B032, 3'd2, resp);
+    u_axi.bus_write(32'hA000_0034, 32'h0000_B034, 3'd2, resp);
+    u_axi.bus_write(32'hA000_0036, 32'h0000_B036, 3'd2, resp);
+    u_axi.bus_read_incr(32'hA000_0032, 8'd3, 3'd2, 2'b10, d0, d1, d2, d3, resp, beat_n, had_err, had_dec);
+    check("AXI WRAP4 half beat count", beat_n == 4 && resp == 2'd0 && !had_err && !had_dec);
+    // Beats @0x32/0x34/0x36/0x30 → words 0x30,0x34,0x34,0x30 (slave word-aligned RDATA)
+    check("AXI WRAP4 half wrap endpoint",
+          d0 == 32'hB032_B030 && d3 == 32'hB032_B030 &&
+          d1 == 32'hB036_B034 && d2 == 32'hB036_B034);
 
     u_axi.bus_write(32'hA000_0100, 32'hA0A0_A0A0, 3'd4, resp);
     u_axi_b.bus_write(32'hA000_0104, 32'hB1B1_B1B1, 3'd4, resp);

@@ -77,14 +77,25 @@ def soc_name_from(raw: dict[str, Any]) -> str:
     return str(name).strip() or "integration_soc"
 
 
+def _write_if_changed(path: Path, text: str) -> bool:
+    if path.is_file():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return False
+        except OSError:
+            pass
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
 def write_integration_ports(raw: dict[str, Any], slaves: list[dict[str, Any]]) -> None:
     payload = {
         "soc_name": soc_name_from(raw),
         "slaves": slaves,
     }
     text = GENERATED_HEADER + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
-    OUT_INTEGRATION.write_text(text, encoding="utf-8")
-    print(f"[discover] Wrote {OUT_INTEGRATION.name} ({len(slaves)} port(s))")
+    if _write_if_changed(OUT_INTEGRATION, text):
+        print(f"[discover] Wrote {OUT_INTEGRATION.name} ({len(slaves)} port(s))")
 
 
 def write_hierarchy(raw: dict[str, Any], slaves: list[dict[str, Any]]) -> None:
@@ -101,8 +112,8 @@ def write_hierarchy(raw: dict[str, Any], slaves: list[dict[str, Any]]) -> None:
         })
     payload = {"soc_name": soc_name_from(raw), "slaves": hier_slaves}
     text = GENERATED_HEADER + yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
-    OUT_HIERARCHY.write_text(text, encoding="utf-8")
-    print(f"[discover] Wrote {OUT_HIERARCHY.name}")
+    if _write_if_changed(OUT_HIERARCHY, text):
+        print(f"[discover] Wrote {OUT_HIERARCHY.name}")
 
 
 def load_raw(slots_path: Path) -> dict[str, Any]:

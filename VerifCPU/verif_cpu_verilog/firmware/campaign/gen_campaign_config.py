@@ -31,6 +31,20 @@ REGION_BYTES = 0x2000
 NOOP_PHASE_C = "cpu_generic/noop.c"
 
 
+def write_text_if_changed(path: Path, text: str) -> bool:
+    """Write only when content changes so Make deps don't thrash mtimes."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        try:
+            if path.read_text(encoding="utf-8") == text:
+                return False
+        except OSError:
+            pass
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
 def expand_slots_to_max(slots: list[dict], max_slots: int, stride: int) -> list[dict]:
     """Grow or shrink reserved rows so manifest matches NUM_SCPU / BUS_LAYOUT total."""
     by_id = {s["cpu_id"]: s for s in slots}
@@ -126,17 +140,15 @@ def save_layout_stamp(
     master_bus: str,
     master_enabled: int,
 ) -> None:
-    LAYOUT_STAMP.write_text(
-        "\n".join([
-            f"NUM_SCPU={num_scpu}",
-            f"BUS_LAYOUT={layout}",
-            f"MASTER_BUS_LAYOUT={master_bus}",
-            f"MASTER_ENABLED={master_enabled}",
-            "",
-        ]),
-        encoding="utf-8",
-    )
-    print(f"[config] Saved {LAYOUT_STAMP.name} (NUM_SCPU={num_scpu})")
+    text = "\n".join([
+        f"NUM_SCPU={num_scpu}",
+        f"BUS_LAYOUT={layout}",
+        f"MASTER_BUS_LAYOUT={master_bus}",
+        f"MASTER_ENABLED={master_enabled}",
+        "",
+    ])
+    if write_text_if_changed(LAYOUT_STAMP, text):
+        print(f"[config] Saved {LAYOUT_STAMP.name} (NUM_SCPU={num_scpu})")
 
 
 def emit_params_vh(max_slots: int) -> None:
@@ -151,9 +163,8 @@ def emit_params_vh(max_slots: int) -> None:
         "`endif",
         "",
     ]
-    OUT_PARAMS_VH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PARAMS_VH.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_PARAMS_VH} (CAMPAIGN_NUM_SCPU={max_slots})")
+    if write_text_if_changed(OUT_PARAMS_VH, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_PARAMS_VH} (CAMPAIGN_NUM_SCPU={max_slots})")
 
 
 def emit_master_vh(master: dict, num_scpu: int) -> None:
@@ -181,9 +192,8 @@ def emit_master_vh(master: dict, num_scpu: int) -> None:
         "`endif",
         "",
     ]
-    OUT_PLATFORM_VH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PLATFORM_VH.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_PLATFORM_VH} (solo={solo} master_vcpu={vcpu})")
+    if write_text_if_changed(OUT_PLATFORM_VH, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_PLATFORM_VH} (solo={solo} master_vcpu={vcpu})")
 
 
 def load_slots() -> tuple[int, int, list[dict], dict]:
@@ -353,13 +363,12 @@ def emit_manifest(
         lines.append("")
 
     lines.extend(["#endif", ""])
-    OUT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    OUT_MANIFEST.write_text("\n".join(lines), encoding="utf-8")
     active_n = sum(1 for s in slots if s["enabled"])
-    print(
-        f"[config] Wrote {OUT_MANIFEST} ({max_slots} slave slots, "
-        f"{active_n} active, master_vcpu={master.get('vcpu_enabled')})"
-    )
+    if write_text_if_changed(OUT_MANIFEST, "\n".join(lines)):
+        print(
+            f"[config] Wrote {OUT_MANIFEST} ({max_slots} slave slots, "
+            f"{active_n} active, master_vcpu={master.get('vcpu_enabled')})"
+        )
 
 
 def emit_layout(slots: list[dict], master: dict, max_slots: int, stride: int) -> None:
@@ -389,8 +398,8 @@ def emit_layout(slots: list[dict], master: dict, max_slots: int, stride: int) ->
         lines.append(f"#define POOL_WORD_SLOT{s['pool_index']}  0x{s['pool_word']:04X}u")
     lines.append(f"#define POOL_WORD_ICODE   0x{icode_word:04X}u")
     lines.extend(["", "#endif", ""])
-    OUT_LAYOUT.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_LAYOUT} (icode @ word 0x{icode_word:x})")
+    if write_text_if_changed(OUT_LAYOUT, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_LAYOUT} (icode @ word 0x{icode_word:x})")
 
 
 def emit_scale_vh(slots: list[dict], master: dict, max_slots: int, stride: int) -> None:
@@ -420,9 +429,8 @@ def emit_scale_vh(slots: list[dict], master: dict, max_slots: int, stride: int) 
         lines.append(f"`define CAMPAIGN_SLOT{i}_POOL_WORD 32'h{s['pool_word']:08X}")
         lines.append(f"`define CAMPAIGN_SLOT{i}_ROLE \"{s['role']}\"")
     lines.extend(["", "`endif", ""])
-    OUT_SCALE_VH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_SCALE_VH.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_SCALE_VH}")
+    if write_text_if_changed(OUT_SCALE_VH, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_SCALE_VH}")
 
 
 def emit_cpus_mk(slots: list[dict], master: dict) -> None:
@@ -455,8 +463,8 @@ def emit_cpus_mk(slots: list[dict], master: dict) -> None:
     if master.get("vcpu_enabled"):
         active = [master["name"]] + active
     lines.append(f"CPU_ACTIVE := {' '.join(active)}")
-    OUT_CPUS_MK.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_CPUS_MK}")
+    if write_text_if_changed(OUT_CPUS_MK, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_CPUS_MK}")
 
 
 SYNC_BARRIER_SRC = {
@@ -522,8 +530,8 @@ def emit_cpu_rules_mk(slots: list[dict], master: dict) -> None:
         "\t$(OBJCOPY) -O binary $< $@",
         "",
     ])
-    OUT_CPU_RULES.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[config] Wrote {OUT_CPU_RULES}")
+    if write_text_if_changed(OUT_CPU_RULES, "\n".join(lines)):
+        print(f"[config] Wrote {OUT_CPU_RULES}")
 
 
 def resolve_master_vcpu_enabled(

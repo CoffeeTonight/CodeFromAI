@@ -315,7 +315,10 @@ $(TB_GEN_STAMP): $(ICODES_STAMP) $(GEN_TB_SCRIPTS) firmware/campaign/include/cam
 	$(MAKE) -C firmware/campaign tb_gen HIER_YAML=$(HIER_YAML)
 	@touch $@
 
-$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK) $(CHIP_SOC_CELL) &: $(TB_GEN_STAMP)
+# Do not list chip_top_rtl.mk as a Make target: it is -include'd, and Make
+# remakes included makefiles that have rules before any goal (would force
+# tb_gen on every `make harness`). Generated as a side-effect of TB_GEN_STAMP.
+$(GEN_TB) $(SOC_MANIFEST_DEFS) $(SOC_MANIFEST_GEN) $(SOC_MANIFEST_DECODE) $(SOC_MANIFEST_SCALE_DEFS) $(SOC_MANIFEST_SCALE_GEN) $(MANIFEST_BUS_BIND) $(MANIFEST_SCALE_BUS_BIND) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_SOC_CELL) &: $(TB_GEN_STAMP)
 	@:
 
 $(SOC_INTEGRATION_GEN): $(SOC_INTEGRATION_SCRIPT) $(SOC_INTEGRATION_YAML)
@@ -338,7 +341,7 @@ soc-manifest: $(FW_DEFAULT_STAMP) $(SOC_CELL_RTL) $(SOC_MANIFEST_DEFS) $(SOC_MAN
 soc-manifest-scale: $(SOC_CONNECT_VH) sim_build/tb_soc_manifest_scale.vvp
 	$(RUN_VVP) sim_build/tb_soc_manifest_scale.vvp
 
-chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(CHIP_TOP_RTL_MK)
+chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(TB_GEN_STAMP)
 	$(MAKE) -C firmware/campaign bus_connect_yaml HIER_YAML=$(HIER_YAML)
 	$(MAKE) sim_build/chip_top_example.vvp
 	$(VVP) sim_build/chip_top_example.vvp

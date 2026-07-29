@@ -2,7 +2,7 @@
 `ifndef CAMPAIGN_MANIFEST_VH
 `define CAMPAIGN_MANIFEST_VH
 
-`define MANIFEST_SLAVE_COUNT 60
+`define MANIFEST_SLAVE_COUNT 3
 
 // Master Phase B: inject bus_read per target (TB calls decode_read)
 `define CAMPAIGN_MANIFEST_MASTER_LOG \

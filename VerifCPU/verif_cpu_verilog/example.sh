@@ -188,6 +188,10 @@ parse_num_scpu() {
     die "NUM_SCPU out of range: $arg (allowed 0..256; 0 = solo MVCPU)"
   fi
   export NUM_SCPU="$arg"
+  if [[ "$arg" == "0" && -z "${MASTER_ENABLED:-}" ]]; then
+    export MASTER_ENABLED=1
+    echo "[example.sh] solo mode — MASTER_ENABLED=1 (MVCPU-only)"
+  fi
   echo "[example.sh] CAMPAIGN_NUM_SCPU=${NUM_SCPU}"
 }
 
@@ -293,33 +297,15 @@ run_gen() {
   ensure_py_deps
 
   cd "$FW"
-  echo "[gen] config    → CAMPAIGN_NUM_SCPU=${slots} → manifest, cpus.mk, campaign_scale.vh"
-  local -a cfg_args=(make config)
-  [[ -n "${NUM_SCPU:-}" ]] && cfg_args+=(NUM_SCPU="${NUM_SCPU}")
-  [[ -n "${BUS_LAYOUT:-}" ]] && cfg_args+=(BUS_LAYOUT="${BUS_LAYOUT}")
-  [[ -n "${MASTER_BUS_LAYOUT:-}" ]] && cfg_args+=(MASTER_BUS_LAYOUT="${MASTER_BUS_LAYOUT}")
-  [[ -n "${MASTER_ENABLED:-}" ]] && cfg_args+=(MASTER_ENABLED="${MASTER_ENABLED}")
-  "${cfg_args[@]}"
-
-  # Keep layout/solo env for nested `make config` deps (icodes, all, …)
+  # Single goal: config once + all-inner + tb_gen + bus_connect (no nested re-config spam)
   export NUM_SCPU BUS_LAYOUT MASTER_BUS_LAYOUT MASTER_ENABLED
-
-  echo "[gen] soc_init  → soc_init_seq.vh, campaign_soc_platform.vh"
-  make soc_init
-
-  echo "[gen] manifest  → campaign_manifest.vh"
-  make manifest
-
-  echo "[gen] icodes    → icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh"
-  make icodes
-
-  if [[ -n "${BUS_LAYOUT:-}" || -n "${MASTER_BUS_LAYOUT:-}" ]]; then
-    echo "[gen] bus_connect → verif_soc_bus_connect.vh (manifest bus ports)"
-    make bus_connect
-  fi
-
-  echo "[gen] VCPU bins + merge → full_campaign_unified.hex"
-  make all
+  echo "[gen] make gen → config (NUM_SCPU=${slots}) + firmware merge + tb gen + bus_connect"
+  local -a gen_args=(make gen)
+  [[ -n "${NUM_SCPU:-}" ]] && gen_args+=(NUM_SCPU="${NUM_SCPU}")
+  [[ -n "${BUS_LAYOUT:-}" ]] && gen_args+=(BUS_LAYOUT="${BUS_LAYOUT}")
+  [[ -n "${MASTER_BUS_LAYOUT:-}" ]] && gen_args+=(MASTER_BUS_LAYOUT="${MASTER_BUS_LAYOUT}")
+  [[ -n "${MASTER_ENABLED:-}" ]] && gen_args+=(MASTER_ENABLED="${MASTER_ENABLED}")
+  "${gen_args[@]}"
 
   echo "[gen] filelists + sim scripts → eda/*/*.list, scripts/{iverilog,verilator,vcs,xcelium,verdi}/"
   cd "$ROOT"

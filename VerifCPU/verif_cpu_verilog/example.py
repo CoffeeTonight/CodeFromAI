@@ -79,10 +79,19 @@ def run(cmd: list[str], *, cwd: Path | None = None, env: dict[str, str] | None =
 
 
 def ensure_py_deps() -> None:
+    """Install tinyrv/PyYAML only when import fails (avoid every-gen pip hang)."""
     req = ROOT / "requirements.txt"
     if not req.is_file():
         die(f"missing {req}")
     need_cmd("python3")
+    check = subprocess.run(
+        [sys.executable, "-c", "import tinyrv, yaml"],
+        capture_output=True,
+        text=True,
+    )
+    if check.returncode == 0:
+        print("[deps] tinyrv + PyYAML already available")
+        return
     print("[deps] python3 -m pip install -r requirements.txt (tinyrv, PyYAML)")
     run([sys.executable, "-m", "pip", "install", "-r", str(req)])
 
@@ -106,6 +115,10 @@ def parse_num_scpu(arg: str | None) -> None:
     if n < 0 or n > 256:
         die(f"NUM_SCPU out of range: {arg} (allowed 0..256; 0 = solo MVCPU)")
     os.environ["NUM_SCPU"] = str(n)
+    # Solo (0 slaves): master VCPU on by default unless user set MASTER_ENABLED
+    if n == 0 and not os.environ.get("MASTER_ENABLED"):
+        os.environ["MASTER_ENABLED"] = "1"
+        print("[example.py] solo mode — MASTER_ENABLED=1 (MVCPU-only)")
     print(f"[example.py] CAMPAIGN_NUM_SCPU={n}")
 
 
@@ -294,33 +307,20 @@ def run_gen() -> None:
     ensure_py_deps()
 
     mk_env = _make_env()
-    print(f"[gen] config    → CAMPAIGN_NUM_SCPU={slots} → manifest, cpus.mk, campaign_scale.vh")
-    if mk_env:
-        args = ["make", "config"]
-        for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED"):
-            if mk_env.get(key):
-                args.append(f"{key}={mk_env[key]}")
-        run(args, cwd=FW, env=mk_env)
-    else:
-        run(["make", "config"], cwd=FW)
-
     gen_env = {**os.environ, **mk_env}
 
-    print("[gen] soc_init  → soc_init_seq.vh, campaign_soc_platform.vh")
-    run(["make", "soc_init"], cwd=FW, env=gen_env)
-
-    print("[gen] manifest  → campaign_manifest.vh")
-    run(["make", "manifest"], cwd=FW, env=gen_env)
-
-    print("[gen] icodes    → icode_pool.bin, icode_map.vh, tb_full_campaign_gen.vh")
-    run(["make", "icodes"], cwd=FW, env=gen_env)
-
-    if mk_env.get("BUS_LAYOUT") or mk_env.get("MASTER_BUS_LAYOUT"):
-        print("[gen] bus_connect → verif_soc_bus_connect.vh (manifest bus ports)")
-        run(["make", "bus_connect"], cwd=FW, env=gen_env)
-
-    print("[gen] VCPU bins + merge → full_campaign_unified.hex")
-    run(["make", "all"], cwd=FW, env=gen_env)
+    # Single make goal: config once, then all-inner + tb_gen + bus_connect.
+    # (Previously each of soc_init/manifest/icodes/tb_gen/all re-ran phony `config`,
+    #  so solo `gen 0` looked like an infinite loop.)
+    print(
+        f"[gen] make gen → config (NUM_SCPU={slots}) + firmware merge + "
+        "tb_full_campaign_gen.vh + bus_connect"
+    )
+    args = ["make", "gen"]
+    for key in ("NUM_SCPU", "BUS_LAYOUT", "MASTER_BUS_LAYOUT", "MASTER_ENABLED"):
+        if mk_env.get(key):
+            args.append(f"{key}={mk_env[key]}")
+    run(args, cwd=FW, env=gen_env)
 
     print("[gen] filelists + sim scripts → eda/*/*.list, scripts/{iverilog,verilator,vcs,xcelium,verdi}/")
     run(["make", "filelists"])

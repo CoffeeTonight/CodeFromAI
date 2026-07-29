@@ -10,7 +10,7 @@ module tb_rv32i_demo;
   `VERIF_SIM_WATCHDOG_NS
 
   verif_cpu_core #(.CPU_ID(1)) u_cpu (
-    .final_pc(), .total_steps(), .sim_stop(),
+    .irq(`VERIF_CPU_IRQ_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
     .assert_pass(), .assert_fail(), .bus_txn_count(),
     .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
   );

@@ -1705,7 +1705,7 @@ def emit_master_vcpu() -> list[str]:
         "  verif_cpu_core #(",
         "    .CPU_ID(0), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(1)",
         "  ) u_mstr_cpu (",
-        "    .final_pc(), .total_steps(), .sim_stop(),",
+        "    .irq(`VERIF_CPU_IRQ_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),",
         "    .assert_pass(), .assert_fail(), .bus_txn_count(),",
         "    .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()",
         "  );",
@@ -1753,7 +1753,7 @@ def emit_vcpu_generate(max_slots: int) -> list[str]:
         "        .CPU_ID(gci + 1), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),"
         " .USE_SOC_BUS(1), .USE_SHARED_SYNC(1), .USE_HW_FORCE(1)",
         "      ) u_cpu (",
-        "        .final_pc(), .total_steps(), .sim_stop(),",
+        "        .irq(`VERIF_CPU_IRQ_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),",
         "        .assert_pass(), .assert_fail(), .bus_txn_count(),",
         "        .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()",
         "      );",

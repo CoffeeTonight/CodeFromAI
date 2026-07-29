@@ -11,6 +11,8 @@ module verif_cpu_core #(
   parameter FW_WORDS        = 4096,
   parameter BUS_SIZE        = 32'h100000,
   parameter WDT_DEFAULT     = 32'd10000,
+  // IRQ vector width (per-instance; default 32). Change detect + empty zero-cycle handler.
+  parameter NUM_IRQ         = `VERIF_CPU_NUM_IRQ,
   // USE_SHARED_BUS: harness-only bus (tb_verification_harness.u_shared_bus)
   parameter USE_SHARED_BUS      = 0,
   // USE_SHARED_POOL: harness-only pool (tb_verification_harness.u_pool)
@@ -23,6 +25,7 @@ module verif_cpu_core #(
   parameter USE_SHARED_SYNC     = 0,
   parameter USE_HW_FORCE        = 0
 )(
+  input  wire [NUM_IRQ-1:0] irq,
   output reg [31:0] final_pc,
   output reg [31:0] total_steps,
   output reg        sim_stop,
@@ -159,6 +162,7 @@ module verif_cpu_core #(
   `include "verif_cpu_fn_tracer.vh"
   `include "verif_cpu_instr_tracer.vh"
   `include "verif_cpu_coverage.vh"
+  `include "verif_cpu_irq.vh"
   `include "verif_cpu_wave.vh"
 
   // --- Register access ---

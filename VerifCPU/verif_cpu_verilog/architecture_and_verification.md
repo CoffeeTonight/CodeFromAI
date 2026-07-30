@@ -100,6 +100,8 @@
 
 VCPU와 Agent는 **cpu_id로 짝**이지만 **별도 RTL 인스턴스**입니다. VCPU는 SoC에 bus transaction을 날리고, Agent는 그 transaction을 tap에서 **관찰·검증**합니다.
 
+**IRQ (model-only):** 각 `verif_cpu_core`는 `input [NUM_IRQ-1:0] irq` (default `NUM_IRQ=32`)를 갖습니다. 비트 레벨 변화를 감지해 `$display` 후 빈 **`irq_handler`** 로 zero-cycle “진입/복귀”합니다 — CSR/`mtvec`/PLIC trap이 **아닙니다**. 캠페인/soc-cell 인스턴스는 기본적으로 `` `VERIF_CPU_IRQ_TIED_OFF `` 로 묶습니다. 상세·예제: [README.md](README.md) § IRQ 입력, 구현 `include/verif_cpu_irq.vh`.
+
 ---
 
 ### 3) SoC 내부 (simple_soc)

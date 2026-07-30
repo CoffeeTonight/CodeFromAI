@@ -292,10 +292,16 @@ module verif_vcpu_soc_cell #(
   );
 
   // --- 2) VCPU: bridge bus via USE_MANIFEST_SOC_BUS; pool via TB VERIF_POOL_HUB ---
+  // Optional: .NUM_IRQ(N) + .irq(vector) — change-detect model hook (not RISC-V trap ISA).
+  // Default width 32; unused → .irq(`VERIF_CPU_IRQ_TIED_OFF). See include/verif_cpu_irq.vh.
   verif_cpu_core #(
-    .CPU_ID(CPU_ID), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),
+    .CPU_ID(CPU_ID), .NUM_IRQ(32),
+    .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),
     .USE_SOC_BUS(0), .USE_MANIFEST_SOC_BUS(1)
-  ) u_cpu ( ... );
+  ) u_cpu (
+    .irq(`VERIF_CPU_IRQ_TIED_OFF),  // or wire SoC IRQ lines: .irq(soc_irq[CPU_ID])
+    /* status outs … */
+  );
 
   // --- 3) Agent: snoop from bridge, not from cpu core ---
   verif_agent_slave #(.CPU_ID(CPU_ID), .TAP_PORT(TAP_PORT)) u_ag (
@@ -463,7 +469,9 @@ Layout persists in `firmware/campaign/.bus_layout_stamp` across `make icodes`. C
 ## 14. Key paths
 
 ```text
-rtl/verif_cpu_core.v              # VCPU execution
+rtl/verif_cpu_core.v              # VCPU execution (+ NUM_IRQ / irq port)
+include/verif_cpu_irq.vh           # IRQ change-detect + irq_handler (zero-cycle)
+include/verif_cpu_defs.vh          # VERIF_CPU_NUM_IRQ, VERIF_CPU_IRQ_TIED_OFF
 rtl/verif_*_master.v              # AMBA bridges (bus_read/bus_write tasks)
 rtl/verif_agent.v                 # master + slave agents
 rtl/verif_orchestrator.v
@@ -474,3 +482,15 @@ firmware/campaign/gen_soc_bus_connect.py
 tools/probe_icodes.py
 tools/verify_amba_bus_vcd.py
 ```
+
+### IRQ model (optional SoC wire)
+
+| Item | Contract |
+|------|----------|
+| Parameter | `NUM_IRQ` (default 32) |
+| Port | `input [NUM_IRQ-1:0] irq` |
+| Behavior | On any bit change: `$display` + call `irq_handler` (no `cpu_step` cost) |
+| Not | PLIC, `mtvec`, nested ISR, privilege traps |
+| Smoke | `make basic` drives `cpu1_irq` and checks `total_steps` unchanged |
+
+Generated soc-cells / campaign TBs tie IRQ off unless you wire them. To attach customer IRQs, drive `g_slv[i].u_cpu.irq` (or cell-level port if you add one) and optionally extend `irq_handler` in `verif_cpu_irq.vh`.

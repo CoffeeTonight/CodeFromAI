@@ -508,10 +508,13 @@ Campaign에서 `make full_campaign` PASS는 RTL/펌웨어/phase 흐름이 맞다
 | `tb/tb_soc_manifest.v` | Integration TB (`make soc-manifest`) |
 | `tb/tb_soc_manifest_scale.v` | Scale integration TB (`make soc-manifest-scale`) |
 | `firmware/campaign/.bus_layout_stamp` | BUS_LAYOUT / NUM_SCPU 영속 (생성됨) |
-| `rtl/verif_cpu_core.v` | VCPU 코어 |
+| `rtl/verif_cpu_core.v` | VCPU 코어 (`NUM_IRQ` / `irq` 포트 포함) |
+| `include/verif_cpu_irq.vh` | IRQ 비트 변화 감지 + `irq_handler` (zero-cycle, trap ISA 아님) |
 | `rtl/verif_agent.v` | master / slave agent |
-| `README.md` | campaign TB 빌드·시뮬 |
+| `README.md` | campaign TB 빌드·시뮬 · **IRQ 사용법** |
 | `architecture_and_verification.md` | 블록 다이어그램 + 검증 스냅샷 |
+
+**IRQ (optional):** `verif_cpu_core` 파라미터 `NUM_IRQ` (default 32), 포트 `irq[NUM_IRQ-1:0]`. 비트 변화 시 `$display` + `irq_handler` (step 미소모). 미사용 시 `.irq(\`VERIF_CPU_IRQ_TIED_OFF)`. 상세는 [README.md](README.md) § IRQ 입력, [vcpu_skill.md](vcpu_skill.md) § IRQ model.
 
 ---
 

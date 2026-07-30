@@ -31,6 +31,16 @@
 /* rd=bus_addr reg, rs1=hier_id reg, rs2=value reg */
 #define vhw_force(addr_r, hier_r, val_r) EMIT32(_ENC_CUSTOM(0x18, addr_r, hier_r, val_r))
 #define vhw_release(addr_r, hier_r)      EMIT32(_ENC_CUSTOM(0x19, addr_r, hier_r, 0))
+/* Bus issue width / gather (model). n is literal in rs1 field (not a reg).
+ *   vbus_gather_on(1)  — 1B narrow (split all stores to bytes)
+ *   vbus_gather_on(2)  — prefer 2B beats
+ *   vbus_gather_on(4)  — native 1/2/4
+ *   vbus_gather_on(8)  — combine consecutive sw → logical 8B flush
+ *   vbus_gather_on(16) — combine → logical 16B flush
+ * long long is still 2×sw at compile; ON(8/16) only changes bus packing. */
+#define vbus_gather_on(n)        EMIT32(_ENC_CUSTOM(0x1A, 1, (n) & 0x1f, 0))
+#define vbus_gather_off()        EMIT32(_ENC_CUSTOM(0x1A, 0, 0, 0))
+#define vbus_gather_flush()      EMIT32(_ENC_CUSTOM(0x1A, 2, 0, 0))
 
 #define rv_addi(rd, rs1, imm) EMIT32( (uint32_t)(((imm) & 0xFFF) << 20) | ((rs1) << 15) | ((rd) << 7) | 0x13u )
 #define rv_lui(rd, imm20)     EMIT32( (uint32_t)(((imm20) & 0xFFFFFu) << 12) | ((rd) << 7) | 0x37u )

@@ -127,6 +127,12 @@ task exec_custom;
         wave_handle_command({27'b0, rd}, (rs1 != 0) ? val_rs1 : 32'd0);
       end
 
+      `VSEL_BUS_GATHER: begin
+        // Encoding: rd=cmd (0=off, 1=on, 2=flush);
+        // on: rs1 field holds literal 8 or 16 (vbus_gather_on(8/16)), not x[rs1]
+        gather_command({27'b0, rd}, {27'b0, rs1});
+      end
+
       default: begin
         $display("SCPU%0d > Unknown custom selector: 0x%02h", CPU_ID, sel);
       end

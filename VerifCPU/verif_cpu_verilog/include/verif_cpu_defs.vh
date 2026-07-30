@@ -35,6 +35,12 @@
 `define VSEL_WAVE        7'h17
 `define VSEL_HW_FORCE    7'h18
 `define VSEL_HW_RELEASE  7'h19
+`define VSEL_BUS_GATHER  7'h1A
+
+// vbus_gather_on(8|16) / off / flush — custom sel VSEL_BUS_GATHER
+`define VERIF_GATHER_CMD_OFF   0
+`define VERIF_GATHER_CMD_ON    1
+`define VERIF_GATHER_CMD_FLUSH 2
 
 `define HW_FORCE_HIER_ANY 32'hFFFF_FFFF
 

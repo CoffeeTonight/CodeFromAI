@@ -124,6 +124,33 @@ SCPU1 > [IRQ handler] entered bit=3 old=0 new=1 (zero-cycle return)
 
 ISR 본문을 채울 때는 `irq_handler` task만 확장하면 됩니다. 스모크: `make basic` (IRQ assert/deassert + step 불변 체크 포함).
 
+### Bus issue width / gather (optional, model-only)
+
+`vbus_gather_on(WIDTH)` — **WIDTH = 발행 폭** (1/2/4/8/16). C 타입이 와이드 beat을 만들지 않음.
+
+| WIDTH | 의미 |
+|-------|------|
+| **1** | **1B narrow** — store를 바이트로 쪼개 발행 |
+| **2** | 2B 우선 (sw → 2× half 등) |
+| **4** | native 1/2/4 |
+| **8** | 연속 `sw` 모아 논리 8B flush (commit은 2× size-4) |
+| **16** | 연속 `sw` 모아 논리 16B flush (4× size-4) |
+| OFF | 기존 — 명령 native size 즉시 발행 |
+
+| 항목 | 내용 |
+|------|------|
+| 펌웨어 | `vbus_gather_on(1\|2\|4\|8\|16)` / `off()` / `flush()` (sel `0x1A`) |
+| TB/console | `cpu_bus_gather_on(n)`, `console_cmd(..., "bus_gather", 1, n, 0)` |
+| load 전 | pending 8/16 버퍼 **flush** |
+| 구현 | `include/verif_cpu_bus_gather.vh` |
+| 스모크 | `make bus-gather` |
+
+```c
+vbus_gather_on(1);   // 1-byte narrow issue
+vbus_gather_on(8);   // long long style combine
+vbus_gather_off();
+```
+
 ### AMBA: 구현 vs stub (manifest scale compile)
 
 | 구분 | RTL (예) | 용도 |

@@ -530,6 +530,62 @@ module verif_cpu_core #(
     end
   endtask
 
+  // Immediate bus write (no gather). Used by gather_flush and non-gathered path.
+  task do_bus_write_commit;
+    input [31:0] addr;
+    input [31:0] data;
+    input [2:0]  size;
+    reg [1:0] resp;
+    begin
+      last_bus_valid = 1'b1;
+      last_bus_addr  = addr;
+      last_bus_data  = data;
+      last_bus_wr    = 1'b1;
+      last_bus_err   = 1'b0;
+      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr) ||
+          !`VERIF_BUS_SIZE_OK(size)) begin
+        last_bus_err = 1'b1;
+        last_bus_data = 32'hDEADDEAD;
+        if (recorder_attached)
+          u_rec.recorder_record(1'b1, addr, 32'hDEADDEAD, size);
+      end else begin
+        bus_write_impl(addr, data, size, resp);
+        if (resp != `VERIF_BUS_RESP_OK) begin
+          last_bus_err = 1'b1;
+          last_bus_data = 32'hDEADDEAD;
+          if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC) begin
+            $display("SCPU%0d > bus write error resp=%0d @0x%08h — poison DEADDEAD + fault",
+                     CPU_ID, resp, addr);
+            note_bus_fault(addr);
+          end
+        end
+        if (recorder_attached)
+          u_rec.recorder_record(1'b1, addr,
+            (resp != `VERIF_BUS_RESP_OK) ? 32'hDEADDEAD : data, size);
+      end
+    end
+  endtask
+
+  `include "verif_cpu_bus_gather.vh"
+
+  // Store path: optional width/gather mode (vbus_gather_on(1|2|4|8|16)).
+  task do_bus_write;
+    input [31:0] addr;
+    input [31:0] data;
+    input [2:0]  size;
+    reg          g_handled;
+    begin
+      g_handled = 1'b0;
+      if (gather_en)
+        gather_handle_store(addr, data, size, g_handled);
+      if (!g_handled) begin
+        if (gather_en && gather_count != 0)
+          gather_flush();
+        do_bus_write_commit(addr, data, size);
+      end
+    end
+  endtask
+
   task do_bus_read;
     input  [31:0] addr;
     input  [2:0]  size;
@@ -540,6 +596,9 @@ module verif_cpu_core #(
     reg [31:0] hw_val;
     reg        hw_hit;
     begin
+      // Preserve program order: drain pending gathered stores before any load.
+      if (gather_en && gather_count != 0)
+        gather_flush();
       last_bus_valid = 1'b0;
       force_hit = 1'b0;
       if (state == `CPU_STATE_DUMMY || is_problem_addr(addr)) begin
@@ -613,41 +672,6 @@ module verif_cpu_core #(
           if (recorder_attached)
             u_rec.recorder_record(1'b0, addr, data, size);
         end
-      end
-    end
-  endtask
-
-  task do_bus_write;
-    input [31:0] addr;
-    input [31:0] data;
-    input [2:0]  size;
-    reg [1:0] resp;
-    begin
-      last_bus_valid = 1'b1;
-      last_bus_addr  = addr;
-      last_bus_data  = data;
-      last_bus_wr    = 1'b1;
-      last_bus_err   = 1'b0;
-      if (state == `CPU_STATE_DUMMY || is_problem_addr(addr) ||
-          !`VERIF_BUS_SIZE_OK(size)) begin
-        last_bus_err = 1'b1;
-        last_bus_data = 32'hDEADDEAD;
-        if (recorder_attached)
-          u_rec.recorder_record(1'b1, addr, 32'hDEADDEAD, size);
-      end else begin
-        bus_write_impl(addr, data, size, resp);
-        if (resp != `VERIF_BUS_RESP_OK) begin
-          last_bus_err = 1'b1;
-          last_bus_data = 32'hDEADDEAD;
-          if (resp == `VERIF_BUS_RESP_SLV || resp == `VERIF_BUS_RESP_DEC) begin
-            $display("SCPU%0d > bus write error resp=%0d @0x%08h — poison DEADDEAD + fault",
-                     CPU_ID, resp, addr);
-            note_bus_fault(addr);
-          end
-        end
-        if (recorder_attached)
-          u_rec.recorder_record(1'b1, addr,
-            (resp != `VERIF_BUS_RESP_OK) ? 32'hDEADDEAD : data, size);
       end
     end
   endtask
@@ -796,6 +820,7 @@ module verif_cpu_core #(
       os_rd_issued = 0; os_rd_completed = 0;
       os_wr_issued = 0; os_wr_completed = 0;
       os_rd_inflight_peak = 0; os_wr_inflight_peak = 0;
+      gather_reset();
       for (i = 0; i < `VERIF_CPU_OS_HANDLE_MAX; i = i + 1) begin
         os_rd_open[i] = 1'b0;
         os_wr_open[i] = 1'b0;
@@ -1072,10 +1097,12 @@ module verif_cpu_core #(
       $display("  control: stall resume status step");
       $display("  bus:     bus_write bus_read bus_read_issue bus_read_wait");
       $display("           bus_write_issue bus_write_wait os_perf");
+      $display("           bus_gather (a0: 0=off 1=on 2=flush; a1: width 1|2|4|8|16)");
       $display("  wdt:     wdt_pet wdt_status");
       $display("  custom:  vstop vwdt_set vwdt_pet vdummy_on vdummy_off");
       $display("           vtrace_enter vtrace_exit vtrace_log vsync vassert");
       $display("           vforce vrelease vhw_force vhw_release vwave");
+      $display("           vbus_gather");
       $display("  sync:    sync_poll (resume SYNC_WAIT when barrier done)");
     end
   endtask
@@ -1123,6 +1150,8 @@ module verif_cpu_core #(
         hw_force_clear_impl(a0, a1);
       else if (cmd == "vwave")
         wave_handle_command(a0[4:0], a1);
+      else if (cmd == "vbus_gather" || cmd == "bus_gather")
+        gather_command(a0, a1);
       else
         $display("SCPU%0d > [Console] unknown custom cmd=%0s (try cpu_console_help)",
                  CPU_ID, cmd);
@@ -1162,6 +1191,8 @@ module verif_cpu_core #(
         cpu_console_bus_write_wait(a0);
       else if (cmd == "os_perf")
         cpu_console_os_perf();
+      else if (cmd == "bus_gather" || cmd == "vbus_gather")
+        gather_command(a0, a1);
       else if (cmd == "wdt_pet")
         cpu_wdt_pet();
       else if (cmd == "wdt_status")
@@ -1173,7 +1204,8 @@ module verif_cpu_core #(
                cmd == "vtrace_enter" || cmd == "vtrace_exit" || cmd == "vtrace_log" ||
                cmd == "vsync" || cmd == "vassert" ||
                cmd == "vforce" || cmd == "vrelease" ||
-               cmd == "vhw_force" || cmd == "vhw_release" || cmd == "vwave")
+               cmd == "vhw_force" || cmd == "vhw_release" || cmd == "vwave" ||
+               cmd == "vbus_gather")
         cpu_console_custom(cmd, a0, a1, a2);
       else
         $display("SCPU%0d > [Console] unknown cmd=%0s (try help)", CPU_ID, cmd);

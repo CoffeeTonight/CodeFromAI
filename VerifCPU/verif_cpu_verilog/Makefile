@@ -150,6 +150,9 @@ all: verify
 basic: sim_build/tb_basic.vvp
 	$(RUN_VVP) sim_build/tb_basic.vvp
 
+bus-gather: sim_build/tb_bus_gather.vvp
+	$(RUN_VVP) sim_build/tb_bus_gather.vvp
+
 rv32i: sim_build/tb_rv32i_demo.vvp
 	$(RUN_VVP) sim_build/tb_rv32i_demo.vvp
 
@@ -268,6 +271,10 @@ full_campaign: fw sim_build/tb_full_campaign.vvp
 sim_build/tb_basic.vvp: $(RTL) tb/tb_basic.v
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ $(RTL) tb/tb_basic.v
+
+sim_build/tb_bus_gather.vvp: $(RTL) tb/tb_bus_gather.v include/verif_cpu_bus_gather.vh
+	@mkdir -p sim_build
+	$(IVERILOG) $(IVFLAGS) -o $@ $(RTL) tb/tb_bus_gather.v
 
 sim_build/tb_rv32i_demo.vvp: $(RTL) tb/tb_rv32i_demo.v
 	@mkdir -p sim_build

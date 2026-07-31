@@ -19,7 +19,9 @@ void phase_c_entry(void)
     rv_jal(15, 8);
     rv_addi(14, 0, 0xBAD);
     rv_addi(17, 0, 0xCD);
-    rv_addi(1, 0, 0x244);  /* OFF_PHASE_C + jalr target (matches Python layout) */
+    /* PC-relative jalr target: auipc → +12 skips auipc/addi/jalr → next insn */
+    rv_auipc(1, 0);
+    rv_addi(1, 1, 12);
     rv_jalr(16, 1, 0);
     rv_addi(18, 0, 0xEF);
     vtrace_exit(0xD0);

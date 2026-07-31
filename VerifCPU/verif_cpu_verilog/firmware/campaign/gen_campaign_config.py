@@ -521,10 +521,13 @@ def emit_cpu_rules_mk(slots: list[dict], master: dict) -> None:
     lines.extend([
         "NOOP: $(BUILD_DIR)/NOOP.bin",
         "",
-        f"$(BUILD_DIR)/NOOP.elf: {NOOP_PHASE_C} campaign.ld | $(BUILD_DIR)",
+        f"$(BUILD_DIR)/NOOP.elf: $(COMMON) {NOOP_PHASE_C} campaign.ld | $(BUILD_DIR)",
         '\t@echo "Building NOOP (reserved slots)..."',
+        "\t$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/NOOP_phase_a.o",
+        "\t$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/NOOP_phase_b.o",
         f"\t$(CC) $(CFLAGS) -c {NOOP_PHASE_C} -o $(BUILD_DIR)/NOOP_phase_c.o",
-        "\t$(LD) $(LDFLAGS) -o $@ $(BUILD_DIR)/NOOP_phase_c.o",
+        "\t$(LD) $(LDFLAGS) -o $@ $(BUILD_DIR)/NOOP_phase_a.o "
+        "$(BUILD_DIR)/NOOP_phase_b.o $(BUILD_DIR)/NOOP_phase_c.o",
         "",
         "$(BUILD_DIR)/NOOP.bin: $(BUILD_DIR)/NOOP.elf",
         "\t$(OBJCOPY) -O binary $< $@",

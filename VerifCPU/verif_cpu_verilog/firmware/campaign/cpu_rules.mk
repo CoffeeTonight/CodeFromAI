@@ -47,10 +47,12 @@ $(BUILD_DIR)/UART.bin: $(BUILD_DIR)/UART.elf
 
 NOOP: $(BUILD_DIR)/NOOP.bin
 
-$(BUILD_DIR)/NOOP.elf: cpu_generic/noop.c campaign.ld | $(BUILD_DIR)
+$(BUILD_DIR)/NOOP.elf: $(COMMON) cpu_generic/noop.c campaign.ld | $(BUILD_DIR)
 	@echo "Building NOOP (reserved slots)..."
+	$(CC) $(CFLAGS) -c common/phase_a.c -o $(BUILD_DIR)/NOOP_phase_a.o
+	$(CC) $(CFLAGS) -c common/phase_b.c -o $(BUILD_DIR)/NOOP_phase_b.o
 	$(CC) $(CFLAGS) -c cpu_generic/noop.c -o $(BUILD_DIR)/NOOP_phase_c.o
-	$(LD) $(LDFLAGS) -o $@ $(BUILD_DIR)/NOOP_phase_c.o
+	$(LD) $(LDFLAGS) -o $@ $(BUILD_DIR)/NOOP_phase_a.o $(BUILD_DIR)/NOOP_phase_b.o $(BUILD_DIR)/NOOP_phase_c.o
 
 $(BUILD_DIR)/NOOP.bin: $(BUILD_DIR)/NOOP.elf
 	$(OBJCOPY) -O binary $< $@

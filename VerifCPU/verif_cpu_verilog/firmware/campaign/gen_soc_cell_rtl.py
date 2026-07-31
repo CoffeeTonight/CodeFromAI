@@ -33,14 +33,14 @@ CELL_SPECS: dict[str, dict] = {
         "master_out": [
             "PADDR", "PSEL", "PENABLE", "PWRITE", "PWDATA",
         ],
-        "master_in": ["PRDATA", "PREADY"],
+        "master_in": ["PRDATA"],
         "module": "verif_apb2_master",
     },
     "apb3": {
         "clk": ("PCLK", "PCLK"),
         "rst": ("PRESETn", "PRESETn"),
         "master_out": [
-            "PADDR", "PSEL", "PENABLE", "PWRITE", "PWDATA", "PSTRB",
+            "PADDR", "PSEL", "PENABLE", "PWRITE", "PWDATA",
         ],
         "master_in": ["PRDATA", "PREADY", "PSLVERR"],
         "module": "verif_apb_master",
@@ -178,7 +178,7 @@ def _port_decl(name: str, spec: dict) -> str:
         return f"{direction} wire [1:0]  {name}"
     if name in ("HSIZE", "ARSIZE", "AWSIZE", "HBURST"):
         return f"{direction} wire [2:0]  {name}"
-    if name in ("ARBURST", "AWBURST"):
+    if name in ("ARBURST", "AWBURST", "ARLOCK", "AWLOCK"):
         return f"{direction} wire [1:0]  {name}"
     if name in ("ARPROT", "AWPROT"):
         return f"{direction} wire [2:0]  {name}"

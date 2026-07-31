@@ -8,6 +8,7 @@
 `include "verif_platform_defs.vh"
 `include "verif_amba_connect_macros.vh"
 `include "verif_sim_watchdog.vh"
+`include "verif_tb_check.vh"
 
 module soc_cpu_bus_paste;
 
@@ -78,7 +79,7 @@ module soc_cpu_bus_paste;
     .ARLEN(8'd0),
     .ARSIZE(S01_AXI_arsize),
     .ARBURST(2'b01),
-    .ARLOCK(1'b0),
+    .ARLOCK(2'b00),
     .ARVALID(S01_AXI_arvalid),
     .ARREADY(S01_AXI_arready),
     .RID(u_stub_rid),
@@ -92,7 +93,7 @@ module soc_cpu_bus_paste;
     .AWLEN(8'd0),
     .AWSIZE(S01_AXI_awsize),
     .AWBURST(2'b01),
-    .AWLOCK(1'b0),
+    .AWLOCK(2'b00),
     .AWVALID(S01_AXI_awvalid),
     .AWREADY(S01_AXI_awready),
     .WID(4'd0),

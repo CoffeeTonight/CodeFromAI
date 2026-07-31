@@ -23,7 +23,7 @@
 
 module tb_full_campaign;
 
-  localparam integer TB_EXPECTED_PASS = 43;
+  localparam integer TB_EXPECTED_PASS = 45;
 
   `VERIF_SIM_WATCHDOG_NS
 

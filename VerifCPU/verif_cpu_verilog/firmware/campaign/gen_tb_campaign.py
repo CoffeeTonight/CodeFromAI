@@ -652,7 +652,7 @@ def _emit_cell_instance(s: dict, gi: int, indent: str = "      ") -> list[str]:
             lines.append(f"{indent}.PRDATA(),")
         elif bt == "apb3":
             lines.append(
-                f"{indent}.PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PSTRB(),"
+                f"{indent}.PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),"
                 f" .PRDATA(), .PREADY(), .PSLVERR(),"
             )
         else:
@@ -847,6 +847,12 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
             )
             if bt == "apb2":
                 lines.append(f"    .PRDATA({pref}_PRDATA)")
+            elif bt == "apb3":
+                # Master RMW full-word; slave keeps PSTRB for APB4+ path — all-ones
+                lines.append(
+                    f"    .PSTRB({{VERIF_STRB_WIDTH{{1'b1}}}}), .PRDATA({pref}_PRDATA),"
+                    f" .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR)"
+                )
             else:
                 lines.append(
                     f"    .PSTRB({pref}_PSTRB), .PRDATA({pref}_PRDATA),"
@@ -895,11 +901,11 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
-                    f"    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
+                    f"    .ARBURST(2'b01), .ARLOCK(2'b00), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST(), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
-                    f"    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
+                    f"    .AWBURST(2'b01), .AWLOCK(2'b00), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
@@ -910,11 +916,11 @@ def emit_soc_stub_periph(slaves: list[dict]) -> list[str]:
                 lines.extend([
                     "    .ACLK(soc_clk), .ARESETn(soc_rstn),",
                     f"    .ARID({AXI_ID_V_ZERO}), .ARADDR({pref}_araddr), .ARLEN(8'd0), .ARSIZE({pref}_arsize),",
-                    f"    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
+                    f"    .ARBURST(2'b01), .ARLOCK(2'b00), .ARVALID({pref}_arvalid), .ARREADY({pref}_arready),",
                     f"    .RID({rid_w}), .RDATA({pref}_rdata), .RRESP({pref}_rresp),",
                     f"    .RLAST({rlast_w}), .RVALID({pref}_rvalid), .RREADY({pref}_rready),",
                     f"    .AWID({AXI_ID_V_ZERO}), .AWADDR({pref}_awaddr), .AWLEN(8'd0), .AWSIZE({pref}_awsize),",
-                    f"    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
+                    f"    .AWBURST(2'b01), .AWLOCK(2'b00), .AWVALID({pref}_awvalid), .AWREADY({pref}_awready),",
                     f"    .WID({AXI_ID_V_ZERO}), .WDATA({pref}_wdata), .WSTRB({pref}_wstrb), .WLAST(1'b1),",
                     f"    .WVALID({pref}_wvalid), .WREADY({pref}_wready),",
                     f"    .BID({bid_w}), .BRESP({pref}_bresp), .BVALID({pref}_bvalid), .BREADY({pref}_bready)",
@@ -1009,7 +1015,7 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
                 f"  wire        {pref}_PSEL, {pref}_PENABLE, {pref}_PWRITE;",
                 f"  wire        {pref}_PREADY, {pref}_PSLVERR;",
             ]
-            if bt != "apb2":
+            if bt in ("apb4", "apb5"):
                 apb_wires.insert(3, f"  wire {STRB_V_RANGE} {pref}_PSTRB;")
             lines.extend(apb_wires)
             if bt in ("apb4", "apb5"):
@@ -1051,7 +1057,7 @@ def emit_scale_soc_port_wires(wired: list[dict]) -> list[str]:
                     f"  wire {AXI_ID_V_RANGE} {pref}_arid, {pref}_awid, {pref}_wid, {pref}_rid, {pref}_bid;",
                     f"  wire [7:0]  {pref}_arlen, {pref}_awlen;",
                     f"  wire [1:0]  {pref}_arburst, {pref}_awburst;",
-                    f"  wire        {pref}_arlock, {pref}_awlock;",
+                    f"  wire [1:0]  {pref}_arlock, {pref}_awlock;",
                 ])
             if bt in ("axi4full", "axi5full"):
                 lines.extend([
@@ -2128,7 +2134,13 @@ def emit_campaign_execute_macro(cpus: list[dict]) -> list[str]:
         "  u_soc.run_init(); \\",
         "  `CAMPAIGN_RUN_PHASE_A_AGENTS \\",
         "  `CAMPAIGN_RUN_PHASE_A_VCORES \\",
-        '  check_eq("Phase A SoC init (19-step)", 1); \\',
+        '  begin reg [31:0] _init_rd; reg [1:0] _ir, _ip; \\',
+        '    u_soc.decode_read(32\'h40000000, 3\'d4, _init_rd, _ir, _ip); \\',
+        '    check_eq("Phase A SoC init SFR_CTRL", _init_rd === 32\'h1 && _ir == 2\'d0); \\',
+        '    u_soc.decode_read(32\'h80000000, 3\'d4, _init_rd, _ir, _ip); \\',
+        '    check_eq("Phase A SoC init SRAM_MARKER", _init_rd === 32\'hDEADBEEF && _ir == 2\'d0); \\',
+        '    check_eq("Phase A SoC init step count", `SOC_INIT_STEP_COUNT == 19); \\',
+        '  end \\',
         phase_a_bus,
         phase_a_steps,
         agent_snoop,

@@ -22,7 +22,7 @@ module verif_axi_full_slave_simple #(
   input  [7:0]  ARLEN,
   input  [2:0]  ARSIZE,
   input  [1:0]  ARBURST,
-  input         ARLOCK,   // AXI3 — ignored (no lock semantics in behavioral slave)
+  input  [1:0]  ARLOCK,   // AXI3 — ignored (no lock semantics in behavioral slave)
   input         ARVALID,
   output wire       ARREADY,
   output reg [ID_WIDTH-1:0] RID,
@@ -36,7 +36,7 @@ module verif_axi_full_slave_simple #(
   input  [7:0]  AWLEN,
   input  [2:0]  AWSIZE,
   input  [1:0]  AWBURST,
-  input         AWLOCK,   // AXI3 — ignored
+  input  [1:0]  AWLOCK,   // AXI3 — ignored
   input         AWVALID,
   output wire       AWREADY,
   input  [ID_WIDTH-1:0] WID,

@@ -4,6 +4,8 @@
 reg [NUM_IRQ0-1:0] irq0_prev;
 reg [NUM_IRQ1-1:0] irq1_prev;
 reg                irq_ready;
+integer            irq0_service_count;
+integer            irq1_service_count;
 
 // ISR hook — enter/exit with no #delay and no total_steps cost.
 // group: 0 = irq0 port, 1 = irq1 port
@@ -26,6 +28,10 @@ task irq_service_bit;
   begin
     $display("SCPU%0d > [IRQ] grp=%0d bit %0d: %0b -> %0b (now=%0b)",
              CPU_ID, group, bit_idx, old_val, new_val, new_val);
+    if (group == 0)
+      irq0_service_count = irq0_service_count + 1;
+    else
+      irq1_service_count = irq1_service_count + 1;
     irq_handler(group, bit_idx, old_val, new_val);
   end
 endtask
@@ -56,6 +62,8 @@ initial begin : irq_init
   irq_ready  = 1'b0;
   irq0_prev  = {NUM_IRQ0{1'b0}};
   irq1_prev  = {NUM_IRQ1{1'b0}};
+  irq0_service_count = 0;
+  irq1_service_count = 0;
   // Defer first sample so X→0 at time 0 is not treated as a real IRQ edge.
   #0;
   irq0_prev = irq0;

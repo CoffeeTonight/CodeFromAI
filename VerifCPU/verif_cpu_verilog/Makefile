@@ -6,6 +6,9 @@ IVFLAGS  = -g2012 -I include
 .DELETE_ON_ERROR:
 
 .PHONY: version-check
+# RISC-V cross prefix used by firmware/campaign (override: make CROSS_COMPILE=...)
+CROSS_COMPILE ?= riscv64-unknown-elf-
+
 version-check:
 	@command -v $(IVERILOG) >/dev/null 2>&1 || \
 		(echo "ERROR: iverilog not found (apt install iverilog)" && exit 1)
@@ -21,6 +24,9 @@ version-check:
 m=re.search(r'(\d+)\.(\d+)', sys.stdin.read()); \
 sys.exit(1 if not m or int(m.group(1))<4 or (int(m.group(1))==4 and int(m.group(2))<3) else 0)" || \
 		(echo "ERROR: GNU Make >= 4.3 required (got: $$($(MAKE) --version | head -1))" && exit 1)
+	@command -v $(CROSS_COMPILE)gcc >/dev/null 2>&1 || \
+		(echo "ERROR: RISC-V toolchain not found: $(CROSS_COMPILE)gcc" && \
+		 echo "  Install riscv64-unknown-elf-gcc or set CROSS_COMPILE=..." && exit 1)
 
 # Chip hierarchy YAML under firmware/campaign/ (pass to sub-make: make chip-top-example HIER_YAML=soc_hierarchy_my_chip.yaml)
 HIER_YAML ?= soc_hierarchy_from_slots.yaml
@@ -128,7 +134,7 @@ SOC_INTEGRATION_GEN = include/soc_integration_example_gen.vh
 SOC_INTEGRATION_SCRIPT = firmware/campaign/gen_soc_integration_example.py
 SOC_INTEGRATION_YAML = firmware/campaign/soc_integration_ports.yaml
 
-.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-protocol soc-bus-neg soc-bus-mid-reset soc-bus-os soc-bus-id-ooo soc-bus-snoop soc-bus-sva bus-fast bus-deep bus-caps soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
+.PHONY: all verify basic rv32i harness soc soc-bus soc-bus-all soc-bus-protocol soc-bus-neg soc-bus-mid-reset soc-bus-os soc-bus-id-ooo soc-bus-snoop soc-bus-sva bus-fast bus-deep bus-gather bus-caps soc-bus-vcd soc-manifest soc-manifest-scale chip-top-example config-scale fw-scale full_campaign fw filelists gen discover config-campaign soc-paste soc-integration clean clean-artifacts
 
 discover:
 	$(MAKE) -C firmware/campaign discover
@@ -356,18 +362,18 @@ soc-manifest-scale: $(SOC_CONNECT_VH) sim_build/tb_soc_manifest_scale.vvp
 chip-top-example: fw $(CHIP_SOC_CELL) $(CHIP_BUS_BIND) $(CHIP_TOP_GEN) $(CHIP_DECODE) $(TB_GEN_STAMP)
 	$(MAKE) -C firmware/campaign bus_connect_yaml HIER_YAML=$(HIER_YAML)
 	$(MAKE) sim_build/chip_top_example.vvp
-	$(VVP) sim_build/chip_top_example.vvp
+	$(RUN_VVP) sim_build/chip_top_example.vvp
 
 gen: discover
 	$(MAKE) -C firmware/campaign integration_gen
 
 soc-paste: fw $(SOC_CELL_RTL)
 	$(MAKE) sim_build/soc_cpu_bus_paste.vvp
-	$(VVP) sim_build/soc_cpu_bus_paste.vvp
+	$(RUN_VVP) sim_build/soc_cpu_bus_paste.vvp
 
 soc-integration: fw $(SOC_CELL_RTL) $(SOC_INTEGRATION_GEN)
 	$(MAKE) sim_build/soc_integration_example.vvp
-	$(VVP) sim_build/soc_integration_example.vvp
+	$(RUN_VVP) sim_build/soc_integration_example.vvp
 
 sim_build/soc_cpu_bus_paste.vvp: $(MANIFEST_RTL) $(BUS_RTL) $(SOC_CELL_RTL) tb/soc_cpu_bus_paste.v $(PASTE_BUS_BIND)
 	@mkdir -p sim_build

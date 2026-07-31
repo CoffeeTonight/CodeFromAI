@@ -250,13 +250,13 @@ module verif_ahb_master #(
 
   task ahb_idle;
     begin
-      HTRANS = HTRANS_IDLE;
-      // Keep HWDATA if a write is still in data phase
+      // NBA: same nets driven from always @(posedge HCLK) — avoid blocking/NBA races
+      HTRANS <= HTRANS_IDLE;
       if (!(dphase_active && slot_is_wr[dphase_slot])) begin
-        HWRITE = 1'b0;
-        HWDATA = 32'h0;
+        HWRITE <= 1'b0;
+        HWDATA <= 32'h0;
       end
-      HEXCL = 1'b0;
+      HEXCL <= 1'b0;
     end
   endtask
 
@@ -313,13 +313,10 @@ module verif_ahb_master #(
         end
         @(posedge HCLK);
         ahb_drive_common(addr, size);
-        HWRITE = is_wr;
-        // Do NOT assign HWDATA here. Task vs always process order is LRM-undefined:
-        // if always completes a write dphase first it clears dphase_active, then a
-        // task-side HWDATA= (even behind a hold check) can overwrite data the slave
-        // still samples on this edge. Always-block installs write data with NBA on
-        // NONSEQ accept only (post-sample for any complete on the same edge).
-        HTRANS = HTRANS_NONSEQ;
+        // NBA for bus outputs shared with always @(posedge) (no blocking/NBA mix)
+        HWRITE <= is_wr;
+        // Do NOT assign HWDATA here — always installs write data with NBA on NONSEQ accept.
+        HTRANS <= HTRANS_NONSEQ;
         slot_pending[handle] = 1'b1;
         // Wait for address accept (pending cleared by always on HREADY+NONSEQ)
         guard = 0;
@@ -328,7 +325,7 @@ module verif_ahb_master #(
           `VERIF_BUS_WAIT_TICK(guard, "ahb_full bus_xfer_issue addr accept")
         end
         // Idle address bus; HWDATA for writes set by always on accept (NBA)
-        HTRANS = HTRANS_IDLE;
+        HTRANS <= HTRANS_IDLE;
         // Do NOT wait for slot_done — true outstanding
       end
       end

@@ -145,7 +145,6 @@ def protocol_checks_for_all() -> list[tuple[Callable[[VcdDB], Series], str, Pred
         (lambda d: d.series_module("u_apb2", "PENABLE"), "APB2 PENABLE", lambda s: had_value(s, 1)),
         (lambda d: d.series_top("apb2_rdata"), "APB2 read 0x2", lambda s: max_value(s) == 0x2),
         (lambda d: d.series_module("u_apb3", "PREADY"), "APB3 PREADY", lambda s: had_value(s, 1)),
-        (lambda d: d.series_module("u_apb3", "PSTRB"), "APB3 PSTRB", lambda s: any(v is not None for _t, v in s)),
         (lambda d: d.series_top("apb3_rdata"), "APB3 read 0x1", lambda s: had_value(s, 0x1)),
         (lambda d: d.series_module("u_apb4", "PPROT"), "APB4 PPROT", lambda s: max_value(s) not in (None, 0)),
         (lambda d: d.series_module("u_apb5", "PWAKEUP"), "APB5 PWAKEUP", lambda s: had_value(s, 1)),

@@ -445,7 +445,7 @@ Options:
 
 Environment:
   NUM_SCPU     Same as gen N (alternative to positional argument)
-  BUS_LAYOUT   Ordered bus segments (axi:62,ahb:1,apb:1) — set by gen --axi/--ahb/--apb/--task
+  BUS_LAYOUT   Ordered bus segments (axi:62,ahb:1,apb:1) — set by gen --axi/--ahb/--apb
   LOG_FULL     Per-CPU VCD log directory (default: .../logs/full_campaign; overridden by -o)
   VERIF_CPU_OUTDIR  Set automatically when -o is used
 

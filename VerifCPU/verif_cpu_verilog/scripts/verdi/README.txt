@@ -7,9 +7,9 @@
 #   ./scripts/verdi/soc_manifest.sh
 
 # Manual Verdi (single combined filelist):
-#   verdi -sv -f filelists/verdi_rtl.f -top verif_vcpu_soc_cell
-#   verdi -sv -f filelists/verdi_full_campaign.f -top tb_full_campaign -ssf sim_build/tb_full_campaign.vcd
-#   verdi -sv -f filelists/verdi_soc_manifest.f -top tb_soc_manifest -ssf sim_build/tb_soc_manifest.vcd
+#   verdi -sv -f filelists/work/verdi_rtl.f -top verif_vcpu_soc_cell
+#   verdi -sv -f filelists/test/verdi_full_campaign.f -top tb_full_campaign -ssf sim_build/tb_full_campaign.vcd
+#   verdi -sv -f filelists/test/verdi_soc_manifest.f -top tb_soc_manifest -ssf sim_build/tb_soc_manifest.vcd
 
 # VCS + KDB (full hierarchy, then Verdi -dbdir):
 #   ./scripts/vcs/compile.sh full_campaign

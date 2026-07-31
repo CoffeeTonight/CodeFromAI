@@ -61,7 +61,7 @@ flowchart TB
 | Campaign TB | `task` (default for actives) | `verif_soc_bus` → `simple_soc` tasks | `simple_soc` |
 | Customer top | `apb3`, `ahb_lite`, `axi4lite`, … | AMBA bridge `u_bus` → chip ports | Customer IC + IPs |
 
-Campaign **43/43 PASS** + `0xDEADDEAD` validates firmware, phases, agents, icode pool.  
+Campaign **45/45 PASS** + `0xDEADDEAD` validates firmware, phases, agents, icode pool.  
 Chip integration validates **manifest `bus_port` ↔ RTL prefix** and **bridge protocol**.
 
 ---
@@ -343,9 +343,9 @@ endgenerate
 | Gate | Command | Proves |
 |------|---------|--------|
 | Official regression | `make verify` | harness 5 + campaign 43 + protocol 40 |
-| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 43-check + VCD |
+| Firmware/agents | `./example.sh` / `make full_campaign` | Phase flow, icode, 45-check + VCD |
 | Bridge RTL | `make soc-bus-all` | 11 AMBA master variants (13-check) |
-| Bridge VCD | `make soc-bus-vcd` | 25 protocol checks + read data |
+| Bridge VCD | `make soc-bus-vcd` | 24 protocol checks + read data |
 | AMBA protocol | `make soc-bus-protocol` | burst/errors/arb/lock (40-check) |
 | Manifest integration | `make soc-manifest` | 3 active slaves + real bridges (24-check) |
 | Scale integration | `make soc-manifest-scale` | N-slot BUS_LAYOUT flat fabric (27-check) |
@@ -459,7 +459,7 @@ Layout persists in `firmware/campaign/.bus_layout_stamp` across `make icodes`. C
 - [ ] `g_slv[cpu_id-1].u_bus` = registry `rtl_module`
 - [ ] Agent snoop wired from bridge; `tap_port` matches manifest
 - [ ] Bus adapter: VCPU `bus_read`/`bus_write` reach chip (not internal `verif_cpu_bus` only)
-- [ ] `./example.sh` → 43/43 PASS, `0xDEADDEAD`
+- [ ] `./example.sh` → 45/45 PASS, `0xDEADDEAD`
 - [ ] (optional) `make soc-manifest-scale` → 26/26 after `BUS_LAYOUT`
 - [ ] (optional) `make chip-top-example` → 12/12
 - [ ] Optional: `make soc-bus-vcd` PASS

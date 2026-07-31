@@ -38,7 +38,7 @@ void phase_c_entry(void)
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);
     rv_addi(1, 0, 0);
-    vassert_id(40);
+    vassert_rs1(1, 40);
     vdummy_off();
     load_soc_addr(10, SFR_CTRL);
     rv_addi(14, 0, 0x10);
@@ -50,11 +50,11 @@ void phase_c_entry(void)
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);
     rv_addi(1, 0, 0);
-    vassert_id(43);
+    vassert_rs1(1, 43);
     vhw_release(10, 14);
     rv_lw(11, 10, 0);
     rv_addi(1, 0, 1);
-    vassert_id(41);
+    vassert_rs1(1, 41);
     load_soc_addr(10, SFR_XZ_PORT);
     rv_lw(11, 10, 0);
     rv_lui(12, 0xDEADE);
@@ -63,7 +63,7 @@ void phase_c_entry(void)
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);
     rv_addi(1, 0, 0);
-    vassert_id(42);
+    vassert_rs1(1, 42);
     vwdt_pet();
     vsync(1);
     vtrace_log(0xC2);

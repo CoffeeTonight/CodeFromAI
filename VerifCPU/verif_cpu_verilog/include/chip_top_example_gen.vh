@@ -26,7 +26,6 @@
   wire [VERIF_ADDR_WIDTH-1:0] S01_APB_PADDR;
   wire [VERIF_DATA_WIDTH-1:0] S01_APB_PWDATA, S01_APB_PRDATA;
   wire        S01_APB_PSEL, S01_APB_PENABLE, S01_APB_PWRITE;
-  wire [VERIF_STRB_WIDTH-1:0] S01_APB_PSTRB;
   wire        S01_APB_PREADY, S01_APB_PSLVERR;
 
   wire [VERIF_ADDR_WIDTH-1:0] M02_AHB_HADDR;
@@ -50,7 +49,7 @@
   verif_apb_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h40000000)) u_stub_sfr (
     .PCLK(soc_clk), .PRESETn(soc_rstn),
     .PADDR(S01_APB_PADDR), .PSEL(S01_APB_PSEL), .PENABLE(S01_APB_PENABLE), .PWRITE(S01_APB_PWRITE), .PWDATA(S01_APB_PWDATA),
-    .PSTRB(S01_APB_PSTRB), .PRDATA(S01_APB_PRDATA), .PREADY(S01_APB_PREADY), .PSLVERR(S01_APB_PSLVERR)
+    .PSTRB({VERIF_STRB_WIDTH{1'b1}}), .PRDATA(S01_APB_PRDATA), .PREADY(S01_APB_PREADY), .PSLVERR(S01_APB_PSLVERR)
   );
 
   verif_ahb_lite_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .BASE(32'h80000000), .INIT_WORD0(32'hDEADBEEF), .INIT_WORD1(32'hCAFEBABE)) u_stub_sram (
@@ -65,11 +64,11 @@
   verif_axi_full_slave_simple #(.ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH), .ID_WIDTH(VERIF_AXI_ID_WIDTH), .BASE(32'hC0000000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_stub_uart (
     .ACLK(soc_clk), .ARESETn(soc_rstn),
     .ARID({VERIF_AXI_ID_WIDTH{1'b0}}), .ARADDR(S03_AXI_araddr), .ARLEN(8'd0), .ARSIZE(S03_AXI_arsize),
-    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
+    .ARBURST(2'b01), .ARLOCK(2'b00), .ARVALID(S03_AXI_arvalid), .ARREADY(S03_AXI_arready),
     .RID(u_stub_uart_rid), .RDATA(S03_AXI_rdata), .RRESP(S03_AXI_rresp),
     .RLAST(), .RVALID(S03_AXI_rvalid), .RREADY(S03_AXI_rready),
     .AWID({VERIF_AXI_ID_WIDTH{1'b0}}), .AWADDR(S03_AXI_awaddr), .AWLEN(8'd0), .AWSIZE(S03_AXI_awsize),
-    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
+    .AWBURST(2'b01), .AWLOCK(2'b00), .AWVALID(S03_AXI_awvalid), .AWREADY(S03_AXI_awready),
     .WID({VERIF_AXI_ID_WIDTH{1'b0}}), .WDATA(S03_AXI_wdata), .WSTRB(S03_AXI_wstrb), .WLAST(1'b1),
     .WVALID(S03_AXI_wvalid), .WREADY(S03_AXI_wready),
     .BID(u_stub_uart_bid), .BRESP(S03_AXI_bresp), .BVALID(S03_AXI_bvalid), .BREADY(S03_AXI_bready)
@@ -79,7 +78,7 @@
     begin : g_slv0
       verif_vcpu_soc_cell_apb3 #(.CPU_ID(1), .ADDR_WIDTH(VERIF_ADDR_WIDTH), .DATA_WIDTH(VERIF_DATA_WIDTH)) u_bus (
       .PCLK(soc_clk), .PRESETn(soc_rstn),
-      .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PSTRB(), .PRDATA(), .PREADY(), .PSLVERR(),
+      .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PRDATA(), .PREADY(), .PSLVERR(),
       .snoop_valid(g_slv_snoop_v[0]), .snoop_wr(g_slv_snoop_wr[0]),
       .snoop_addr(g_slv_snoop_addr[0]), .snoop_data(g_slv_snoop_data[0])
       );

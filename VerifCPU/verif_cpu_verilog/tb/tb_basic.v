@@ -5,7 +5,7 @@
 
 module tb_basic;
 
-  localparam integer TB_EXPECTED_PASS = 8;
+  localparam integer TB_EXPECTED_PASS = 13;
   localparam integer IRQ0_W = 8;
   localparam integer IRQ1_W = 4;
 
@@ -64,22 +64,27 @@ module tb_basic;
     check_eq("cpu1 running", u_cpu1.state == `CPU_STATE_RUNNING);
     check_eq("cpu2 running", u_cpu2.state == `CPU_STATE_RUNNING);
 
-    // Dual-group IRQ: change-detect + zero-cycle handler
+    // Dual-group IRQ: change-detect + zero-cycle handler (rise+fall each = 2 services)
     $display("\n--- IRQ grp0 (NUM_IRQ0=%0d) / grp1 (NUM_IRQ1=%0d) ---", IRQ0_W, IRQ1_W);
     #1;
     steps_before_irq = u_cpu1.total_steps;
     cpu1_irq0[3] = 1'b1;
     #1;
+    check_eq("irq0 rise latched in prev", u_cpu1.irq0_prev[3] == 1'b1);
     cpu1_irq0[3] = 1'b0;
     #1;
+    check_eq("irq0 fall latched in prev", u_cpu1.irq0_prev[3] == 1'b0);
     cpu1_irq1[1] = 1'b1;  // group 1 edge
     #1;
+    check_eq("irq1 rise latched in prev", u_cpu1.irq1_prev[1] == 1'b1);
     cpu1_irq1[1] = 1'b0;
     #1;
+    check_eq("irq1 fall latched in prev", u_cpu1.irq1_prev[1] == 1'b0);
     check_eq("irq zero-cycle (steps unchanged)", u_cpu1.total_steps == steps_before_irq);
     check_eq("irq NUM_IRQ0 param", u_cpu1.NUM_IRQ0 == IRQ0_W);
     check_eq("irq NUM_IRQ1 param", u_cpu1.NUM_IRQ1 == IRQ1_W);
-    check_eq("irq1 group saw edge", u_cpu1.irq1_prev[1] == 1'b0);
+    check_eq("irq0 service count (rise+fall)", u_cpu1.irq0_service_count == 2);
+    check_eq("irq1 service count (rise+fall)", u_cpu1.irq1_service_count == 2);
 
     $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
     if (check_pass != TB_EXPECTED_PASS)

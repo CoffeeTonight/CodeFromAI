@@ -3,7 +3,7 @@
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
 
-// tool: cap_multi_os=1 cap_split_rw=1
+// tool: cap_smoke_only=1 cap_multi_os=1 cap_split_rw=1
 module verif_chi_master #(
   parameter int TXREQ_FLIT_WIDTH = 44,
   parameter int TXRSP_FLIT_WIDTH = 13,

@@ -49,15 +49,19 @@ def emit_direct_cell_instance(s: dict) -> list[str]:
         lines.extend([
             f"{indent}.PCLK(soc_clk), .PRESETn(soc_rstn),",
             f"{indent}.PADDR({pref}_PADDR), .PSEL({pref}_PSEL), .PENABLE({pref}_PENABLE),",
-            f"{indent}.PWRITE({pref}_PWRITE), .PWDATA({pref}_PWDATA), .PSTRB({pref}_PSTRB),",
+            f"{indent}.PWRITE({pref}_PWRITE), .PWDATA({pref}_PWDATA),",
         ])
         if bt in ("apb4", "apb5"):
+            lines.append(f"{indent}.PSTRB({pref}_PSTRB),")
             lines.append(f"{indent}.PPROT({pref}_PPROT),")
         if bt == "apb5":
             lines.append(f"{indent}.PWAKEUP({pref}_PWAKEUP),")
-        lines.append(
-            f"{indent}.PRDATA({pref}_PRDATA), .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR),"
-        )
+        if bt == "apb2":
+            lines.append(f"{indent}.PRDATA({pref}_PRDATA),")
+        else:
+            lines.append(
+                f"{indent}.PRDATA({pref}_PRDATA), .PREADY({pref}_PREADY), .PSLVERR({pref}_PSLVERR),"
+            )
     elif bt.startswith("ahb"):
         if bt == "ahb_lite":
             bus_ports = (

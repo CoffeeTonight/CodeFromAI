@@ -228,7 +228,13 @@ end
   u_soc.run_init(); \
   `CAMPAIGN_RUN_PHASE_A_AGENTS \
   `CAMPAIGN_RUN_PHASE_A_VCORES \
-  check_eq("Phase A SoC init (19-step)", 1); \
+  begin reg [31:0] _init_rd; reg [1:0] _ir, _ip; \
+    u_soc.decode_read(32'h40000000, 3'd4, _init_rd, _ir, _ip); \
+    check_eq("Phase A SoC init SFR_CTRL", _init_rd === 32'h1 && _ir == 2'd0); \
+    u_soc.decode_read(32'h80000000, 3'd4, _init_rd, _ir, _ip); \
+    check_eq("Phase A SoC init SRAM_MARKER", _init_rd === 32'hDEADBEEF && _ir == 2'd0); \
+    check_eq("Phase A SoC init step count", `SOC_INIT_STEP_COUNT == 19); \
+  end \
   check_eq("Phase A bus txn (SFR)", g_cpu[0].u_cpu.bus_txn_count >= 1); \
   check_eq("Phase A vwdt/vtrace steps", g_cpu[0].u_cpu.total_steps >= 4); \
   check_eq("Phase A agent snoop", sl_txns[0] >= 1 && sl_txns[1] >= 1 && sl_txns[2] >= 1); \

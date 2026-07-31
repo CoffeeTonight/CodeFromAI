@@ -2,31 +2,30 @@
 `ifndef VERIF_AMBA_CONNECT_MACROS_VH
 `define VERIF_AMBA_CONNECT_MACROS_VH
 
-// APB2 — optional PREADY stretch; no PSLVERR/PSTRB on master
+// APB2 — no PREADY/PSLVERR/PSTRB on wire (fixed 2-cycle ACCESS)
 `define CONNECT_APB2(SOC_PREF, MST) \
   assign SOC_PREF``_PADDR   = MST.PADDR; \
   assign SOC_PREF``_PSEL    = MST.PSEL; \
   assign SOC_PREF``_PENABLE = MST.PENABLE; \
   assign SOC_PREF``_PWRITE  = MST.PWRITE; \
   assign SOC_PREF``_PWDATA  = MST.PWDATA; \
-  assign MST.PRDATA  = SOC_PREF``_PRDATA; \
-  assign MST.PREADY  = SOC_PREF``_PREADY
+  assign MST.PRDATA  = SOC_PREF``_PRDATA
 
-// APB3
+// APB3 — PREADY/PSLVERR; no PSTRB (AMBA APB3; narrow = RMW on master)
 `define CONNECT_APB3(SOC_PREF, MST) \
   assign SOC_PREF``_PADDR   = MST.PADDR; \
   assign SOC_PREF``_PSEL    = MST.PSEL; \
   assign SOC_PREF``_PENABLE = MST.PENABLE; \
   assign SOC_PREF``_PWRITE  = MST.PWRITE; \
   assign SOC_PREF``_PWDATA  = MST.PWDATA; \
-  assign SOC_PREF``_PSTRB   = MST.PSTRB; \
   assign MST.PRDATA  = SOC_PREF``_PRDATA; \
   assign MST.PREADY  = SOC_PREF``_PREADY; \
   assign MST.PSLVERR = SOC_PREF``_PSLVERR
 
-// APB4 — + PPROT
+// APB4 — + PSTRB + PPROT
 `define CONNECT_APB4(SOC_PREF, MST) \
   `CONNECT_APB3(SOC_PREF, MST); \
+  assign SOC_PREF``_PSTRB   = MST.PSTRB; \
   assign SOC_PREF``_PPROT   = MST.PPROT
 
 // APB5 — + PWAKEUP

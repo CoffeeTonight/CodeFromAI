@@ -34,7 +34,7 @@ module tb_amba_protocol;
   wire [7:0]  s_arlen, s_awlen;
   wire [2:0]  s_arsize, s_awsize;
   wire [1:0]  s_arburst, s_awburst;
-  wire        s_arlock, s_awlock;
+  wire [1:0]  s_arlock, s_awlock;
   wire [5:0]  s_awatop;
   wire [3:0]  s_wstrb;
   wire        s_arvalid, s_awvalid, s_wvalid, s_wlast, s_bready, s_rready;
@@ -158,7 +158,7 @@ module tb_amba_protocol;
   integer pass, fail;
 
   always @(posedge clk)
-    if (s_arvalid && arb_arready && s_arlock)
+    if (s_arvalid && arb_arready && (s_arlock != 2'b00))
       lock_seen <= 1'b1;
 
   task check;
@@ -305,11 +305,11 @@ module tb_amba_protocol;
     check("2-master AW ordering M0 data", mm_resp0 == 2'd0 && mm0 == 32'hC0C0_C0C0);
     check("2-master AW ordering M1 data", mm_resp1 == 2'd0 && mm1 == 32'hD0D0_D0D0);
 
-    check("AXI ARLOCK idle tied 0", u_axi.ARLOCK == 1'b0);
-    u_axi.bus_read_locked(32'hA000_0200, 3'd4, 1'b1, rd, resp);
+    check("AXI ARLOCK idle tied 0", u_axi.ARLOCK == 2'b00);
+    u_axi.bus_read_locked(32'hA000_0200, 3'd4, 2'b01, rd, resp);
     check("AXI ARLOCK locked read OK", resp == 2'd0);
     check("AXI ARLOCK propagated to slave", lock_seen);
-    check("AXI AWLOCK idle tied 0", u_axi.AWLOCK == 1'b0 && s_awlock == 1'b0);
+    check("AXI AWLOCK idle tied 0", u_axi.AWLOCK == 2'b00 && s_awlock == 2'b00);
 
     u_axi.bus_write_exclusive(32'hA000_0180, 32'h0E0C1001, 3'd4, resp);
     check("AXI AWATOP exclusive store OK", resp == 2'd0);

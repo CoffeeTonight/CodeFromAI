@@ -14,7 +14,7 @@ module tb_soc_bus_all;
   // 18 base + 2 true-OS poll→wait (AXI4-Lite + AXI4 full)
   localparam integer TB_EXPECTED_PASS = 20;
   // Consumed by tools/verify_amba_bus_vcd.py (soc-bus-all / soc-bus-vcd gate)
-  localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 25;
+  localparam integer TB_EXPECTED_PROTOCOL_CHECKS = 24;
 
   `VERIF_SIM_WATCHDOG_NS
 
@@ -44,7 +44,7 @@ module tb_soc_bus_all;
   wire [31:0] sn_addr, sn_data;
 
   verif_apb2_master u_apb2 (
-    .PCLK(clk), .PRESETn(rstn), .PRDATA(apb2_rdata), .PREADY(1'b1),
+    .PCLK(clk), .PRESETn(rstn), .PRDATA(apb2_rdata),
     .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),
     .snoop_valid(sn_v), .snoop_wr(sn_wr), .snoop_addr(sn_addr), .snoop_data(sn_data));
   verif_apb2_slave_simple #(.BASE(32'h4000_0000)) u_apb2_s (
@@ -54,11 +54,11 @@ module tb_soc_bus_all;
 
   verif_apb_master u_apb3 (
     .PCLK(clk), .PRESETn(rstn), .PRDATA(apb3_rdata), .PREADY(apb3_ready), .PSLVERR(apb3_slverr),
-    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PSTRB(),
+    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_apb_slave_simple u_apb3_s (.PCLK(clk), .PRESETn(rstn),
     .PADDR(u_apb3.PADDR), .PSEL(u_apb3.PSEL), .PENABLE(u_apb3.PENABLE),
-    .PWRITE(u_apb3.PWRITE), .PWDATA(u_apb3.PWDATA), .PSTRB(u_apb3.PSTRB),
+    .PWRITE(u_apb3.PWRITE), .PWDATA(u_apb3.PWDATA), .PSTRB({DATA_WIDTH/8{1'b1}}),
     .PRDATA(apb3_rdata), .PREADY(apb3_ready), .PSLVERR(apb3_slverr));
 
   verif_apb4_master u_apb4 (
@@ -120,10 +120,10 @@ module tb_soc_bus_all;
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data());
   verif_axi_full_slave_simple #(.BASE(32'hC000_0000), .INIT_WORD0(32'h00000080), .INIT_WORD1(32'hDEADDEAD)) u_axil_s (.ACLK(clk), .ARESETn(rstn),
     .ARID({AXI_ID_WIDTH{1'b0}}), .ARADDR(u_axil.ARADDR), .ARLEN(8'd0), .ARSIZE(u_axil.ARSIZE),
-    .ARBURST(2'b01), .ARLOCK(1'b0), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
+    .ARBURST(2'b01), .ARLOCK(2'b00), .ARVALID(u_axil.ARVALID), .ARREADY(axil_arready),
     .RID(axil_rid), .RDATA(axil_rdata), .RRESP(axil_rresp), .RLAST(axil_rvalid), .RVALID(axil_rvalid), .RREADY(u_axil.RREADY),
     .AWID({AXI_ID_WIDTH{1'b0}}), .AWADDR(u_axil.AWADDR), .AWLEN(8'd0), .AWSIZE(u_axil.AWSIZE),
-    .AWBURST(2'b01), .AWLOCK(1'b0), .AWVALID(u_axil.AWVALID), .AWREADY(axil_awready),
+    .AWBURST(2'b01), .AWLOCK(2'b00), .AWVALID(u_axil.AWVALID), .AWREADY(axil_awready),
     .WID({AXI_ID_WIDTH{1'b0}}), .WDATA(u_axil.WDATA), .WSTRB(u_axil.WSTRB), .WLAST(1'b1), .WVALID(u_axil.WVALID), .WREADY(axil_wready),
     .BID(axil_bid), .BRESP(axil_bresp), .BVALID(axil_bvalid), .BREADY(u_axil.BREADY));
 

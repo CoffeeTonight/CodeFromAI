@@ -18,14 +18,14 @@ Python 모델은 동일 TB 흐름을 따르는 cross-check reference이며, PASS
 
 # 또는 Makefile 직접 호출
 make verify           # harness + full_campaign + soc-bus-protocol (권장)
-make full_campaign    # 캠페인 단독 (43-check + VCD)
+make full_campaign    # 캠페인 단독 (45-check + VCD)
 ```
 
-성공 시 체크리스트 **43/43 PASS**, `vcd_marker = 0xDEADDEAD`.
+성공 시 체크리스트 **45/45 PASS**, `vcd_marker = 0xDEADDEAD`.
 
-Hang 방지: `Makefile`의 `VVP_TIMEOUT`(기본 600s) + TB `VERIF_SIM_WATCHDOG_NS`(`include/verif_sim_watchdog.vh`).  
+Hang 방지: `Makefile`의 `VVP_TIMEOUT`(기본 600s, `RUN_VVP = timeout $(VVP_TIMEOUT) vvp`) + TB `VERIF_SIM_WATCHDOG_NS`(`include/verif_sim_watchdog.vh`).  
 버스 마스터는 READY/HREADY/PREADY 대기·issue 경로 모두 `do-while` + `VERIF_BUS_WAIT_TICK`(4096 cycle) 적용.  
-`tb_verification_harness`만 **step watchdog** (`HARNESS_WATCHDOG_STEPS`) — ns watchdog은 hierarchical bus task와 deadlock.
+`tb_verification_harness`는 wall-clock `VERIF_SIM_WATCHDOG_NS` + step loop bound(`max_steps`) — hierarchical bus task와 ns-only watchdog deadlock을 피함.
 
 Silent skip 금지: 생성 TB·campaign task는 미배선 CPU/agent에 `default: $fatal`을 사용합니다.  
 `initial` assertion으로 `CAMPAIGN_MANIFEST_ACTIVE_AGENTS == CAMPAIGN_NUM_VCPUS` 등 manifest/CPU 수 일치를 compile 전 검증합니다.
@@ -613,7 +613,7 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 | `make verify` | harness + campaign + bus-fast | 공식 regression gate |
 | `make bus-fast` | bridge 18+20 + protocol 42 + neg 23 | 버스 directed 스모크 |
 | `make bus-deep` | bus-fast + caps + mid-reset + OS + ID-OOO + snoop + mon | multi-OS / snoop / mon |
-| `make full_campaign` | 43/43 + VCD | 캠페인 단독 |
+| `make full_campaign` | 45/45 + VCD | 캠페인 단독 |
 | `make basic` / `rv32i` | 8 / 2 | 코어 smoke + dual IRQ groups + `VERIF_SIM_WATCHDOG_NS` |
 | `make bus-gather` | 17 | `vbus_gather_on(1\|8\|16)` + bus X/Z WARN |
 | `make soc-bus-all` | 20/20 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
@@ -694,7 +694,7 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
 | UART WDT | hang → recovery → DEADDEAD, solo `vsync` |
 | VCD | main + per-CPU export |
 
-시뮬 로그에서 `Checklist: 43 passed / 0 failed` 를 확인합니다. 세부 문자열은 `include/tb_full_campaign_gen.vh` (자동 생성)을 참고하세요.
+시뮬 로그에서 `Checklist: 45 passed / 0 failed` 를 확인합니다. 세부 문자열은 `include/tb_full_campaign_gen.vh` (자동 생성)을 참고하세요.
 
 ## 설정 변경 시 주의
 

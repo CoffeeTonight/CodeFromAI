@@ -65,17 +65,24 @@ def _sig(
     return BusSignal(suffix=suffix, width=width, direction=direction, group=group, note=note)
 
 
-def _apb_core() -> list[BusSignal]:
+def _apb3_core() -> list[BusSignal]:
+    """AMBA APB3 — no PSTRB (narrow writes RMW on master)."""
     return [
         _sig("PADDR", ADDR_WIDTH_DEFAULT, "to_soc", "APB", "address (ADDR_WIDTH)"),
         _sig("PSEL", 1, "to_soc", "APB"),
         _sig("PENABLE", 1, "to_soc", "APB"),
         _sig("PWRITE", 1, "to_soc", "APB"),
         _sig("PWDATA", DATA_WIDTH_DEFAULT, "to_soc", "APB", "write data (DATA_WIDTH)"),
-        _sig("PSTRB", strb_width(), "to_soc", "APB", "write strobes (DATA_WIDTH/8)"),
         _sig("PRDATA", DATA_WIDTH_DEFAULT, "from_soc", "APB", "read data"),
         _sig("PREADY", 1, "from_soc", "APB", "slave ready (APB3+)"),
         _sig("PSLVERR", 1, "from_soc", "APB", "slave error (APB3+)"),
+    ]
+
+
+def _apb4_core() -> list[BusSignal]:
+    """APB4 base = APB3 + PSTRB."""
+    return _apb3_core() + [
+        _sig("PSTRB", strb_width(), "to_soc", "APB", "write strobes (DATA_WIDTH/8)"),
     ]
 
 
@@ -122,13 +129,13 @@ def _axi_full_extra() -> list[BusSignal]:
         _sig("arid", AXI_ID_WIDTH_DEFAULT, "to_soc", "AR", "read ID (ID_WIDTH)"),
         _sig("arlen", 8, "to_soc", "AR", "burst length"),
         _sig("arburst", 2, "to_soc", "AR", "burst type"),
-        _sig("arlock", 1, "to_soc", "AR", "lock (AXI3; master ties 0)"),
+        _sig("arlock", 2, "to_soc", "AR", "lock [1:0] AXI3 (AXI4 uses [0])"),
         _sig("rid", AXI_ID_WIDTH_DEFAULT, "from_soc", "R", "read ID"),
         _sig("rlast", 1, "from_soc", "R", "read last"),
         _sig("awid", AXI_ID_WIDTH_DEFAULT, "to_soc", "AW", "write ID"),
         _sig("awlen", 8, "to_soc", "AW", "burst length"),
         _sig("awburst", 2, "to_soc", "AW", "burst type"),
-        _sig("awlock", 1, "to_soc", "AW", "lock (AXI3; master ties 0)"),
+        _sig("awlock", 2, "to_soc", "AW", "lock [1:0] AXI3 (AXI4 uses [0])"),
         _sig("wid", AXI_ID_WIDTH_DEFAULT, "to_soc", "W", "write ID (AXI3)"),
         _sig("wlast", 1, "to_soc", "W", "write last"),
         _sig("bid", AXI_ID_WIDTH_DEFAULT, "from_soc", "B", "write response ID"),
@@ -144,9 +151,9 @@ BUS_SIGNAL_SPECS: dict[str, list[BusSignal]] = {
         _sig("PWDATA", DATA_WIDTH_DEFAULT, "to_soc", "APB"),
         _sig("PRDATA", DATA_WIDTH_DEFAULT, "from_soc", "APB"),
     ],
-    "apb3": _apb_core(),
-    "apb4": _apb_core() + [_sig("PPROT", 3, "to_soc", "APB", "protection")],
-    "apb5": _apb_core()
+    "apb3": _apb3_core(),
+    "apb4": _apb4_core() + [_sig("PPROT", 3, "to_soc", "APB", "protection")],
+    "apb5": _apb4_core()
     + [_sig("PPROT", 3, "to_soc", "APB"), _sig("PWAKEUP", 1, "to_soc", "APB", "wakeup")],
     "ahb_lite": _ahb_lite_core(),
     "ahb5_lite": _ahb_lite_core()

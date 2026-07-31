@@ -22,7 +22,7 @@ module verif_axi_full_master #(
   output reg [2:0]  ARSIZE,
   output reg [1:0]  ARBURST,
   output reg [2:0]  ARPROT,
-  output reg        ARLOCK,   // AXI3 lock — tied 0 (AXI4+ uses AWATOP exclusive)
+  output reg [1:0]  ARLOCK,   // AXI3 lock[1:0]; AXI4 uses [0] only
   output reg [3:0]  ARQOS,
   output reg [3:0]  ARREGION,
   output reg        ARVALID,
@@ -39,7 +39,7 @@ module verif_axi_full_master #(
   output reg [2:0]  AWSIZE,
   output reg [1:0]  AWBURST,
   output reg [2:0]  AWPROT,
-  output reg        AWLOCK,   // AXI3 lock — tied 0
+  output reg [1:0]  AWLOCK,   // AXI3 lock[1:0]; AXI4 uses [0] only
   output reg [3:0]  AWQOS,
   output reg [3:0]  AWREGION,
   output reg [5:0]  AWATOP,
@@ -275,9 +275,9 @@ module verif_axi_full_master #(
 
   initial begin
     ARID = 0; ARADDR = 0; ARLEN = 0; ARSIZE = 3'b010; ARBURST = BURST_INCR;
-    ARPROT = 3'b010; ARLOCK = 1'b0; ARQOS = 0; ARREGION = 0; ARVALID = 0; RREADY = 0;
+    ARPROT = 3'b010; ARLOCK = 2'b00; ARQOS = 0; ARREGION = 0; ARVALID = 0; RREADY = 0;
     AWID = 0; AWADDR = 0; AWLEN = 0; AWSIZE = 3'b010; AWBURST = BURST_INCR;
-    AWPROT = 3'b010; AWLOCK = 1'b0; AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
+    AWPROT = 3'b010; AWLOCK = 2'b00; AWQOS = 0; AWREGION = 0; AWATOP = 0; AWVALID = 0;
     WID = 0; WDATA = 0; WSTRB = 0; WLAST = 0; WVALID = 0; BREADY = 0;
     snoop_valid = 0; snoop_wr = 0; snoop_addr = 0; snoop_data = 0;
     smoke_r_active = 1'b0;
@@ -412,7 +412,7 @@ module verif_axi_full_master #(
         ARSIZE = axsize_for_bytes(size);
         ARBURST = BURST_INCR;
         ARPROT = 3'b010;
-        ARLOCK = 1'b0;
+        ARLOCK = 2'b00;
         ARQOS = 4'd0;
         ARREGION = 4'd0;
         ARVALID = 1'b1;
@@ -518,7 +518,7 @@ module verif_axi_full_master #(
         AWSIZE = axsize_for_bytes(size);
         AWBURST = BURST_INCR;
         AWPROT = 3'b010;
-        AWLOCK = 1'b0;
+        AWLOCK = 2'b00;
         AWQOS = 4'd0;
         AWREGION = 4'd0;
         AWATOP = 6'd0;
@@ -637,7 +637,7 @@ module verif_axi_full_master #(
       ARSIZE = axsize_for_bytes(size);
       ARBURST = burst;
       ARPROT = 3'b010;
-      ARLOCK = 1'b0;
+      ARLOCK = 2'b00;
       ARQOS = 4'd0;
       ARREGION = 4'd0;
       ARVALID = 1'b1;
@@ -779,7 +779,7 @@ module verif_axi_full_master #(
         AWSIZE = axsize_for_bytes(size);
         AWBURST = BURST_INCR;
         AWPROT = 3'b010;
-        AWLOCK = 1'b0;
+        AWLOCK = 2'b00;
         AWQOS = 4'd0;
         AWREGION = 4'd0;
         AWATOP = atop;
@@ -884,7 +884,7 @@ module verif_axi_full_master #(
       AWSIZE = axsz;
       AWBURST = burst;
       AWPROT = 3'b010;
-      AWLOCK = 1'b0;
+      AWLOCK = 2'b00;
       AWQOS = 4'd0;
       AWREGION = 4'd0;
       AWATOP = 6'd0;
@@ -938,7 +938,7 @@ module verif_axi_full_master #(
   task bus_read_locked;
     input  [31:0] addr;
     input  [2:0]  size;
-    input         lock_val;
+    input  [1:0]  lock_val;
     output [31:0] data;
     output [1:0]  resp;
     integer       guard;
@@ -963,7 +963,7 @@ module verif_axi_full_master #(
         `VERIF_BUS_WAIT_TICK(guard, "axi_full bus_read_locked ARREADY")
       end while (!ARREADY);
       ARVALID = 1'b0;
-      ARLOCK = 1'b0;
+      ARLOCK = 2'b00;
       smoke_r_active = 1'b1;
       guard = 0;
       do begin

@@ -34,7 +34,7 @@ void uart_recover_entry(void)
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);
     rv_addi(1, 0, 0);
-    vassert_id(30);
+    vassert_rs1(1, 30);
     vdummy_off();
     vsync(3);
     vtrace_exit(0xE0);

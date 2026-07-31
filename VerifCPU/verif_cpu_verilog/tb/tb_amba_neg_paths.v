@@ -119,13 +119,13 @@ module tb_amba_neg_paths;
   verif_apb_master u_apb (
     .PCLK(clk), .PRESETn(rstn),
     .PRDATA(apb_rdata), .PREADY(apb_ready), .PSLVERR(apb_slverr),
-    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PSTRB(),
+    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),
     .snoop_valid(), .snoop_wr(), .snoop_addr(), .snoop_data()
   );
   verif_apb_slave_simple #(.BASE(32'h4000_0000), .SIZE(32'h1000)) u_apb_s (
     .PCLK(clk), .PRESETn(rstn),
     .PADDR(u_apb.PADDR), .PSEL(u_apb.PSEL), .PENABLE(u_apb.PENABLE),
-    .PWRITE(u_apb.PWRITE), .PWDATA(u_apb.PWDATA), .PSTRB(u_apb.PSTRB),
+    .PWRITE(u_apb.PWRITE), .PWDATA(u_apb.PWDATA), .PSTRB({4{1'b1}}),
     .PRDATA(apb_rdata), .PREADY(apb_ready), .PSLVERR(apb_slverr)
   );
 

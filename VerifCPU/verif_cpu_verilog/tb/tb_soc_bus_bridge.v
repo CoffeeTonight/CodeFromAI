@@ -32,7 +32,7 @@ module tb_soc_bus_bridge;
   verif_apb_master u_apb (
     .PCLK(apb_clk), .PRESETn(apb_rstn),
     .PRDATA(apb_rdata), .PREADY(apb_ready), .PSLVERR(apb_slverr),
-    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(), .PSTRB(),
+    .PADDR(), .PSEL(), .PENABLE(), .PWRITE(), .PWDATA(),
     .snoop_valid(apb_sn_v), .snoop_wr(apb_sn_wr),
     .snoop_addr(apb_sn_addr), .snoop_data(apb_sn_data)
   );
@@ -40,7 +40,7 @@ module tb_soc_bus_bridge;
   verif_apb_slave_simple #(.BASE(32'h4000_0000)) u_apb_slv (
     .PCLK(apb_clk), .PRESETn(apb_rstn),
     .PADDR(u_apb.PADDR), .PSEL(u_apb.PSEL), .PENABLE(u_apb.PENABLE),
-    .PWRITE(u_apb.PWRITE), .PWDATA(u_apb.PWDATA), .PSTRB(u_apb.PSTRB),
+    .PWRITE(u_apb.PWRITE), .PWDATA(u_apb.PWDATA), .PSTRB({4{1'b1}}),
     .PRDATA(apb_rdata), .PREADY(apb_ready), .PSLVERR(apb_slverr)
   );
 

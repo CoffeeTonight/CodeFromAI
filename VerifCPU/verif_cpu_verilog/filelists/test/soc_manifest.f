@@ -4,6 +4,7 @@
 // Paths relative to verif_cpu_verilog/ (package root)
 
 +define+VERIF_MANIFEST_SOC_TB
++define+VERIF_POOL_HUB=tb_soc_manifest.u_pool
 
 rtl/verif_cpu_bus.v
 rtl/verif_cpu_unified_pool.v

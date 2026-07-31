@@ -1,4 +1,4 @@
-// Behavioral APB2 master — optional PREADY stretch with timeout guard
+// Behavioral APB2 master — fixed 2-cycle SETUP/ACCESS (no PREADY on APB2 wire)
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
@@ -15,7 +15,6 @@ module verif_apb2_master #(
   output reg        PWRITE,
   output reg [DATA_WIDTH-1:0] PWDATA,
   input  [DATA_WIDTH-1:0] PRDATA,
-  input         PREADY,
   output reg        snoop_valid,
   output reg        snoop_wr,
   output reg [31:0] snoop_addr,
@@ -64,11 +63,8 @@ module verif_apb2_master #(
       PENABLE = 1'b0;
       @(posedge PCLK);
       PENABLE = 1'b1;
-      guard = 0;
-      do begin
-        @(posedge PCLK);
-        `VERIF_BUS_WAIT_TICK(guard, "apb2 bus_read PREADY")
-      end while (!PREADY);
+      // APB2 has no PREADY — ACCESS completes this cycle (fixed 2-phase)
+      @(posedge PCLK);
       #1;
       data = lane_prdata(PRDATA, addr, size);
       apb_idle();
@@ -139,11 +135,7 @@ module verif_apb2_master #(
         PENABLE = 1'b0;
         @(posedge PCLK);
         PENABLE = 1'b1;
-        guard = 0;
-        do begin
-          @(posedge PCLK);
-          `VERIF_BUS_WAIT_TICK(guard, "apb2 bus_write PREADY")
-        end while (!PREADY);
+        @(posedge PCLK);
         #1;
         apb_idle();
         // half @ +3: also RMW next word for data[15:8]
@@ -160,11 +152,7 @@ module verif_apb2_master #(
             PENABLE = 1'b0;
             @(posedge PCLK);
             PENABLE = 1'b1;
-            guard = 0;
-            do begin
-              @(posedge PCLK);
-              `VERIF_BUS_WAIT_TICK(guard, "apb2 bus_write next-word PREADY")
-            end while (!PREADY);
+            @(posedge PCLK);
             #1;
             apb_idle();
           end else

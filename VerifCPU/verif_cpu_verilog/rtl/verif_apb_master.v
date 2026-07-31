@@ -1,4 +1,5 @@
 // Behavioral APB3 master — task API for VerifCPU bus_read/bus_write adapters
+// AMBA APB3 has no PSTRB (APB4+); narrow stores use RMW then full-word PWDATA.
 `timescale 1ns/1ps
 `include "verif_bus_defs.vh"
 `include "verif_bus_lane_helpers.vh"
@@ -14,7 +15,6 @@ module verif_apb_master #(
   output reg        PENABLE,
   output reg        PWRITE,
   output reg [DATA_WIDTH-1:0] PWDATA,
-  output reg [DATA_WIDTH/8-1:0] PSTRB,
   input  [DATA_WIDTH-1:0] PRDATA,
   input         PREADY,
   input         PSLVERR,
@@ -33,7 +33,6 @@ module verif_apb_master #(
     PENABLE = 1'b0;
     PWRITE = 1'b0;
     PWDATA = 32'h0;
-    PSTRB = {STRB_WIDTH{1'b0}};
     snoop_valid = 1'b0;
     snoop_wr = 1'b0;
     snoop_addr = 32'h0;
@@ -45,7 +44,6 @@ module verif_apb_master #(
       PSEL = 1'b0;
       PENABLE = 1'b0;
       PWRITE = 1'b0;
-      PSTRB = {STRB_WIDTH{1'b0}};
       PWDATA = 32'h0;
     end
   endtask
@@ -64,7 +62,6 @@ module verif_apb_master #(
       PADDR = addr;
       PWRITE = 1'b0;
       PWDATA = 32'h0;
-      PSTRB = {STRB_WIDTH{1'b0}};
       PSEL = 1'b1;
       PENABLE = 1'b0;
       @(posedge PCLK);
@@ -87,38 +84,104 @@ module verif_apb_master #(
     end
   endtask
 
+  // APB3 has no PSTRB — narrow stores are RMW so slave full-word write is safe
   task apb_write;
     input [31:0] addr;
     input [31:0] data;
     input [2:0]  size;
     output [1:0] resp;
     integer guard;
+    reg [31:0] oldw;
+    reg [31:0] merged;
+    reg [31:0] waddr;
+    reg [1:0]  rtmp;
     begin
       resp = 2'd0;
-      apb_idle();
-      @(posedge PCLK);
-      PADDR = addr;
-      PWRITE = 1'b1;
-      PWDATA = lane_pwdata(data, addr, size);
-      PSTRB = lane_wstrb(addr, size);
-      PSEL = 1'b1;
-      PENABLE = 1'b0;
-      @(posedge PCLK);
-      PENABLE = 1'b1;
-      guard = 0;
-      do begin
+      waddr = {addr[31:2], 2'b00};
+      if (size == 3'd4 && addr[1:0] == 2'b00)
+        merged = data;
+      else begin
+        apb_read(waddr, 3'd4, oldw, rtmp);
+        if (rtmp != 2'd0) begin
+          resp = rtmp;
+        end else begin
+          merged = oldw;
+          case (size)
+            3'd1: begin
+              case (addr[1:0])
+                2'd0: merged[7:0]   = data[7:0];
+                2'd1: merged[15:8]  = data[7:0];
+                2'd2: merged[23:16] = data[7:0];
+                default: merged[31:24] = data[7:0];
+              endcase
+            end
+            3'd2: begin
+              if (addr[1:0] == 2'd0)
+                merged[15:0] = data[15:0];
+              else if (addr[1:0] == 2'd2)
+                merged[31:16] = data[15:0];
+              else if (addr[1:0] == 2'd1) begin
+                merged[15:8] = data[7:0];
+                merged[23:16] = data[15:8];
+              end else begin
+                merged[31:24] = data[7:0];
+              end
+            end
+            default: merged = data;
+          endcase
+        end
+      end
+      if (resp == 2'd0) begin
+        apb_idle();
         @(posedge PCLK);
-        `VERIF_BUS_WAIT_TICK(guard, "apb3 bus_write PREADY")
-      end while (!PREADY);
-      #1;
-      resp = PSLVERR ? 2'd2 : 2'd0;
-      apb_idle();
-      snoop_valid = 1'b1;
-      snoop_wr = 1'b1;
-      snoop_addr = addr;
-      snoop_data = data;
-      @(posedge PCLK);
-      snoop_valid = 1'b0;
+        PADDR = waddr;
+        PWRITE = 1'b1;
+        PWDATA = merged;
+        PSEL = 1'b1;
+        PENABLE = 1'b0;
+        @(posedge PCLK);
+        PENABLE = 1'b1;
+        guard = 0;
+        do begin
+          @(posedge PCLK);
+          `VERIF_BUS_WAIT_TICK(guard, "apb3 bus_write PREADY")
+        end while (!PREADY);
+        #1;
+        resp = PSLVERR ? 2'd2 : 2'd0;
+        apb_idle();
+        // half @ +3: also RMW next word for data[15:8]
+        if (size == 3'd2 && addr[1:0] == 2'd3) begin
+          apb_read(waddr + 32'd4, 3'd4, oldw, rtmp);
+          if (rtmp == 2'd0) begin
+            merged = oldw;
+            merged[7:0] = data[15:8];
+            @(posedge PCLK);
+            PADDR = waddr + 32'd4;
+            PWRITE = 1'b1;
+            PWDATA = merged;
+            PSEL = 1'b1;
+            PENABLE = 1'b0;
+            @(posedge PCLK);
+            PENABLE = 1'b1;
+            guard = 0;
+            do begin
+              @(posedge PCLK);
+              `VERIF_BUS_WAIT_TICK(guard, "apb3 bus_write next-word PREADY")
+            end while (!PREADY);
+            #1;
+            if (PSLVERR)
+              resp = 2'd2;
+            apb_idle();
+          end else
+            resp = rtmp;
+        end
+        snoop_valid = 1'b1;
+        snoop_wr = 1'b1;
+        snoop_addr = addr;
+        snoop_data = data;
+        @(posedge PCLK);
+        snoop_valid = 1'b0;
+      end
     end
   endtask
 

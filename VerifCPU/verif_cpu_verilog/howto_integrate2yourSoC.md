@@ -12,7 +12,7 @@
 
 | 문서 | 범위 |
 |------|------|
-| VerifCPU `README.md` | campaign TB 빌드·43-check 회귀 |
+| VerifCPU `README.md` | campaign TB 빌드·45-check 회귀 |
 | `architecture_and_verification.md` | 블록 다이어그램 + 검증 스냅샷 |
 | `howto_integrate.md` | AMBA 배선·manifest·generate **신호 수준** |
 | **`howto_integrate2yourSoC.md` (이 파일)** | **내 SoC에 이식하는 단계별 체크리스트 + 검증 gate 연계** |
@@ -63,7 +63,7 @@ export RTL_ROOT="$(python3 -c "import sys; sys.path.insert(0,'.'); from ops.inta
 
 cd "$RTL_ROOT"
 ./example.sh gen
-make full_campaign          # 43/43, vcd_marker 0xDEADDEAD
+make full_campaign          # 45/45, vcd_marker 0xDEADDEAD
 make chip-top-example       # 12 checks (3 active slaves: SFR/SRAM/UART)
 ```
 

@@ -14,7 +14,7 @@ void phase_c_entry(void)
     rv_addi(1, 0, 1);
     rv_beq(13, 0, 8);
     rv_addi(1, 0, 0);
-    vassert_id(21);
+    vassert_rs1(1, 21);
     vsync(2);
     rv_jal(15, 8);
     rv_addi(14, 0, 0xBAD);

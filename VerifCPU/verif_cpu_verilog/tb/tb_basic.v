@@ -5,22 +5,24 @@
 
 module tb_basic;
 
-  localparam integer TB_EXPECTED_PASS = 6;
-  localparam integer IRQ_W = 8;  // example: instance can set NUM_IRQ
+  localparam integer TB_EXPECTED_PASS = 8;
+  localparam integer IRQ0_W = 8;
+  localparam integer IRQ1_W = 4;
 
   `VERIF_SIM_WATCHDOG_NS
 
-  reg [IRQ_W-1:0] cpu1_irq;
-  reg [31:0]      cpu2_irq;  // default NUM_IRQ=32
+  reg [IRQ0_W-1:0] cpu1_irq0;
+  reg [IRQ1_W-1:0] cpu1_irq1;
+  reg [31:0]       cpu2_irq0;
 
-  verif_cpu_core #(.CPU_ID(1), .NUM_IRQ(IRQ_W)) u_cpu1 (
-    .irq(cpu1_irq), .final_pc(), .total_steps(), .sim_stop(),
+  verif_cpu_core #(.CPU_ID(1), .NUM_IRQ0(IRQ0_W), .NUM_IRQ1(IRQ1_W)) u_cpu1 (
+    .irq0(cpu1_irq0), .irq1(cpu1_irq1), .final_pc(), .total_steps(), .sim_stop(),
     .assert_pass(), .assert_fail(), .bus_txn_count(),
     .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
   );
 
   verif_cpu_core #(.CPU_ID(2)) u_cpu2 (
-    .irq(cpu2_irq), .final_pc(), .total_steps(), .sim_stop(),
+    .irq0(cpu2_irq0), .irq1(`VERIF_CPU_IRQ1_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
     .assert_pass(), .assert_fail(), .bus_txn_count(),
     .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
   );
@@ -40,8 +42,9 @@ module tb_basic;
   initial begin
     check_pass = 0;
     check_fail = 0;
-    cpu1_irq = {IRQ_W{1'b0}};
-    cpu2_irq = 32'b0;
+    cpu1_irq0 = {IRQ0_W{1'b0}};
+    cpu1_irq1 = {IRQ1_W{1'b0}};
+    cpu2_irq0 = 32'b0;
     $dumpfile("sim_build/tb_basic.vcd");
     $dumpvars(0, tb_basic);
     $display("=== VerifCPU Basic Demo (Verilog) ===\n");
@@ -61,19 +64,22 @@ module tb_basic;
     check_eq("cpu1 running", u_cpu1.state == `CPU_STATE_RUNNING);
     check_eq("cpu2 running", u_cpu2.state == `CPU_STATE_RUNNING);
 
-    // IRQ: change-detect + empty zero-cycle handler (no total_steps burn)
-    $display("\n--- IRQ change detect (NUM_IRQ=%0d on cpu1) ---", IRQ_W);
+    // Dual-group IRQ: change-detect + zero-cycle handler
+    $display("\n--- IRQ grp0 (NUM_IRQ0=%0d) / grp1 (NUM_IRQ1=%0d) ---", IRQ0_W, IRQ1_W);
     #1;
     steps_before_irq = u_cpu1.total_steps;
-    cpu1_irq[3] = 1'b1;  // assert bit 3
+    cpu1_irq0[3] = 1'b1;
     #1;
-    cpu1_irq[3] = 1'b0;  // deassert bit 3
+    cpu1_irq0[3] = 1'b0;
     #1;
-    cpu1_irq[0] = 1'b1;
-    cpu1_irq[7] = 1'b1;  // multi-bit edge in one assign? sequential
+    cpu1_irq1[1] = 1'b1;  // group 1 edge
+    #1;
+    cpu1_irq1[1] = 1'b0;
     #1;
     check_eq("irq zero-cycle (steps unchanged)", u_cpu1.total_steps == steps_before_irq);
-    check_eq("irq NUM_IRQ param", u_cpu1.NUM_IRQ == IRQ_W);
+    check_eq("irq NUM_IRQ0 param", u_cpu1.NUM_IRQ0 == IRQ0_W);
+    check_eq("irq NUM_IRQ1 param", u_cpu1.NUM_IRQ1 == IRQ1_W);
+    check_eq("irq1 group saw edge", u_cpu1.irq1_prev[1] == 1'b0);
 
     $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
     if (check_pass != TB_EXPECTED_PASS)

@@ -292,14 +292,15 @@ module verif_vcpu_soc_cell #(
   );
 
   // --- 2) VCPU: bridge bus via USE_MANIFEST_SOC_BUS; pool via TB VERIF_POOL_HUB ---
-  // Optional: .NUM_IRQ(N) + .irq(vector) — change-detect model hook (not RISC-V trap ISA).
-  // Default width 32; unused → .irq(`VERIF_CPU_IRQ_TIED_OFF). See include/verif_cpu_irq.vh.
+  // Dual IRQ groups: .NUM_IRQ0/1 + .irq0/.irq1 (change-detect, not trap ISA).
+  // Defaults width 32; unused → `VERIF_CPU_IRQ0/1_TIED_OFF. See verif_cpu_irq.vh.
   verif_cpu_core #(
-    .CPU_ID(CPU_ID), .NUM_IRQ(32),
+    .CPU_ID(CPU_ID), .NUM_IRQ0(32), .NUM_IRQ1(32),
     .USE_SHARED_BUS(0), .USE_SHARED_POOL(0),
     .USE_SOC_BUS(0), .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),  // or wire SoC IRQ lines: .irq(soc_irq[CPU_ID])
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF),
+    .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     /* status outs … */
   );
 
@@ -469,9 +470,9 @@ Layout persists in `firmware/campaign/.bus_layout_stamp` across `make icodes`. C
 ## 14. Key paths
 
 ```text
-rtl/verif_cpu_core.v              # VCPU execution (+ NUM_IRQ / irq port)
-include/verif_cpu_irq.vh           # IRQ change-detect + irq_handler (zero-cycle)
-include/verif_cpu_defs.vh          # VERIF_CPU_NUM_IRQ, VERIF_CPU_IRQ_TIED_OFF
+rtl/verif_cpu_core.v              # VCPU (+ dual irq0/irq1 ports)
+include/verif_cpu_irq.vh           # dual-group IRQ + irq_handler(group,bit,…)
+include/verif_cpu_defs.vh          # NUM_IRQ0/1, IRQ0/1_TIED_OFF
 rtl/verif_*_master.v              # AMBA bridges (bus_read/bus_write tasks)
 rtl/verif_agent.v                 # master + slave agents
 rtl/verif_orchestrator.v
@@ -487,10 +488,10 @@ tools/verify_amba_bus_vcd.py
 
 | Item | Contract |
 |------|----------|
-| Parameter | `NUM_IRQ` (default 32) |
-| Port | `input [NUM_IRQ-1:0] irq` |
-| Behavior | On any bit change: `$display` + call `irq_handler` (no `cpu_step` cost) |
+| Parameter | `NUM_IRQ0` / `NUM_IRQ1` (default 32 each) |
+| Ports | `irq0[NUM_IRQ0-1:0]`, `irq1[NUM_IRQ1-1:0]` |
+| Behavior | Per-group bit change → `$display` + `irq_handler(group, bit, …)` (no `cpu_step`) |
 | Not | PLIC, `mtvec`, nested ISR, privilege traps |
-| Smoke | `make basic` drives `cpu1_irq` and checks `total_steps` unchanged |
+| Smoke | `make basic` exercises grp0 + grp1 edges |
 
-Generated soc-cells / campaign TBs tie IRQ off unless you wire them. To attach customer IRQs, drive `g_slv[i].u_cpu.irq` (or cell-level port if you add one) and optionally extend `irq_handler` in `verif_cpu_irq.vh`.
+Tie-off: `` `VERIF_CPU_IRQ0_TIED_OFF `` / `` `VERIF_CPU_IRQ1_TIED_OFF ``. Wire SoC lines to `u_cpu.irq0` / `u_cpu.irq1`; extend `irq_handler` in `verif_cpu_irq.vh` as needed.

@@ -72,7 +72,7 @@ module verif_vcpu_soc_cell_ahb #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -137,7 +137,7 @@ module verif_vcpu_soc_cell_ahb5_lite #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -196,7 +196,7 @@ module verif_vcpu_soc_cell_ahb_lite #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -253,7 +253,7 @@ module verif_vcpu_soc_cell_apb2 #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -314,7 +314,7 @@ module verif_vcpu_soc_cell_apb3 #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -377,7 +377,7 @@ module verif_vcpu_soc_cell_apb4 #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -442,7 +442,7 @@ module verif_vcpu_soc_cell_apb5 #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -556,7 +556,7 @@ module verif_vcpu_soc_cell_axi3full #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -676,7 +676,7 @@ module verif_vcpu_soc_cell_axi4full #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -761,7 +761,7 @@ module verif_vcpu_soc_cell_axi4lite #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),
@@ -881,7 +881,7 @@ module verif_vcpu_soc_cell_axi5full #(
     .USE_SOC_BUS(0),
     .USE_MANIFEST_SOC_BUS(1)
   ) u_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
     .final_pc(),
     .total_steps(),
     .sim_stop(),

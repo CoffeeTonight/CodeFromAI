@@ -290,7 +290,7 @@ c-compile fw **재빌드 없이** tier별 sim:
 
 ## 5. Phase 실행 순서 (campaign과 동일 — 내 top에서도)
 
-1. **Phase A** — SoC init (`soc_init_seq` 17-step)
+1. **Phase A** — SoC init (`soc_init_seq` 19-step)
 2. **VCPU Phase A** — 각 CPU `OFF_A` FW
 3. **Agent Phase A** — init txn snoop
 4. **init_done poll** — Master @ `INIT_DONE_ADDR`

@@ -78,39 +78,41 @@ verif_cpu_verilog/
 | 구성요소 | 역할 |
 |----------|------|
 | **SCPU0 `verif_agent_master`** | Phase 게이트, `init_done` poll, manifest hint 주입 (C FW 없음) |
-| **SCPU1–N `verif_cpu_core`** | VCPU — Phase A/B/C RV32 펌웨어 (`campaign_slots.yaml` → `cpus.mk`); optional **`irq[NUM_IRQ-1:0]`** change-detect (model) |
+| **SCPU1–N `verif_cpu_core`** | VCPU — Phase A/B/C RV32 펌웨어; dual IRQ groups **`irq0`/`irq1`** (model change-detect) |
 | **N× `verif_agent_slave`** | SoC tap snoop, icode slot 검증 (최대 `max_slots`, active만 campaign 실행) |
 | **`verif_cpu_unified_pool`** | VCPU FW + icode pool (≤256 KiB → readmemh embed) |
-| **`simple_soc`** | 17-step `soc_init_seq`, SFR/SRAM/UART peripheral |
+| **`simple_soc`** | 19-step `soc_init_seq`, SFR/SRAM/UART peripheral |
 
 블록 다이어그램·최근 검증 스냅샷: [architecture_and_verification.md](architecture_and_verification.md)
 
-### IRQ 입력 (모델 전용, 비합성)
+### IRQ 입력 — **2 그룹** (모델 전용, 비합성)
 
-`verif_cpu_core`는 **RISC-V PLIC/CSR trap ISA가 아닙니다.** 외부 레벨 벡터를 받아 **비트 변화만** 감지하는 검증 훅입니다.
+`verif_cpu_core`는 **RISC-V PLIC/CSR trap ISA가 아닙니다.**  
+외부 레벨 벡터 **2그룹**을 받아 비트 변화만 감지하는 검증 훅입니다.
 
-| 항목 | 내용 |
+| 항목 | 그룹 0 | 그룹 1 |
+|------|--------|--------|
+| 파라미터 | `NUM_IRQ0` (default **32**) | `NUM_IRQ1` (default **32**) |
+| 포트 | `input [NUM_IRQ0-1:0] irq0` | `input [NUM_IRQ1-1:0] irq1` |
+| 미연결 | `` `VERIF_CPU_IRQ0_TIED_OFF `` | `` `VERIF_CPU_IRQ1_TIED_OFF `` |
+
+| 공통 | 내용 |
 |------|------|
-| 파라미터 | `NUM_IRQ` (default **32**, `` `VERIF_CPU_NUM_IRQ` ``) |
-| 포트 | `input wire [NUM_IRQ-1:0] irq` |
-| 감지 | `always @(irq)` — 비트별 0↔1 (`!==`) |
-| CPU 액션 | `$display` + 빈(또는 placeholder) **`irq_handler`** task 호출 |
-| 시간 모델 | **zero-cycle** — `cpu_step` / `total_steps` 미증가, `#delay` 없음 |
-| 미연결 시 | `.irq(\`VERIF_CPU_IRQ_TIED_OFF)` (default 폭 0 묶음) |
-
-구현 SSOT: `include/verif_cpu_irq.vh` (core body include), 상수: `include/verif_cpu_defs.vh`.
+| 감지 | `always @(irq0)` / `always @(irq1)` — 비트별 0↔1 |
+| 액션 | `$display` + **`irq_handler(group, bit, old, new)`** zero-cycle |
+| 구현 | `include/verif_cpu_irq.vh` |
 
 ```verilog
-// 폭 지정 인스턴스
-verif_cpu_core #(.CPU_ID(1), .NUM_IRQ(8)) u_cpu (
-  .irq(my_irq[7:0]),
-  .final_pc(), .total_steps(), .sim_stop(),
+verif_cpu_core #(.CPU_ID(1), .NUM_IRQ0(8), .NUM_IRQ1(4)) u_cpu (
+  .irq0(my_irq_a[7:0]),
+  .irq1(my_irq_b[3:0]),
   /* … */
 );
 
-// 기본 32-bit, IRQ 미사용
+// 미사용
 verif_cpu_core #(.CPU_ID(2)) u_cpu2 (
-  .irq(`VERIF_CPU_IRQ_TIED_OFF),
+  .irq0(`VERIF_CPU_IRQ0_TIED_OFF),
+  .irq1(`VERIF_CPU_IRQ1_TIED_OFF),
   /* … */
 );
 ```
@@ -118,11 +120,10 @@ verif_cpu_core #(.CPU_ID(2)) u_cpu2 (
 로그 예 (`make basic`):
 
 ```text
-SCPU1 > [IRQ] bit 3: 0 -> 1 (now=1)
-SCPU1 > [IRQ handler] entered bit=3 old=0 new=1 (zero-cycle return)
+SCPU1 > [IRQ] grp=0 bit 3: 0 -> 1 (now=1)
+SCPU1 > [IRQ handler] grp=0 bit=3 old=0 new=1 (zero-cycle return)
+SCPU1 > [IRQ] grp=1 bit 1: 0 -> 1 (now=1)
 ```
-
-ISR 본문을 채울 때는 `irq_handler` task만 확장하면 됩니다. 스모크: `make basic` (IRQ assert/deassert + step 불변 체크 포함).
 
 ### Bus issue width / gather (optional, model-only)
 
@@ -366,8 +367,13 @@ SCPU1 > [HWForce] READ 0x40000000 => 0x00005000 (hier=0x00000010)
 // cpu_sfr/sync_barrier.c (SRAM/UART 동일 패턴)
 vsync(CAMPAIGN_SYNC_BARRIER_ID);  // id=10, 3 CPU 모두 도착할 때까지 대기
 load_soc_addr(10, SFR_CTRL);
-rv_lw(11, 10, 0);                 // barrier 해제 후 버스 접근
-vassert_id(50);
+rv_lw(11, 10, 0);                 // barrier 해제 후 버스 접근 (actual)
+rv_addi(12, 0, 1);                // expected (soc_init)
+rv_addi(1, 0, 1);
+rv_xor(13, 11, 12);               // exact compare
+rv_beq(13, 0, 8);                 // match → skip fail
+rv_addi(1, 0, 0);
+vassert_rs1(1, 50);               // PASS iff exact match
 vstop();
 ```
 
@@ -608,7 +614,7 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 | `make bus-fast` | bridge 18+20 + protocol 42 + neg 23 | 버스 directed 스모크 |
 | `make bus-deep` | bus-fast + caps + mid-reset + OS + ID-OOO + snoop + mon | multi-OS / snoop / mon |
 | `make full_campaign` | 43/43 + VCD | 캠페인 단독 |
-| `make basic` / `rv32i` | 6 / 2 | 코어 smoke + IRQ + `VERIF_SIM_WATCHDOG_NS` |
+| `make basic` / `rv32i` | 8 / 2 | 코어 smoke + dual IRQ groups + `VERIF_SIM_WATCHDOG_NS` |
 | `make bus-gather` | 17 | `vbus_gather_on(1\|8\|16)` + bus X/Z WARN |
 | `make soc-bus-all` | 20/20 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
 | `make soc-bus-protocol` | 42/42 | AHB/AXI errors, INCR/WRAP(+half) R/W, 2M arb, ARLOCK, AWATOP |
@@ -678,7 +684,7 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
 
 | 묶음 | 검증 내용 |
 |------|-----------|
-| Pool / Phase A | icode embed, SoC 17-step init, agent snoop, vwdt/vtrace |
+| Pool / Phase A | icode embed, SoC 19-step init, agent snoop, vwdt/vtrace |
 | Phase B | master `init_done`, multi-slot collect |
 | Sync parallel | 3-CPU `vsync` barrier @ `0x380`, parallel bus |
 | Console | stall / bus_write / resume |

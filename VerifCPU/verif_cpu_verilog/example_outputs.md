@@ -130,7 +130,7 @@ TB의 `` `CAMPAIGN_LOAD_FIRMWARE `` 매크로가 `full_campaign_unified.hex`를 
 | `campaign_scale.vh` | `gen_campaign_config.py` | 슬롯 수·pool stride |
 | `campaign_manifest.vh` | `gen_campaign_manifest.py` | 슬롯 메타 (C 헤더 미러) |
 | `campaign_soc_platform.vh` | `gen_soc_init.py` | SoC 플랫폼 매크로 |
-| `soc_init_seq.vh` | `gen_soc_init.py` | 17-step SoC init 시퀀스 |
+| `soc_init_seq.vh` | `gen_soc_init.py` | 19-step SoC init 시퀀스 |
 | `icode_map.vh`, `icode_bind.vh` | `build_icode_pool.py` | icode 주소·바인딩 |
 | `tb_full_campaign_gen.vh` | `gen_tb_campaign.py` | Phase A/B/C TB 태스크·체크리스트 |
 | `tb_soc_manifest_*.vh` | `gen_tb_campaign.py` | manifest integration TB |
@@ -235,7 +235,7 @@ view별 shortcut: `scripts/<sim>/<view>.sh` → `run.sh <view>` 호출.
 |-----------|-------------|------|---------------------------|
 | 활성 SCPU 개수·슬롯 정의 (SFR/SRAM/UART…) | `firmware/campaign/campaign_slots.yaml` | ✅ **SSOT** | `campaign_params.vh`, `cpus.mk`, `campaign_manifest.*`, scale/manifest VH |
 | 슬롯별 버스 종류·개수 (60셀 layout) | `./example.sh gen --axi N --ahb M …` 또는 `BUS_LAYOUT` env | ✅ | `campaign_params.vh`, `verif_soc_bus_connect.vh`, `verif_vcpu_soc_cell.v`, scale VH |
-| SoC init 17-step 시퀀스 | `firmware/campaign/include/soc_init_seq.h` | ✅ | `include/soc_init_seq.vh` |
+| SoC init 19-step 시퀀스 | `firmware/campaign/include/soc_init_seq.h` | ✅ | `include/soc_init_seq.vh` |
 | SoC 플랫폼 상수·에이전트 | `firmware/campaign/include/soc_platform.h` | ✅ | `include/campaign_soc_platform.vh` |
 | 레지스터 주소·이름 | `firmware/campaign/include/soc_regs.h` | ✅ | 펌웨어·icode·TB 체크에 반영 (연쇄 rebuild) |
 | 주소 심볼 (generator) | `firmware/campaign/soc_addr_map.py` | ✅ SSOT | `gen_soc_init.py`·`gen_tb_campaign.py` 등 Python import |

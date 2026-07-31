@@ -268,7 +268,7 @@ def emit_cell_module(key: str, spec: dict, bt_spec) -> list[str]:
         "    .USE_SOC_BUS(0),",
         "    .USE_MANIFEST_SOC_BUS(1)",
         "  ) u_cpu (",
-        "    .irq(`VERIF_CPU_IRQ_TIED_OFF),",
+        "    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF),",
         "    .final_pc(),",
         "    .total_steps(),",
         "    .sim_stop(),",

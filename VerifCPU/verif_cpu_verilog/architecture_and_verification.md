@@ -46,7 +46,7 @@
 │  │  └───┬─────┘    └───┬─────┘    └───┬─────┘                  │           │
 │  │      │tap0          │tap1          │tap2                     │           │
 │  │      └──────── decode_read/write ──┴──────────────────────────│           │
-│  │                    run_init() ← soc_init_seq.h (17 steps)    │           │
+│  │                    run_init() ← soc_init_seq.h (19 steps)    │           │
 │  │                    SFR_STATUS[31]=INIT_DONE @ 0x4000_0018     │           │
 │  └──────────────────────────▲────────────────────────────────────┘           │
 │                             │ bus master (RV32 load/store)                   │
@@ -100,7 +100,7 @@
 
 VCPU와 Agent는 **cpu_id로 짝**이지만 **별도 RTL 인스턴스**입니다. VCPU는 SoC에 bus transaction을 날리고, Agent는 그 transaction을 tap에서 **관찰·검증**합니다.
 
-**IRQ (model-only):** 각 `verif_cpu_core`는 `input [NUM_IRQ-1:0] irq` (default `NUM_IRQ=32`)를 갖습니다. 비트 레벨 변화를 감지해 `$display` 후 빈 **`irq_handler`** 로 zero-cycle “진입/복귀”합니다 — CSR/`mtvec`/PLIC trap이 **아닙니다**. 캠페인/soc-cell 인스턴스는 기본적으로 `` `VERIF_CPU_IRQ_TIED_OFF `` 로 묶습니다. 상세·예제: [README.md](README.md) § IRQ 입력, 구현 `include/verif_cpu_irq.vh`.
+**IRQ (model-only, dual group):** 각 `verif_cpu_core`는 `irq0[NUM_IRQ0-1:0]` + `irq1[NUM_IRQ1-1:0]` (default width 32 each)를 갖습니다. 그룹별 비트 변화 감지 → `$display` + **`irq_handler(group, bit, …)`** zero-cycle (PLIC/trap 아님). 미사용 시 `` `VERIF_CPU_IRQ0_TIED_OFF `` / `` `VERIF_CPU_IRQ1_TIED_OFF ``. 상세: [README.md](README.md) § IRQ.
 
 ---
 
@@ -150,7 +150,7 @@ SoC 안에는 **애플리케이션 CPU 코어가 없습니다**. SFR/SRAM/UART�
 ```
 Phase A (INIT)
   orch.phase_release(INIT)
-  u_soc.run_init()          ← TB가 SoC 레지스터 직접 init (17-step)
+  u_soc.run_init()          ← TB가 SoC 레지스터 직접 init (19-step)
   agent.run_phase_a()       ← tap에서 init bus txn snoop
   VCPU run OFF_A            ← 각 CPU phase_a.c (vstop)
 

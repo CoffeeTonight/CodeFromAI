@@ -51,7 +51,8 @@ task wave_record;
       end
       if (allow) begin
         idx = wave_chg_count;
-        wave_time[idx]  = insn_pc;
+        // Simulation time (not insn_pc — residual bug: VCD #time was mislabeled)
+        wave_time[idx]  = $time;
         wave_sig[idx]   = sig;
         wave_val[idx]   = val;
         wave_scope[idx] = scope;
@@ -99,12 +100,12 @@ task wave_export_vcd;
         $fwrite(fd, "  $var wire 32 %c %0s $end\n", uniq_code[j], uniq_sig[j]);
       $fwrite(fd, "$upscope $end\n");
       $fwrite(fd, "$enddefinitions $end\n\n");
-      // Sample index as time axis (insn_pc stored in wave_time is also dumped as value)
+      // Timestamp from wave_time[] = $time at record
       last_t = 32'hffffffff;
       for (i = 0; i < wave_chg_count; i = i + 1) begin
-        if (i != last_t) begin
-          $fwrite(fd, "#%0d\n", i);
-          last_t = i;
+        if (wave_time[i] != last_t) begin
+          $fwrite(fd, "#%0d\n", wave_time[i]);
+          last_t = wave_time[i];
         end
         code = 8'd33;
         for (j = 0; j < nuniq; j = j + 1)

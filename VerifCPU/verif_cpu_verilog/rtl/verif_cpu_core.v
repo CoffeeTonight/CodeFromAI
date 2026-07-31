@@ -11,8 +11,11 @@ module verif_cpu_core #(
   parameter FW_WORDS        = 4096,
   parameter BUS_SIZE        = 32'h100000,
   parameter WDT_DEFAULT     = 32'd10000,
-  // IRQ vector width (per-instance; default 32). Change detect + empty zero-cycle handler.
-  parameter NUM_IRQ         = `VERIF_CPU_NUM_IRQ,
+  // Dual IRQ groups (per-instance; default 32 each). Change detect + zero-cycle handler.
+  parameter NUM_IRQ0        = `VERIF_CPU_NUM_IRQ0,
+  parameter NUM_IRQ1        = `VERIF_CPU_NUM_IRQ1,
+  // Legacy alias: NUM_IRQ maps to group0 width if older code overrides it
+  parameter NUM_IRQ         = NUM_IRQ0,
   // USE_SHARED_BUS: TB VERIF_SHARED_BUS_HUB
   parameter USE_SHARED_BUS      = 0,
   // USE_SHARED_POOL: harness-only pool (tb_verification_harness.u_pool)
@@ -25,7 +28,8 @@ module verif_cpu_core #(
   parameter USE_SHARED_SYNC     = 0,
   parameter USE_HW_FORCE        = 0
 )(
-  input  wire [NUM_IRQ-1:0] irq,
+  input  wire [NUM_IRQ0-1:0] irq0,
+  input  wire [NUM_IRQ1-1:0] irq1,
   output reg [31:0] final_pc,
   output reg [31:0] total_steps,
   output reg        sim_stop,

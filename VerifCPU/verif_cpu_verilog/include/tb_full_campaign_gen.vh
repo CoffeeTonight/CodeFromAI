@@ -228,7 +228,7 @@ end
   u_soc.run_init(); \
   `CAMPAIGN_RUN_PHASE_A_AGENTS \
   `CAMPAIGN_RUN_PHASE_A_VCORES \
-  check_eq("Phase A SoC init (17-step)", 1); \
+  check_eq("Phase A SoC init (19-step)", 1); \
   check_eq("Phase A bus txn (SFR)", g_cpu[0].u_cpu.bus_txn_count >= 1); \
   check_eq("Phase A vwdt/vtrace steps", g_cpu[0].u_cpu.total_steps >= 4); \
   check_eq("Phase A agent snoop", sl_txns[0] >= 1 && sl_txns[1] >= 1 && sl_txns[2] >= 1); \
@@ -258,7 +258,7 @@ end
   verif_cpu_core #(
     .CPU_ID(0), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(1)
   ) u_mstr_cpu (
-    .irq(`VERIF_CPU_IRQ_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
+    .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
     .assert_pass(), .assert_fail(), .bus_txn_count(),
     .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
   );
@@ -270,7 +270,7 @@ end
       verif_cpu_core #(
         .CPU_ID(gci + 1), .USE_SHARED_BUS(0), .USE_SHARED_POOL(0), .USE_SOC_BUS(1), .USE_SHARED_SYNC(1), .USE_HW_FORCE(1)
       ) u_cpu (
-        .irq(`VERIF_CPU_IRQ_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
+        .irq0(`VERIF_CPU_IRQ0_TIED_OFF), .irq1(`VERIF_CPU_IRQ1_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
         .assert_pass(), .assert_fail(), .bus_txn_count(),
         .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
       );

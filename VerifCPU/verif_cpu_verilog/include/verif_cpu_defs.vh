@@ -58,11 +58,20 @@
 `define WAVE_CMD_DUMP_ALL  2
 `define WAVE_CMD_DUMP_SCOPE 3
 
-// Default IRQ vector width for verif_cpu_core (override with parameter NUM_IRQ)
+// Dual IRQ groups (irq0 / irq1). Default width per group = 32.
 `ifndef VERIF_CPU_NUM_IRQ
 `define VERIF_CPU_NUM_IRQ 32
 `endif
-// Tie-off for instances that do not drive IRQ (must match default NUM_IRQ)
-`define VERIF_CPU_IRQ_TIED_OFF {`VERIF_CPU_NUM_IRQ{1'b0}}
+`ifndef VERIF_CPU_NUM_IRQ0
+`define VERIF_CPU_NUM_IRQ0 `VERIF_CPU_NUM_IRQ
+`endif
+`ifndef VERIF_CPU_NUM_IRQ1
+`define VERIF_CPU_NUM_IRQ1 `VERIF_CPU_NUM_IRQ
+`endif
+// Tie-off for undriven groups (match default widths)
+`define VERIF_CPU_IRQ0_TIED_OFF {`VERIF_CPU_NUM_IRQ0{1'b0}}
+`define VERIF_CPU_IRQ1_TIED_OFF {`VERIF_CPU_NUM_IRQ1{1'b0}}
+// Legacy alias (group0)
+`define VERIF_CPU_IRQ_TIED_OFF `VERIF_CPU_IRQ0_TIED_OFF
 
 `endif

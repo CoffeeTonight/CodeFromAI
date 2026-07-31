@@ -12,7 +12,7 @@ module tb_bus_gather;
 
   reg [31:0] irq0;
   verif_cpu_core #(.CPU_ID(1), .NUM_IRQ(32)) u_cpu (
-    .irq(irq0), .final_pc(), .total_steps(), .sim_stop(),
+    .irq0(irq0), .irq1(`VERIF_CPU_IRQ1_TIED_OFF), .final_pc(), .total_steps(), .sim_stop(),
     .assert_pass(), .assert_fail(), .bus_txn_count(),
     .unique_pcs(), .recovery_count(), .trace_depth_out(), .instr_steps_traced()
   );

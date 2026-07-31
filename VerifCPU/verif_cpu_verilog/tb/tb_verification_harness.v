@@ -5,6 +5,9 @@
 `include "verif_verdict_policy.vh"
 `include "verif_sim_watchdog.vh"
 `include "verif_tb_check.vh"
+// Hubs for USE_SHARED_* cores (avoid hard-coded hierarchical paths in core/backend)
+`define VERIF_POOL_HUB tb_verification_harness.u_pool
+`define VERIF_SHARED_BUS_HUB tb_verification_harness.u_shared_bus
 module tb_verification_harness;
 
   localparam integer TB_EXPECTED_PASS = 5;

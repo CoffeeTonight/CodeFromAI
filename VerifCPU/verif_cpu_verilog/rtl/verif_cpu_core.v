@@ -13,7 +13,7 @@ module verif_cpu_core #(
   parameter WDT_DEFAULT     = 32'd10000,
   // IRQ vector width (per-instance; default 32). Change detect + empty zero-cycle handler.
   parameter NUM_IRQ         = `VERIF_CPU_NUM_IRQ,
-  // USE_SHARED_BUS: harness-only bus (tb_verification_harness.u_shared_bus)
+  // USE_SHARED_BUS: TB VERIF_SHARED_BUS_HUB
   parameter USE_SHARED_BUS      = 0,
   // USE_SHARED_POOL: harness-only pool (tb_verification_harness.u_pool)
   // USE_SOC_BUS / USE_MANIFEST_SOC_BUS: TB VERIF_POOL_HUB unified pool fetch
@@ -229,26 +229,38 @@ module verif_cpu_core #(
   task force_mem_addr;
     input [31:0] addr;
     input [31:0] val;
-    reg [7:0] i;
+    integer i;
+    integer free_i;
     begin
       $display("SCPU%0d > [Force] MEM[0x%08h] forced to 0x%08h", CPU_ID, addr, val);
-      for (i = 0; i < fmem_count; i = i + 1)
+      free_i = -1;
+      for (i = 0; i < fmem_count; i = i + 1) begin
         if (fmem_valid[i] && fmem_addr[i] == addr) begin
           fmem_val[i] = val;
+          free_i = -2; // updated in place
           i = `FORCED_MEM_MAX;
-        end
-      if (i != `FORCED_MEM_MAX + 1 && fmem_count < `FORCED_MEM_MAX) begin
+        end else if (free_i < 0 && !fmem_valid[i])
+          free_i = i; // reclaim hole from prior release
+      end
+      if (free_i == -2) ;
+      else if (free_i >= 0) begin
+        fmem_addr[free_i]  = addr;
+        fmem_val[free_i]   = val;
+        fmem_valid[free_i] = 1'b1;
+      end else if (fmem_count < `FORCED_MEM_MAX) begin
         fmem_addr[fmem_count]  = addr;
         fmem_val[fmem_count]   = val;
         fmem_valid[fmem_count] = 1'b1;
         fmem_count = fmem_count + 1;
-      end
+      end else
+        $display("SCPU%0d > [Force] MEM table full (max %0d) — drop 0x%08h",
+                 CPU_ID, `FORCED_MEM_MAX, addr);
     end
   endtask
 
   task release_mem_addr;
     input [31:0] addr;
-    reg [7:0] i;
+    integer i;
     begin
       for (i = 0; i < fmem_count; i = i + 1) begin
         if (fmem_valid[i] && fmem_addr[i] == addr) begin
@@ -256,6 +268,9 @@ module verif_cpu_core #(
           $display("SCPU%0d > [Release] MEM[0x%08h] released", CPU_ID, addr);
         end
       end
+      // Compact high-water mark so table cannot permanently leak slots
+      while (fmem_count > 0 && !fmem_valid[fmem_count - 1])
+        fmem_count = fmem_count - 1;
     end
   endtask
 
@@ -400,7 +415,7 @@ module verif_cpu_core #(
         os_rd_open[handle] = 1'b0;
         if (resp == `VERIF_BUS_RESP_OK) begin
           last_bus_err = 1'b0;
-          data = sanitize_xz_fn(data, "bus_read_wait data");
+          sanitize_xz(data, "bus_read_wait data", data);
         end else begin
           last_bus_err = 1'b1;
           // SOFT (1) = free/desync — no sticky problem_addrs. SLV/DEC (2/3) = real bus fault.
@@ -438,7 +453,7 @@ module verif_cpu_core #(
       if (done) begin
         if (resp == `VERIF_BUS_RESP_OK) begin
           last_bus_err = 1'b0;
-          data = sanitize_xz_fn(data, "bus_read_poll data");
+          sanitize_xz(data, "bus_read_poll data", data);
         end else begin
           last_bus_err = 1'b1;
           data = 32'hDEADDEAD;
@@ -611,7 +626,7 @@ module verif_cpu_core #(
       end else begin
         for (i = 0; i < fmem_count; i = i + 1) begin
           if (fmem_valid[i] && fmem_addr[i] == addr) begin
-            data = sanitize_xz_fn(fmem_val[i], "forced_mem");
+            sanitize_xz(fmem_val[i], "forced_mem", data);
             last_bus_valid = 1'b1;
             last_bus_addr  = addr;
             last_bus_data  = data;
@@ -626,7 +641,7 @@ module verif_cpu_core #(
         if (!force_hit) begin
           hw_force_lookup_impl(addr, hw_val, hw_hit);
           if (hw_hit) begin
-            data = sanitize_xz_fn(hw_val, "hw_forced");
+            sanitize_xz(hw_val, "hw_forced", data);
             hw_force_hit_count = hw_force_hit_count + 1;
             if (USE_HW_FORCE) begin
 `ifdef VERIF_HW_FORCE_HUB
@@ -663,7 +678,7 @@ module verif_cpu_core #(
               note_bus_fault(addr);
             end
           end else
-            data = sanitize_xz_fn(data, "bus_read data");
+            sanitize_xz(data, "bus_read data", data);
           end
           last_bus_valid = 1'b1;
           last_bus_addr  = addr;
@@ -1299,18 +1314,19 @@ module verif_cpu_core #(
     output [31:0] instr;
     output        err;
     reg [31:0] word_idx;
+    reg [31:0] raw_instr;
     begin
       err = 1'b0;
       instr = 32'h00000013;
-      if (USE_SOC_BUS || USE_MANIFEST_SOC_BUS) begin
+      raw_instr = 32'h00000013;
+      if (USE_SOC_BUS || USE_MANIFEST_SOC_BUS || USE_SHARED_POOL) begin
 `ifdef VERIF_POOL_HUB
-        `VERIF_POOL_HUB.pool_read_word(CPU_ID[3:0], pc, instr, err);
+        `VERIF_POOL_HUB.pool_read_word(CPU_ID[3:0], pc, raw_instr, err);
+        if (err) state = `CPU_STATE_STALLED;
 `else
         err = 1'b1;
+        state = `CPU_STATE_STALLED;
 `endif
-      end else if (USE_SHARED_POOL) begin
-        tb_verification_harness.u_pool.pool_read_word(CPU_ID[3:0], pc, instr, err);
-        if (err) state = `CPU_STATE_STALLED;
       end else if (fw_word_count == 0) begin
         $display("SCPU%0d > 0x%08h: nop (no firmware)", CPU_ID, pc);
       end else if (!`VERIF_BUS_SPAN_OK(pc, 32'd4, fw_region_size)) begin
@@ -1325,7 +1341,18 @@ module verif_cpu_core #(
         state = `CPU_STATE_STALLED; err = 1'b1;
       end else begin
         word_idx = (fw_region_base + pc) >> 2;
-        instr = fw_words[word_idx];
+        raw_instr = fw_words[word_idx];
+      end
+      if (!err) begin
+        // X/Z in instruction stream → NOP + warn (task path, not function side-effect)
+        if ($isunknown(raw_instr)) begin
+          $display("SCPU%0d > [WARN] X/Z in fetch @pc=0x%08h — NOP 0x00000013",
+                   CPU_ID, pc);
+          if (log_fd != 0)
+            $fwrite(log_fd, "SCPU%0d > [WARN] X/Z in fetch @pc=0x%08h\n", CPU_ID, pc);
+          instr = 32'h00000013;
+        end else
+          instr = raw_instr;
       end
     end
   endtask

@@ -3,7 +3,7 @@
 //
 // Backends (parameters USE_*):
 //   USE_SOC_BUS          → VERIF_SOC_BUS_HUB (campaign simple_soc)
-//   USE_SHARED_BUS       → tb_verification_harness.u_shared_bus
+//   USE_SHARED_BUS       → VERIF_SHARED_BUS_HUB (TB define)
 //   USE_MANIFEST_SOC_BUS → generated bind VH (manifest / scale / chip)
 //   else                 → g_local_bus.u_bus (verif_cpu_bus)
 //
@@ -33,7 +33,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read(addr, size, data, resp);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_read(addr, size, data, resp);
+`else
+          data = 32'h0; resp = `VERIF_BUS_RESP_SOFT;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_read.vh"
@@ -65,7 +71,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write(addr, data, size, resp);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_write(addr, data, size, resp);
+`else
+          resp = `VERIF_BUS_RESP_SOFT;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_write.vh"
@@ -97,7 +109,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_issue(addr, size, handle, ok);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_read_issue(addr, size, handle, ok);
+`else
+          handle = -1; ok = 1'b0;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_read_issue.vh"
@@ -129,7 +147,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_wait(handle, data, resp);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_read_wait(handle, data, resp);
+`else
+          data = 32'h0; resp = `VERIF_BUS_RESP_SOFT;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_read_wait.vh"
@@ -163,7 +187,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_read_poll(handle, data, resp, done);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_read_poll(handle, data, resp, done);
+`else
+          data = 32'h0; resp = `VERIF_BUS_RESP_SOFT; done = 1'b0;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_read_poll.vh"
@@ -198,7 +228,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_issue(addr, data, size, handle, ok);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_write_issue(addr, data, size, handle, ok);
+`else
+          handle = -1; ok = 1'b0;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_write_issue.vh"
@@ -228,7 +264,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_wait(handle, resp);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_write_wait(handle, resp);
+`else
+          resp = `VERIF_BUS_RESP_SOFT;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_write_wait.vh"
@@ -259,7 +301,13 @@
 `endif
       end
       else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_write_poll(handle, resp, done);
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_write_poll(handle, resp, done);
+`else
+          resp = `VERIF_BUS_RESP_SOFT; done = 1'b0;
+`endif
+        end
       else if (USE_MANIFEST_SOC_BUS) begin
 `ifdef VERIF_MANIFEST_SCALE_TB
 `include "verif_manifest_scale_soc_bus_write_poll.vh"
@@ -285,7 +333,13 @@
         `VERIF_SOC_BUS_HUB.bus_reset();
 `endif
       end else if (USE_SHARED_BUS)
-        tb_verification_harness.u_shared_bus.bus_reset();
+        begin
+`ifdef VERIF_SHARED_BUS_HUB
+          `VERIF_SHARED_BUS_HUB.bus_reset();
+`else
+          ;
+`endif
+        end
       else if (!USE_MANIFEST_SOC_BUS)
         g_local_bus.u_bus.bus_reset();
     end

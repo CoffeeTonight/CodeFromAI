@@ -608,7 +608,8 @@ make clean-artifacts # gen/sim 산출 전부 (fw build/hex/hdr, generated .vh, f
 | `make bus-fast` | bridge 18+20 + protocol 42 + neg 23 | 버스 directed 스모크 |
 | `make bus-deep` | bus-fast + caps + mid-reset + OS + ID-OOO + snoop + mon | multi-OS / snoop / mon |
 | `make full_campaign` | 43/43 + VCD | 캠페인 단독 |
-| `make basic` / `rv32i` | 6 / 2 | 코어 smoke + IRQ change-detect + `VERIF_SIM_WATCHDOG_NS` |
+| `make basic` / `rv32i` | 6 / 2 | 코어 smoke + IRQ + `VERIF_SIM_WATCHDOG_NS` |
+| `make bus-gather` | 17 | `vbus_gather_on(1\|8\|16)` + bus X/Z WARN |
 | `make soc-bus-all` | 20/20 + VCD | APB2–5, AHB/AHB5/full, AXI-Lite seq + 3/4/5 |
 | `make soc-bus-protocol` | 42/42 | AHB/AXI errors, INCR/WRAP(+half) R/W, 2M arb, ARLOCK, AWATOP |
 | `make soc-bus-os` / `soc-bus-id-ooo` | 9 / 9 | AXI outstanding dual-write + ID OOO |

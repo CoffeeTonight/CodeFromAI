@@ -6,7 +6,7 @@
 // Smoke: bus store-gather on/off for consecutive word writes (long long style).
 module tb_bus_gather;
 
-  localparam integer TB_EXPECTED_PASS = 16;
+  localparam integer TB_EXPECTED_PASS = 17;
 
   `VERIF_SIM_WATCHDOG_NS
 
@@ -90,6 +90,14 @@ module tb_bus_gather;
     check_eq("16B: four words out", u_cpu.gather_words_out == words_before + 4);
 
     u_cpu.cpu_bus_gather_off();
+
+    // Bus-path X/Z: force table holds X → do_bus_read must sanitize + WARN (task path)
+    begin : xz_bus
+      reg [31:0] rdata;
+      u_cpu.force_mem_addr(32'h00005000, 32'bx);
+      u_cpu.do_bus_read(32'h00005000, 3'd4, rdata);
+      check_eq("bus X/Z → DEADDEAD", rdata === 32'hDEADDEAD);
+    end
 
     $display("\nChecklist: %0d passed / %0d failed", check_pass, check_fail);
     if (check_pass != TB_EXPECTED_PASS)

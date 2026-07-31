@@ -66,26 +66,35 @@ module verif_cpu_sync #(
     end
   endfunction
 
+  // Serialize multi-CPU arrive (0-delay tasks can interleave RMW of sync_arrived).
+  reg sync_lock;
+
+  initial sync_lock = 1'b0;
+
   // Returns need_wait=1 if CPU must enter SYNC_WAIT until sync_can_resume is true.
   task sync_arrive;
     input  [7:0] cpu_id;
     input  [7:0] sync_id;
     output       need_wait;
     reg [7:0]    sid;
-    reg [63:0]   cpu_bit;
+    integer      bit_i;
     reg [63:0]   arrived_masked;
     begin
       need_wait = 1'b0;
       sid = sync_id;
+      // Spin until lock free (single-threaded sims: other arrive finishes first)
+      while (sync_lock)
+        #0;
+      sync_lock = 1'b1;
       if (sid >= MAX_SYNC_IDS || cpu_id == 0 || cpu_id > MAX_CPUS) begin
         $display("SCPU%0d > [Sync] VSYNC ignored (invalid id=%0d)", cpu_id, sid);
       end else if (sync_expected[sid] == 64'd0) begin
         $display("SCPU%0d > [Sync] VSYNC solo id=%0d", cpu_id, sid);
       end else begin
-        cpu_bit = 64'd0;
-        if (cpu_id > 0 && cpu_id <= MAX_CPUS)
-          cpu_bit[cpu_id - 1] = 1'b1;
-        sync_arrived[sid] = sync_arrived[sid] | cpu_bit;
+        // Bit-set (not full-word RMW) so concurrent OR cannot drop another CPU's bit
+        bit_i = cpu_id - 1;
+        if (bit_i >= 0 && bit_i < 64)
+          sync_arrived[sid][bit_i] = 1'b1;
         arrived_masked = sync_arrived[sid] & sync_expected[sid];
         $display("SCPU%0d > [Sync] VSYNC arrive id=%0d (arrived=0x%0h expect=0x%0h)",
                  cpu_id, sid, arrived_masked, sync_expected[sid]);
@@ -97,6 +106,7 @@ module verif_cpu_sync #(
         end else
           need_wait = 1'b1;
       end
+      sync_lock = 1'b0;
     end
   endtask
 

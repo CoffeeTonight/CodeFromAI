@@ -9,8 +9,8 @@ void sync_barrier_entry(void)
     vsync(CAMPAIGN_SYNC_BARRIER_ID);
     load_soc_addr(10, SFR_CTRL);
     rv_lw(11, 10, 0);
-    rv_addi(1, 0, 1);
-    vassert_id(50);
+    /* Assert the loaded SFR value (non-zero after SoC init), not a hard-coded 1 */
+    vassert_rs1(11, 50);
     vtrace_exit(0xF0);
     vstop();
 }

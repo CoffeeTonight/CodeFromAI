@@ -336,20 +336,34 @@ module verif_axi_full_master #(
         end else if (!smoke_b_active && os_w_need_bready() > 0)
           $error("axi_full_master: orphan B channel BID=0x%0h (no matching slot)", BID);
       end
-      // Drain after pushes
-      if (snq_n > 0 && snq_v[0]) begin
+      // Drain snoop queue: present one event for a full ACLK cycle (valid high for
+      // the cycle after NBA), then pop on next edge when still head. Hold addr/data
+      // while valid so agents sampling posedge ACLK always see stable payload.
+      if (snoop_valid) begin
+        // End of present cycle — pop head if it matches what we drove
+        if (snq_n > 0 && snq_v[0]) begin
+          for (si = 0; si < SNQ_DEPTH - 1; si = si + 1) begin
+            snq_v[si]  = snq_v[si + 1];
+            snq_wr[si] = snq_wr[si + 1];
+            snq_a[si]  = snq_a[si + 1];
+            snq_d[si]  = snq_d[si + 1];
+          end
+          snq_v[SNQ_DEPTH - 1] = 1'b0;
+          snq_n = snq_n - 1;
+        end
+        if (snq_n > 0 && snq_v[0]) begin
+          snoop_wr    <= snq_wr[0];
+          snoop_addr  <= snq_a[0];
+          snoop_data  <= snq_d[0];
+          snoop_valid <= 1'b1;
+        end else begin
+          snoop_valid <= 1'b0;
+        end
+      end else if (snq_n > 0 && snq_v[0]) begin
         snoop_wr    <= snq_wr[0];
         snoop_addr  <= snq_a[0];
         snoop_data  <= snq_d[0];
         snoop_valid <= 1'b1;
-        for (si = 0; si < SNQ_DEPTH - 1; si = si + 1) begin
-          snq_v[si]  = snq_v[si + 1];
-          snq_wr[si] = snq_wr[si + 1];
-          snq_a[si]  = snq_a[si + 1];
-          snq_d[si]  = snq_d[si + 1];
-        end
-        snq_v[SNQ_DEPTH - 1] = 1'b0;
-        snq_n = snq_n - 1;
       end else
         snoop_valid <= 1'b0;
     end
@@ -813,6 +827,33 @@ module verif_axi_full_master #(
     end
   endtask
 
+  // Beat address for INCR / WRAP (matches verif_axi_full_slave_simple.axi_burst_addr)
+  function [31:0] axi_wrap_addr;
+    input [31:0] base_addr;
+    input [7:0]  beat;
+    input [7:0]  blen;
+    input [1:0]  burst;
+    input [2:0]  axsize;
+    reg [31:0]   wrap_bytes;
+    reg [31:0]   wrap_mask;
+    reg [31:0]   align_base;
+    reg [31:0]   offset;
+    begin
+      if (burst == 2'b00)
+        axi_wrap_addr = base_addr;  // FIXED
+      else if (burst == BURST_WRAP) begin
+        wrap_bytes = (blen + 1) << axsize;
+        wrap_mask  = wrap_bytes - 1;
+        align_base = base_addr & ~wrap_mask;
+        offset = (base_addr - align_base) + (beat << axsize);
+        if (offset >= wrap_bytes)
+          offset = offset - wrap_bytes;
+        axi_wrap_addr = align_base + offset;
+      end else
+        axi_wrap_addr = base_addr + (beat << axsize);  // INCR
+    end
+  endfunction
+
   // Blocking INCR/WRAP burst write — pattern_base + beat index per W beat
   task bus_write_incr;
     input  [31:0] addr;
@@ -827,17 +868,20 @@ module verif_axi_full_master #(
     integer       beat;
     integer       nbeats;
     reg [31:0]    wdata;
+    reg [31:0]    beat_addr;
+    reg [2:0]     axsz;
     begin
       resp = `VERIF_BUS_RESP_SOFT;
       had_slverr = 1'b0;
       had_decerr = 1'b0;
       nbeats = awlen + 1;
+      axsz = axsize_for_bytes(size);
       axi_idle();
       @(posedge ACLK);
       AWID = {ID_WIDTH{1'b0}};
       AWADDR = addr;
       AWLEN = awlen;
-      AWSIZE = axsize_for_bytes(size);
+      AWSIZE = axsz;
       AWBURST = burst;
       AWPROT = 3'b010;
       AWLOCK = 1'b0;
@@ -855,8 +899,10 @@ module verif_axi_full_master #(
       beat = 0;
       while (beat < nbeats) begin
         wdata = pattern_base + beat;
-        WDATA = lane_pwdata(wdata, addr + (beat << axsize_for_bytes(size)), size);
-        WSTRB = lane_wstrb(addr + (beat << axsize_for_bytes(size)), size);
+        // WRAP must use wrap boundary, not linear INCR offset
+        beat_addr = axi_wrap_addr(addr, beat[7:0], awlen, burst, axsz);
+        WDATA = lane_pwdata(wdata, beat_addr, size);
+        WSTRB = lane_wstrb(beat_addr, size);
         WLAST = (beat == nbeats - 1);
         WVALID = 1'b1;
         if (AXI_PROT == 3)

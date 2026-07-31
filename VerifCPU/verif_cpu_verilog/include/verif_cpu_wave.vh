@@ -64,30 +64,58 @@ endtask
 task wave_export_vcd;
   input [1024*8:1] filepath;
   integer fd;
-  reg [15:0] i;
-  reg [31:0] last_t;
+  integer i;
+  integer j;
+  integer nuniq;
+  reg [8*32:1] uniq_sig [0:`WAVE_CHG_MAX-1];
+  reg [7:0]    uniq_code [0:`WAVE_CHG_MAX-1]; // single-char id ! .. ~
+  reg [31:0]   last_t;
+  reg          seen;
+  reg [7:0]    code;
   begin
     if (wave_chg_count == 0) begin
       log_msg("[Wave] No data to export.");
     end else begin
+      // Collect unique signal names → declare $var for each (VCD requires this)
+      nuniq = 0;
+      for (i = 0; i < wave_chg_count; i = i + 1) begin
+        seen = 1'b0;
+        for (j = 0; j < nuniq; j = j + 1)
+          if (uniq_sig[j] == wave_sig[i])
+            seen = 1'b1;
+        if (!seen && nuniq < `WAVE_CHG_MAX) begin
+          uniq_sig[nuniq] = wave_sig[i];
+          // printable ASCII ids starting at '!'
+          uniq_code[nuniq] = 8'd33 + (nuniq % 90);
+          nuniq = nuniq + 1;
+        end
+      end
       fd = $fopen(filepath, "w");
       $fwrite(fd, "$date\n    VerifCPU Verilog Model\n$end\n");
       $fwrite(fd, "$version\n    VerifCPU Verilog\n$end\n");
       $fwrite(fd, "$timescale 1ns $end\n\n");
       $fwrite(fd, "$scope module SCPU%0d $end\n", CPU_ID);
-      $fwrite(fd, "  $var reg 32 pc pc $end\n");
-      $fwrite(fd, "$upscope $end\n$enddefinitions $end\n\n");
+      for (j = 0; j < nuniq; j = j + 1)
+        $fwrite(fd, "  $var wire 32 %c %0s $end\n", uniq_code[j], uniq_sig[j]);
+      $fwrite(fd, "$upscope $end\n");
+      $fwrite(fd, "$enddefinitions $end\n\n");
+      // Sample index as time axis (insn_pc stored in wave_time is also dumped as value)
       last_t = 32'hffffffff;
       for (i = 0; i < wave_chg_count; i = i + 1) begin
-        if (wave_time[i] != last_t) begin
-          $fwrite(fd, "#%0d\n", wave_time[i]);
-          last_t = wave_time[i];
+        if (i != last_t) begin
+          $fwrite(fd, "#%0d\n", i);
+          last_t = i;
         end
-        $fwrite(fd, "b%032b %0s\n", wave_val[i], wave_sig[i]);
+        code = 8'd33;
+        for (j = 0; j < nuniq; j = j + 1)
+          if (uniq_sig[j] == wave_sig[i])
+            code = uniq_code[j];
+        // IEEE VCD: b<bits> <id>  (space before identifier)
+        $fwrite(fd, "b%032b %c\n", wave_val[i], code);
       end
       $fclose(fd);
-      $display("SCPU%0d > [Wave] Hierarchical VCD exported: %0s (%0d changes)",
-               CPU_ID, filepath, wave_chg_count);
+      $display("SCPU%0d > [Wave] Hierarchical VCD exported: %0s (%0d changes, %0d sigs)",
+               CPU_ID, filepath, wave_chg_count, nuniq);
     end
   end
 endtask

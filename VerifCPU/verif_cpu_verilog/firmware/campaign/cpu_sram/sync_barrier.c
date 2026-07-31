@@ -9,8 +9,8 @@ void sync_barrier_entry(void)
     vsync(CAMPAIGN_SYNC_BARRIER_ID);
     load_soc_addr(10, SRAM_MARKER);
     rv_lw(11, 10, 0);
-    rv_addi(1, 0, 1);
-    vassert_id(51);
+    /* Assert loaded bus value, not hard-coded 1 */
+    vassert_rs1(11, 51);
     vtrace_exit(0xF1);
     vstop();
 }

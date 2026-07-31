@@ -47,7 +47,13 @@ task execute_instruction;
         case (funct3)
           3'h0, 3'h4: do_bus_read(addr, 3'd1, bus_data);  // lb / lbu
           3'h1, 3'h5: do_bus_read(addr, 3'd2, bus_data);  // lh / lhu
-          default:    do_bus_read(addr, 3'd4, bus_data);  // lw
+          3'h2:       do_bus_read(addr, 3'd4, bus_data);  // lw
+          default: begin
+            $display("SCPU%0d > [ILL] illegal LOAD funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                     CPU_ID, funct3, raw, insn_pc);
+            last_bus_err = 1'b1;
+            bus_data = 32'hDEADDEAD;
+          end
         endcase
         if (last_bus_err) begin
           result = 32'hDEADDEAD;
@@ -74,8 +80,8 @@ task execute_instruction;
             $sformat(step_disasm, "lhu x%0d,0x%0h(x%0d)", rd, imm, rs1);
           end
           default: begin
-            result = bus_data;
-            $sformat(step_disasm, "load? x%0d,0x%0h(x%0d)", rd, imm, rs1);
+            result = 32'hDEADDEAD;
+            $sformat(step_disasm, "ILL.load x%0d,0x%0h(x%0d)", rd, imm, rs1);
           end
         endcase
       end
@@ -95,14 +101,22 @@ task execute_instruction;
           store_sz = 3'd2;
           $sformat(step_disasm, "sh x%0d,0x%0h(x%0d)", rs2, imm, rs1);
         end
-        default: begin
+        3'h2: begin
           store_sz = 3'd4;
           $sformat(step_disasm, "sw x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+        end
+        default: begin
+          $display("SCPU%0d > [ILL] illegal STORE funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                   CPU_ID, funct3, raw, insn_pc);
+          store_sz = 3'd0;
+          $sformat(step_disasm, "ILL.store x%0d,0x%0h(x%0d)", rs2, imm, rs1);
+          last_bus_err = 1'b1;
         end
       endcase
       // Unaligned half/word: AMBA masters split via verif_bus_split_rw
       // (HARD early-stop SSOT — no CPU-local half@+3 special path).
-      do_bus_write(addr, rs2_val, store_sz);
+      if (store_sz != 3'd0)
+        do_bus_write(addr, rs2_val, store_sz);
       log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_OP_IMM) begin
@@ -117,8 +131,20 @@ task execute_instruction;
                                             : (rs1_val >> imm[4:0]);
         3'h6: result = rs1_val | imm;
         3'h7: result = rs1_val & imm;
-        default: result = rs1_val;
+        default: begin
+          result = rs1_val;
+          $display("SCPU%0d > [ILL] illegal OP-IMM funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                   CPU_ID, funct3, raw, insn_pc);
+          last_bus_err = 1'b1;
+        end
       endcase
+      // Illegal shift/sub encoding (funct7) for slli/srli/srai
+      if ((funct3 == 3'h1 && funct7 != 7'h00) ||
+          (funct3 == 3'h5 && funct7 != 7'h00 && funct7 != 7'h20)) begin
+        $display("SCPU%0d > [ILL] illegal OP-IMM funct7=0x%02h funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                 CPU_ID, funct7, funct3, raw, insn_pc);
+        last_bus_err = 1'b1;
+      end
       write_reg(rd, result);
       if (funct3 == 3'h0)
         $sformat(step_disasm, "addi x%0d,x%0d,%0d", rd, rs1, $signed(imm));
@@ -139,7 +165,7 @@ task execute_instruction;
       else if (funct3 == 3'h4)
         $sformat(step_disasm, "xori x%0d,x%0d,0x%0h", rd, rs1, imm);
       else
-        $sformat(step_disasm, "op_imm x%0d,x%0d,%0h", rd, rs1, imm);
+        $sformat(step_disasm, "ILL.op_imm x%0d,x%0d,%0h", rd, rs1, imm);
       log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_OP) begin
@@ -155,8 +181,22 @@ task execute_instruction;
                                             : (rs1_val >> rs2_val[4:0]);
         3'h6: result = rs1_val | rs2_val;
         3'h7: result = rs1_val & rs2_val;
-        default: result = rs1_val;
+        default: begin
+          result = rs1_val;
+          $display("SCPU%0d > [ILL] illegal OP funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                   CPU_ID, funct3, raw, insn_pc);
+          last_bus_err = 1'b1;
+        end
       endcase
+      if ((funct3 == 3'h0 && funct7 != 7'h00 && funct7 != 7'h20) ||
+          (funct3 == 3'h1 && funct7 != 7'h00) ||
+          (funct3 == 3'h5 && funct7 != 7'h00 && funct7 != 7'h20) ||
+          ((funct3 == 3'h2 || funct3 == 3'h3 || funct3 == 3'h4 ||
+            funct3 == 3'h6 || funct3 == 3'h7) && funct7 != 7'h00)) begin
+        $display("SCPU%0d > [ILL] illegal OP funct7=0x%02h funct3=0x%0h raw=0x%08h @pc=0x%08h",
+                 CPU_ID, funct7, funct3, raw, insn_pc);
+        last_bus_err = 1'b1;
+      end
       write_reg(rd, result);
       if (funct3 == 3'h0 && funct7 == 7'h20)
         $sformat(step_disasm, "sub x%0d,x%0d,x%0d", rd, rs1, rs2);
@@ -179,7 +219,7 @@ task execute_instruction;
       else if (funct3 == 3'h4)
         $sformat(step_disasm, "xor x%0d,x%0d,x%0d", rd, rs1, rs2);
       else
-        $sformat(step_disasm, "alu_r x%0d,x%0d,x%0d", rd, rs1, rs2);
+        $sformat(step_disasm, "ILL.op x%0d,x%0d,x%0d", rd, rs1, rs2);
       log_inst(insn_pc, step_disasm);
     end
     else if (opcode == `OPCODE_BRANCH) begin
@@ -234,8 +274,13 @@ task execute_instruction;
       log_inst(insn_pc, step_disasm);
     end
     else begin
-      $sformat(step_disasm, "unknown 0x%08h", raw);
-      $display("SCPU%0d > Unknown opcode 0x%02h raw=0x%08h", CPU_ID, opcode, raw);
+      // Illegal / unsupported encoding — do not silently fall through as NOP
+      $sformat(step_disasm, "ILL 0x%08h", raw);
+      $display("SCPU%0d > [ILL] illegal/unsupported encoding opcode=0x%02h raw=0x%08h @pc=0x%08h",
+               CPU_ID, opcode, raw, insn_pc);
+      log_inst(insn_pc, step_disasm);
+      // Keep PC advancing so TB does not hang; mark soft fault for visibility
+      last_bus_err = 1'b1;
     end
   end
 endtask

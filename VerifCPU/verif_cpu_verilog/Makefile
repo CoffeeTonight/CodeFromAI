@@ -280,9 +280,14 @@ sim_build/tb_rv32i_demo.vvp: $(RTL) tb/tb_rv32i_demo.v
 	@mkdir -p sim_build
 	$(IVERILOG) $(IVFLAGS) -o $@ $(RTL) tb/tb_rv32i_demo.v
 
+# Hub macros must be -D on the command line: RTL is preprocessed before TB sources,
+# so `define` inside tb_verification_harness.v is too late for verif_cpu_core/backend.
 sim_build/tb_verification_harness.vvp: $(RTL) tb/tb_verification_harness.v
 	@mkdir -p sim_build
-	$(IVERILOG) $(IVFLAGS) -o $@ $(RTL) tb/tb_verification_harness.v
+	$(IVERILOG) $(IVFLAGS) \
+	  -DVERIF_POOL_HUB=tb_verification_harness.u_pool \
+	  -DVERIF_SHARED_BUS_HUB=tb_verification_harness.u_shared_bus \
+	  -o $@ $(RTL) tb/tb_verification_harness.v
 
 PARAMS_VH = include/campaign_params.vh
 SCALE_VH = include/campaign_scale.vh

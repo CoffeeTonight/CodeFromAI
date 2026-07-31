@@ -90,6 +90,8 @@ module verif_axi_full_slave_simple #(
 
   integer i;
   reg [31:0] wacc_addr;
+  // Slot currently driving R* (handshake must retire same slot, not RID re-lookup)
+  integer r_present_slot;
 
   // Start address in window and full beat (STRB_WIDTH bytes at aligned off) fits mem[]
   // Non-wrapping: acc+STRB_WIDTH must not wrap past SIZE (false-accept → mem OOB)
@@ -279,6 +281,7 @@ module verif_axi_full_slave_simple #(
     BVALID = 1'b0;
     rq_count = 0;
     bq_count = 0;
+    r_present_slot = -1;
     for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
       rq_valid[i] = 1'b0;
       bq_valid[i] = 1'b0;
@@ -308,6 +311,7 @@ module verif_axi_full_slave_simple #(
       BVALID <= 1'b0;
       rq_count <= 0;
       bq_count <= 0;
+      r_present_slot <= -1;
       for (i = 0; i < MAX_OUTSTANDING; i = i + 1) begin
         rq_valid[i] <= 1'b0;
         bq_valid[i] <= 1'b0;
@@ -342,6 +346,7 @@ module verif_axi_full_slave_simple #(
       if (!RVALID) begin
         slot = rq_pick_ready();
         if (slot >= 0) begin
+          r_present_slot <= slot;
           RID <= rq_id[slot];
           beat_addr = rq_cur_addr[slot];
           if (addr_is_decerr(beat_addr) != 0) begin
@@ -358,12 +363,12 @@ module verif_axi_full_slave_simple #(
           RVALID <= 1'b1;
         end
       end else if (RVALID && RREADY) begin
-        slot = -1;
-        for (i = 0; i < MAX_OUTSTANDING; i = i + 1)
-          if (rq_valid[i] && rq_id[i] == RID && rq_timer[i] == 0) begin
-            slot = i;
-            i = MAX_OUTSTANDING;
-          end
+        // Use the slot that drove this R beat (not re-lookup by RID — ambiguous under reorder)
+        slot = r_present_slot;
+        if (slot < 0 || slot >= MAX_OUTSTANDING || !rq_valid[slot]) begin
+          $error("axi_full_slave: R handshake with invalid r_present_slot=%0d", slot);
+          slot = -1;
+        end
         if (slot >= 0) begin
           if (rq_beat[slot] >= rq_arlen[slot]) begin
             rq_valid[slot] <= 1'b0;
@@ -374,6 +379,7 @@ module verif_axi_full_slave_simple #(
                                                      rq_arlen[slot], rq_burst[slot], rq_arsize[slot]);
           end
         end
+        r_present_slot <= -1;
         RVALID <= 1'b0;
         RLAST <= 1'b0;
       end

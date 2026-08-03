@@ -430,7 +430,7 @@ Commands:
   chip-top         Chip top smoke (make chip-top-example — yaml hierarchy)
   vcd              Re-run verify_vcd.py on existing VCD files
   verdi [view]     Open Synopsys Verdi (default: full_campaign; needs gen + optional sim)
-  clean            Remove gen/sim artifacts (fw build/hex/hdr, generated .vh, filelists, scripts)
+  clean            Remove gen/sim artifacts (fw, .vh, filelists/, scripts/ — re-run gen after)
   help             Show this message
 
 Options:

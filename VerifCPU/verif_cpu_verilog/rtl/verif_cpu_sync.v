@@ -31,11 +31,11 @@ module verif_cpu_sync #(
     reg [7:0] sid;
     begin
       sid = sync_id;
-      if (sid < MAX_SYNC_IDS) begin
-        sync_expected[sid] = participant_mask;
-        sync_arrived[sid]  = 64'd0;
-        $display("[Sync] configure id=%0d expect=0x%0h", sid, participant_mask);
-      end
+      if (sid >= MAX_SYNC_IDS)
+        $fatal(1, "[Sync] configure invalid id=%0d (MAX_SYNC_IDS=%0d)", sid, MAX_SYNC_IDS);
+      sync_expected[sid] = participant_mask;
+      sync_arrived[sid]  = 64'd0;
+      $display("[Sync] configure id=%0d expect=0x%0h", sid, participant_mask);
     end
   endtask
 
@@ -45,7 +45,8 @@ module verif_cpu_sync #(
       if (sync_id < MAX_SYNC_IDS)
         sync_gen_snapshot = sync_gen[sync_id];
       else
-        sync_gen_snapshot = 32'd0;
+        // Invalid id: do not invent gen=0 (would look like a release)
+        sync_gen_snapshot = 32'hFFFF_FFFF;
     end
   endfunction
 
@@ -57,8 +58,9 @@ module verif_cpu_sync #(
     begin
       sid = sync_id;
       sync_can_resume = 1'b0;
+      // Invalid id must not auto-resume (arrive fatals before wait)
       if (sid >= MAX_SYNC_IDS)
-        sync_can_resume = 1'b1;
+        sync_can_resume = 1'b0;
       else if (sync_expected[sid] == 64'd0)
         sync_can_resume = 1'b1;
       else if (sync_gen[sid] != wait_gen)
@@ -87,7 +89,9 @@ module verif_cpu_sync #(
         #0;
       sync_lock = 1'b1;
       if (sid >= MAX_SYNC_IDS || cpu_id == 0 || cpu_id > MAX_CPUS) begin
-        $display("SCPU%0d > [Sync] VSYNC ignored (invalid id=%0d)", cpu_id, sid);
+        // Silent ignore weakens multi-CPU barriers — hard fail
+        $fatal(1, "SCPU%0d > [Sync] VSYNC invalid (id=%0d cpu=%0d MAX_IDS=%0d MAX_CPUS=%0d)",
+               cpu_id, sid, cpu_id, MAX_SYNC_IDS, MAX_CPUS);
       end else if (sync_expected[sid] == 64'd0) begin
         $display("SCPU%0d > [Sync] VSYNC solo id=%0d", cpu_id, sid);
       end else begin

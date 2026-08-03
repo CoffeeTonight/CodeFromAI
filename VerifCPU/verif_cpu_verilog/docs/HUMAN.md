@@ -170,7 +170,7 @@ Hang 상한: `VVP_TIMEOUT`(초, 기본 600).
 | link `phase_a_entry` | 공통 phase_a 링크 (NOOP 포함) |
 | hub/XMR 오류 | Makefile 타겟 또는 eda `defines.list`의 `VERIF_*_HUB` |
 | hang | `VVP_TIMEOUT`, watchdog, 버스 READY 타임아웃 메시지 |
-| clean 후 깨짐 | 생성물 삭제 → 다시 gen |
+| clean 후 깨짐 | `filelists/`·`scripts/`도 지워짐 → `./example.sh gen` 필수 |
 
 로그: `logs/full_campaign/SCPU*.log` · 파형: `sim_build/tb_full_campaign.vcd`.
 

@@ -57,14 +57,26 @@ module verif_cpu_unified_pool #(
       page_start = byte_off & PAGE_MASK;
       seek_ok = $fseek(region_fd[cpu_id], page_start, 0);
       if (seek_ok != 0) begin
-        $display("[UnifiedPool] CPU%0d page seek failed off=0x%08h", cpu_id, page_start);
+        $display("[UnifiedPool] ERROR: CPU%0d page seek failed off=0x%08h",
+                 cpu_id, page_start);
         page_valid[cpu_id] = 1'b0;
       end else begin
         bytes_read = $fread(fread_tmp, region_fd[cpu_id], 0, PAGE_BYTES);
-        for (k = 0; k < PAGE_BYTES; k = k + 1)
-          page_buf[cpu_id][k] = (k < bytes_read) ? fread_tmp[k] : 8'h13;
-        page_tag[cpu_id]   = page_start;
-        page_valid[cpu_id] = 1'b1;
+        // Zero bytes after a successful seek → empty/unreadable region (not a valid last page)
+        if (bytes_read == 0) begin
+          $display("[UnifiedPool] ERROR: CPU%0d page fread 0 bytes off=0x%08h (truncated/empty file?)",
+                   cpu_id, page_start);
+          page_valid[cpu_id] = 1'b0;
+        end else begin
+          // Short last page: pad remaining with NOP (0x13). Full PAGE_BYTES: no pad.
+          for (k = 0; k < PAGE_BYTES; k = k + 1)
+            page_buf[cpu_id][k] = (k < bytes_read) ? fread_tmp[k] : 8'h13;
+          if (bytes_read < PAGE_BYTES)
+            $display("[UnifiedPool] CPU%0d short page %0d/%0d B @0x%08h (EOF pad NOP)",
+                     cpu_id, bytes_read, PAGE_BYTES, page_start);
+          page_tag[cpu_id]   = page_start;
+          page_valid[cpu_id] = 1'b1;
+        end
       end
     end
   endtask

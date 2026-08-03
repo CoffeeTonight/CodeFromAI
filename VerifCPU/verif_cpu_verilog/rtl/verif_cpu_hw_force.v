@@ -60,8 +60,11 @@ module verif_cpu_hw_force #(
         if (f_count < MAX_ENTRIES) begin
           slot = f_count;
           f_count = f_count + 8'd1;
-        end else
-          slot = MAX_ENTRIES - 1;
+        end else begin
+          // Prefer fatal over silent overwrite of last entry (wrong hit)
+          $fatal(1, "[HWForce] table full (MAX_ENTRIES=%0d) — cannot set hier=0x%08h addr=0x%08h",
+                 MAX_ENTRIES, hier_id, addr);
+        end
       end
       f_hier[slot]  = hier_id;
       f_addr[slot]  = addr;

@@ -137,10 +137,17 @@ def clean(*, fw_only: bool, dry_run: bool) -> int:
     for rel in GEN_DIRS:
         if rel == "firmware/campaign/build":
             continue
+        if rel in ("filelists", "scripts") and (ROOT / rel).exists() and not dry_run:
+            print(
+                f"[clean_generated] WARN: removing {rel}/ "
+                f"(regenerate with: ./example.sh gen  or  make filelists)"
+            )
         if _rm_tree(ROOT / rel, dry_run=dry_run):
             removed += 1
 
     print(f"[clean_generated] full scope: {removed} item(s)")
+    if not fw_only and not dry_run:
+        print("[clean_generated] next: ./example.sh gen   # restore filelists/ + scripts/")
     return 0
 
 

@@ -11,6 +11,7 @@ source "$ROOT/scripts/lib/eda_lists.sh"
 VIEW="${1:-full_campaign}"
 IVERILOG="${IVERILOG:-iverilog}"
 VVP="${VVP:-vvp}"
+VVP_TIMEOUT="${VVP_TIMEOUT:-600}"
 
 eda_require_view "$VIEW"
 TOP="${IVERILOG_TOP:-$(eda_top "$VIEW")}"
@@ -36,8 +37,8 @@ if [[ -n "$VCD" ]]; then mkdir -p "$(dirname "$VCD")"; fi
 echo "[iverilog] view=$VIEW top=$TOP → $VVP_OUT"
 read -r -a IV_FLAGS <<< "$(eda_iverilog_f_flags "$VIEW")"
 "$IVERILOG" -g2012 "${IV_FLAGS[@]}" -s "$TOP" -o "$VVP_OUT"
-echo "[iverilog] vvp $VVP_OUT"
-"$VVP" "$VVP_OUT"
+echo "[iverilog] timeout ${VVP_TIMEOUT}s vvp $VVP_OUT"
+timeout "$VVP_TIMEOUT" "$VVP" "$VVP_OUT"
 if [[ -n "$VCD" && -f "$VCD" ]]; then
   echo "[iverilog] VCD: $VCD"
 fi

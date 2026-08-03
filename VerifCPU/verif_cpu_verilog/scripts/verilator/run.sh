@@ -9,6 +9,7 @@ source "$ROOT/scripts/lib/eda_lists.sh"
 
 VIEW="${1:-full_campaign}"
 VERILATOR="${VERILATOR:-verilator}"
+VVP_TIMEOUT="${VVP_TIMEOUT:-600}"
 
 eda_require_view "$VIEW"
 TOP="${VERILATOR_TOP:-$(eda_top "$VIEW")}"
@@ -43,8 +44,8 @@ EXE="$OUTDIR/V$TOP"
 if [[ ! -x "$EXE" ]]; then
   echo "[verilator] missing executable $EXE" >&2; exit 1
 fi
-echo "[verilator] run $EXE"
-"$EXE"
+echo "[verilator] timeout ${VVP_TIMEOUT}s $EXE"
+timeout "$VVP_TIMEOUT" "$EXE"
 if [[ "${VERILATOR_TRACE:-1}" == "1" ]]; then
   echo "[verilator] VCD trace under $OUTDIR/ (verilator --trace-vcd)"
 fi

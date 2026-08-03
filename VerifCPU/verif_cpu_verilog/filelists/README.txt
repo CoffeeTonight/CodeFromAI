@@ -15,7 +15,7 @@
 
 #   incdirs.f                        shared include dirs
 #   work/vcpu.f                      Work — VCPU IP (core + pool + orchestrator + agent)
-#   work/rtl.f                       Work — real SoC attach (vcpu + bridges + soc_cell + connect VH)
+#   work/rtl.f                       Work — real SoC attach (vcpu + bridges + soc_cell + connect VH); sim with cores needs +define+VERIF_POOL_HUB=... (see eda/work/integration/defines.list)
 #   test/tb_dut.f                    Test — internal regression (rtl + simple_soc + tb_full_campaign)
 #   test/soc_manifest.f              Test — bridge wiring reference (tb_soc_manifest)
 #   vcpu.f                           vcpu.f → work/vcpu.f

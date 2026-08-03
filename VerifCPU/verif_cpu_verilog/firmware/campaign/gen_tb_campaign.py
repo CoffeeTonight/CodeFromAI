@@ -2469,7 +2469,8 @@ def emit_orchestrator_only_vh(pool_bytes: int, use_lazy: bool, max_slot_count: i
     ):
         lines.extend(_noop_define(macro))
     lines.extend([
-        "`define CAMPAIGN_PHASE_B_SLOT_CHECK (1)",
+        # Real invariant for solo orchestrator (no slave agents / multi-slot collect)
+        "`define CAMPAIGN_PHASE_B_SLOT_CHECK (`CAMPAIGN_NUM_VCPUS == 0)",
         "",
         "`define CAMPAIGN_ICODE_FINAL_CHECKS \\",
         "  total_pass = 0; \\",
@@ -2488,11 +2489,10 @@ def emit_orchestrator_only_vh(pool_bytes: int, use_lazy: bool, max_slot_count: i
         "CAMPAIGN_UART_WDT", "\\n[7] UART WDT skipped (orchestrator-only)",
     ))
     lines.extend(_noop_define("CAMPAIGN_PHASE_C_EXTRA"))
-    lines.extend([
-        "`define CAMPAIGN_VCD_EXPORT \\",
-        '  check_eq("VCD export skipped (orchestrator-only)", 1); \\',
-        "",
-    ])
+    # Skip-only (no always-pass check_eq) — same pattern as other orchestrator-only skips
+    lines.extend(_emit_skip_phase_macro(
+        "CAMPAIGN_VCD_EXPORT", "\\n[8] VCD export skipped (orchestrator-only)",
+    ))
     lines.extend(_emit_skip_phase_macro(
         "CAMPAIGN_CONSOLE_STALL", "\\n[3] Console stall skipped (orchestrator-only)",
     ))

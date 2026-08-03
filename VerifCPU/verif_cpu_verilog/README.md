@@ -5,10 +5,18 @@
 
 > **역할:** DV 전용 **행위 모델** 검증 CPU — SoC 통합·캠페인 회귀용이며, 합성 가능한 실리콘 CPU RTL 대체가 아닙니다.
 
-공식 검증 게이트는 **iverilog 시뮬레이션 + VCD 후처리**입니다.  
-Python 모델은 동일 TB 흐름을 따르는 cross-check reference이며, PASS/FAIL의 authoritative source는 이 디렉터리입니다.
+### 문서 분리 (권장 읽기 순서)
 
-`make full_campaign`은 **`simple_soc` + 펌웨어 캠페인** 증명입니다. 고객 SoC AMBA 배선·스케일은 **`make soc-paste`**, **`make soc-integration`**, **`make chip-top-example`** tier 스모크로 별도 검증합니다.
+| 독자 | 시작 | 내용 |
+|------|------|------|
+| **사람 (실무)** | **[`docs/HUMAN.md`](docs/HUMAN.md)** | **무슨 도구·무슨 기능인지**, 바로 돌리기, SoC 붙이기, 편집/생성 |
+| **LLM / 에이전트** | **[`docs/LLM.md`](docs/LLM.md)** → [`vcpu_skill.md`](vcpu_skill.md) | 계약·hub·슬롯 SSOT·게이트·통합 플레이북 |
+| 전체 레퍼런스 | 이 README (아래) | 인코딩, custom op, make 목록, 아키텍처 상세 |
+
+슬롯 YAML만 편집: [`firmware/campaign/campaign_slots.yaml`](firmware/campaign/campaign_slots.yaml) · [가이드](firmware/campaign/campaign_slots_GUIDE.md) · [ONE_INTEGRATION_SSOT](ONE_INTEGRATION_SSOT.md).
+
+공식 검증 게이트는 **iverilog 시뮬레이션 + VCD 후처리**입니다.  
+`make full_campaign` = **`simple_soc` + 펌 캠페인** 증명. 고객 AMBA 배선은 **`make soc-paste` / `soc-integration` / `chip-top-example`**.
 
 ## 빠른 시작
 
@@ -17,11 +25,12 @@ Python 모델은 동일 TB 흐름을 따르는 cross-check reference이며, PASS
 ./example.sh
 
 # 또는 Makefile 직접 호출
-make verify           # harness + full_campaign + soc-bus-protocol (권장)
+make verify           # harness + full_campaign + bus-fast (권장)
 make full_campaign    # 캠페인 단독 (45-check + VCD)
 ```
 
-성공 시 체크리스트 **45/45 PASS**, `vcd_marker = 0xDEADDEAD`.
+성공 시 체크리스트 **45/45 PASS**, `vcd_marker = 0xDEADDEAD`.  
+실무 요약·통합 체크리스트는 **[`docs/HUMAN.md`](docs/HUMAN.md)** 를 우선하세요.
 
 Hang 방지: `Makefile`의 `VVP_TIMEOUT`(기본 600s, `RUN_VVP = timeout $(VVP_TIMEOUT) vvp`) + TB `VERIF_SIM_WATCHDOG_NS`(`include/verif_sim_watchdog.vh`).  
 버스 마스터는 READY/HREADY/PREADY 대기·issue 경로 모두 `do-while` + `VERIF_BUS_WAIT_TICK`(4096 cycle) 적용.  
@@ -678,7 +687,7 @@ python3 tools/verify_vcd.py sim_build/tb_full_campaign.vcd \
   logs/full_campaign/SCPU1.vcd
 ```
 
-## 체크리스트 (43항목)
+## 체크리스트 (45항목)
 
 `tb_full_campaign_gen.vh`의 `CAMPAIGN_EXECUTE`가 생성하는 `check_eq` 기준 (주요 묶음):
 

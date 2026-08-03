@@ -25,14 +25,15 @@ Vault: `soc-verify-agent/.../vcpu-soc-integration/14-CAMPAIGN-SLOTS-SSOT.md`
 ## 사람 — 워크플로
 
 ```bash
-export RTL_ROOT=~/tools/_CFA/VerifCPU/verif_cpu_verilog
+export RTL_ROOT=/path/to/verif_cpu_verilog   # package root (example.sh 있는 곳)
 vim "$RTL_ROOT/firmware/campaign/campaign_slots.yaml"
 
 cd "$RTL_ROOT/firmware/campaign" && make discover && make config
 cd "$RTL_ROOT" && ./example.sh gen
 
-cd ~/tools/_CFA/soc-verify-agent/projects/VERIF-CPU-SOC
-./scripts/sync_intake_slaves_from_slots.py --tag <TAG>
+# optional: intake mirror in soc-verify-agent workspace
+# cd /path/to/soc-verify-agent/projects/VERIF-CPU-SOC
+# ./scripts/sync_intake_slaves_from_slots.py --tag <TAG>
 ```
 
 intake에는 **고객 RTL 경로·시뮬 실행법·펌웨어 bundle 경로**만 직접 작성합니다.

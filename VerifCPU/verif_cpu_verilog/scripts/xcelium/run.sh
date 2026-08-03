@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cadence Xcelium xrun — elaborate + simulate (single invocation).
 # Usage: ./scripts/xcelium/run.sh [view]
-# Env: XRUN_OPTS="-svseed random"  XRUN_PROBE=1
+# Env: XRUN_OPTS="-svseed random"  XRUN_PROBE=1  VVP_TIMEOUT=600
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -10,6 +10,7 @@ source "$ROOT/scripts/lib/eda_lists.sh"
 
 VIEW="${1:-full_campaign}"
 XRUN="${XRUN:-xrun}"
+VVP_TIMEOUT="${VVP_TIMEOUT:-600}"
 
 eda_require_view "$VIEW"
 TOP="${XRUN_TOP:-$(eda_top "$VIEW")}"
@@ -32,12 +33,12 @@ exit
 EOF
 fi
 
-echo "[xrun] view=$VIEW top=$TOP → $OUTDIR/xcelium.d"
+echo "[xrun] view=$VIEW top=$TOP → $OUTDIR/xcelium.d (timeout ${VVP_TIMEOUT}s)"
 XRUN_EXTRA=()
 if [[ -n "${XRUN_OPTS:-}" ]]; then
   read -r -a XRUN_EXTRA <<< "$XRUN_OPTS"
 fi
-"$XRUN" -64bit -sv -timescale 1ns/1ps \
+timeout "$VVP_TIMEOUT" "$XRUN" -64bit -sv -timescale 1ns/1ps \
   -F "$MANIFEST" -top "$TOP" \
   -access +rwc -status \
   -xmlibdirname "$OUTDIR/xcelium.d" \

@@ -405,46 +405,18 @@ def _emit_verdi_launcher(view: dict) -> str:
     return "\n".join(lines)
 
 
-def _emit_vcs_compile() -> str:
-    lines = [
+def _emit_vcs_compile_verdi_compat() -> str:
+    """Legacy name — thin wrapper; SSOT is compile.sh (EDA manifest lists)."""
+    return "\n".join([
         "#!/usr/bin/env bash",
-        "# VCS compile (-kdb) for Verdi hierarchy. Usage: ./scripts/vcs/compile.sh <view>",
+        "# Deprecated alias — use ./scripts/vcs/compile.sh <view>",
+        "# Kept so old docs/scripts that call compile_verdi.sh still work.",
         "set -euo pipefail",
         'ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
-        'cd "$ROOT"',
-        'VCS="${VCS:-vcs}"',
-        'VIEW="${1:-full_campaign}"',
-        "",
-        'if ! command -v "$VCS" >/dev/null 2>&1; then',
-        '  echo "[vcs] $VCS not in PATH" >&2; exit 1',
-        "fi",
-        "",
-        "case \"$VIEW\" in",
-    ]
-    for view in VERDI_VIEWS:
-        cat = view.get("category", "test")
-        lines.append(
-            f'  {view["id"]}) TOP="${{VERDI_TOP:-{view["top"]}}}"; '
-            f'FLIST="filelists/{cat}/verdi_{view["id"]}.f" ;;'
-        )
-    lines.extend([
-        "  *)",
-        '    echo "[vcs] unknown view: $VIEW" >&2',
-        f'    echo "  views: {" ".join(v["id"] for v in VERDI_VIEWS)}" >&2',
-        "    exit 1 ;;",
-        "esac",
-        "",
-        'OUTDIR="sim_build/vcs_${VIEW}"',
-        '[[ -f "$FLIST" ]] || { echo "[vcs] missing $FLIST — run: ./example.sh gen" >&2; exit 1; }',
-        "",
-        'mkdir -p "$OUTDIR"',
-        'echo "[vcs] compile view=$VIEW top=$TOP → $OUTDIR/simv"',
-        '"$VCS" -sverilog -full64 -kdb -debug_access+all \\',
-        '  -f "$FLIST" -top "$TOP" -o "$OUTDIR/simv" -Mdir="$OUTDIR/csrc"',
-        'echo "[vcs] verdi -dbdir $OUTDIR/simv.daidir [-ssf <wave.fsdb>]"',
+        'echo "[vcs] compile_verdi.sh is deprecated; forwarding to compile.sh" >&2',
+        'exec "$ROOT/scripts/vcs/compile.sh" "$@"',
         "",
     ])
-    return "\n".join(lines)
 
 
 def _emit_list_file(
@@ -714,6 +686,7 @@ def _emit_iverilog_run() -> str:
         'VIEW="${1:-full_campaign}"',
         'IVERILOG="${IVERILOG:-iverilog}"',
         'VVP="${VVP:-vvp}"',
+        'VVP_TIMEOUT="${VVP_TIMEOUT:-600}"',
         "",
         'eda_require_view "$VIEW"',
         'TOP="${IVERILOG_TOP:-$(eda_top "$VIEW")}"',
@@ -739,8 +712,8 @@ def _emit_iverilog_run() -> str:
         'echo "[iverilog] view=$VIEW top=$TOP → $VVP_OUT"',
         'read -r -a IV_FLAGS <<< "$(eda_iverilog_f_flags "$VIEW")"',
         '"$IVERILOG" -g2012 "${IV_FLAGS[@]}" -s "$TOP" -o "$VVP_OUT"',
-        'echo "[iverilog] vvp $VVP_OUT"',
-        '"$VVP" "$VVP_OUT"',
+        'echo "[iverilog] timeout ${VVP_TIMEOUT}s vvp $VVP_OUT"',
+        'timeout "$VVP_TIMEOUT" "$VVP" "$VVP_OUT"',
         'if [[ -n "$VCD" && -f "$VCD" ]]; then',
         '  echo "[iverilog] VCD: $VCD"',
         "fi",
@@ -761,6 +734,7 @@ def _emit_verilator_run() -> str:
         "",
         'VIEW="${1:-full_campaign}"',
         'VERILATOR="${VERILATOR:-verilator}"',
+        'VVP_TIMEOUT="${VVP_TIMEOUT:-600}"',
         "",
         'eda_require_view "$VIEW"',
         'TOP="${VERILATOR_TOP:-$(eda_top "$VIEW")}"',
@@ -795,8 +769,8 @@ def _emit_verilator_run() -> str:
         'if [[ ! -x "$EXE" ]]; then',
         '  echo "[verilator] missing executable $EXE" >&2; exit 1',
         "fi",
-        'echo "[verilator] run $EXE"',
-        '"$EXE"',
+        'echo "[verilator] timeout ${VVP_TIMEOUT}s $EXE"',
+        'timeout "$VVP_TIMEOUT" "$EXE"',
         'if [[ "${VERILATOR_TRACE:-1}" == "1" ]]; then',
         '  echo "[verilator] VCD trace under $OUTDIR/ (verilator --trace-vcd)"',
         "fi",
@@ -809,7 +783,7 @@ def _emit_vcs_run() -> str:
         "#!/usr/bin/env bash",
         "# Synopsys VCS — compile (if needed) + run simv.",
         "# Usage: ./scripts/vcs/run.sh [view]",
-        "# Env: FORCE_COMPILE=1  VCS_VCD=<path>  VCS_SIMV_OPTS=\"+ntb_random_seed=1\"",
+        "# Env: FORCE_COMPILE=1  VCS_VCD=<path>  VCS_SIMV_OPTS=\"+ntb_random_seed=1\"  VVP_TIMEOUT=600",
         "set -euo pipefail",
         'ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
         'cd "$ROOT"',
@@ -817,6 +791,7 @@ def _emit_vcs_run() -> str:
         'source "$ROOT/scripts/lib/eda_lists.sh"',
         "",
         'VIEW="${1:-full_campaign}"',
+        'VVP_TIMEOUT="${VVP_TIMEOUT:-600}"',
         'eda_require_view "$VIEW"',
         'OUTDIR="sim_build/vcs_${VIEW}"',
         'SIMV="$OUTDIR/simv"',
@@ -828,8 +803,9 @@ def _emit_vcs_run() -> str:
         "",
         'VCD="${VCS_VCD:-$OUTDIR/sim.vcd}"',
         'mkdir -p "$OUTDIR"',
-        'echo "[vcs] run $SIMV +vcd+$VCD"',
-        '"$SIMV" +vcd+:"$VCD" ${VCS_SIMV_OPTS:-} | tee "$OUTDIR/sim.log"',
+        'echo "[vcs] timeout ${VVP_TIMEOUT}s $SIMV +vcd+$VCD"',
+        '# shellcheck disable=SC2086',
+        'timeout "$VVP_TIMEOUT" "$SIMV" +vcd+:"$VCD" ${VCS_SIMV_OPTS:-} | tee "$OUTDIR/sim.log"',
         'echo "[vcs] log=$OUTDIR/sim.log vcd=$VCD"',
         'echo "[vcs] verdi -dbdir $OUTDIR/simv.daidir -ssf $VCD"',
         "",
@@ -841,7 +817,7 @@ def _emit_xcelium_run() -> str:
         "#!/usr/bin/env bash",
         "# Cadence Xcelium xrun — elaborate + simulate (single invocation).",
         "# Usage: ./scripts/xcelium/run.sh [view]",
-        "# Env: XRUN_OPTS=\"-svseed random\"  XRUN_PROBE=1",
+        "# Env: XRUN_OPTS=\"-svseed random\"  XRUN_PROBE=1  VVP_TIMEOUT=600",
         "set -euo pipefail",
         'ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
         'cd "$ROOT"',
@@ -850,6 +826,7 @@ def _emit_xcelium_run() -> str:
         "",
         'VIEW="${1:-full_campaign}"',
         'XRUN="${XRUN:-xrun}"',
+        'VVP_TIMEOUT="${VVP_TIMEOUT:-600}"',
         "",
         'eda_require_view "$VIEW"',
         'TOP="${XRUN_TOP:-$(eda_top "$VIEW")}"',
@@ -872,12 +849,12 @@ def _emit_xcelium_run() -> str:
         "EOF",
         "fi",
         "",
-        'echo "[xrun] view=$VIEW top=$TOP → $OUTDIR/xcelium.d"',
+        'echo "[xrun] view=$VIEW top=$TOP → $OUTDIR/xcelium.d (timeout ${VVP_TIMEOUT}s)"',
         'XRUN_EXTRA=()',
         'if [[ -n "${XRUN_OPTS:-}" ]]; then',
         '  read -r -a XRUN_EXTRA <<< "$XRUN_OPTS"',
         'fi',
-        '"$XRUN" -64bit -sv -timescale 1ns/1ps \\',
+        'timeout "$VVP_TIMEOUT" "$XRUN" -64bit -sv -timescale 1ns/1ps \\',
         '  -F "$MANIFEST" -top "$TOP" \\',
         '  -access +rwc -status \\',
         '  -xmlibdirname "$OUTDIR/xcelium.d" \\',
@@ -1222,7 +1199,8 @@ def main() -> int:
         ),
         (
             "rtl.f",
-            "Work — real SoC attach (vcpu + bridges + soc_cell + connect VH)",
+            "Work — real SoC attach (vcpu + bridges + soc_cell + connect VH); "
+            "sim with cores needs +define+VERIF_POOL_HUB=... (see eda/work/integration/defines.list)",
             _check_paths(RTL_INTEGRATION, opt),
             None,
             None,
@@ -1334,7 +1312,7 @@ def main() -> int:
     for view in VERDI_VIEWS:
         _write_executable(VERDI_DIR / f"{view['id']}.sh", _emit_verdi_launcher(view))
     _write_executable(VCS_DIR / "compile.sh", _emit_vcs_compile_eda())
-    _write_executable(VCS_DIR / "compile_verdi.sh", _emit_vcs_compile())
+    _write_executable(VCS_DIR / "compile_verdi.sh", _emit_vcs_compile_verdi_compat())
     _write_executable(XCELIUM_DIR / "xrun.sh", _emit_xcelium_xrun())
     (VERDI_DIR / "README.txt").write_text(_emit_verdi_readme(), encoding="utf-8")
     _generate_sim_run_scripts()

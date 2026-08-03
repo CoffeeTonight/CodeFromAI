@@ -118,7 +118,7 @@ def emit_vh(steps: list[dict], path: str) -> None:
             lines.append(f"  decode_read(32'h{addr:08X}, 3'd4, rd, r, p); \\")
             lines.append(
                 "  if (rd !== 32'h{exp:08X}) "
-                "$display(\"[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h\", "
+                "$fatal(1, \"[SoC] init read mismatch @0x%08h got=0x%08h expect=0x%08h\", "
                 "32'h{addr:08X}, rd, 32'h{exp:08X}); \\".format(exp=s["expect"], addr=addr)
             )
     lines += ["", "`endif", ""]

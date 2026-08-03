@@ -50,7 +50,6 @@ module verif_apb2_master #(
     input  [2:0]  size;
     output [31:0] data;
     output [1:0]  resp;
-    integer guard;
     begin
       resp = 2'd0;
       data = 32'h0;
@@ -83,7 +82,6 @@ module verif_apb2_master #(
     input  [31:0] data;
     input  [2:0]  size;
     output [1:0]  resp;
-    integer guard;
     reg [31:0] oldw;
     reg [31:0] merged;
     reg [31:0] waddr;

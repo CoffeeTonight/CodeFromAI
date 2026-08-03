@@ -163,9 +163,8 @@ module tb_soc_dut;
     $display("========================================================================");
 
     if (total_fail != 0 || total_pass != TB_EXPECTED_PASS) begin
-      $display("[FAIL] SoC verification campaign failed (pass=%0d expected %0d).",
-               total_pass, TB_EXPECTED_PASS);
-      $fatal(1);
+      $fatal(1, "tb_soc_dut: SoC verification campaign failed (pass=%0d fail=%0d expected_pass=%0d)",
+             total_pass, total_fail, TB_EXPECTED_PASS);
     end
     $display("[SUCCESS] SoC verification campaign completed.");
     $finish;

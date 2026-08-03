@@ -4,7 +4,14 @@
 
 **Package root:** Directory containing `example.sh`, `firmware/campaign/`, `rtl/`.
 
-**Human companion docs:** [howto_integrate.md](howto_integrate.md) (signal-level), [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (procedure), [README.md](README.md) (build gates).
+**Doc split (read this first if unsure):**
+
+| Who | Start here |
+|-----|------------|
+| **LLM / agent** | This file + index [docs/LLM.md](docs/LLM.md) |
+| **Human engineer** | [docs/HUMAN.md](docs/HUMAN.md) (commands, edit/gen, 15‑min attach) |
+
+**Human deep dives:** [howto_integrate.md](howto_integrate.md) (signals), [howto_integrate2yourSoC.md](howto_integrate2yourSoC.md) (procedure), [README.md](README.md) (full reference).
 
 **Slot / bus / targets SSOT (human + LLM):** [firmware/campaign/campaign_slots_GUIDE.md](firmware/campaign/campaign_slots_GUIDE.md) — edit **only** `campaign_slots.yaml`.
 

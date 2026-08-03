@@ -264,13 +264,14 @@ module verif_ahb_master #(
     input [31:0] addr;
     input [2:0]  size;
     begin
-      HBURST = HBURST_INCR;
-      HPROT = 4'b0011;
-      HMASTLOCK = 1'b0;
-      HNONSEC = 1'b1;
-      HEXCL = 1'b0;
-      HADDR = addr;
-      HSIZE = hsize_for_bytes(size);
+      // NBA: same-cycle with HTRANS<=NONSEQ from issue path (no blocking/NBA mix)
+      HBURST <= HBURST_INCR;
+      HPROT <= 4'b0011;
+      HMASTLOCK <= 1'b0;
+      HNONSEC <= 1'b1;
+      HEXCL <= 1'b0;
+      HADDR <= addr;
+      HSIZE <= hsize_for_bytes(size);
     end
   endtask
 

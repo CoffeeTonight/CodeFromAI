@@ -122,8 +122,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 4,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARLOCK", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWLOCK", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [
@@ -137,8 +137,8 @@ CELL_SPECS: dict[str, dict] = {
         "rst": ("ARESETn", "ARESETn"),
         "axi_prot": 5,
         "master_out": [
-            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
-            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
+            "ARID", "ARADDR", "ARLEN", "ARSIZE", "ARBURST", "ARLOCK", "ARQOS", "ARREGION", "ARPROT", "ARVALID", "RREADY",
+            "AWID", "AWADDR", "AWLEN", "AWSIZE", "AWBURST", "AWLOCK", "AWQOS", "AWREGION", "AWATOP", "AWPROT", "AWVALID",
             "WID", "WDATA", "WSTRB", "WLAST", "WVALID", "BREADY",
         ],
         "master_in": [

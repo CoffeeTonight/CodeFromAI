@@ -6,7 +6,7 @@
 +incdir+include
 +incdir+firmware/campaign/include
 
-// Work — real SoC attach (vcpu + bridges + soc_cell + connect VH)
+// Work — real SoC attach (vcpu + bridges + soc_cell + connect VH); sim with cores needs +define+VERIF_POOL_HUB=... (see eda/work/integration/defines.list)
 // iverilog: iverilog -g2012 -f filelists/incdirs.f -f filelists/work/rtl.f
 
 rtl/verif_cpu_bus.v

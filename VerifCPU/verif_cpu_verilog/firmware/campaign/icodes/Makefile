@@ -42,18 +42,17 @@ clean:
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# RULE_ICODE is $(eval $(call ...))-expanded: each shell $ must be $$$$ so that
-# after call ($$→$) the recipe still has $$ for make→shell. Otherwise $SZ → $S + "Z"
-# (empty S) and the size check prints "Z bytes".
-define RULE_ICODE
-$(BUILD_DIR)/$(1).bin: $(BUILD_DIR)/$(1).elf
-	$(OBJCOPY) -O binary $$< $$@
-	@SZ=$$$$(wc -c < "$$@" | tr -d ' '); \
-		if [ "$$$$SZ" -gt $(ICODE_MAX) ]; then \
-			echo "ERROR: icode $(1) is $$$$SZ bytes (max $(ICODE_MAX))"; exit 1; \
+# .bin size check lives in a pattern rule (single make→shell $$ expansion only).
+# .elf still uses $(eval $(call ...)) for per-source paths under sfr/, sram/, uart/.
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	$(OBJCOPY) -O binary $< $@
+	@SZ=$$(wc -c < "$@" | tr -d ' '); \
+		if [ "$$SZ" -gt $(ICODE_MAX) ]; then \
+			echo "ERROR: icode $* is $$SZ bytes (max $(ICODE_MAX))"; exit 1; \
 		fi; \
-		echo "  -> $$@ ($$$$SZ bytes)"
+		echo "  -> $@ ($$SZ bytes)"
 
+define RULE_ICODE_ELF
 $(BUILD_DIR)/$(1).elf: $(2) icode.ld | $(BUILD_DIR)
 	@echo "Building icode $(1)..."
 	$(CC) $(CFLAGS) -c $(2) -o $(BUILD_DIR)/$(1).o
@@ -61,4 +60,4 @@ $(BUILD_DIR)/$(1).elf: $(2) icode.ld | $(BUILD_DIR)
 	$(OBJDUMP) -d $$@ > $(BUILD_DIR)/$(1).dis
 endef
 
-$(foreach s,$(SOURCES),$(eval $(call RULE_ICODE,$(basename $(notdir $(s))),$(s))))
+$(foreach s,$(SOURCES),$(eval $(call RULE_ICODE_ELF,$(basename $(notdir $(s))),$(s))))

@@ -30,6 +30,7 @@ void phase_c_entry(void)
     rv_addi(13, 0, 1);
     rv_beq(12, 13, 8);
     rv_addi(16, 0, 0xAB);
+    /* Under vdummy_on, bus reads return 0xDEADDEAD — validates dummy path, not live SFR */
     load_soc_addr(10, SFR_CTRL);
     rv_lw(11, 10, 0);
     rv_lui(12, 0xDEADE);
@@ -52,8 +53,13 @@ void phase_c_entry(void)
     rv_addi(1, 0, 0);
     vassert_rs1(1, 43);
     vhw_release(10, 14);
+    /* Overlay cleared: real bus value = Phase A write (SFR_CTRL=1), not dummy DEADDEAD */
     rv_lw(11, 10, 0);
+    rv_addi(12, 0, 1);
+    rv_xor(13, 11, 12);
     rv_addi(1, 0, 1);
+    rv_beq(13, 0, 8);
+    rv_addi(1, 0, 0);
     vassert_rs1(1, 41);
     load_soc_addr(10, SFR_XZ_PORT);
     rv_lw(11, 10, 0);

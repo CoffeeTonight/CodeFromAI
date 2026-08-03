@@ -136,8 +136,8 @@ module tb_full_campaign;
       $fatal(1, "tb_full_campaign: pass=%0d expected %0d", check_pass, TB_EXPECTED_PASS);
     if (check_fail != 0) begin
       vcd_marker = 32'hBADC0DE;
-      $display("[FAIL] iverilog campaign — see checklist above.");
-      $fatal(1);
+      $fatal(1, "tb_full_campaign: checklist failed (pass=%0d fail=%0d expected_pass=%0d)",
+             check_pass, check_fail, TB_EXPECTED_PASS);
     end
     vcd_marker = 32'hDEADDEAD;
     #1;
